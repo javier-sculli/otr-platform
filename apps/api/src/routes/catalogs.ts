@@ -29,10 +29,10 @@ export async function catalogsRoutes(fastify: FastifyInstance) {
       orderBy: { name: 'asc' },
     });
 
-    const data = clients.map(client => {
+    const data = clients.map((client: typeof clients[number]) => {
       const tickets = client.tickets;
-      const enFlujo = tickets.filter(t => t.status !== 'APROBADO').length;
-      const aprobados = tickets.filter(t => t.status === 'APROBADO').length;
+      const enFlujo = tickets.filter((t: typeof tickets[number]) => t.status !== 'APROBADO').length;
+      const aprobados = tickets.filter((t: typeof tickets[number]) => t.status === 'APROBADO').length;
 
       return {
         id: client.id,
