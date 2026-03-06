@@ -1,0 +1,159 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum UserRole {
+  CONTENIDISTA
+  COORDINADOR
+  DIRECCION
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String?  // Hashed — null para usuarios de Google
+  googleId  String?  @unique @map("google_id")
+  name      String
+  role      UserRole
+  areaId    String?  @map("area_id")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  area    Area?    @relation(fields: [areaId], references: [id])
+  tickets Ticket[]
+  clients Client[]
+
+  @@map("users")
+}
+
+model Client {
+  id        String   @id @default(uuid())
+  name      String
+  active    Boolean  @default(true)
+  ownerId   String?  @map("owner_id")
+  canales   String[] @default([])
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  owner      User?       @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+  tickets    Ticket[]
+  brandVoice BrandVoice?
+
+  @@index([ownerId])
+  @@map("clients")
+}
+
+model BrandVoice {
+  id        String   @id @default(uuid())
+  clientId  String   @unique @map("client_id")
+  content   Json     @default("{}")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@map("brand_voices")
+}
+
+model Area {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  users   User[]
+  tickets Ticket[]
+
+  @@map("areas")
+}
+
+model TicketType {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  tickets Ticket[]
+
+  @@map("ticket_types")
+}
+
+enum TicketStatus {
+  BACKLOG
+  BRIEF
+  CONTENIDO
+  DISENO
+  REVISION
+  APROBADO
+  CANCELADO
+}
+
+enum Prioridad {
+  ALTA
+  MEDIA
+  BAJA
+}
+
+model Ticket {
+  id           String         @id @default(uuid())
+  title        String
+  objetivo     String?        @db.Text
+  description  String?        @db.Text
+  canal        String?
+  clientId     String         @map("client_id")
+  ownerId      String         @map("owner_id")
+  areaId       String?        @map("area_id")
+  ticketTypeId String?        @map("ticket_type_id")
+  status       TicketStatus   @default(BACKLOG)
+  prioridad    Prioridad      @default(MEDIA)
+  dueDate      DateTime?      @map("due_date")
+  content      String?        @db.Text
+  keywords     String?
+  links        String[]       @default([])
+  createdAt    DateTime       @default(now()) @map("created_at")
+  updatedAt    DateTime       @updatedAt @map("updated_at")
+
+  // Relations
+  client      Client       @relation(fields: [clientId], references: [id])
+  owner       User         @relation(fields: [ownerId], references: [id])
+  area        Area?        @relation(fields: [areaId], references: [id])
+  ticketType  TicketType?  @relation(fields: [ticketTypeId], references: [id])
+  publication Publication?
+
+  @@index([clientId])
+  @@index([ownerId])
+  @@index([areaId])
+  @@index([status])
+  @@index([status, createdAt])
+  @@index([clientId, status])
+  @@map("tickets")
+}
+
+model Publication {
+  id          String   @id @default(uuid())
+  ticketId    String   @unique @map("ticket_id")
+  url         String
+  publishedAt DateTime @map("published_at")
+  metrics     Json     @default("{}")
+  insights    String?  @db.Text
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  ticket Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  @@map("publications")
+}

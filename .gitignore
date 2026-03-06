@@ -1,0 +1,32 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Testing
+coverage/
+
+# Production
+dist/
+build/
+
+# Misc
+.DS_Store
+*.log
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Claude Code local config (puede tener permisos y datos sensibles)
+.claude/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Prisma generated client (se regenera en build)
+**/prisma/generated/
