@@ -154,6 +154,7 @@ class ApiClient {
     tone: string;
     keywords: string;
     outputLength: string;
+    model?: string;
   }) {
     return this.request<{ newContent: string | null; summary: string }>(`/ai/${ticketId}/chat`, {
       method: 'POST',

@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowLeft, Sparkles, Bold, Italic, Underline, List, ListOrdered,
   Link2, Image as ImageIcon, Type, Eye, Send, GripVertical, Check, AlertCircle,
+  Columns2,
 } from 'lucide-react';
 import { api } from '../lib/api';
 
@@ -18,6 +19,8 @@ const STATUS_LABELS: Record<string, string> = {
   DISENO: 'Diseño', REVISION: 'Revisión', APROBADO: 'Aprobado',
 };
 
+const QUICK_ACTIONS = ['Redactar nuevamente', 'Reforzar tono', 'Más conciso', 'Regenerar hook'];
+
 export function ContentPage() {
   const { ticketId } = useParams<{ ticketId: string }>();
   const navigate = useNavigate();
@@ -30,18 +33,25 @@ export function ContentPage() {
   const [outputLength, setOutputLength] = useState<'S' | 'M' | 'L'>('M');
   const [contentText, setContentText] = useState('');
   const [charCount, setCharCount] = useState(0);
+  // Dual mode — second model content
+  const [contentTextB, setContentTextB] = useState('');
+  const [charCountB, setCharCountB] = useState(0);
+  const [dualMode, setDualMode] = useState(false);
+
   const [aiPrompt, setAiPrompt] = useState('');
-  const [chatWidth, setChatWidth] = useState(320);
+  const [chatWidth, setChatWidth] = useState(300);
   const [isResizing, setIsResizing] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
+  const [isAiLoading, setIsAiLoading] = useState(false);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([
     {
       id: '1',
       role: 'assistant',
-      content: 'Hola! Estoy lista para ayudarte a crear contenido. Podés pedirme que genere el contenido inicial o que haga modificaciones específicas.',
+      content: 'Hola! Estoy lista para ayudarte. Podés pedirme que genere el contenido inicial o hacer modificaciones específicas.',
     },
   ]);
 
+  const chatEndRef = useRef<HTMLDivElement>(null);
   const resizingRef = useRef(false);
 
   const { data: ticketData, isLoading } = useQuery({
@@ -61,6 +71,10 @@ export function ContentPage() {
     }
   }, [ticketData]);
 
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [chatMessages]);
+
   const saveMutation = useMutation({
     mutationFn: () => api.updateTicket(ticketId!, { title, objetivo: brief, keywords, content: contentText }),
     onSuccess: () => {
@@ -76,8 +90,6 @@ export function ContentPage() {
     setHasChanges(true);
   };
 
-  const [isAiLoading, setIsAiLoading] = useState(false);
-
   const callAI = async (instruction: string) => {
     if (!ticketId || isAiLoading) return;
 
@@ -89,24 +101,43 @@ export function ContentPage() {
     setIsAiLoading(true);
 
     try {
-      const result = await api.chatWithAI(ticketId, {
-        instruction,
-        currentContent: contentText,
-        brief,
-        tone,
-        keywords,
-        outputLength,
-      });
+      if (dualMode) {
+        const [resultA, resultB] = await Promise.all([
+          api.chatWithAI(ticketId, { instruction, currentContent: contentText, brief, tone, keywords, outputLength, model: 'gpt-4o' }),
+          api.chatWithAI(ticketId, { instruction, currentContent: contentTextB, brief, tone, keywords, outputLength, model: 'claude-sonnet-4-6' }),
+        ]);
 
-      if (result.newContent !== null) {
-        setContentText(result.newContent);
-        setCharCount(result.newContent.length);
-        setHasChanges(true);
+        if (resultA.newContent !== null) {
+          setContentText(resultA.newContent);
+          setCharCount(resultA.newContent.length);
+          setHasChanges(true);
+        }
+        if (resultB.newContent !== null) {
+          setContentTextB(resultB.newContent);
+          setCharCountB(resultB.newContent.length);
+        }
+
+        setChatMessages(prev =>
+          prev.map(m => m.id === thinkingId
+            ? { ...m, content: `GPT-4o: ${resultA.summary}\n\nClaude Sonnet: ${resultB.summary}` }
+            : m
+          )
+        );
+      } else {
+        const result = await api.chatWithAI(ticketId, {
+          instruction, currentContent: contentText, brief, tone, keywords, outputLength,
+        });
+
+        if (result.newContent !== null) {
+          setContentText(result.newContent);
+          setCharCount(result.newContent.length);
+          setHasChanges(true);
+        }
+
+        setChatMessages(prev =>
+          prev.map(m => m.id === thinkingId ? { ...m, content: result.summary } : m)
+        );
       }
-
-      setChatMessages(prev =>
-        prev.map(m => m.id === thinkingId ? { ...m, content: result.summary } : m)
-      );
     } catch (err: any) {
       setChatMessages(prev =>
         prev.map(m => m.id === thinkingId
@@ -126,15 +157,11 @@ export function ContentPage() {
     callAI(instruction);
   };
 
-  const handleQuickAction = (action: string) => {
-    callAI(action);
-  };
-
   useEffect(() => {
     const onMouseMove = (e: MouseEvent) => {
       if (!resizingRef.current) return;
       const newWidth = e.clientX;
-      if (newWidth >= 250 && newWidth <= 600) setChatWidth(newWidth);
+      if (newWidth >= 220 && newWidth <= 480) setChatWidth(newWidth);
     };
     const onMouseUp = () => {
       resizingRef.current = false;
@@ -159,35 +186,35 @@ export function ContentPage() {
   }
 
   return (
-    <div className="h-[calc(100vh-64px)] flex flex-col bg-[#fafafa]" style={{ userSelect: isResizing ? 'none' : 'auto' }}>
+    <div className="h-[calc(100vh-64px)] flex flex-col bg-[#fafafa] overflow-hidden" style={{ userSelect: isResizing ? 'none' : 'auto' }}>
       {/* Header */}
       <div className="bg-white border-b-2 border-[#000033]/10 px-6 py-2.5 flex-shrink-0">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
+        <div className="flex items-center justify-between min-w-0">
+          <div className="flex items-center gap-4 min-w-0">
             <button
               onClick={() => navigate('/backlog')}
-              className="flex items-center gap-2 text-[#000033]/60 hover:text-[#000033] font-medium text-sm transition-colors"
+              className="flex items-center gap-2 text-[#000033]/60 hover:text-[#000033] font-medium text-sm transition-colors flex-shrink-0"
             >
               <ArrowLeft className="w-4 h-4" />
               Volver
             </button>
-            <div className="h-5 w-px bg-[#000033]/20" />
-            <div className="flex items-center gap-3">
-              <h1 className="text-lg font-bold text-[#000033]">{ticket?.title ?? '...'}</h1>
+            <div className="h-5 w-px bg-[#000033]/20 flex-shrink-0" />
+            <div className="flex items-center gap-3 min-w-0 overflow-hidden">
+              <h1 className="text-lg font-bold text-[#000033] truncate">{ticket?.title ?? '...'}</h1>
               {ticket?.client && (
-                <span className="px-3 py-1 bg-[#024fff]/10 border-2 border-[#024fff]/20 text-[#024fff] text-sm font-bold rounded-lg">
+                <span className="px-3 py-1 bg-[#024fff]/10 border-2 border-[#024fff]/20 text-[#024fff] text-sm font-bold rounded-lg flex-shrink-0">
                   {ticket.client.name}
                 </span>
               )}
               {ticket?.status && (
-                <span className="px-2.5 py-0.5 bg-[#00ff99]/20 border-2 border-[#00ff99]/40 text-[#000033] text-xs font-bold rounded-lg capitalize">
+                <span className="px-2.5 py-0.5 bg-[#00ff99]/20 border-2 border-[#00ff99]/40 text-[#000033] text-xs font-bold rounded-lg capitalize flex-shrink-0">
                   {STATUS_LABELS[ticket.status] ?? ticket.status}
                 </span>
               )}
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 flex-shrink-0">
             {!hasChanges && !saveMutation.isPending && saveMutation.isSuccess && (
               <span className="text-xs text-[#000033]/40 flex items-center gap-1.5">
                 <Check className="w-3.5 h-3.5 text-[#00ff99]" />
@@ -217,6 +244,7 @@ export function ContentPage() {
 
       {/* Main Layout */}
       <div className="flex-1 overflow-hidden flex min-h-0">
+
         {/* Left Sidebar: AI Chat - Resizable */}
         <div
           style={{ width: chatWidth }}
@@ -224,9 +252,23 @@ export function ContentPage() {
         >
           {/* Chat Header */}
           <div className="px-3 py-2 border-b-2 border-[#000033]/10 flex-shrink-0">
-            <div className="flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-[#024fff]" />
-              <h3 className="text-xs font-bold text-[#000033]">Asistente IA</h3>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-[#024fff]" />
+                <h3 className="text-xs font-bold text-[#000033]">Asistente IA</h3>
+              </div>
+              <button
+                onClick={() => setDualMode(prev => !prev)}
+                title="Modo dual: comparar GPT-4o vs Claude Sonnet"
+                className={`flex items-center gap-1.5 px-2 py-1 text-[9px] font-bold rounded-md transition-all ${
+                  dualMode
+                    ? 'bg-[#024fff] text-white shadow shadow-[#024fff]/30'
+                    : 'border border-[#000033]/20 text-[#000033]/50 hover:border-[#024fff]/40 hover:text-[#024fff]'
+                }`}
+              >
+                <Columns2 className="w-3 h-3" />
+                DUAL
+              </button>
             </div>
           </div>
 
@@ -238,7 +280,7 @@ export function ContentPage() {
                 className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
               >
                 <div
-                  className={`max-w-[85%] px-2.5 py-1.5 rounded-lg text-xs leading-relaxed ${
+                  className={`max-w-[88%] px-2.5 py-1.5 rounded-lg text-xs leading-relaxed whitespace-pre-wrap ${
                     message.role === 'user'
                       ? 'bg-[#024fff] text-white'
                       : message.content === '...'
@@ -250,10 +292,27 @@ export function ContentPage() {
                 </div>
               </div>
             ))}
+            <div ref={chatEndRef} />
+          </div>
+
+          {/* Quick Actions — chips sobre el input */}
+          <div className="border-t-2 border-[#000033]/10 px-2.5 pt-2 flex-shrink-0">
+            <div className="flex gap-1 flex-wrap">
+              {QUICK_ACTIONS.map(action => (
+                <button
+                  key={action}
+                  onClick={() => callAI(action)}
+                  disabled={isAiLoading}
+                  className="px-2 py-1 bg-[#00ff99]/10 hover:bg-[#00ff99]/20 text-[#000033] text-[10px] font-bold rounded-full transition-all border border-[#00ff99]/40 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  {action}
+                </button>
+              ))}
+            </div>
           </div>
 
           {/* Chat Input */}
-          <div className="border-t-2 border-[#000033]/10 p-2.5 flex-shrink-0">
+          <div className="px-2.5 pb-2.5 pt-2 flex-shrink-0">
             <div className="flex gap-2">
               <textarea
                 value={aiPrompt}
@@ -295,12 +354,13 @@ export function ContentPage() {
         </div>
 
         {/* Right Panel: Brief + Editor */}
-        <div className="flex-1 flex flex-col bg-white overflow-hidden min-h-0">
-          {/* Brief Section */}
-          <div className="bg-white border-b-2 border-[#000033]/10 px-6 py-2 flex-shrink-0">
-            <div className="flex items-start gap-3">
-              {/* Title */}
-              <div className="flex-1">
+        <div className="flex-1 flex flex-col bg-white overflow-hidden min-h-0 min-w-0">
+
+          {/* Brief Section — 2 rows para que no se achique en zoom alto */}
+          <div className="bg-white border-b-2 border-[#000033]/10 px-4 py-2 flex-shrink-0">
+            {/* Fila 1: Título + Brief */}
+            <div className="flex items-start gap-3 mb-2">
+              <div className="w-40 flex-shrink-0">
                 <label className="block text-[9px] font-bold text-[#000033]/60 mb-1">TÍTULO</label>
                 <input
                   type="text"
@@ -309,9 +369,7 @@ export function ContentPage() {
                   className="w-full px-2.5 py-1.5 border-2 border-[#000033]/10 rounded-md text-xs focus:outline-none focus:ring-2 focus:ring-[#024fff] text-[#000033] hover:border-[#024fff]/40 transition-all"
                 />
               </div>
-
-              {/* Brief */}
-              <div className="flex-[2]">
+              <div className="flex-1 min-w-0">
                 <label className="block text-[9px] font-bold text-[#000033]/60 mb-1">BRIEF</label>
                 <input
                   type="text"
@@ -320,9 +378,10 @@ export function ContentPage() {
                   className="w-full px-2.5 py-1.5 border-2 border-[#000033]/10 rounded-md text-xs focus:outline-none focus:ring-2 focus:ring-[#024fff] text-[#000033] hover:border-[#024fff]/40 transition-all"
                 />
               </div>
-
-              {/* Tone */}
-              <div className="flex-1">
+            </div>
+            {/* Fila 2: Tono + Keywords + Length + Brand Kit */}
+            <div className="flex items-start gap-3">
+              <div className="w-36 flex-shrink-0">
                 <label className="block text-[9px] font-bold text-[#000033]/60 mb-1">TONO</label>
                 <input
                   type="text"
@@ -332,9 +391,7 @@ export function ContentPage() {
                   className="w-full px-2.5 py-1.5 border-2 border-[#000033]/10 rounded-md text-xs focus:outline-none focus:ring-2 focus:ring-[#024fff] text-[#000033] placeholder-[#000033]/30 hover:border-[#024fff]/40 transition-all"
                 />
               </div>
-
-              {/* Keywords */}
-              <div className="flex-1">
+              <div className="flex-1 min-w-0">
                 <label className="block text-[9px] font-bold text-[#000033]/60 mb-1">KEYWORDS</label>
                 <input
                   type="text"
@@ -344,9 +401,7 @@ export function ContentPage() {
                   className="w-full px-2.5 py-1.5 border-2 border-[#000033]/10 rounded-md text-xs focus:outline-none focus:ring-2 focus:ring-[#024fff] text-[#000033] placeholder-[#000033]/30 hover:border-[#024fff]/40 transition-all"
                 />
               </div>
-
-              {/* Output Length */}
-              <div>
+              <div className="flex-shrink-0">
                 <label className="block text-[9px] font-bold text-[#000033]/60 mb-1">LENGTH</label>
                 <div className="flex gap-1">
                   {(['S', 'M', 'L'] as const).map(l => (
@@ -364,9 +419,7 @@ export function ContentPage() {
                   ))}
                 </div>
               </div>
-
-              {/* Brand Kit */}
-              <div className="flex items-end">
+              <div className="flex items-end flex-shrink-0">
                 <button className="flex items-center gap-2 px-2.5 py-1.5 border-2 border-[#00ff99]/40 rounded-md bg-[#00ff99]/10 hover:bg-[#00ff99]/20 transition-all">
                   <div className="w-2 h-2 rounded-full bg-[#00ff99]" />
                   <span className="text-xs font-bold text-[#000033]">Kit de Marca</span>
@@ -407,38 +460,68 @@ export function ContentPage() {
                   <ImageIcon className="w-3.5 h-3.5 text-[#000033]/60" />
                 </button>
               </div>
-              <span className="text-[10px] text-[#000033]/60">{charCount} caracteres</span>
+              {!dualMode && (
+                <span className="text-[10px] text-[#000033]/60">{charCount} caracteres</span>
+              )}
             </div>
           </div>
 
-          {/* Editor Area */}
-          <div className="flex-1 overflow-y-auto px-8 py-4 min-h-0 relative">
-            <textarea
-              value={contentText}
-              onChange={handleContentChange}
-              className="w-full h-full resize-none border-none outline-none text-[#000033] text-sm leading-relaxed bg-transparent"
-              placeholder="Empieza a escribir o pedile a la IA que genere contenido..."
-            />
-
-            {/* Floating Quick Actions */}
-            <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-2 bg-white/95 backdrop-blur-sm px-3 py-2 rounded-full border-2 border-[#00ff99]/30 shadow-lg">
-              {[
-                'Redactar nuevamente',
-                'Reforzar tono',
-                'Más conciso',
-                'Regenerar hook',
-              ].map(action => (
-                <button
-                  key={action}
-                  onClick={() => handleQuickAction(action)}
-                  disabled={isAiLoading}
-                  className="px-3 py-1.5 bg-[#00ff99]/10 hover:bg-[#00ff99]/20 text-[#000033] text-xs font-bold rounded-full transition-all border border-[#00ff99]/40 disabled:opacity-40 disabled:cursor-not-allowed"
-                >
-                  {action}
-                </button>
-              ))}
+          {/* Editor Area — single o dual */}
+          {dualMode ? (
+            <div className="flex-1 overflow-hidden flex min-h-0">
+              {/* Editor A — GPT-4o mini */}
+              <div className="flex-1 flex flex-col border-r-2 border-[#000033]/10 min-h-0 min-w-0">
+                <div className="px-4 py-1.5 border-b border-[#000033]/10 flex items-center justify-between flex-shrink-0 bg-[#fafafa]">
+                  <span className="text-[9px] font-bold text-[#000033]/50 uppercase tracking-wide">GPT-4o</span>
+                  <span className="text-[10px] text-[#000033]/40">{charCount} car</span>
+                </div>
+                <div className="flex-1 overflow-y-auto px-6 py-4 min-h-0">
+                  <textarea
+                    value={contentText}
+                    onChange={handleContentChange}
+                    className="w-full h-full resize-none border-none outline-none text-[#000033] text-sm leading-relaxed bg-transparent"
+                    placeholder="Respuesta del modelo rápido..."
+                  />
+                </div>
+              </div>
+              {/* Editor B — GPT-4o */}
+              <div className="flex-1 flex flex-col min-h-0 min-w-0">
+                <div className="px-4 py-1.5 border-b border-[#000033]/10 flex items-center justify-between flex-shrink-0 bg-[#fafafa]">
+                  <span className="text-[9px] font-bold text-[#024fff]/70 uppercase tracking-wide">Claude Sonnet</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] text-[#000033]/40">{charCountB} car</span>
+                    <button
+                      onClick={() => {
+                        setContentText(contentTextB);
+                        setCharCount(charCountB);
+                        setHasChanges(true);
+                      }}
+                      className="text-[9px] px-2 py-0.5 bg-[#00ff99]/20 border border-[#00ff99]/50 text-[#000033] font-bold rounded-full hover:bg-[#00ff99]/40 transition-all"
+                    >
+                      Usar esta
+                    </button>
+                  </div>
+                </div>
+                <div className="flex-1 overflow-y-auto px-6 py-4 min-h-0">
+                  <textarea
+                    value={contentTextB}
+                    onChange={e => { setContentTextB(e.target.value); setCharCountB(e.target.value.length); }}
+                    className="w-full h-full resize-none border-none outline-none text-[#000033] text-sm leading-relaxed bg-transparent"
+                    placeholder="Respuesta del modelo potente..."
+                  />
+                </div>
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="flex-1 overflow-y-auto px-8 py-4 min-h-0">
+              <textarea
+                value={contentText}
+                onChange={handleContentChange}
+                className="w-full h-full resize-none border-none outline-none text-[#000033] text-sm leading-relaxed bg-transparent"
+                placeholder="Empieza a escribir o pedile a la IA que genere contenido..."
+              />
+            </div>
+          )}
         </div>
       </div>
     </div>

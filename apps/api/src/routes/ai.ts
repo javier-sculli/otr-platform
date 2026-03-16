@@ -1,5 +1,6 @@
 import { FastifyInstance } from 'fastify';
 import OpenAI from 'openai';
+import Anthropic from '@anthropic-ai/sdk';
 import { prisma } from '../lib/prisma.js';
 import { authenticate } from '../middleware/auth.js';
 import { config } from '../config.js';
@@ -117,6 +118,7 @@ export async function aiRoutes(fastify: FastifyInstance) {
       tone: string;
       keywords: string;
       outputLength: string;
+      model?: string;
     };
   }>('/:ticketId/chat', async (request, reply) => {
     if (!config.openaiApiKey) {
@@ -124,7 +126,9 @@ export async function aiRoutes(fastify: FastifyInstance) {
     }
 
     const { ticketId } = request.params;
-    const { instruction, currentContent, brief, tone, keywords, outputLength } = request.body;
+    const { instruction, currentContent, brief, tone, keywords, outputLength, model } = request.body;
+    const allowedModels = ['gpt-4o', 'claude-sonnet-4-6'];
+    const selectedModel = model && allowedModels.includes(model) ? model : 'gpt-4o';
 
     // Load ticket + client + brand voice
     const ticket = await prisma.ticket.findUnique({
@@ -153,18 +157,34 @@ export async function aiRoutes(fastify: FastifyInstance) {
       brandVoice,
     });
 
-    const openai = new OpenAI({ apiKey: config.openaiApiKey });
+    let raw = '';
 
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
-      temperature: 0.7,
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: instruction },
-      ],
-    });
+    if (selectedModel !== 'claude-sonnet-4-6') {
+      const openai = new OpenAI({ apiKey: config.openaiApiKey });
+      const completion = await openai.chat.completions.create({
+        model: selectedModel,
+        temperature: 0.7,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: instruction },
+        ],
+      });
+      raw = completion.choices[0]?.message?.content ?? '';
+    } else if (selectedModel === 'claude-sonnet-4-6') {
+      if (!config.anthropicApiKey) {
+        return reply.status(503).send({ error: 'Anthropic API key not configured' });
+      }
+      const anthropic = new Anthropic({ apiKey: config.anthropicApiKey });
+      const message = await anthropic.messages.create({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 2048,
+        temperature: 0.7,
+        system: systemPrompt,
+        messages: [{ role: 'user', content: instruction }],
+      });
+      raw = message.content[0].type === 'text' ? message.content[0].text : '';
+    }
 
-    const raw = completion.choices[0]?.message?.content ?? '';
     const { newContent, summary } = parseAIResponse(raw);
 
     return { newContent, summary };
