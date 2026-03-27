@@ -34,8 +34,9 @@ function buildSystemPrompt(params: {
   outputLength: string;
   currentContent: string;
   brandVoice: Record<string, string> | null;
+  textAttachments?: { name: string; content: string }[];
 }): string {
-  const { clientName, title, brief, tone, keywords, outputLength, currentContent, brandVoice } = params;
+  const { clientName, title, brief, tone, keywords, outputLength, currentContent, brandVoice, textAttachments } = params;
 
   const lengthGuide = LENGTH_GUIDE[outputLength] ?? LENGTH_GUIDE['M'];
 
@@ -58,6 +59,10 @@ function buildSystemPrompt(params: {
     ? `\n## Contenido actual en el editor\n${currentContent}`
     : '\n## Contenido actual en el editor\n(vacío — generá desde cero)';
 
+  const attachmentsBlock = textAttachments && textAttachments.length > 0
+    ? `\n## Archivos adjuntos como contexto\n${textAttachments.map(f => `### ${f.name}\n${f.content}`).join('\n\n')}`
+    : '';
+
   return `Sos un redactor profesional especializado en contenido para redes sociales y marketing de contenidos. Trabajás para el cliente ${clientName}.
 
 ## Contexto de la pieza
@@ -65,7 +70,7 @@ Título: ${title || '(sin título)'}
 Brief: ${brief || '(sin brief)'}
 Tono de voz: ${tone || '(no especificado)'}
 Keywords: ${keywords || '(no especificadas)'}
-Longitud objetivo: ${lengthGuide}${brandVoiceBlock}${contentBlock}
+Longitud objetivo: ${lengthGuide}${brandVoiceBlock}${attachmentsBlock}${contentBlock}
 
 ## Instrucciones de respuesta
 
@@ -119,6 +124,7 @@ export async function aiRoutes(fastify: FastifyInstance) {
       keywords: string;
       outputLength: string;
       model?: string;
+      attachments?: { name: string; type: string; content: string; contentType: 'text' | 'image' | 'other' }[];
     };
   }>('/:ticketId/chat', async (request, reply) => {
     if (!config.openaiApiKey) {
@@ -126,7 +132,7 @@ export async function aiRoutes(fastify: FastifyInstance) {
     }
 
     const { ticketId } = request.params;
-    const { instruction, currentContent, brief, tone, keywords, outputLength, model } = request.body;
+    const { instruction, currentContent, brief, tone, keywords, outputLength, model, attachments } = request.body;
     const allowedModels = ['gpt-4o', 'claude-sonnet-4-6'];
     const selectedModel = model && allowedModels.includes(model) ? model : 'gpt-4o';
 
@@ -146,6 +152,12 @@ export async function aiRoutes(fastify: FastifyInstance) {
 
     const brandVoice = ticket.client.brandVoice?.content as Record<string, string> | null;
 
+    const textAttachments = attachments
+      ?.filter(a => a.contentType === 'text')
+      .map(a => ({ name: a.name, content: a.content }));
+
+    const imageAttachments = attachments?.filter(a => a.contentType === 'image') ?? [];
+
     const systemPrompt = buildSystemPrompt({
       clientName: ticket.client.name,
       title: ticket.title,
@@ -155,18 +167,29 @@ export async function aiRoutes(fastify: FastifyInstance) {
       outputLength,
       currentContent,
       brandVoice,
+      textAttachments,
     });
 
     let raw = '';
 
     if (selectedModel !== 'claude-sonnet-4-6') {
       const openai = new OpenAI({ apiKey: config.openaiApiKey });
+
+      type OpenAIContentPart =
+        | { type: 'text'; text: string }
+        | { type: 'image_url'; image_url: { url: string } };
+
+      const userContent: OpenAIContentPart[] = [{ type: 'text', text: instruction }];
+      for (const img of imageAttachments) {
+        userContent.push({ type: 'image_url', image_url: { url: img.content } });
+      }
+
       const completion = await openai.chat.completions.create({
         model: selectedModel,
         temperature: 0.7,
         messages: [
           { role: 'system', content: systemPrompt },
-          { role: 'user', content: instruction },
+          { role: 'user', content: userContent },
         ],
       });
       raw = completion.choices[0]?.message?.content ?? '';
@@ -175,12 +198,30 @@ export async function aiRoutes(fastify: FastifyInstance) {
         return reply.status(503).send({ error: 'Anthropic API key not configured' });
       }
       const anthropic = new Anthropic({ apiKey: config.anthropicApiKey });
+
+      type ClaudeMediaType = 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp';
+      type ClaudeContentPart =
+        | { type: 'text'; text: string }
+        | { type: 'image'; source: { type: 'base64'; media_type: ClaudeMediaType; data: string } };
+
+      const userContent: ClaudeContentPart[] = [{ type: 'text', text: instruction }];
+      for (const img of imageAttachments) {
+        // dataURL format: "data:image/png;base64,XXXX"
+        const [header, data] = img.content.split(',');
+        const rawMediaType = header.replace('data:', '').replace(';base64', '');
+        const supportedTypes: ClaudeMediaType[] = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+        const media_type = supportedTypes.includes(rawMediaType as ClaudeMediaType)
+          ? (rawMediaType as ClaudeMediaType)
+          : 'image/jpeg';
+        userContent.push({ type: 'image', source: { type: 'base64', media_type, data } });
+      }
+
       const message = await anthropic.messages.create({
         model: 'claude-sonnet-4-6',
         max_tokens: 2048,
         temperature: 0.7,
         system: systemPrompt,
-        messages: [{ role: 'user', content: instruction }],
+        messages: [{ role: 'user', content: userContent }],
       });
       raw = message.content[0].type === 'text' ? message.content[0].text : '';
     }

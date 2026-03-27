@@ -4,14 +4,29 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowLeft, Sparkles, Bold, Italic, Underline, List, ListOrdered,
   Link2, Image as ImageIcon, Type, Eye, Send, GripVertical, Check, AlertCircle,
-  Columns2,
+  Columns2, Paperclip, X, FileText, File,
 } from 'lucide-react';
+import * as pdfjsLib from 'pdfjs-dist';
 import { api } from '../lib/api';
+
+pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+  'pdfjs-dist/build/pdf.worker.mjs',
+  import.meta.url,
+).href;
 
 type ChatMessage = {
   id: string;
   role: 'user' | 'assistant';
   content: string;
+};
+
+type AttachedFile = {
+  id: string;
+  name: string;
+  type: string;
+  size: number;
+  content: string | null;       // texto plano o base64 dataURL para imágenes
+  contentType: 'text' | 'image' | 'other';
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -51,8 +66,11 @@ export function ContentPage() {
     },
   ]);
 
+  const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([]);
+
   const chatEndRef = useRef<HTMLDivElement>(null);
   const resizingRef = useRef(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { data: ticketData, isLoading } = useQuery({
     queryKey: ['ticket', ticketId],
@@ -90,8 +108,70 @@ export function ContentPage() {
     setHasChanges(true);
   };
 
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files) return;
+
+    Array.from(files).forEach(file => {
+      const id = `${Date.now()}-${file.name}`;
+      const isImage = file.type.startsWith('image/');
+      const isPdf = file.type === 'application/pdf' || /\.pdf$/i.test(file.name);
+      const isText = file.type.startsWith('text/') || /\.(txt|md|csv)$/i.test(file.name);
+
+      if (isPdf) {
+        const reader = new FileReader();
+        reader.onload = async (ev) => {
+          const arrayBuffer = ev.target?.result as ArrayBuffer;
+          try {
+            const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+            const pages = await Promise.all(
+              Array.from({ length: pdf.numPages }, (_, i) =>
+                pdf.getPage(i + 1).then(p => p.getTextContent()).then(tc =>
+                  tc.items.map((item: any) => item.str).join(' ')
+                )
+              )
+            );
+            const content = pages.join('\n\n');
+            setAttachedFiles(prev => [...prev, { id, name: file.name, type: file.type, size: file.size, content, contentType: 'text' }]);
+          } catch {
+            setAttachedFiles(prev => [...prev, { id, name: file.name, type: file.type, size: file.size, content: null, contentType: 'other' }]);
+          }
+        };
+        reader.readAsArrayBuffer(file);
+      } else if (isImage) {
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          const content = ev.target?.result as string;
+          setAttachedFiles(prev => [...prev, { id, name: file.name, type: file.type, size: file.size, content, contentType: 'image' }]);
+        };
+        reader.readAsDataURL(file);
+      } else if (isText) {
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          const content = ev.target?.result as string;
+          setAttachedFiles(prev => [...prev, { id, name: file.name, type: file.type, size: file.size, content, contentType: 'text' }]);
+        };
+        reader.readAsText(file);
+      } else {
+        setAttachedFiles(prev => [...prev, { id, name: file.name, type: file.type, size: file.size, content: null, contentType: 'other' }]);
+      }
+    });
+
+    e.target.value = '';
+  };
+
+  const handleRemoveFile = (id: string) => {
+    setAttachedFiles(prev => prev.filter(f => f.id !== id));
+  };
+
   const callAI = async (instruction: string) => {
     if (!ticketId || isAiLoading) return;
+
+    const attachments = attachedFiles
+      .filter(f => f.content !== null)
+      .map(f => ({ name: f.name, type: f.type, content: f.content!, contentType: f.contentType }));
+
+    const fullInstruction = instruction;
 
     const userMsg: ChatMessage = { id: Date.now().toString(), role: 'user', content: instruction };
     const thinkingId = (Date.now() + 1).toString();
@@ -103,8 +183,8 @@ export function ContentPage() {
     try {
       if (dualMode) {
         const [resultA, resultB] = await Promise.all([
-          api.chatWithAI(ticketId, { instruction, currentContent: contentText, brief, tone, keywords, outputLength, model: 'gpt-4o' }),
-          api.chatWithAI(ticketId, { instruction, currentContent: contentTextB, brief, tone, keywords, outputLength, model: 'claude-sonnet-4-6' }),
+          api.chatWithAI(ticketId, { instruction: fullInstruction, currentContent: contentText, brief, tone, keywords, outputLength, model: 'gpt-4o', attachments }),
+          api.chatWithAI(ticketId, { instruction: fullInstruction, currentContent: contentTextB, brief, tone, keywords, outputLength, model: 'claude-sonnet-4-6', attachments }),
         ]);
 
         if (resultA.newContent !== null) {
@@ -125,7 +205,7 @@ export function ContentPage() {
         );
       } else {
         const result = await api.chatWithAI(ticketId, {
-          instruction, currentContent: contentText, brief, tone, keywords, outputLength,
+          instruction: fullInstruction, currentContent: contentText, brief, tone, keywords, outputLength, attachments,
         });
 
         if (result.newContent !== null) {
@@ -313,7 +393,49 @@ export function ContentPage() {
 
           {/* Chat Input */}
           <div className="px-2.5 pb-2.5 pt-2 flex-shrink-0">
+            {/* Chips de archivos adjuntos */}
+            {attachedFiles.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mb-2">
+                {attachedFiles.map(file => (
+                  <div
+                    key={file.id}
+                    className="flex items-center gap-1 px-2 py-0.5 bg-[#024fff]/10 border border-[#024fff]/20 rounded text-[10px] font-medium text-[#024fff]"
+                  >
+                    {file.type.startsWith('image/') ? (
+                      <ImageIcon className="w-3 h-3 flex-shrink-0" />
+                    ) : file.type.includes('pdf') ? (
+                      <FileText className="w-3 h-3 flex-shrink-0" />
+                    ) : (
+                      <File className="w-3 h-3 flex-shrink-0" />
+                    )}
+                    <span className="max-w-[100px] truncate">{file.name}</span>
+                    <button
+                      onClick={() => handleRemoveFile(file.id)}
+                      className="hover:bg-[#024fff]/20 rounded-full p-0.5 transition-all"
+                    >
+                      <X className="w-2.5 h-2.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
             <div className="flex gap-2">
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isAiLoading}
+                title="Adjuntar archivo"
+                className="px-2 py-1.5 border-2 border-[#000033]/10 rounded-md hover:bg-[#000033]/5 transition-all h-fit self-end disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <Paperclip className="w-3.5 h-3.5 text-[#000033]/60" />
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                onChange={handleFileChange}
+                accept=".pdf,.jpg,.jpeg,.png,.txt,.md,.csv,.doc,.docx,image/*"
+                multiple
+                className="hidden"
+              />
               <textarea
                 value={aiPrompt}
                 onChange={e => setAiPrompt(e.target.value)}
