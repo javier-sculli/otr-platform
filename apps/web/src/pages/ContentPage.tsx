@@ -203,8 +203,8 @@ export function ContentPage() {
     try {
       if (dualMode) {
         const [resultA, resultB] = await Promise.all([
-          api.chatWithAI(ticketId, { instruction: fullInstruction, currentContent: contentText, brief, tone, keywords, outputLength, model: 'gpt-4o', attachments, history }),
-          api.chatWithAI(ticketId, { instruction: fullInstruction, currentContent: contentTextB, brief, tone, keywords, outputLength, model: 'claude-sonnet-4-6', attachments, history }),
+          api.chatWithAI(ticketId, { instruction: fullInstruction, currentContent: contentText, brief, tone, keywords, outputLength, model: 'claude-sonnet-4-6', attachments, history }),
+          api.chatWithAI(ticketId, { instruction: fullInstruction, currentContent: contentTextB, brief, tone, keywords, outputLength, model: 'gpt-4o', attachments, history }),
         ]);
 
         if (resultA.newContent !== null) {
@@ -219,13 +219,13 @@ export function ContentPage() {
 
         setChatMessages(prev =>
           prev.map(m => m.id === thinkingId
-            ? { ...m, content: `GPT-4o: ${resultA.summary}\n\nClaude Sonnet: ${resultB.summary}` }
+            ? { ...m, content: `Claude Sonnet: ${resultA.summary}\n\nGPT-4o: ${resultB.summary}` }
             : m
           )
         );
       } else {
         const result = await api.chatWithAI(ticketId, {
-          instruction: fullInstruction, currentContent: contentText, brief, tone, keywords, outputLength, attachments, history,
+          instruction: fullInstruction, currentContent: contentText, brief, tone, keywords, outputLength, model: 'claude-sonnet-4-6', attachments, history,
         });
 
         if (result.newContent !== null) {
@@ -408,10 +408,15 @@ export function ContentPage() {
               <div className="flex items-center gap-2">
                 <Sparkles className="w-4 h-4 text-[#024fff]" />
                 <h3 className="text-xs font-bold text-[#000033]">Asistente IA</h3>
+                {!dualMode && (
+                  <span className="px-1.5 py-0.5 bg-[#024fff]/10 text-[#024fff] text-[9px] font-bold rounded">
+                    Claude
+                  </span>
+                )}
               </div>
               <button
                 onClick={() => setDualMode(prev => !prev)}
-                title="Modo dual: comparar GPT-4o vs Claude Sonnet"
+                title="Modo dual: Claude Sonnet vs GPT-4o"
                 className={`flex items-center gap-1.5 px-2 py-1 text-[9px] font-bold rounded-md transition-all ${
                   dualMode
                     ? 'bg-[#024fff] text-white shadow shadow-[#024fff]/30'
@@ -726,10 +731,10 @@ export function ContentPage() {
           {/* Editor Area — single o dual */}
           {dualMode ? (
             <div className="flex-1 overflow-hidden flex min-h-0">
-              {/* Editor A — GPT-4o mini */}
+              {/* Editor A — Claude Sonnet */}
               <div className="flex-1 flex flex-col border-r-2 border-[#000033]/10 min-h-0 min-w-0">
                 <div className="px-4 py-1.5 border-b border-[#000033]/10 flex items-center justify-between flex-shrink-0 bg-[#fafafa]">
-                  <span className="text-[9px] font-bold text-[#000033]/50 uppercase tracking-wide">GPT-4o</span>
+                  <span className="text-[9px] font-bold text-[#024fff]/70 uppercase tracking-wide">Claude Sonnet</span>
                   <span className="text-[10px] text-[#000033]/40">{charCount} car</span>
                 </div>
                 <div className="flex-1 overflow-y-auto px-6 py-4 min-h-0">
@@ -737,14 +742,14 @@ export function ContentPage() {
                     value={contentText}
                     onChange={handleContentChange}
                     className="w-full h-full resize-none border-none outline-none text-[#000033] text-sm leading-relaxed bg-transparent"
-                    placeholder="Respuesta del modelo rápido..."
+                    placeholder="Respuesta de Claude Sonnet..."
                   />
                 </div>
               </div>
               {/* Editor B — GPT-4o */}
               <div className="flex-1 flex flex-col min-h-0 min-w-0">
                 <div className="px-4 py-1.5 border-b border-[#000033]/10 flex items-center justify-between flex-shrink-0 bg-[#fafafa]">
-                  <span className="text-[9px] font-bold text-[#024fff]/70 uppercase tracking-wide">Claude Sonnet</span>
+                  <span className="text-[9px] font-bold text-[#000033]/50 uppercase tracking-wide">GPT-4o</span>
                   <div className="flex items-center gap-2">
                     <span className="text-[10px] text-[#000033]/40">{charCountB} car</span>
                     <button
@@ -764,7 +769,7 @@ export function ContentPage() {
                     value={contentTextB}
                     onChange={e => { setContentTextB(e.target.value); setCharCountB(e.target.value.length); }}
                     className="w-full h-full resize-none border-none outline-none text-[#000033] text-sm leading-relaxed bg-transparent"
-                    placeholder="Respuesta del modelo potente..."
+                    placeholder="Respuesta de GPT-4o..."
                   />
                 </div>
               </div>
