@@ -329,10 +329,10 @@ export function ContentPage() {
                     value={entregableInput}
                     onChange={e => setEntregableInput(e.target.value)}
                     placeholder="https://drive.google.com/..."
-                    className="px-2 py-0.5 border border-[#00ff99]/50 rounded text-[10px] text-[#000033] focus:outline-none focus:ring-1 focus:ring-[#00ff99] w-52"
+                    className="px-2 py-0.5 border border-[#00ff99]/50 rounded text-xs text-[#000033] focus:outline-none focus:ring-1 focus:ring-[#00ff99] w-52"
                   />
-                  <button type="submit" className="text-[10px] px-1.5 py-0.5 bg-[#00ff99]/30 border border-[#00ff99]/50 rounded font-bold hover:bg-[#00ff99]/50 transition-all">OK</button>
-                  <button type="button" onClick={() => setEditingEntregable(false)} className="text-[10px] px-1.5 py-0.5 border border-[#000033]/10 rounded hover:bg-[#000033]/5 transition-all">✕</button>
+                  <button type="submit" className="text-xs px-1.5 py-0.5 bg-[#00ff99]/30 border border-[#00ff99]/50 rounded font-bold hover:bg-[#00ff99]/50 transition-all">OK</button>
+                  <button type="button" onClick={() => setEditingEntregable(false)} className="text-xs px-1.5 py-0.5 border border-[#000033]/10 rounded hover:bg-[#000033]/5 transition-all">✕</button>
                 </form>
               ) : linkEntregable ? (
                 <div className="flex items-center gap-1 flex-shrink-0">
@@ -340,7 +340,7 @@ export function ContentPage() {
                     href={linkEntregable}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center gap-1.5 px-2 py-1 border border-[#00ff99]/40 rounded-md bg-[#00ff99]/10 hover:bg-[#00ff99]/20 text-[10px] font-bold text-[#000033] transition-all"
+                    className="flex items-center gap-1.5 px-2 py-1 border border-[#00ff99]/40 rounded-md bg-[#00ff99]/10 hover:bg-[#00ff99]/20 text-xs font-bold text-[#000033] transition-all"
                   >
                     <ImageIcon className="w-3 h-3" />
                     Entregable
@@ -357,7 +357,7 @@ export function ContentPage() {
               ) : (
                 <button
                   onClick={() => { setEntregableInput(''); setEditingEntregable(true); }}
-                  className="flex items-center gap-1 px-2 py-1 border border-dashed border-[#000033]/20 rounded-md text-[10px] text-[#000033]/40 hover:border-[#00ff99]/40 hover:text-[#000033] transition-all flex-shrink-0"
+                  className="flex items-center gap-1 px-2 py-1 border border-dashed border-[#000033]/20 rounded-md text-xs text-[#000033]/40 hover:border-[#00ff99]/40 hover:text-[#000033] transition-all flex-shrink-0"
                 >
                   <Link2 className="w-3 h-3" />
                   + Entregable
@@ -409,7 +409,7 @@ export function ContentPage() {
                 <Sparkles className="w-4 h-4 text-[#024fff]" />
                 <h3 className="text-xs font-bold text-[#000033]">Asistente IA</h3>
                 {!dualMode && (
-                  <span className="px-1.5 py-0.5 bg-[#024fff]/10 text-[#024fff] text-[9px] font-bold rounded">
+                  <span className="px-1.5 py-0.5 bg-[#024fff]/10 text-[#024fff] text-xs font-bold rounded">
                     Claude
                   </span>
                 )}
@@ -417,7 +417,7 @@ export function ContentPage() {
               <button
                 onClick={() => setDualMode(prev => !prev)}
                 title="Modo dual: Claude Sonnet vs GPT-4o"
-                className={`flex items-center gap-1.5 px-2 py-1 text-[9px] font-bold rounded-md transition-all ${
+                className={`flex items-center gap-1.5 px-2 py-1 text-xs font-bold rounded-md transition-all ${
                   dualMode
                     ? 'bg-[#024fff] text-white shadow shadow-[#024fff]/30'
                     : 'border border-[#000033]/20 text-[#000033]/50 hover:border-[#024fff]/40 hover:text-[#024fff]'
@@ -460,7 +460,7 @@ export function ContentPage() {
                   key={action}
                   onClick={() => callAI(action)}
                   disabled={isAiLoading}
-                  className="px-2 py-1 bg-[#00ff99]/10 hover:bg-[#00ff99]/20 text-[#000033] text-[10px] font-bold rounded-full transition-all border border-[#00ff99]/40 disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="px-2 py-1 bg-[#00ff99]/10 hover:bg-[#00ff99]/20 text-[#000033] text-xs font-bold rounded-full transition-all border border-[#00ff99]/40 disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   {action}
                 </button>
@@ -534,7 +534,7 @@ export function ContentPage() {
             {/* Fila 1: Título + Brief */}
             <div className="flex items-start gap-3 mb-2">
               <div className="w-40 flex-shrink-0">
-                <label className="block text-[9px] font-bold text-[#000033]/60 mb-1">TÍTULO</label>
+                <label className="block text-xs font-bold text-[#000033]/60 mb-1">TÍTULO</label>
                 <input
                   type="text"
                   value={title}
@@ -543,7 +543,7 @@ export function ContentPage() {
                 />
               </div>
               <div className="flex-1 min-w-0">
-                <label className="block text-[9px] font-bold text-[#000033]/60 mb-1">BRIEF</label>
+                <label className="block text-xs font-bold text-[#000033]/60 mb-1">BRIEF</label>
                 <input
                   type="text"
                   value={brief}
@@ -557,11 +557,11 @@ export function ContentPage() {
           {/* Barra de Contexto: links de recursos + archivos adjuntos */}
           <div className="bg-[#fafafa] border-b border-[#000033]/10 px-4 py-1.5 flex-shrink-0">
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-[9px] font-bold text-[#000033]/50 uppercase flex-shrink-0">Contexto:</span>
+                <span className="text-xs font-bold text-[#000033]/50 uppercase flex-shrink-0">Contexto:</span>
                 {contextLinks.map((link, i) => (
                   <div
                     key={i}
-                    className="flex items-center gap-1 px-2 py-0.5 bg-white border border-[#024fff]/20 rounded text-[10px] font-medium text-[#024fff] group"
+                    className="flex items-center gap-1 px-2 py-0.5 bg-white border border-[#024fff]/20 rounded text-xs font-medium text-[#024fff] group"
                   >
                     <Link2 className="w-2.5 h-2.5 flex-shrink-0" />
                     <a href={link} target="_blank" rel="noopener noreferrer" className="max-w-[160px] truncate hover:underline">
@@ -579,7 +579,7 @@ export function ContentPage() {
                 {attachedFiles.map(file => (
                   <div
                     key={file.id}
-                    className="flex items-center gap-1 px-2 py-0.5 bg-white border border-[#00ff99]/30 rounded text-[10px] font-medium text-[#000033]"
+                    className="flex items-center gap-1 px-2 py-0.5 bg-white border border-[#00ff99]/30 rounded text-xs font-medium text-[#000033]"
                   >
                     {file.type.startsWith('image/') ? (
                       <ImageIcon className="w-2.5 h-2.5 text-[#00ff99] flex-shrink-0" />
@@ -626,15 +626,15 @@ export function ContentPage() {
                         setAddingLink(false);
                       }}
                       placeholder="https://..."
-                      className="px-2 py-0.5 border border-[#024fff]/30 rounded text-[10px] text-[#000033] focus:outline-none focus:ring-1 focus:ring-[#024fff] w-44"
+                      className="px-2 py-0.5 border border-[#024fff]/30 rounded text-xs text-[#000033] focus:outline-none focus:ring-1 focus:ring-[#024fff] w-44"
                     />
-                    <button type="submit" className="text-[10px] px-1.5 py-0.5 bg-[#024fff]/10 border border-[#024fff]/20 rounded font-bold text-[#024fff] hover:bg-[#024fff]/20 transition-all">OK</button>
-                    <button type="button" onClick={() => { setAddingLink(false); setNewLinkInput(''); }} className="text-[10px] px-1.5 py-0.5 border border-[#000033]/10 rounded hover:bg-[#000033]/5 transition-all">✕</button>
+                    <button type="submit" className="text-xs px-1.5 py-0.5 bg-[#024fff]/10 border border-[#024fff]/20 rounded font-bold text-[#024fff] hover:bg-[#024fff]/20 transition-all">OK</button>
+                    <button type="button" onClick={() => { setAddingLink(false); setNewLinkInput(''); }} className="text-xs px-1.5 py-0.5 border border-[#000033]/10 rounded hover:bg-[#000033]/5 transition-all">✕</button>
                   </form>
                 ) : (
                   <button
                     onClick={() => setAddingLink(true)}
-                    className="flex items-center gap-1 px-2 py-0.5 border border-dashed border-[#024fff]/20 rounded text-[10px] text-[#024fff]/50 hover:text-[#024fff] hover:border-[#024fff]/40 transition-all"
+                    className="flex items-center gap-1 px-2 py-0.5 border border-dashed border-[#024fff]/20 rounded text-xs text-[#024fff]/50 hover:text-[#024fff] hover:border-[#024fff]/40 transition-all"
                   >
                     <Link2 className="w-2.5 h-2.5" />
                     + link
@@ -676,7 +676,7 @@ export function ContentPage() {
                 </button>
               </div>
               {!dualMode && (
-                <span className="text-[10px] text-[#000033]/60">{charCount} caracteres</span>
+                <span className="text-xs text-[#000033]/60">{charCount} caracteres</span>
               )}
             </div>
           </div>
@@ -687,8 +687,8 @@ export function ContentPage() {
               {/* Editor A — Claude Sonnet */}
               <div className="flex-1 flex flex-col border-r-2 border-[#000033]/10 min-h-0 min-w-0">
                 <div className="px-4 py-1.5 border-b border-[#000033]/10 flex items-center justify-between flex-shrink-0 bg-[#fafafa]">
-                  <span className="text-[9px] font-bold text-[#024fff]/70 uppercase tracking-wide">Claude Sonnet</span>
-                  <span className="text-[10px] text-[#000033]/40">{charCount} car</span>
+                  <span className="text-xs font-bold text-[#024fff]/70 uppercase tracking-wide">Claude Sonnet</span>
+                  <span className="text-xs text-[#000033]/40">{charCount} car</span>
                 </div>
                 <div className="flex-1 overflow-y-auto px-6 py-4 min-h-0">
                   <textarea
@@ -702,16 +702,16 @@ export function ContentPage() {
               {/* Editor B — GPT-4o */}
               <div className="flex-1 flex flex-col min-h-0 min-w-0">
                 <div className="px-4 py-1.5 border-b border-[#000033]/10 flex items-center justify-between flex-shrink-0 bg-[#fafafa]">
-                  <span className="text-[9px] font-bold text-[#000033]/50 uppercase tracking-wide">GPT-4o</span>
+                  <span className="text-xs font-bold text-[#000033]/50 uppercase tracking-wide">GPT-4o</span>
                   <div className="flex items-center gap-2">
-                    <span className="text-[10px] text-[#000033]/40">{charCountB} car</span>
+                    <span className="text-xs text-[#000033]/40">{charCountB} car</span>
                     <button
                       onClick={() => {
                         setContentText(contentTextB);
                         setCharCount(charCountB);
                         setHasChanges(true);
                       }}
-                      className="text-[9px] px-2 py-0.5 bg-[#00ff99]/20 border border-[#00ff99]/50 text-[#000033] font-bold rounded-full hover:bg-[#00ff99]/40 transition-all"
+                      className="text-xs px-2 py-0.5 bg-[#00ff99]/20 border border-[#00ff99]/50 text-[#000033] font-bold rounded-full hover:bg-[#00ff99]/40 transition-all"
                     >
                       Usar esta
                     </button>

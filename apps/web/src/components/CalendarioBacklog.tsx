@@ -213,11 +213,11 @@ export function CalendarioBacklog({ tickets, onTicketClick }: CalendarioBacklogP
                                   {ticket.title}
                                 </p>
                               </div>
-                              <div className="flex items-center gap-1.5 text-[10px] text-[#000033]/60">
+                              <div className="flex items-center gap-1.5 text-xs text-[#000033]/60">
                                 <span className="font-medium truncate">{ticket.canal ?? ticket.client.name}</span>
                               </div>
                               {label && (
-                                <div className={`text-[10px] font-bold ${text} mt-1`}>{label}</div>
+                                <div className={`text-xs font-bold ${text} mt-1`}>{label}</div>
                               )}
                             </div>
                           );

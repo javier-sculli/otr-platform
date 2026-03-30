@@ -38,8 +38,18 @@ Sistema de gestión de producción de contenido para On The Rocks (OTR), una age
 - Actualmente conectado al SDK de GPT
 - La IA usa el Brand Kit del cliente activo como contexto en todas las generaciones
 
+## Equipo OTR
+| Quién | Rol |
+|-------|-----|
+| **Joaco** (Joaquín María Tagle) | CEO de On The Rocks |
+| **Manuela Ghitta** | Contenidista principal — usuario principal de la plataforma |
+| **Shaiel Terán** | Equipo OTR |
+| **Paloma Ascurdía** | Equipo OTR |
+
 ## Tareas pendientes de implementar
 > Surgidas de la weekly OTR con la contenidista. Ver Notion para detalle completo.
+
+### Sprint actual (de las primeras weeklies)
 
 ### 1. [UI] Rescalar pantalla de Reacción
 - Problema: se ve con demasiado zoom en resoluciones bajas / zoom de sistema activo
@@ -59,6 +69,46 @@ Sistema de gestión de producción de contenido para On The Rocks (OTR), una age
 - En el chat: cada modelo tiene su propia respuesta (no un resumen unificado)
 - Por defecto: arranca con los 2 modelos prendidos
 - Scope futuro: simplificar a botón "regenerar con otro modelo" si el dual no agrega valor en uso real
+
+### Weekly 17/03/2026 — Nuevas tareas de reporting y performance
+
+### 4. [Feature] Módulo de reportes de performance para clientes
+- Reportes inconsistentes y manuales → automatizarlos con visualizaciones
+- Definir jerarquía de métricas por cliente
+- Manuela comparte ejemplos de reportes actuales como referencia
+
+### 5. [Feature] Notificaciones automáticas al publicar nuevo post
+- Al publicar/aprobar una pieza, notificar al cliente automáticamente
+- Canal: email first, luego explorar push
+
+### 6. [Feature] Centralización de métricas desde redes sociales
+- Integrar Metricool u otra API de redes directamente en PublicationPerformance.tsx
+- Evaluar confiabilidad de fuentes (Bass Monitor tiene issues)
+
+### 7. [Research] Evaluar herramientas de reporting confiables
+- Comparar Bass Monitor, Metricool, Sprout Social, Iconosquare, APIs nativas
+
+### 8. [Feature] Medición del impacto visual en el performance
+- Etiquetar variables visuales en piezas y correlacionar con métricas
+- Conectar con BibliotecaGanadores.tsx
+
+### 9. [Feature] Upload de archivos en la Reacción para contexto de IA
+- Adjuntar PDF, imagen, brief o doc directamente en el workspace
+- El contenido se parsea e inyecta como contexto adicional en el prompt
+- Aparece como chip visible en el chat
+- Módulo: WorkspacePieza.tsx — área de input del chat
+- Alta prioridad — Manuela lo usa diariamente
+
+### 10. [HU] Agregar campos de links en tarjeta de pieza
+- INFO/RECURSOS: links a documentos, briefs, referencias
+- ENTREGABLE VISUAL: links a Drive con contenido gráfico
+- Campos opcionales, editables después de crear la pieza
+- Feedback de Shaiel Terán — reduce fricciones entre equipos
+- Módulo: ModalPieza.tsx
+
+## Proceso de documentación
+- **Historia de usuario** (Notion → Historias de usuario): todo el detalle — contexto, problema, decisiones tomadas, criterios de aceptación, módulos afectados, prioridad
+- **Tarea de desarrollo** (Notion → Tareas de Desarrollo): lo necesario para implementar + link a la HU correspondiente
 
 ## Decisiones de producto tomadas
 - El chat muestra el razonamiento/decisiones; la Reacción muestra el contenido generado — mantener bien separado

@@ -198,7 +198,7 @@ export function CreateTicketModal({ isOpen, onClose, ticket }: CreateTicketModal
               <h2 className="text-sm font-bold text-white">
                 {isEditing ? 'Editar pieza' : 'Nueva pieza'}
               </h2>
-              <p className="text-[10px] text-white/60">Brief rápido para iniciar</p>
+              <p className="text-xs text-white/60">Brief rápido para iniciar</p>
             </div>
           </div>
           <button
@@ -219,7 +219,7 @@ export function CreateTicketModal({ isOpen, onClose, ticket }: CreateTicketModal
 
           {/* Nombre */}
           <div>
-            <label className="flex items-center gap-1.5 text-[10px] font-bold text-[#000033] mb-1.5">
+            <label className="flex items-center gap-1.5 text-xs font-bold text-[#000033] mb-1.5">
               Nombre de la pieza <span className="text-[#024fff]">*</span>
               <Info className="w-3 h-3 text-[#000033]/40" />
             </label>
@@ -235,7 +235,7 @@ export function CreateTicketModal({ isOpen, onClose, ticket }: CreateTicketModal
 
           {/* Brief */}
           <div>
-            <label className="flex items-center gap-1.5 text-[10px] font-bold text-[#000033] mb-1.5">
+            <label className="flex items-center gap-1.5 text-xs font-bold text-[#000033] mb-1.5">
               <FileText className="w-3 h-3 text-[#024fff]" />
               Brief
               <Info className="w-3 h-3 text-[#000033]/40" />
@@ -252,7 +252,7 @@ export function CreateTicketModal({ isOpen, onClose, ticket }: CreateTicketModal
           {/* Cliente + Owner */}
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="flex items-center gap-1.5 text-[10px] font-bold text-[#000033] mb-1.5">
+              <label className="flex items-center gap-1.5 text-xs font-bold text-[#000033] mb-1.5">
                 <Building2 className="w-3 h-3 text-[#024fff]" />
                 Cliente <span className="text-[#024fff]">*</span>
               </label>
@@ -270,7 +270,7 @@ export function CreateTicketModal({ isOpen, onClose, ticket }: CreateTicketModal
             </div>
 
             <div>
-              <label className="flex items-center gap-1.5 text-[10px] font-bold text-[#000033] mb-1.5">
+              <label className="flex items-center gap-1.5 text-xs font-bold text-[#000033] mb-1.5">
                 <User className="w-3 h-3 text-[#024fff]" />
                 Owner <span className="text-[#024fff]">*</span>
               </label>
@@ -290,7 +290,7 @@ export function CreateTicketModal({ isOpen, onClose, ticket }: CreateTicketModal
           {/* Área + Tipo */}
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="flex items-center gap-1.5 text-[10px] font-bold text-[#000033] mb-1.5">
+              <label className="flex items-center gap-1.5 text-xs font-bold text-[#000033] mb-1.5">
                 <Tag className="w-3 h-3 text-[#024fff]" />
                 Área / Pilar
               </label>
@@ -307,7 +307,7 @@ export function CreateTicketModal({ isOpen, onClose, ticket }: CreateTicketModal
             </div>
 
             <div>
-              <label className="flex items-center gap-1.5 text-[10px] font-bold text-[#000033] mb-1.5">
+              <label className="flex items-center gap-1.5 text-xs font-bold text-[#000033] mb-1.5">
                 <Package className="w-3 h-3 text-[#024fff]" />
                 Tipo de contenido
               </label>
@@ -327,7 +327,7 @@ export function CreateTicketModal({ isOpen, onClose, ticket }: CreateTicketModal
           {/* Redes + Fecha */}
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="flex items-center gap-1.5 text-[10px] font-bold text-[#000033] mb-1.5">
+              <label className="flex items-center gap-1.5 text-xs font-bold text-[#000033] mb-1.5">
                 Red(es) objetivo
               </label>
               <div className="flex flex-wrap gap-1.5">
@@ -338,7 +338,7 @@ export function CreateTicketModal({ isOpen, onClose, ticket }: CreateTicketModal
                       key={red}
                       type="button"
                       onClick={() => toggleRed(red)}
-                      className={`px-2.5 py-1.5 text-[10px] font-bold rounded-lg border-2 transition-all ${
+                      className={`px-2.5 py-1.5 text-xs font-bold rounded-lg border-2 transition-all ${
                         selected
                           ? 'bg-[#024fff]/10 text-[#024fff] border-[#024fff]/20'
                           : 'bg-white text-[#000033]/60 border-[#000033]/10 hover:border-[#024fff]/40 hover:text-[#024fff]'
@@ -353,7 +353,7 @@ export function CreateTicketModal({ isOpen, onClose, ticket }: CreateTicketModal
             </div>
 
             <div>
-              <label className="flex items-center gap-1.5 text-[10px] font-bold text-[#000033] mb-1.5">
+              <label className="flex items-center gap-1.5 text-xs font-bold text-[#000033] mb-1.5">
                 <Calendar className="w-3 h-3 text-[#024fff]" />
                 Fecha objetivo
               </label>
@@ -368,14 +368,14 @@ export function CreateTicketModal({ isOpen, onClose, ticket }: CreateTicketModal
 
           {/* Prioridad */}
           <div>
-            <label className="text-[10px] font-bold text-[#000033] mb-1.5 block">Prioridad</label>
+            <label className="text-xs font-bold text-[#000033] mb-1.5 block">Prioridad</label>
             <div className="flex gap-2">
               {PRIORIDADES.map(p => (
                 <button
                   key={p.value}
                   type="button"
                   onClick={() => handleChange('prioridad', p.value)}
-                  className={`px-3 py-1.5 text-[10px] font-bold rounded-lg border-2 transition-all ${
+                  className={`px-3 py-1.5 text-xs font-bold rounded-lg border-2 transition-all ${
                     formData.prioridad === p.value
                       ? p.style
                       : 'bg-white text-[#000033]/40 border-[#000033]/10 hover:border-[#000033]/30'

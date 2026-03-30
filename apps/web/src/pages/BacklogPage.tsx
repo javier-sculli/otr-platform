@@ -291,7 +291,7 @@ export function BacklogPage() {
                   <div className={`${col.color} border-2 ${col.border} rounded-t-xl px-3 py-2 flex items-center justify-between`}>
                     <div className="flex items-center gap-1.5">
                       <h3 className="text-xs font-bold text-[#000033]">{col.nombre}</h3>
-                      <span className="text-[10px] font-bold text-[#000033]/60 bg-white/60 px-1.5 py-0.5 rounded-full">
+                      <span className="text-xs font-bold text-[#000033]/60 bg-white/60 px-1.5 py-0.5 rounded-full">
                         {tickets.length}
                       </span>
                     </div>
@@ -318,14 +318,14 @@ export function BacklogPage() {
                     {col.id === 'BACKLOG' && (
                       <button
                         onClick={() => setShowModalNueva(true)}
-                        className="w-full py-2 border-2 border-dashed border-[#000033]/20 rounded-lg text-[10px] font-bold text-[#000033]/40 hover:border-[#024fff]/40 hover:text-[#024fff] hover:bg-[#024fff]/5 transition-all"
+                        className="w-full py-2 border-2 border-dashed border-[#000033]/20 rounded-lg text-xs font-bold text-[#000033]/40 hover:border-[#024fff]/40 hover:text-[#024fff] hover:bg-[#024fff]/5 transition-all"
                       >
                         + Nueva idea
                       </button>
                     )}
 
                     {tickets.length === 0 && col.id !== 'BACKLOG' && (
-                      <div className="py-6 text-center text-[10px] text-[#000033]/30 font-medium">
+                      <div className="py-6 text-center text-xs text-[#000033]/30 font-medium">
                         Sin piezas
                       </div>
                     )}
@@ -389,7 +389,7 @@ function TicketCard({
     >
       {/* Header */}
       <div className="flex items-center justify-between mb-2">
-        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${PRIORIDAD_STYLES[ticket.prioridad] ?? ''}`}>
+        <span className={`text-xs font-bold px-1.5 py-0.5 rounded border ${PRIORIDAD_STYLES[ticket.prioridad] ?? ''}`}>
           {PRIORIDAD_LABEL[ticket.prioridad] ?? ticket.prioridad}
         </span>
         <button className="text-[#000033]/20 hover:text-[#000033] opacity-0 group-hover:opacity-100 transition-opacity">
@@ -404,7 +404,7 @@ function TicketCard({
 
       {/* Canal + Tipo */}
       {(ticket.canal || ticket.ticketType) && (
-        <div className="flex items-center gap-1.5 text-[10px] text-[#000033]/60 mb-2 pb-2 border-b border-[#000033]/10">
+        <div className="flex items-center gap-1.5 text-xs text-[#000033]/60 mb-2 pb-2 border-b border-[#000033]/10">
           {ticket.canal && <span className="font-medium">{ticket.canal}</span>}
           {ticket.canal && ticket.ticketType && <span>•</span>}
           {ticket.ticketType && <span className="font-medium">{ticket.ticketType.name}</span>}
@@ -412,10 +412,10 @@ function TicketCard({
       )}
 
       {/* Footer */}
-      <div className="flex items-center justify-between text-[10px]">
+      <div className="flex items-center justify-between text-xs">
         <div className="flex items-center gap-1">
           <div className="w-4 h-4 rounded-full bg-[#024fff]/10 flex items-center justify-center flex-shrink-0">
-            <span className="text-[8px] font-bold text-[#024fff]">
+            <span className="text-xs font-bold text-[#024fff] leading-none">
               {ticket.owner.name.charAt(0).toUpperCase()}
             </span>
           </div>
