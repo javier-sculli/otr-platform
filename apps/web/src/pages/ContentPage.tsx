@@ -51,7 +51,7 @@ export function ContentPage() {
   const [entregableInput, setEntregableInput] = useState('');
   const [addingLink, setAddingLink] = useState(false);
   const [newLinkInput, setNewLinkInput] = useState('');
-  const [outputLength, setOutputLength] = useState<'S' | 'M' | 'L'>('M');
+  const [outputLength] = useState<'S' | 'M' | 'L'>('M');
   const [contentText, setContentText] = useState('');
   const [charCount, setCharCount] = useState(0);
   // Dual mode — second model content
@@ -550,33 +550,6 @@ export function ContentPage() {
                   onChange={e => { setBrief(e.target.value); setHasChanges(true); }}
                   className="w-full px-2.5 py-1.5 border-2 border-[#000033]/10 rounded-md text-xs focus:outline-none focus:ring-2 focus:ring-[#024fff] text-[#000033] hover:border-[#024fff]/40 transition-all"
                 />
-              </div>
-            </div>
-            {/* Fila 2: Length + Brand Kit */}
-            <div className="flex items-start gap-3">
-              <div className="flex-shrink-0">
-                <label className="block text-[9px] font-bold text-[#000033]/60 mb-1">LENGTH</label>
-                <div className="flex gap-1">
-                  {(['S', 'M', 'L'] as const).map(l => (
-                    <button
-                      key={l}
-                      onClick={() => setOutputLength(l)}
-                      className={`px-2.5 py-1.5 rounded-md text-xs font-bold transition-all ${
-                        outputLength === l
-                          ? 'bg-[#024fff]/10 text-[#024fff] border-2 border-[#024fff]/20'
-                          : 'border-2 border-[#000033]/10 text-[#000033]/60 hover:border-[#024fff]/40'
-                      }`}
-                    >
-                      {l}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div className="flex items-end flex-shrink-0">
-                <button className="flex items-center gap-2 px-2.5 py-1.5 border-2 border-[#00ff99]/40 rounded-md bg-[#00ff99]/10 hover:bg-[#00ff99]/20 transition-all">
-                  <div className="w-2 h-2 rounded-full bg-[#00ff99]" />
-                  <span className="text-xs font-bold text-[#000033]">Kit de Marca</span>
-                </button>
               </div>
             </div>
           </div>
