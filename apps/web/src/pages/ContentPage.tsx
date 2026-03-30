@@ -186,6 +186,11 @@ export function ContentPage() {
       .filter(f => f.content !== null)
       .map(f => ({ name: f.name, type: f.type, content: f.content!, contentType: f.contentType }));
 
+    // Historial previo — excluye thinking y el saludo inicial
+    const history = chatMessages
+      .filter(m => m.content !== '...' && m.id !== '1')
+      .map(m => ({ role: m.role, content: m.content }));
+
     const fullInstruction = instruction;
 
     const userMsg: ChatMessage = { id: Date.now().toString(), role: 'user', content: instruction };
@@ -198,8 +203,8 @@ export function ContentPage() {
     try {
       if (dualMode) {
         const [resultA, resultB] = await Promise.all([
-          api.chatWithAI(ticketId, { instruction: fullInstruction, currentContent: contentText, brief, tone, keywords, outputLength, model: 'gpt-4o', attachments }),
-          api.chatWithAI(ticketId, { instruction: fullInstruction, currentContent: contentTextB, brief, tone, keywords, outputLength, model: 'claude-sonnet-4-6', attachments }),
+          api.chatWithAI(ticketId, { instruction: fullInstruction, currentContent: contentText, brief, tone, keywords, outputLength, model: 'gpt-4o', attachments, history }),
+          api.chatWithAI(ticketId, { instruction: fullInstruction, currentContent: contentTextB, brief, tone, keywords, outputLength, model: 'claude-sonnet-4-6', attachments, history }),
         ]);
 
         if (resultA.newContent !== null) {
@@ -220,7 +225,7 @@ export function ContentPage() {
         );
       } else {
         const result = await api.chatWithAI(ticketId, {
-          instruction: fullInstruction, currentContent: contentText, brief, tone, keywords, outputLength, attachments,
+          instruction: fullInstruction, currentContent: contentText, brief, tone, keywords, outputLength, attachments, history,
         });
 
         if (result.newContent !== null) {
@@ -653,6 +658,15 @@ export function ContentPage() {
                       type="url"
                       value={newLinkInput}
                       onChange={e => setNewLinkInput(e.target.value)}
+                      onBlur={() => {
+                        const url = newLinkInput.trim();
+                        if (url && !contextLinks.includes(url)) {
+                          setContextLinks(prev => [...prev, url]);
+                          setHasChanges(true);
+                        }
+                        setNewLinkInput('');
+                        setAddingLink(false);
+                      }}
                       placeholder="https://..."
                       className="px-2 py-0.5 border border-[#024fff]/30 rounded text-[10px] text-[#000033] focus:outline-none focus:ring-1 focus:ring-[#024fff] w-44"
                     />

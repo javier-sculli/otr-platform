@@ -156,6 +156,7 @@ class ApiClient {
     outputLength: string;
     model?: string;
     attachments?: { name: string; type: string; content: string; contentType: 'text' | 'image' | 'other' }[];
+    history?: { role: 'user' | 'assistant'; content: string }[];
   }) {
     return this.request<{ newContent: string | null; summary: string }>(`/ai/${ticketId}/chat`, {
       method: 'POST',

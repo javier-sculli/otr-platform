@@ -130,6 +130,7 @@ export async function aiRoutes(fastify: FastifyInstance) {
       outputLength: string;
       model?: string;
       attachments?: { name: string; type: string; content: string; contentType: 'text' | 'image' | 'other' }[];
+      history?: { role: 'user' | 'assistant'; content: string }[];
     };
   }>('/:ticketId/chat', async (request, reply) => {
     if (!config.openaiApiKey) {
@@ -137,7 +138,7 @@ export async function aiRoutes(fastify: FastifyInstance) {
     }
 
     const { ticketId } = request.params;
-    const { instruction, currentContent, brief, tone, keywords, outputLength, model, attachments } = request.body;
+    const { instruction, currentContent, brief, tone, keywords, outputLength, model, attachments, history } = request.body;
     const allowedModels = ['gpt-4o', 'claude-sonnet-4-6'];
     const selectedModel = model && allowedModels.includes(model) ? model : 'gpt-4o';
 
@@ -190,11 +191,17 @@ export async function aiRoutes(fastify: FastifyInstance) {
         userContent.push({ type: 'image_url', image_url: { url: img.content } });
       }
 
+      const historyMessages = (history ?? []).map(m => ({
+        role: m.role as 'user' | 'assistant',
+        content: m.content,
+      }));
+
       const completion = await openai.chat.completions.create({
         model: selectedModel,
         temperature: 0.7,
         messages: [
           { role: 'system', content: systemPrompt },
+          ...historyMessages,
           { role: 'user', content: userContent },
         ],
       });
@@ -222,12 +229,20 @@ export async function aiRoutes(fastify: FastifyInstance) {
         userContent.push({ type: 'image', source: { type: 'base64', media_type, data } });
       }
 
+      const claudeHistory = (history ?? []).map(m => ({
+        role: m.role as 'user' | 'assistant',
+        content: m.content,
+      }));
+
       const message = await anthropic.messages.create({
         model: 'claude-sonnet-4-6',
         max_tokens: 2048,
         temperature: 0.7,
         system: systemPrompt,
-        messages: [{ role: 'user', content: userContent }],
+        messages: [
+          ...claudeHistory,
+          { role: 'user', content: userContent },
+        ],
       });
       raw = message.content[0].type === 'text' ? message.content[0].text : '';
     }
