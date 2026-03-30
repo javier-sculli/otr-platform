@@ -43,7 +43,7 @@ export function ContentPage() {
 
   const [title, setTitle] = useState('');
   const [brief, setBrief] = useState('');
-  const [tone, setTone] = useState('');
+  const [tone] = useState('');
   const [keywords, setKeywords] = useState('');
   const [contextLinks, setContextLinks] = useState<string[]>([]);
   const [linkEntregable, setLinkEntregable] = useState<string | null>(null);
@@ -552,28 +552,8 @@ export function ContentPage() {
                 />
               </div>
             </div>
-            {/* Fila 2: Tono + Keywords + Length + Brand Kit */}
+            {/* Fila 2: Length + Brand Kit */}
             <div className="flex items-start gap-3">
-              <div className="w-36 flex-shrink-0">
-                <label className="block text-[9px] font-bold text-[#000033]/60 mb-1">TONO</label>
-                <input
-                  type="text"
-                  value={tone}
-                  onChange={e => setTone(e.target.value)}
-                  placeholder="cercano, profesional..."
-                  className="w-full px-2.5 py-1.5 border-2 border-[#000033]/10 rounded-md text-xs focus:outline-none focus:ring-2 focus:ring-[#024fff] text-[#000033] placeholder-[#000033]/30 hover:border-[#024fff]/40 transition-all"
-                />
-              </div>
-              <div className="flex-1 min-w-0">
-                <label className="block text-[9px] font-bold text-[#000033]/60 mb-1">KEYWORDS</label>
-                <input
-                  type="text"
-                  value={keywords}
-                  onChange={e => { setKeywords(e.target.value); setHasChanges(true); }}
-                  placeholder="palabra1, palabra2..."
-                  className="w-full px-2.5 py-1.5 border-2 border-[#000033]/10 rounded-md text-xs focus:outline-none focus:ring-2 focus:ring-[#024fff] text-[#000033] placeholder-[#000033]/30 hover:border-[#024fff]/40 transition-all"
-                />
-              </div>
               <div className="flex-shrink-0">
                 <label className="block text-[9px] font-bold text-[#000033]/60 mb-1">LENGTH</label>
                 <div className="flex gap-1">
