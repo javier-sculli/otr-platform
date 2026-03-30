@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { X, Target, FileText, User, Building2, Tag, Package, Calendar, Info, Save, PenLine } from 'lucide-react';
+import { X, Target, FileText, User, Building2, Tag, Package, Calendar, Info, Save, PenLine, Link2, Plus, ExternalLink } from 'lucide-react';
 import { api } from '../lib/api';
 
 interface TicketData {
@@ -12,6 +12,8 @@ interface TicketData {
   prioridad: string;
   status: string;
   dueDate?: string | null;
+  links?: string[];
+  linkEntregable?: string | null;
   client: { id: string; name: string };
   owner: { id: string; name: string };
   area?: { id: string; name: string } | null;
@@ -45,6 +47,8 @@ function buildFormData(ticket?: TicketData | null) {
       prioridad: 'MEDIA',
       status: 'BACKLOG',
       dueDate: '',
+      links: [] as string[],
+      linkEntregable: '',
     };
   }
   return {
@@ -58,6 +62,8 @@ function buildFormData(ticket?: TicketData | null) {
     prioridad: ticket.prioridad,
     status: ticket.status,
     dueDate: ticket.dueDate ? ticket.dueDate.slice(0, 10) : '',
+    links: ticket.links ?? [],
+    linkEntregable: ticket.linkEntregable ?? '',
   };
 }
 
@@ -67,6 +73,7 @@ export function CreateTicketModal({ isOpen, onClose, ticket }: CreateTicketModal
   const isEditing = !!ticket;
   const [error, setError] = useState<string | null>(null);
   const [formData, setFormData] = useState(() => buildFormData(ticket));
+  const [newLinkInput, setNewLinkInput] = useState('');
 
   // Re-populate when ticket changes (e.g. opening different card)
   useEffect(() => {
@@ -158,7 +165,11 @@ export function CreateTicketModal({ isOpen, onClose, ticket }: CreateTicketModal
     };
 
     if (isEditing) {
-      updateMutation.mutate(payload);
+      updateMutation.mutate({
+        ...payload,
+        links: formData.links,
+        linkEntregable: formData.linkEntregable || null,
+      });
     } else {
       createMutation.mutate({ ...payload, clientId: formData.clientId });
     }
@@ -375,6 +386,87 @@ export function CreateTicketModal({ isOpen, onClose, ticket }: CreateTicketModal
               ))}
             </div>
           </div>
+
+          {/* Links — solo en modo edición */}
+          {isEditing && (
+            <>
+              {/* INFO / RECURSOS */}
+              <div>
+                <label className="flex items-center gap-1.5 text-xs font-bold text-[#000033] mb-2">
+                  <Link2 className="w-4 h-4 text-[#024fff]" />
+                  Info / Recursos
+                  <span className="text-[#000033]/40 font-normal">Links a docs, briefs, referencias</span>
+                </label>
+                <div className="flex gap-2 mb-2">
+                  <input
+                    type="url"
+                    value={newLinkInput}
+                    onChange={e => setNewLinkInput(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        const url = newLinkInput.trim();
+                        if (url && !formData.links.includes(url)) {
+                          setFormData(prev => ({ ...prev, links: [...prev.links, url] }));
+                        }
+                        setNewLinkInput('');
+                      }
+                    }}
+                    placeholder="https://... (Enter para agregar)"
+                    className="flex-1 px-3 py-2 border-2 border-[#000033]/10 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#024fff] text-[#000033] hover:border-[#024fff]/40 transition-all"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const url = newLinkInput.trim();
+                      if (url && !formData.links.includes(url)) {
+                        setFormData(prev => ({ ...prev, links: [...prev.links, url] }));
+                      }
+                      setNewLinkInput('');
+                    }}
+                    className="px-3 py-2 bg-[#024fff]/10 border-2 border-[#024fff]/20 text-[#024fff] rounded-lg hover:bg-[#024fff]/20 transition-all"
+                  >
+                    <Plus className="w-4 h-4" />
+                  </button>
+                </div>
+                {formData.links.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {formData.links.map((link, i) => (
+                      <div key={i} className="flex items-center gap-1 px-2.5 py-1 bg-[#024fff]/5 border border-[#024fff]/20 rounded-lg text-xs text-[#024fff]">
+                        <a href={link} target="_blank" rel="noopener noreferrer" className="max-w-[200px] truncate hover:underline">
+                          {link.split('/').pop() || link}
+                        </a>
+                        <ExternalLink className="w-2.5 h-2.5 opacity-50 flex-shrink-0" />
+                        <button
+                          type="button"
+                          onClick={() => setFormData(prev => ({ ...prev, links: prev.links.filter((_, j) => j !== i) }))}
+                          className="ml-0.5 hover:text-red-500 transition-colors"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* ENTREGABLE VISUAL */}
+              <div>
+                <label className="flex items-center gap-1.5 text-xs font-bold text-[#000033] mb-2">
+                  <ExternalLink className="w-4 h-4 text-[#00ff99]" />
+                  Entregable visual
+                  <span className="text-[#000033]/40 font-normal">Link a Drive con el contenido gráfico</span>
+                </label>
+                <input
+                  type="url"
+                  value={formData.linkEntregable}
+                  onChange={e => setFormData(prev => ({ ...prev, linkEntregable: e.target.value }))}
+                  placeholder="https://drive.google.com/..."
+                  className="w-full px-3 py-2 border-2 border-[#000033]/10 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#00ff99]/50 text-[#000033] hover:border-[#00ff99]/40 transition-all"
+                />
+              </div>
+            </>
+          )}
         </form>
 
         {/* Footer */}

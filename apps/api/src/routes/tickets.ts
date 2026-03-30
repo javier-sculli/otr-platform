@@ -105,6 +105,7 @@ export async function ticketsRoutes(fastify: FastifyInstance) {
     if (data.status !== undefined) updateData.status = data.status;
     if (data.dueDate !== undefined) updateData.dueDate = data.dueDate ? new Date(data.dueDate) : null;
     if (data.links !== undefined) updateData.links = data.links;
+    if (data.linkEntregable !== undefined) updateData.linkEntregable = data.linkEntregable;
     if (data.content !== undefined) updateData.content = data.content;
     if (data.keywords !== undefined) updateData.keywords = data.keywords;
 

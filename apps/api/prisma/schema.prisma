@@ -122,8 +122,9 @@ model Ticket {
   dueDate      DateTime?      @map("due_date")
   content      String?        @db.Text
   keywords     String?
-  links        String[]       @default([])
-  createdAt    DateTime       @default(now()) @map("created_at")
+  links           String[]       @default([])
+  linkEntregable  String?        @map("link_entregable")
+  createdAt       DateTime       @default(now()) @map("created_at")
   updatedAt    DateTime       @updatedAt @map("updated_at")
 
   // Relations

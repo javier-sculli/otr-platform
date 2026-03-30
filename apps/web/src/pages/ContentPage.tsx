@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowLeft, Sparkles, Bold, Italic, Underline, List, ListOrdered,
   Link2, Image as ImageIcon, Type, Eye, Send, GripVertical, Check, AlertCircle,
-  Columns2, Paperclip, X, FileText, File,
+  Columns2, Paperclip, X, FileText, File, ExternalLink,
 } from 'lucide-react';
 import * as pdfjsLib from 'pdfjs-dist';
 import { api } from '../lib/api';
@@ -45,6 +45,12 @@ export function ContentPage() {
   const [brief, setBrief] = useState('');
   const [tone, setTone] = useState('');
   const [keywords, setKeywords] = useState('');
+  const [contextLinks, setContextLinks] = useState<string[]>([]);
+  const [linkEntregable, setLinkEntregable] = useState<string | null>(null);
+  const [editingEntregable, setEditingEntregable] = useState(false);
+  const [entregableInput, setEntregableInput] = useState('');
+  const [addingLink, setAddingLink] = useState(false);
+  const [newLinkInput, setNewLinkInput] = useState('');
   const [outputLength, setOutputLength] = useState<'S' | 'M' | 'L'>('M');
   const [contentText, setContentText] = useState('');
   const [charCount, setCharCount] = useState(0);
@@ -85,6 +91,8 @@ export function ContentPage() {
       setBrief(t.objetivo ?? '');
       setKeywords(t.keywords ?? '');
       setContentText(t.content ?? '');
+      setContextLinks(t.links ?? []);
+      setLinkEntregable(t.linkEntregable ?? null);
       setCharCount((t.content ?? '').length);
     }
   }, [ticketData]);
@@ -94,7 +102,14 @@ export function ContentPage() {
   }, [chatMessages]);
 
   const saveMutation = useMutation({
-    mutationFn: () => api.updateTicket(ticketId!, { title, objetivo: brief, keywords, content: contentText }),
+    mutationFn: () => api.updateTicket(ticketId!, {
+      title,
+      objetivo: brief,
+      keywords,
+      content: contentText,
+      links: contextLinks,
+      linkEntregable: linkEntregable || null,
+    }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['ticket', ticketId] });
       queryClient.invalidateQueries({ queryKey: ['tickets'] });
@@ -291,6 +306,58 @@ export function ContentPage() {
                   {STATUS_LABELS[ticket.status] ?? ticket.status}
                 </span>
               )}
+              <div className="h-4 w-px bg-[#000033]/20 flex-shrink-0" />
+              {editingEntregable ? (
+                <form
+                  className="flex items-center gap-1 flex-shrink-0"
+                  onSubmit={e => {
+                    e.preventDefault();
+                    const url = entregableInput.trim() || null;
+                    setLinkEntregable(url);
+                    setHasChanges(true);
+                    setEditingEntregable(false);
+                  }}
+                >
+                  <input
+                    autoFocus
+                    type="url"
+                    value={entregableInput}
+                    onChange={e => setEntregableInput(e.target.value)}
+                    placeholder="https://drive.google.com/..."
+                    className="px-2 py-0.5 border border-[#00ff99]/50 rounded text-[10px] text-[#000033] focus:outline-none focus:ring-1 focus:ring-[#00ff99] w-52"
+                  />
+                  <button type="submit" className="text-[10px] px-1.5 py-0.5 bg-[#00ff99]/30 border border-[#00ff99]/50 rounded font-bold hover:bg-[#00ff99]/50 transition-all">OK</button>
+                  <button type="button" onClick={() => setEditingEntregable(false)} className="text-[10px] px-1.5 py-0.5 border border-[#000033]/10 rounded hover:bg-[#000033]/5 transition-all">✕</button>
+                </form>
+              ) : linkEntregable ? (
+                <div className="flex items-center gap-1 flex-shrink-0">
+                  <a
+                    href={linkEntregable}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1.5 px-2 py-1 border border-[#00ff99]/40 rounded-md bg-[#00ff99]/10 hover:bg-[#00ff99]/20 text-[10px] font-bold text-[#000033] transition-all"
+                  >
+                    <ImageIcon className="w-3 h-3" />
+                    Entregable
+                    <ExternalLink className="w-2.5 h-2.5 opacity-60" />
+                  </a>
+                  <button
+                    onClick={() => { setEntregableInput(linkEntregable); setEditingEntregable(true); }}
+                    className="p-0.5 hover:bg-[#000033]/5 rounded transition-all text-[#000033]/40 hover:text-[#000033]"
+                    title="Editar link entregable"
+                  >
+                    <Link2 className="w-3 h-3" />
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => { setEntregableInput(''); setEditingEntregable(true); }}
+                  className="flex items-center gap-1 px-2 py-1 border border-dashed border-[#000033]/20 rounded-md text-[10px] text-[#000033]/40 hover:border-[#00ff99]/40 hover:text-[#000033] transition-all flex-shrink-0"
+                >
+                  <Link2 className="w-3 h-3" />
+                  + Entregable
+                </button>
+              )}
             </div>
           </div>
 
@@ -393,32 +460,6 @@ export function ContentPage() {
 
           {/* Chat Input */}
           <div className="px-2.5 pb-2.5 pt-2 flex-shrink-0">
-            {/* Chips de archivos adjuntos */}
-            {attachedFiles.length > 0 && (
-              <div className="flex flex-wrap gap-1.5 mb-2">
-                {attachedFiles.map(file => (
-                  <div
-                    key={file.id}
-                    className="flex items-center gap-1 px-2 py-0.5 bg-[#024fff]/10 border border-[#024fff]/20 rounded text-[10px] font-medium text-[#024fff]"
-                  >
-                    {file.type.startsWith('image/') ? (
-                      <ImageIcon className="w-3 h-3 flex-shrink-0" />
-                    ) : file.type.includes('pdf') ? (
-                      <FileText className="w-3 h-3 flex-shrink-0" />
-                    ) : (
-                      <File className="w-3 h-3 flex-shrink-0" />
-                    )}
-                    <span className="max-w-[100px] truncate">{file.name}</span>
-                    <button
-                      onClick={() => handleRemoveFile(file.id)}
-                      className="hover:bg-[#024fff]/20 rounded-full p-0.5 transition-all"
-                    >
-                      <X className="w-2.5 h-2.5" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
             <div className="flex gap-2">
               <button
                 onClick={() => fileInputRef.current?.click()}
@@ -548,6 +589,86 @@ export function ContentPage() {
                 </button>
               </div>
             </div>
+          </div>
+
+          {/* Barra de Contexto: links de recursos + archivos adjuntos */}
+          <div className="bg-[#fafafa] border-b border-[#000033]/10 px-4 py-1.5 flex-shrink-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-[9px] font-bold text-[#000033]/50 uppercase flex-shrink-0">Contexto:</span>
+                {contextLinks.map((link, i) => (
+                  <div
+                    key={i}
+                    className="flex items-center gap-1 px-2 py-0.5 bg-white border border-[#024fff]/20 rounded text-[10px] font-medium text-[#024fff] group"
+                  >
+                    <Link2 className="w-2.5 h-2.5 flex-shrink-0" />
+                    <a href={link} target="_blank" rel="noopener noreferrer" className="max-w-[160px] truncate hover:underline">
+                      {link.split('/').pop() || link}
+                    </a>
+                    <ExternalLink className="w-2 h-2 opacity-40 flex-shrink-0" />
+                    <button
+                      onClick={() => { setContextLinks(prev => prev.filter((_, j) => j !== i)); setHasChanges(true); }}
+                      className="hover:bg-[#000033]/10 rounded-full p-0.5 transition-all ml-0.5"
+                    >
+                      <X className="w-2.5 h-2.5 text-[#000033]/40" />
+                    </button>
+                  </div>
+                ))}
+                {attachedFiles.map(file => (
+                  <div
+                    key={file.id}
+                    className="flex items-center gap-1 px-2 py-0.5 bg-white border border-[#00ff99]/30 rounded text-[10px] font-medium text-[#000033]"
+                  >
+                    {file.type.startsWith('image/') ? (
+                      <ImageIcon className="w-2.5 h-2.5 text-[#00ff99] flex-shrink-0" />
+                    ) : file.type.includes('pdf') ? (
+                      <FileText className="w-2.5 h-2.5 text-[#00ff99] flex-shrink-0" />
+                    ) : (
+                      <File className="w-2.5 h-2.5 text-[#00ff99] flex-shrink-0" />
+                    )}
+                    <span className="max-w-[140px] truncate">{file.name}</span>
+                    <button
+                      onClick={() => handleRemoveFile(file.id)}
+                      className="hover:bg-[#000033]/10 rounded-full p-0.5 transition-all ml-0.5"
+                    >
+                      <X className="w-2.5 h-2.5 text-[#000033]/40" />
+                    </button>
+                  </div>
+                ))}
+                {addingLink ? (
+                  <form
+                    className="flex items-center gap-1"
+                    onSubmit={e => {
+                      e.preventDefault();
+                      const url = newLinkInput.trim();
+                      if (url && !contextLinks.includes(url)) {
+                        setContextLinks(prev => [...prev, url]);
+                        setHasChanges(true);
+                      }
+                      setNewLinkInput('');
+                      setAddingLink(false);
+                    }}
+                  >
+                    <input
+                      autoFocus
+                      type="url"
+                      value={newLinkInput}
+                      onChange={e => setNewLinkInput(e.target.value)}
+                      placeholder="https://..."
+                      className="px-2 py-0.5 border border-[#024fff]/30 rounded text-[10px] text-[#000033] focus:outline-none focus:ring-1 focus:ring-[#024fff] w-44"
+                    />
+                    <button type="submit" className="text-[10px] px-1.5 py-0.5 bg-[#024fff]/10 border border-[#024fff]/20 rounded font-bold text-[#024fff] hover:bg-[#024fff]/20 transition-all">OK</button>
+                    <button type="button" onClick={() => { setAddingLink(false); setNewLinkInput(''); }} className="text-[10px] px-1.5 py-0.5 border border-[#000033]/10 rounded hover:bg-[#000033]/5 transition-all">✕</button>
+                  </form>
+                ) : (
+                  <button
+                    onClick={() => setAddingLink(true)}
+                    className="flex items-center gap-1 px-2 py-0.5 border border-dashed border-[#024fff]/20 rounded text-[10px] text-[#024fff]/50 hover:text-[#024fff] hover:border-[#024fff]/40 transition-all"
+                  >
+                    <Link2 className="w-2.5 h-2.5" />
+                    + link
+                  </button>
+                )}
+              </div>
           </div>
 
           {/* Toolbar */}

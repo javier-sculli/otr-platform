@@ -35,8 +35,9 @@ function buildSystemPrompt(params: {
   currentContent: string;
   brandVoice: Record<string, string> | null;
   textAttachments?: { name: string; content: string }[];
+  contextLinks?: string[];
 }): string {
-  const { clientName, title, brief, tone, keywords, outputLength, currentContent, brandVoice, textAttachments } = params;
+  const { clientName, title, brief, tone, keywords, outputLength, currentContent, brandVoice, textAttachments, contextLinks } = params;
 
   const lengthGuide = LENGTH_GUIDE[outputLength] ?? LENGTH_GUIDE['M'];
 
@@ -63,6 +64,10 @@ function buildSystemPrompt(params: {
     ? `\n## Archivos adjuntos como contexto\n${textAttachments.map(f => `### ${f.name}\n${f.content}`).join('\n\n')}`
     : '';
 
+  const contextLinksBlock = contextLinks && contextLinks.length > 0
+    ? `\n## Links de referencia de la pieza\n${contextLinks.map(l => `- ${l}`).join('\n')}`
+    : '';
+
   return `Sos un redactor profesional especializado en contenido para redes sociales y marketing de contenidos. Trabajás para el cliente ${clientName}.
 
 ## Contexto de la pieza
@@ -70,7 +75,7 @@ Título: ${title || '(sin título)'}
 Brief: ${brief || '(sin brief)'}
 Tono de voz: ${tone || '(no especificado)'}
 Keywords: ${keywords || '(no especificadas)'}
-Longitud objetivo: ${lengthGuide}${brandVoiceBlock}${attachmentsBlock}${contentBlock}
+Longitud objetivo: ${lengthGuide}${brandVoiceBlock}${contextLinksBlock}${attachmentsBlock}${contentBlock}
 
 ## Instrucciones de respuesta
 
@@ -168,6 +173,7 @@ export async function aiRoutes(fastify: FastifyInstance) {
       currentContent,
       brandVoice,
       textAttachments,
+      contextLinks: ticket.links,
     });
 
     let raw = '';
