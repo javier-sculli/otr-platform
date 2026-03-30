@@ -17,6 +17,8 @@ interface Ticket {
   status: string;
   prioridad: string;
   dueDate: string | null;
+  links: string[];
+  linkEntregable?: string | null;
   owner: { id: string; name: string };
   client: { id: string; name: string };
   area?: { id: string; name: string } | null;
