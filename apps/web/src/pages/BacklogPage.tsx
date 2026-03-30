@@ -145,38 +145,38 @@ export function BacklogPage() {
   return (
     <div className="h-[calc(100vh-64px)] flex flex-col bg-[#fafafa]">
       {/* Header / Filtros */}
-      <div className="bg-white border-b-2 border-[#000033]/10 px-6 py-4 flex-shrink-0">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2">
+      <div className="bg-white border-b-2 border-[#000033]/10 px-4 py-3 flex-shrink-0">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-1.5">
             <button
               onClick={() => setVista('kanban')}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg font-bold text-sm transition-all ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-bold text-xs transition-all ${
                 vista === 'kanban'
                   ? 'bg-[#024fff] text-white shadow-lg shadow-[#024fff]/20'
                   : 'text-[#000033]/60 hover:text-[#000033] hover:bg-[#000033]/5'
               }`}
             >
-              <LayoutGrid className="w-4 h-4" />
+              <LayoutGrid className="w-3.5 h-3.5" />
               Listado
             </button>
             <button
               onClick={() => setVista('calendario')}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg font-bold text-sm transition-all ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-bold text-xs transition-all ${
                 vista === 'calendario'
                   ? 'bg-[#024fff] text-white shadow-lg shadow-[#024fff]/20'
                   : 'text-[#000033]/60 hover:text-[#000033] hover:bg-[#000033]/5'
               }`}
             >
-              <Calendar className="w-4 h-4" />
+              <Calendar className="w-3.5 h-3.5" />
               Calendario
             </button>
           </div>
 
           <button
             onClick={() => setShowModalNueva(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-[#00ff99]/20 border-2 border-[#00ff99]/40 text-[#000033] rounded-lg hover:bg-[#00ff99]/30 font-bold text-sm transition-all"
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-[#00ff99]/20 border-2 border-[#00ff99]/40 text-[#000033] rounded-lg hover:bg-[#00ff99]/30 font-bold text-xs transition-all"
           >
-            <Plus className="w-4 h-4" />
+            <Plus className="w-3.5 h-3.5" />
             Nueva pieza
           </button>
         </div>
@@ -279,30 +279,30 @@ export function BacklogPage() {
         </div>
       ) : vista === 'kanban' ? (
         <div className="flex-1 overflow-x-auto overflow-y-hidden">
-          <div className="flex gap-4 p-6 h-full min-w-max">
+          <div className="flex gap-3 p-4 h-full min-w-max">
             {COLUMNAS.map(col => {
               const tickets = getTicketsPorColumna(col.id);
               return (
                 <div
                   key={col.id}
-                  className="flex flex-col w-[300px] flex-shrink-0"
+                  className="flex flex-col w-[240px] flex-shrink-0"
                 >
                   {/* Header columna */}
-                  <div className={`${col.color} border-2 ${col.border} rounded-t-xl px-4 py-3 flex items-center justify-between`}>
-                    <div className="flex items-center gap-2">
-                      <h3 className="text-sm font-bold text-[#000033]">{col.nombre}</h3>
-                      <span className="text-xs font-bold text-[#000033]/60 bg-white/60 px-2 py-0.5 rounded-full">
+                  <div className={`${col.color} border-2 ${col.border} rounded-t-xl px-3 py-2 flex items-center justify-between`}>
+                    <div className="flex items-center gap-1.5">
+                      <h3 className="text-xs font-bold text-[#000033]">{col.nombre}</h3>
+                      <span className="text-[10px] font-bold text-[#000033]/60 bg-white/60 px-1.5 py-0.5 rounded-full">
                         {tickets.length}
                       </span>
                     </div>
-                    <MoreVertical className="w-4 h-4 text-[#000033]/40" />
+                    <MoreVertical className="w-3.5 h-3.5 text-[#000033]/40" />
                   </div>
 
                   {/* Cards */}
                   <div
                     onDragOver={e => e.preventDefault()}
                     onDrop={e => handleDrop(e, col.id)}
-                    className="flex-1 overflow-y-auto bg-[#000033]/[0.02] border-2 border-t-0 border-[#000033]/10 rounded-b-xl p-3 space-y-3 min-h-[400px]"
+                    className="flex-1 overflow-y-auto bg-[#000033]/[0.02] border-2 border-t-0 border-[#000033]/10 rounded-b-xl p-2 space-y-2 min-h-[400px]"
                   >
                     {tickets.map(ticket => (
                       <TicketCard
@@ -318,14 +318,14 @@ export function BacklogPage() {
                     {col.id === 'BACKLOG' && (
                       <button
                         onClick={() => setShowModalNueva(true)}
-                        className="w-full py-3 border-2 border-dashed border-[#000033]/20 rounded-lg text-xs font-bold text-[#000033]/40 hover:border-[#024fff]/40 hover:text-[#024fff] hover:bg-[#024fff]/5 transition-all"
+                        className="w-full py-2 border-2 border-dashed border-[#000033]/20 rounded-lg text-[10px] font-bold text-[#000033]/40 hover:border-[#024fff]/40 hover:text-[#024fff] hover:bg-[#024fff]/5 transition-all"
                       >
                         + Nueva idea
                       </button>
                     )}
 
                     {tickets.length === 0 && col.id !== 'BACKLOG' && (
-                      <div className="py-8 text-center text-xs text-[#000033]/30 font-medium">
+                      <div className="py-6 text-center text-[10px] text-[#000033]/30 font-medium">
                         Sin piezas
                       </div>
                     )}
@@ -383,28 +383,28 @@ function TicketCard({
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
       onClick={onClick}
-      className={`bg-white border-2 border-[#000033]/10 rounded-lg p-4 hover:shadow-lg hover:border-[#024fff]/30 transition-all cursor-pointer group ${
+      className={`bg-white border-2 border-[#000033]/10 rounded-lg p-3 hover:shadow-lg hover:border-[#024fff]/30 transition-all cursor-pointer group ${
         isDragging ? 'opacity-40' : ''
       }`}
     >
       {/* Header */}
-      <div className="flex items-center justify-between mb-3">
-        <span className={`text-xs font-bold px-2 py-0.5 rounded border ${PRIORIDAD_STYLES[ticket.prioridad] ?? ''}`}>
+      <div className="flex items-center justify-between mb-2">
+        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${PRIORIDAD_STYLES[ticket.prioridad] ?? ''}`}>
           {PRIORIDAD_LABEL[ticket.prioridad] ?? ticket.prioridad}
         </span>
         <button className="text-[#000033]/20 hover:text-[#000033] opacity-0 group-hover:opacity-100 transition-opacity">
-          <MoreVertical className="w-3.5 h-3.5" />
+          <MoreVertical className="w-3 h-3" />
         </button>
       </div>
 
       {/* Título */}
-      <p className="text-sm font-medium text-[#000033] mb-4 leading-relaxed line-clamp-3">
+      <p className="text-xs font-medium text-[#000033] mb-3 leading-relaxed line-clamp-3">
         {ticket.title}
       </p>
 
       {/* Canal + Tipo */}
       {(ticket.canal || ticket.ticketType) && (
-        <div className="flex items-center gap-2 text-xs text-[#000033]/60 mb-3 pb-3 border-b border-[#000033]/10">
+        <div className="flex items-center gap-1.5 text-[10px] text-[#000033]/60 mb-2 pb-2 border-b border-[#000033]/10">
           {ticket.canal && <span className="font-medium">{ticket.canal}</span>}
           {ticket.canal && ticket.ticketType && <span>•</span>}
           {ticket.ticketType && <span className="font-medium">{ticket.ticketType.name}</span>}
@@ -412,20 +412,20 @@ function TicketCard({
       )}
 
       {/* Footer */}
-      <div className="flex items-center justify-between text-xs">
-        <div className="flex items-center gap-1.5">
-          <div className="w-5 h-5 rounded-full bg-[#024fff]/10 flex items-center justify-center flex-shrink-0">
-            <span className="text-[9px] font-bold text-[#024fff]">
+      <div className="flex items-center justify-between text-[10px]">
+        <div className="flex items-center gap-1">
+          <div className="w-4 h-4 rounded-full bg-[#024fff]/10 flex items-center justify-center flex-shrink-0">
+            <span className="text-[8px] font-bold text-[#024fff]">
               {ticket.owner.name.charAt(0).toUpperCase()}
             </span>
           </div>
-          <span className="font-bold text-[#000033] truncate max-w-[80px]">
+          <span className="font-bold text-[#000033] truncate max-w-[70px]">
             {ticket.owner.name.split(' ')[0]}
           </span>
         </div>
         {ticket.dueDate && (
           <div className="flex items-center gap-1 text-[#000033]/60">
-            <Calendar className="w-3 h-3" />
+            <Calendar className="w-2.5 h-2.5" />
             <span className="font-medium">
               {new Date(ticket.dueDate).toLocaleDateString('es-ES', { day: '2-digit', month: 'short' })}
             </span>

@@ -187,80 +187,80 @@ export function CreateTicketModal({ isOpen, onClose, ticket }: CreateTicketModal
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={handleClose} />
 
-      <div className="relative bg-white rounded-2xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+      <div className="relative bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[85vh] overflow-hidden flex flex-col">
         {/* Header */}
-        <div className="bg-[#000033] px-6 py-4 flex items-center justify-between flex-shrink-0">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-[#024fff] rounded-lg flex items-center justify-center">
-              <Target className="w-5 h-5 text-white" />
+        <div className="bg-[#000033] px-4 py-3 flex items-center justify-between flex-shrink-0">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 bg-[#024fff] rounded-lg flex items-center justify-center">
+              <Target className="w-4 h-4 text-white" />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-white">
+              <h2 className="text-sm font-bold text-white">
                 {isEditing ? 'Editar pieza' : 'Nueva pieza'}
               </h2>
-              <p className="text-xs text-white/60">Brief rápido para iniciar</p>
+              <p className="text-[10px] text-white/60">Brief rápido para iniciar</p>
             </div>
           </div>
           <button
             onClick={handleClose}
-            className="w-8 h-8 rounded-lg bg-white/10 hover:bg-white/20 flex items-center justify-center transition-all text-white"
+            className="w-7 h-7 rounded-lg bg-white/10 hover:bg-white/20 flex items-center justify-center transition-all text-white"
           >
-            <X className="w-5 h-5" />
+            <X className="w-4 h-4" />
           </button>
         </div>
 
         {/* Form */}
-        <form id="ticket-form" onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-5">
+        <form id="ticket-form" onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-4 space-y-4">
           {error && (
-            <div className="px-4 py-3 bg-red-50 border-2 border-red-200 rounded-lg text-sm text-red-700 font-medium">
+            <div className="px-3 py-2 bg-red-50 border-2 border-red-200 rounded-lg text-xs text-red-700 font-medium">
               {error}
             </div>
           )}
 
           {/* Nombre */}
           <div>
-            <label className="flex items-center gap-1.5 text-xs font-bold text-[#000033] mb-2">
+            <label className="flex items-center gap-1.5 text-[10px] font-bold text-[#000033] mb-1.5">
               Nombre de la pieza <span className="text-[#024fff]">*</span>
-              <Info className="w-3.5 h-3.5 text-[#000033]/40" />
+              <Info className="w-3 h-3 text-[#000033]/40" />
             </label>
             <input
               type="text"
               value={formData.title}
               onChange={e => handleChange('title', e.target.value)}
               placeholder="ej: Post liderazgo – semana 1"
-              className="w-full px-4 py-3 border-2 border-[#000033]/10 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#024fff] text-[#000033] hover:border-[#024fff]/40 transition-all font-medium"
+              className="w-full px-3 py-2 border-2 border-[#000033]/10 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#024fff] text-[#000033] hover:border-[#024fff]/40 transition-all font-medium"
               autoFocus
             />
           </div>
 
           {/* Brief */}
           <div>
-            <label className="flex items-center gap-1.5 text-xs font-bold text-[#000033] mb-2">
-              <FileText className="w-4 h-4 text-[#024fff]" />
+            <label className="flex items-center gap-1.5 text-[10px] font-bold text-[#000033] mb-1.5">
+              <FileText className="w-3 h-3 text-[#024fff]" />
               Brief
-              <Info className="w-3.5 h-3.5 text-[#000033]/40" />
+              <Info className="w-3 h-3 text-[#000033]/40" />
             </label>
             <textarea
               value={formData.brief}
               onChange={e => handleChange('brief', e.target.value)}
               placeholder={`Describe en pocas líneas qué querés comunicar y por qué.\nEj: Posicionar al CEO como líder de opinión en temas de escalabilidad tech.`}
-              className="w-full px-4 py-3 border-2 border-[#000033]/10 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#024fff] text-[#000033] hover:border-[#024fff]/40 transition-all resize-none"
+              className="w-full px-3 py-2 border-2 border-[#000033]/10 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#024fff] text-[#000033] hover:border-[#024fff]/40 transition-all resize-none"
               rows={3}
             />
           </div>
 
           {/* Cliente + Owner */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="flex items-center gap-1.5 text-xs font-bold text-[#000033] mb-2">
-                <Building2 className="w-4 h-4 text-[#024fff]" />
+              <label className="flex items-center gap-1.5 text-[10px] font-bold text-[#000033] mb-1.5">
+                <Building2 className="w-3 h-3 text-[#024fff]" />
                 Cliente <span className="text-[#024fff]">*</span>
               </label>
               <select
                 value={formData.clientId}
                 onChange={e => handleChange('clientId', e.target.value)}
                 disabled={isEditing}
-                className="w-full px-4 py-3 border-2 border-[#000033]/10 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#024fff] text-[#000033] hover:border-[#024fff]/40 transition-all bg-white font-medium disabled:opacity-60 disabled:cursor-not-allowed"
+                className="w-full px-3 py-2 border-2 border-[#000033]/10 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#024fff] text-[#000033] hover:border-[#024fff]/40 transition-all bg-white font-medium disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 <option value="">Seleccionar cliente</option>
                 {clients?.data.map((c: any) => (
@@ -270,14 +270,14 @@ export function CreateTicketModal({ isOpen, onClose, ticket }: CreateTicketModal
             </div>
 
             <div>
-              <label className="flex items-center gap-1.5 text-xs font-bold text-[#000033] mb-2">
-                <User className="w-4 h-4 text-[#024fff]" />
+              <label className="flex items-center gap-1.5 text-[10px] font-bold text-[#000033] mb-1.5">
+                <User className="w-3 h-3 text-[#024fff]" />
                 Owner <span className="text-[#024fff]">*</span>
               </label>
               <select
                 value={formData.ownerId}
                 onChange={e => handleChange('ownerId', e.target.value)}
-                className="w-full px-4 py-3 border-2 border-[#000033]/10 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#024fff] text-[#000033] hover:border-[#024fff]/40 transition-all bg-white font-medium"
+                className="w-full px-3 py-2 border-2 border-[#000033]/10 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#024fff] text-[#000033] hover:border-[#024fff]/40 transition-all bg-white font-medium"
               >
                 <option value="">Seleccionar owner</option>
                 {users?.data.map((u: any) => (
@@ -288,16 +288,16 @@ export function CreateTicketModal({ isOpen, onClose, ticket }: CreateTicketModal
           </div>
 
           {/* Área + Tipo */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="flex items-center gap-1.5 text-xs font-bold text-[#000033] mb-2">
-                <Tag className="w-4 h-4 text-[#024fff]" />
+              <label className="flex items-center gap-1.5 text-[10px] font-bold text-[#000033] mb-1.5">
+                <Tag className="w-3 h-3 text-[#024fff]" />
                 Área / Pilar
               </label>
               <select
                 value={formData.areaId}
                 onChange={e => handleChange('areaId', e.target.value)}
-                className="w-full px-4 py-3 border-2 border-[#000033]/10 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#024fff] text-[#000033] hover:border-[#024fff]/40 transition-all bg-white font-medium"
+                className="w-full px-3 py-2 border-2 border-[#000033]/10 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#024fff] text-[#000033] hover:border-[#024fff]/40 transition-all bg-white font-medium"
               >
                 <option value="">Seleccionar área</option>
                 {areas?.data.map((a: any) => (
@@ -307,14 +307,14 @@ export function CreateTicketModal({ isOpen, onClose, ticket }: CreateTicketModal
             </div>
 
             <div>
-              <label className="flex items-center gap-1.5 text-xs font-bold text-[#000033] mb-2">
-                <Package className="w-4 h-4 text-[#024fff]" />
+              <label className="flex items-center gap-1.5 text-[10px] font-bold text-[#000033] mb-1.5">
+                <Package className="w-3 h-3 text-[#024fff]" />
                 Tipo de contenido
               </label>
               <select
                 value={formData.ticketTypeId}
                 onChange={e => handleChange('ticketTypeId', e.target.value)}
-                className="w-full px-4 py-3 border-2 border-[#000033]/10 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#024fff] text-[#000033] hover:border-[#024fff]/40 transition-all bg-white font-medium"
+                className="w-full px-3 py-2 border-2 border-[#000033]/10 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#024fff] text-[#000033] hover:border-[#024fff]/40 transition-all bg-white font-medium"
               >
                 <option value="">Seleccionar tipo</option>
                 {ticketTypes?.data.map((t: any) => (
@@ -325,12 +325,12 @@ export function CreateTicketModal({ isOpen, onClose, ticket }: CreateTicketModal
           </div>
 
           {/* Redes + Fecha */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="flex items-center gap-1.5 text-xs font-bold text-[#000033] mb-2">
+              <label className="flex items-center gap-1.5 text-[10px] font-bold text-[#000033] mb-1.5">
                 Red(es) objetivo
               </label>
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap gap-1.5">
                 {REDES.map(red => {
                   const selected = formData.redes.includes(red);
                   return (
@@ -338,7 +338,7 @@ export function CreateTicketModal({ isOpen, onClose, ticket }: CreateTicketModal
                       key={red}
                       type="button"
                       onClick={() => toggleRed(red)}
-                      className={`px-3 py-2 text-xs font-bold rounded-lg border-2 transition-all ${
+                      className={`px-2.5 py-1.5 text-[10px] font-bold rounded-lg border-2 transition-all ${
                         selected
                           ? 'bg-[#024fff]/10 text-[#024fff] border-[#024fff]/20'
                           : 'bg-white text-[#000033]/60 border-[#000033]/10 hover:border-[#024fff]/40 hover:text-[#024fff]'
@@ -353,29 +353,29 @@ export function CreateTicketModal({ isOpen, onClose, ticket }: CreateTicketModal
             </div>
 
             <div>
-              <label className="flex items-center gap-1.5 text-xs font-bold text-[#000033] mb-2">
-                <Calendar className="w-4 h-4 text-[#024fff]" />
+              <label className="flex items-center gap-1.5 text-[10px] font-bold text-[#000033] mb-1.5">
+                <Calendar className="w-3 h-3 text-[#024fff]" />
                 Fecha objetivo
               </label>
               <input
                 type="date"
                 value={formData.dueDate}
                 onChange={e => handleChange('dueDate', e.target.value)}
-                className="w-full px-4 py-3 border-2 border-[#000033]/10 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#024fff] text-[#000033] hover:border-[#024fff]/40 transition-all"
+                className="w-full px-3 py-2 border-2 border-[#000033]/10 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#024fff] text-[#000033] hover:border-[#024fff]/40 transition-all"
               />
             </div>
           </div>
 
           {/* Prioridad */}
           <div>
-            <label className="text-xs font-bold text-[#000033] mb-2 block">Prioridad</label>
+            <label className="text-[10px] font-bold text-[#000033] mb-1.5 block">Prioridad</label>
             <div className="flex gap-2">
               {PRIORIDADES.map(p => (
                 <button
                   key={p.value}
                   type="button"
                   onClick={() => handleChange('prioridad', p.value)}
-                  className={`px-4 py-2 text-xs font-bold rounded-lg border-2 transition-all ${
+                  className={`px-3 py-1.5 text-[10px] font-bold rounded-lg border-2 transition-all ${
                     formData.prioridad === p.value
                       ? p.style
                       : 'bg-white text-[#000033]/40 border-[#000033]/10 hover:border-[#000033]/30'
@@ -412,7 +412,14 @@ export function CreateTicketModal({ isOpen, onClose, ticket }: CreateTicketModal
                         setNewLinkInput('');
                       }
                     }}
-                    placeholder="https://... (Enter para agregar)"
+                    onBlur={() => {
+                      const url = newLinkInput.trim();
+                      if (url && !formData.links.includes(url)) {
+                        setFormData(prev => ({ ...prev, links: [...prev.links, url] }));
+                      }
+                      setNewLinkInput('');
+                    }}
+                    placeholder="https://..."
                     className="flex-1 px-3 py-2 border-2 border-[#000033]/10 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#024fff] text-[#000033] hover:border-[#024fff]/40 transition-all"
                   />
                   <button
@@ -470,11 +477,11 @@ export function CreateTicketModal({ isOpen, onClose, ticket }: CreateTicketModal
         </form>
 
         {/* Footer */}
-        <div className="bg-[#fafafa] border-t-2 border-[#000033]/10 px-6 py-4 flex items-center justify-between flex-shrink-0">
+        <div className="bg-[#fafafa] border-t-2 border-[#000033]/10 px-4 py-3 flex items-center justify-between flex-shrink-0">
           <button
             type="button"
             onClick={handleClose}
-            className="px-4 py-2 text-sm font-bold text-[#000033]/60 hover:text-[#000033] transition-all"
+            className="px-3 py-1.5 text-xs font-bold text-[#000033]/60 hover:text-[#000033] transition-all"
           >
             Cancelar
           </button>
@@ -484,9 +491,9 @@ export function CreateTicketModal({ isOpen, onClose, ticket }: CreateTicketModal
               <button
                 type="button"
                 onClick={() => { handleClose(); navigate(`/content/${ticket!.id}`); }}
-                className="flex items-center gap-2 px-5 py-2 bg-[#024fff]/10 border-2 border-[#024fff]/20 text-[#024fff] rounded-lg hover:bg-[#024fff]/20 transition-all font-bold text-sm"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-[#024fff]/10 border-2 border-[#024fff]/20 text-[#024fff] rounded-lg hover:bg-[#024fff]/20 transition-all font-bold text-xs"
               >
-                <PenLine className="w-4 h-4" />
+                <PenLine className="w-3.5 h-3.5" />
                 Redactar
               </button>
             )}
@@ -494,11 +501,11 @@ export function CreateTicketModal({ isOpen, onClose, ticket }: CreateTicketModal
               type="submit"
               form="ticket-form"
               disabled={isPending}
-              className="flex items-center gap-2 px-5 py-2 bg-[#00ff99]/30 border-2 border-[#00ff99]/50 text-[#000033] rounded-lg hover:bg-[#00ff99]/40 transition-all font-bold text-sm shadow-lg shadow-[#00ff99]/20 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-[#00ff99]/30 border-2 border-[#00ff99]/50 text-[#000033] rounded-lg hover:bg-[#00ff99]/40 transition-all font-bold text-xs shadow-lg shadow-[#00ff99]/20 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isPending ? 'Guardando...' : (
                 <>
-                  <Save className="w-4 h-4" />
+                  <Save className="w-3.5 h-3.5" />
                   Guardar
                 </>
               )}
