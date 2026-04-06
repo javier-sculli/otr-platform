@@ -268,7 +268,8 @@ export function PerformancePage() {
                 return (
                   <div
                     key={pub.id}
-                    className={`grid grid-cols-[90px_56px_1fr_140px_80px_80px_80px_44px] gap-3 px-4 py-3 transition-all ${
+                    onClick={() => pub.url && window.open(pub.url, '_blank', 'noopener,noreferrer')}
+                    className={`grid grid-cols-[90px_56px_1fr_140px_80px_80px_80px_44px] gap-3 px-4 py-3 transition-all ${pub.url ? 'cursor-pointer hover:bg-[#024fff]/5' : ''} ${
                       index !== sorted.length - 1 ? 'border-b border-[#000033]/5' : ''
                     }`}
                   >
