@@ -6,6 +6,9 @@ import { BacklogPage } from './pages/BacklogPage';
 import { ClientesPage } from './pages/ClientesPage';
 import { VozDeMarcaPage } from './pages/VozDeMarcaPage';
 import { ContentPage } from './pages/ContentPage';
+import { TicketDetallePage } from './pages/TicketDetallePage';
+import { PerformancePage } from './pages/PerformancePage';
+import { PublicationDetailPage } from './pages/PublicationDetailPage';
 import { Layout } from './components/Layout';
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
@@ -57,6 +60,30 @@ function AppRoutes() {
         element={
           <PrivateRoute>
             <VozDeMarcaPage />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/piezas/:ticketId"
+        element={
+          <PrivateRoute>
+            <TicketDetallePage />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/performance"
+        element={
+          <PrivateRoute>
+            <PerformancePage />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/performance/:publicationId"
+        element={
+          <PrivateRoute>
+            <PublicationDetailPage />
           </PrivateRoute>
         }
       />

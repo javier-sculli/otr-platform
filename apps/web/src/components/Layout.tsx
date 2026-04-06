@@ -1,10 +1,11 @@
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Lightbulb, LogOut, User, Building2 } from 'lucide-react';
+import { Lightbulb, LogOut, User, Building2, TrendingUp } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
 const navItems = [
   { path: '/clientes', label: 'Clientes', icon: Building2 },
   { path: '/backlog', label: 'Backlog', icon: Lightbulb },
+  { path: '/performance', label: 'Performance', icon: TrendingUp },
 ];
 
 interface LayoutProps {

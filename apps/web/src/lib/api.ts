@@ -120,6 +120,13 @@ class ApiClient {
     });
   }
 
+  async updateClient(id: string, data: { linkedinUrl?: string; name?: string; canales?: string[] }) {
+    return this.request<{ data: any }>(`/catalogs/clients/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  }
+
   async deleteClient(id: string) {
     return this.request(`/catalogs/clients/${id}`, { method: 'DELETE' });
   }
@@ -145,6 +152,37 @@ class ApiClient {
 
   async getTicketTypes() {
     return this.request<{ data: any[] }>('/catalogs/ticket-types');
+  }
+
+  // Metrics
+  async getPublication(id: string) {
+    return this.request<{ data: any }>(`/metrics/${id}`);
+  }
+
+  async updatePublication(id: string, data: any) {
+    return this.request<{ data: any }>(`/metrics/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async upsertSnapshot(publicationId: string, data: { dayNumber: number; likes: number; comments: number; shares: number }) {
+    return this.request<{ data: any }>(`/metrics/${publicationId}/snapshots`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async getMetrics(clientId?: string) {
+    const params = clientId ? `?clientId=${clientId}` : '';
+    return this.request<{ data: any[] }>(`/metrics${params}`);
+  }
+
+  async syncMetrics(clientId?: string) {
+    return this.request<{ message: string }>('/metrics/sync', {
+      method: 'POST',
+      body: JSON.stringify(clientId ? { clientId } : {}),
+    });
   }
 
   async chatWithAI(ticketId: string, payload: {

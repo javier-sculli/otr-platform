@@ -116,6 +116,12 @@ Sistema de gestión de producción de contenido para On The Rocks (OTR), una age
 - BacklogIdeas no es pantalla propia, vive dentro del kanban de Backlog
 - La Biblioteca de Ganadores alimenta sugerencias de referencia en el Workspace
 
+## Memoria del proyecto
+
+> Los archivos de memoria viven en `/memory/` en la raíz del repo.
+> **Al iniciar una conversación, leer `/memory/INDEX.md`** para tener contexto de lo implementado y las decisiones tomadas.
+> **Al terminar algo nuevo, actualizar la memoria**: crear o editar el archivo correspondiente en `/memory/` y actualizar `INDEX.md`.
+
 ## Notion del proyecto
 - Hub principal: https://www.notion.so/2f1617fc36928073874dcd55f6937327
 - Historias de usuario: https://www.notion.so/311617fc369280539087d9efd37755c5

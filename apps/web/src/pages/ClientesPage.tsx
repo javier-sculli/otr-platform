@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import {
   Search, Plus, X, Building2,
-  FileText, ChevronDown, Check, Trash2, Sparkles,
+  FileText, ChevronDown, Check, Trash2, Sparkles, Linkedin, Edit3,
 } from 'lucide-react';
 import { api } from '../lib/api';
 
@@ -12,6 +12,7 @@ interface ClienteStats {
   name: string;
   active: boolean;
   canales: string[];
+  linkedinUrl?: string | null;
   owner: { id: string; name: string } | null;
   createdAt: string;
   updatedAt: string;
@@ -155,6 +156,10 @@ export function ClientesPage() {
                 onContenido={() => navigate(`/backlog?clientId=${cliente.id}`)}
                 onVozDeMarca={() => navigate(`/clientes/${cliente.id}/voz-de-marca`)}
                 onDelete={() => deleteMutation.mutate(cliente.id)}
+                onUpdateLinkedin={(url) => api.updateClient(cliente.id, { linkedinUrl: url }).then(() => {
+                  queryClient.invalidateQueries({ queryKey: ['clients-stats'] });
+                  queryClient.invalidateQueries({ queryKey: ['clients'] });
+                })}
                 isDeleting={deleteMutation.isPending && deleteMutation.variables === cliente.id}
               />
             ))}
@@ -179,15 +184,19 @@ function ClienteCard({
   onContenido,
   onVozDeMarca,
   onDelete,
+  onUpdateLinkedin,
   isDeleting,
 }: {
   cliente: ClienteStats;
   onContenido: () => void;
   onVozDeMarca: () => void;
   onDelete: () => void;
+  onUpdateLinkedin: (url: string) => void;
   isDeleting: boolean;
 }) {
   const [confirming, setConfirming] = useState(false);
+  const [editingLinkedin, setEditingLinkedin] = useState(false);
+  const [linkedinInput, setLinkedinInput] = useState(cliente.linkedinUrl ?? '');
 
   return (
     <div className="bg-white border-2 border-[#000033]/10 rounded-xl p-4 hover:border-[#024fff]/40 transition-all hover:shadow-lg group">
@@ -214,10 +223,53 @@ function ClienteCard({
 
       {/* Owner */}
       {cliente.owner && (
-        <div className="mb-3 pb-3 border-b border-[#000033]/10">
+        <div className="mb-3">
           <p className="text-xs text-[#000033]/60 truncate">{cliente.owner.name}</p>
         </div>
       )}
+
+      {/* LinkedIn URL */}
+      <div className="mb-3 pb-3 border-b border-[#000033]/10">
+        {editingLinkedin ? (
+          <div className="flex gap-1.5">
+            <input
+              autoFocus
+              type="url"
+              value={linkedinInput}
+              onChange={e => setLinkedinInput(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Enter') { onUpdateLinkedin(linkedinInput); setEditingLinkedin(false); }
+                if (e.key === 'Escape') { setLinkedinInput(cliente.linkedinUrl ?? ''); setEditingLinkedin(false); }
+              }}
+              placeholder="https://linkedin.com/company/..."
+              className="flex-1 px-2 py-1 border-2 border-[#024fff]/30 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-[#024fff] text-[#000033]"
+            />
+            <button
+              onClick={() => { onUpdateLinkedin(linkedinInput); setEditingLinkedin(false); }}
+              className="px-2 py-1 bg-[#024fff]/10 border border-[#024fff]/30 text-[#024fff] rounded-lg text-xs font-bold hover:bg-[#024fff]/20 transition-all"
+            >
+              OK
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={() => setEditingLinkedin(true)}
+            className="flex items-center gap-1.5 group/li w-full"
+          >
+            <Linkedin className="w-3 h-3 flex-shrink-0 text-[#024fff]/60" />
+            {cliente.linkedinUrl ? (
+              <span className="text-xs text-[#024fff]/70 truncate flex-1 text-left group-hover/li:text-[#024fff] transition-colors">
+                {cliente.linkedinUrl.replace('https://linkedin.com/company/', '').replace('https://www.linkedin.com/company/', '')}
+              </span>
+            ) : (
+              <span className="text-xs text-[#000033]/30 italic flex-1 text-left group-hover/li:text-[#000033]/50 transition-colors">
+                Agregar LinkedIn...
+              </span>
+            )}
+            <Edit3 className="w-3 h-3 text-[#000033]/20 opacity-0 group-hover/li:opacity-100 transition-opacity flex-shrink-0" />
+          </button>
+        )}
+      </div>
 
       {/* Contenido stats */}
       <div className="mb-3">

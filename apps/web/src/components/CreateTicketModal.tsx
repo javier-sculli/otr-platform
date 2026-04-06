@@ -488,14 +488,24 @@ export function CreateTicketModal({ isOpen, onClose, ticket }: CreateTicketModal
 
           <div className="flex items-center gap-2">
             {isEditing && (
-              <button
-                type="button"
-                onClick={() => { handleClose(); navigate(`/content/${ticket!.id}`); }}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-[#024fff]/10 border-2 border-[#024fff]/20 text-[#024fff] rounded-lg hover:bg-[#024fff]/20 transition-all font-bold text-xs"
-              >
-                <PenLine className="w-3.5 h-3.5" />
-                Redactar
-              </button>
+              <>
+                <button
+                  type="button"
+                  onClick={() => { handleClose(); navigate(`/piezas/${ticket!.id}`); }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 border-2 border-[#000033]/10 text-[#000033]/60 rounded-lg hover:bg-[#000033]/5 hover:text-[#000033] transition-all font-bold text-xs"
+                >
+                  Ver completo
+                  <ExternalLink className="w-3 h-3" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { handleClose(); navigate(`/content/${ticket!.id}`); }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-[#024fff]/10 border-2 border-[#024fff]/20 text-[#024fff] rounded-lg hover:bg-[#024fff]/20 transition-all font-bold text-xs"
+                >
+                  <PenLine className="w-3.5 h-3.5" />
+                  Redactar
+                </button>
+              </>
             )}
             <button
               type="submit"

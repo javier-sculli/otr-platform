@@ -39,6 +39,7 @@ export async function catalogsRoutes(fastify: FastifyInstance) {
         name: client.name,
         active: client.active,
         canales: client.canales,
+        linkedinUrl: client.linkedinUrl,
         owner: client.owner,
         createdAt: client.createdAt,
         updatedAt: client.updatedAt,
@@ -60,6 +61,18 @@ export async function catalogsRoutes(fastify: FastifyInstance) {
       data: { name, ownerId, canales: canales ?? [] },
       include: { owner: { select: { id: true, name: true } } },
     });
+    return { data: client };
+  });
+
+  // Update client
+  fastify.patch('/clients/:id', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const body = request.body as { linkedinUrl?: string; name?: string; canales?: string[] };
+    const data: any = {};
+    if (body.linkedinUrl !== undefined) data.linkedinUrl = body.linkedinUrl || null;
+    if (body.name !== undefined) data.name = body.name;
+    if (body.canales !== undefined) data.canales = body.canales;
+    const client = await prisma.client.update({ where: { id }, data });
     return { data: client };
   });
 

@@ -134,23 +134,27 @@ export async function ticketsRoutes(fastify: FastifyInstance) {
   });
 
   // Create/update publication for ticket
-  fastify.post('/:id/publication', async (request) => {
+  fastify.post('/:id/publication', async (request, reply) => {
     const { id } = request.params as { id: string };
     const data = request.body as any;
+
+    const ticket = await prisma.ticket.findUnique({ where: { id }, select: { clientId: true } });
+    if (!ticket) return reply.status(404).send({ error: 'Ticket no encontrado' });
 
     const publication = await prisma.publication.upsert({
       where: { ticketId: id },
       create: {
         ticketId: id,
+        clientId: ticket.clientId,
         url: data.url,
         publishedAt: new Date(data.publishedAt),
-        metrics: data.metrics || {},
+        canal: data.canal || 'LinkedIn',
         insights: data.insights,
       },
       update: {
         url: data.url,
         publishedAt: data.publishedAt ? new Date(data.publishedAt) : undefined,
-        metrics: data.metrics,
+        canal: data.canal,
         insights: data.insights,
       },
     });
