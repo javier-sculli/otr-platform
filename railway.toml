@@ -1,0 +1,5 @@
+[build]
+buildCommand = "pnpm --filter api build"
+
+[deploy]
+startCommand = "npx prisma generate --schema apps/api/prisma/schema.prisma && npx prisma migrate deploy --schema apps/api/prisma/schema.prisma && pnpm --filter api start"
