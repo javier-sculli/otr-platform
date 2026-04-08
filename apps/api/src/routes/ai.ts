@@ -177,6 +177,21 @@ export async function aiRoutes(fastify: FastifyInstance) {
       contextLinks: ticket.links,
     });
 
+    // ── LLM context debug log ──────────────────────────────────────────────
+    console.log('[ai/chat] ─────────────────────────────────────────────────');
+    console.log(`[ai/chat] ticket=${ticketId} model=${selectedModel} client="${ticket.client.name}"`);
+    console.log(`[ai/chat] history_turns=${(history ?? []).length} attachments=${(attachments ?? []).length}`);
+    console.log('[ai/chat] SYSTEM PROMPT:\n' + systemPrompt);
+    if ((history ?? []).length > 0) {
+      console.log('[ai/chat] HISTORY:');
+      (history ?? []).forEach((m, i) =>
+        console.log(`  [${i}] ${m.role}: ${m.content.slice(0, 200)}${m.content.length > 200 ? '…' : ''}`)
+      );
+    }
+    console.log(`[ai/chat] USER: ${instruction}`);
+    console.log('[ai/chat] ─────────────────────────────────────────────────');
+    // ──────────────────────────────────────────────────────────────────────
+
     let raw = '';
 
     if (selectedModel !== 'claude-sonnet-4-6') {
