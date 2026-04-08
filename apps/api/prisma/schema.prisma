@@ -127,6 +127,7 @@ model Ticket {
   keywords     String?
   links           String[]       @default([])
   linkEntregable  String?        @map("link_entregable")
+  chatHistory     Json?          @map("chat_history")
   createdAt       DateTime       @default(now()) @map("created_at")
   updatedAt    DateTime       @updatedAt @map("updated_at")
 

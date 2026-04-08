@@ -185,6 +185,13 @@ class ApiClient {
     });
   }
 
+  async saveChatHistory(ticketId: string, messages: { id: string; role: string; content: string }[]) {
+    return this.request(`/tickets/${ticketId}/chat-history`, {
+      method: 'PATCH',
+      body: JSON.stringify({ messages }),
+    });
+  }
+
   async chatWithAI(ticketId: string, payload: {
     instruction: string;
     currentContent: string;

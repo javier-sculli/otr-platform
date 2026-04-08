@@ -84,6 +84,8 @@ export function ContentPage() {
     enabled: !!ticketId,
   });
 
+  const [chatHistoryLoaded, setChatHistoryLoaded] = useState(false);
+
   useEffect(() => {
     if (ticketData?.data) {
       const t = ticketData.data;
@@ -94,6 +96,11 @@ export function ContentPage() {
       setContextLinks(t.links ?? []);
       setLinkEntregable(t.linkEntregable ?? null);
       setCharCount((t.content ?? '').length);
+
+      if (!chatHistoryLoaded && Array.isArray(t.chatHistory) && t.chatHistory.length > 0) {
+        setChatMessages(t.chatHistory as ChatMessage[]);
+      }
+      setChatHistoryLoaded(true);
     }
   }, [ticketData]);
 
@@ -217,12 +224,14 @@ export function ContentPage() {
           setCharCountB(resultB.newContent.length);
         }
 
-        setChatMessages(prev =>
-          prev.map(m => m.id === thinkingId
+        setChatMessages(prev => {
+          const updated = prev.map(m => m.id === thinkingId
             ? { ...m, content: `Claude Sonnet: ${resultA.summary}\n\nGPT-4o: ${resultB.summary}` }
             : m
-          )
-        );
+          );
+          api.saveChatHistory(ticketId, updated).catch(() => {});
+          return updated;
+        });
       } else {
         const result = await api.chatWithAI(ticketId, {
           instruction: fullInstruction, currentContent: contentText, brief, tone, keywords, outputLength, model: 'claude-sonnet-4-6', attachments, history,
@@ -234,9 +243,11 @@ export function ContentPage() {
           setHasChanges(true);
         }
 
-        setChatMessages(prev =>
-          prev.map(m => m.id === thinkingId ? { ...m, content: result.summary } : m)
-        );
+        setChatMessages(prev => {
+          const updated = prev.map(m => m.id === thinkingId ? { ...m, content: result.summary } : m);
+          api.saveChatHistory(ticketId, updated).catch(() => {});
+          return updated;
+        });
       }
     } catch (err: any) {
       setChatMessages(prev =>

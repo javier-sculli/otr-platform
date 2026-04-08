@@ -162,6 +162,20 @@ export async function ticketsRoutes(fastify: FastifyInstance) {
     return { data: publication };
   });
 
+  // Save chat history for ticket
+  fastify.patch('/:id/chat-history', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const { messages } = request.body as { messages: { id: string; role: string; content: string }[] };
+
+    const ticket = await prisma.ticket.update({
+      where: { id },
+      data: { chatHistory: messages },
+      select: { id: true },
+    });
+
+    return { data: ticket };
+  });
+
   // Get publication for ticket
   fastify.get('/:id/publication', async (request) => {
     const { id } = request.params as { id: string };
