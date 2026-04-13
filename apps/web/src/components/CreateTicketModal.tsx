@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { X, Target, FileText, User, Building2, Tag, Package, Calendar, Info, Save, PenLine, Link2, Plus, ExternalLink } from 'lucide-react';
+import { X, Target, FileText, User, Building2, Tag, Package, Calendar, Info, Save, PenLine, Link2, Plus, ExternalLink, Copy, Check, Image as ImageIcon } from 'lucide-react';
 import { api } from '../lib/api';
 
 interface TicketData {
@@ -14,6 +14,8 @@ interface TicketData {
   dueDate?: string | null;
   links?: string[];
   linkEntregable?: string | null;
+  copyFinal?: string | null;
+  notasAudiovisual?: string | null;
   client: { id: string; name: string };
   owner: { id: string; name: string };
   area?: { id: string; name: string } | null;
@@ -49,6 +51,8 @@ function buildFormData(ticket?: TicketData | null) {
       dueDate: '',
       links: [] as string[],
       linkEntregable: '',
+      content: '',
+      notasAudiovisual: '',
     };
   }
   return {
@@ -64,6 +68,8 @@ function buildFormData(ticket?: TicketData | null) {
     dueDate: ticket.dueDate ? ticket.dueDate.slice(0, 10) : '',
     links: ticket.links ?? [],
     linkEntregable: ticket.linkEntregable ?? '',
+    content: (ticket as any).content ?? '',
+    notasAudiovisual: (ticket as any).notasAudiovisual ?? '',
   };
 }
 
@@ -74,6 +80,7 @@ export function CreateTicketModal({ isOpen, onClose, ticket }: CreateTicketModal
   const [error, setError] = useState<string | null>(null);
   const [formData, setFormData] = useState(() => buildFormData(ticket));
   const [newLinkInput, setNewLinkInput] = useState('');
+  const [copyCopied, setCopyCopied] = useState(false);
 
   // Re-populate when ticket changes (e.g. opening different card)
   useEffect(() => {
@@ -169,6 +176,8 @@ export function CreateTicketModal({ isOpen, onClose, ticket }: CreateTicketModal
         ...payload,
         links: formData.links,
         linkEntregable: formData.linkEntregable || null,
+        content: formData.content || null,
+        notasAudiovisual: formData.notasAudiovisual || null,
       });
     } else {
       createMutation.mutate({ ...payload, clientId: formData.clientId });
@@ -187,7 +196,7 @@ export function CreateTicketModal({ isOpen, onClose, ticket }: CreateTicketModal
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={handleClose} />
 
-      <div className="relative bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[85vh] overflow-hidden flex flex-col">
+      <div className="relative bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
         {/* Header */}
         <div className="bg-[#000033] px-4 py-3 flex items-center justify-between flex-shrink-0">
           <div className="flex items-center gap-2.5">
@@ -460,7 +469,7 @@ export function CreateTicketModal({ isOpen, onClose, ticket }: CreateTicketModal
               {/* ENTREGABLE VISUAL */}
               <div>
                 <label className="flex items-center gap-1.5 text-xs font-bold text-[#000033] mb-2">
-                  <ExternalLink className="w-4 h-4 text-[#00ff99]" />
+                  <ImageIcon className="w-4 h-4 text-[#00ff99]" />
                   Entregable visual
                   <span className="text-[#000033]/40 font-normal">Link a Drive con el contenido gráfico</span>
                 </label>
@@ -470,6 +479,53 @@ export function CreateTicketModal({ isOpen, onClose, ticket }: CreateTicketModal
                   onChange={e => setFormData(prev => ({ ...prev, linkEntregable: e.target.value }))}
                   placeholder="https://drive.google.com/..."
                   className="w-full px-3 py-2 border-2 border-[#000033]/10 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#00ff99]/50 text-[#000033] hover:border-[#00ff99]/40 transition-all"
+                />
+              </div>
+
+              {/* COPY FINAL */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="flex items-center gap-1.5 text-xs font-bold text-[#000033]">
+                    <FileText className="w-3.5 h-3.5 text-[#00ff99]" />
+                    Copy final
+                    <span className="text-[#000033]/40 font-normal">Texto listo para publicar</span>
+                  </label>
+                  {formData.content.trim() && (
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        await navigator.clipboard.writeText(formData.content);
+                        setCopyCopied(true);
+                        setTimeout(() => setCopyCopied(false), 2000);
+                      }}
+                      className="flex items-center gap-1 px-2.5 py-1 bg-[#00ff99]/20 border-2 border-[#00ff99]/40 text-[#000033] rounded-lg hover:bg-[#00ff99]/30 transition-all text-xs font-bold"
+                    >
+                      {copyCopied ? <><Check className="w-3 h-3" />Copiado</> : <><Copy className="w-3 h-3" />Copiar</>}
+                    </button>
+                  )}
+                </div>
+                <textarea
+                  value={formData.content}
+                  onChange={e => setFormData(prev => ({ ...prev, content: e.target.value }))}
+                  placeholder={`Pegá aquí el copy final aprobado, listo para publicar.\n\nPuede venir del workspace de redacción o escribirse directamente acá.`}
+                  className="w-full px-3 py-2 border-2 border-[#000033]/10 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#024fff] text-[#000033] hover:border-[#024fff]/40 transition-all resize-none font-mono"
+                  rows={6}
+                />
+              </div>
+
+              {/* NOTAS AUDIOVISUAL */}
+              <div>
+                <label className="flex items-center gap-1.5 text-xs font-bold text-[#000033] mb-2">
+                  <ImageIcon className="w-3.5 h-3.5 text-[#024fff]" />
+                  Notas para audiovisual
+                  <span className="text-[#000033]/40 font-normal">Instrucciones para diseño/video</span>
+                </label>
+                <textarea
+                  value={formData.notasAudiovisual}
+                  onChange={e => setFormData(prev => ({ ...prev, notasAudiovisual: e.target.value }))}
+                  placeholder={`Instrucciones para el equipo de diseño/video:\n• Qué mostrar visualmente\n• Formato requerido (carrusel, reel, video, etc.)\n• Referencias visuales`}
+                  className="w-full px-3 py-2 border-2 border-[#000033]/10 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#024fff] text-[#000033] hover:border-[#024fff]/40 transition-all resize-none"
+                  rows={4}
                 />
               </div>
             </>

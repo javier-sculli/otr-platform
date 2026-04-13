@@ -108,6 +108,8 @@ export async function ticketsRoutes(fastify: FastifyInstance) {
     if (data.linkEntregable !== undefined) updateData.linkEntregable = data.linkEntregable;
     if (data.content !== undefined) updateData.content = data.content;
     if (data.keywords !== undefined) updateData.keywords = data.keywords;
+    if (data.copyFinal !== undefined) updateData.copyFinal = data.copyFinal;
+    if (data.notasAudiovisual !== undefined) updateData.notasAudiovisual = data.notasAudiovisual;
 
     const ticket = await prisma.ticket.update({
       where: { id },

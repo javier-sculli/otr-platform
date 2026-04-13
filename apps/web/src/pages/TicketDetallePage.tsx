@@ -15,6 +15,8 @@ import {
   Clock,
   Plus,
   X as XIcon,
+  Copy,
+  Check,
 } from 'lucide-react';
 import { api } from '../lib/api';
 
@@ -64,11 +66,16 @@ export function TicketDetallePage() {
   const [newLinkInput, setNewLinkInput] = useState('');
   const [newEntregableInput, setNewEntregableInput] = useState('');
   const [editandoEntregable, setEditandoEntregable] = useState(false);
+  const [notasAudiovisual, setNotasAudiovisual] = useState('');
+  const [copyCopied, setCopyCopied] = useState(false);
   const linkInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (ticket?.title) setTituloTemp(ticket.title);
-  }, [ticket?.title]);
+    if ((ticket as any)?.notasAudiovisual !== undefined) {
+      setNotasAudiovisual((ticket as any).notasAudiovisual ?? '');
+    }
+  }, [ticket?.title, (ticket as any)?.notasAudiovisual]);
 
   const handleGuardarTitulo = () => {
     if (tituloTemp.trim() && tituloTemp !== ticket?.title) {
@@ -380,6 +387,59 @@ export function TicketDetallePage() {
                   )}
                 </div>
               )}
+            </div>
+
+            {/* Copy final */}
+            <div className="bg-white border-2 border-[#00ff99]/20 rounded-lg p-5">
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="text-xs font-bold text-[#000033] uppercase flex items-center gap-2">
+                  <FileText className="w-3.5 h-3.5 text-[#00ff99]" />
+                  Copy final
+                </h2>
+                {ticket.content && (
+                  <button
+                    onClick={async () => {
+                      await navigator.clipboard.writeText(ticket.content);
+                      setCopyCopied(true);
+                      setTimeout(() => setCopyCopied(false), 2000);
+                    }}
+                    className="flex items-center gap-1 px-2.5 py-1 bg-[#00ff99]/20 border-2 border-[#00ff99]/40 text-[#000033] rounded-lg hover:bg-[#00ff99]/30 transition-all text-xs font-bold"
+                  >
+                    {copyCopied ? <><Check className="w-3 h-3" />Copiado</> : <><Copy className="w-3 h-3" />Copiar</>}
+                  </button>
+                )}
+              </div>
+              {ticket.content ? (
+                <pre className="text-xs text-[#000033]/80 whitespace-pre-wrap font-mono bg-[#fafafa] border border-[#000033]/10 rounded-lg px-3 py-2 max-h-48 overflow-y-auto">
+                  {ticket.content}
+                </pre>
+              ) : (
+                <p className="text-xs text-[#000033]/40 italic">
+                  Aún no hay copy redactado.{' '}
+                  <button
+                    onClick={() => navigate(`/content/${ticket.id}`)}
+                    className="text-[#024fff] underline hover:no-underline"
+                  >
+                    Ir al workspace
+                  </button>
+                </p>
+              )}
+            </div>
+
+            {/* Notas para audiovisual */}
+            <div className="bg-white border-2 border-[#000033]/10 rounded-lg p-5">
+              <h2 className="text-xs font-bold text-[#000033] uppercase flex items-center gap-2 mb-3">
+                <ImageIcon className="w-3.5 h-3.5 text-[#024fff]" />
+                Notas para audiovisual
+              </h2>
+              <textarea
+                value={notasAudiovisual}
+                onChange={e => setNotasAudiovisual(e.target.value)}
+                onBlur={() => updateMutation.mutate({ notasAudiovisual: notasAudiovisual || null })}
+                placeholder={`Instrucciones para el equipo de diseño/video:\n• Qué mostrar visualmente\n• Formato requerido (carrusel, reel, video, etc.)\n• Referencias visuales`}
+                className="w-full px-3 py-2 border-2 border-dashed border-[#000033]/10 rounded-lg text-xs focus:outline-none focus:border-[#024fff]/40 focus:border-solid text-[#000033] hover:border-[#024fff]/30 transition-all resize-none placeholder-[#000033]/30"
+                rows={4}
+              />
             </div>
           </div>
 
