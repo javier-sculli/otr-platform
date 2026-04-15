@@ -25,6 +25,32 @@ const BRAND_VOICE_LABELS: Record<string, string> = {
   audiencia_objetivo: 'Audiencia objetivo',
 };
 
+const SPEAKER_VOICE_LABELS: Record<string, string> = {
+  personalidadArquetipo: 'Personalidad y arquetipo',
+  tonoVozPersonal: 'Tono y voz personal',
+  contextoExperiencia: 'Contexto y experiencia',
+  temasHabla: 'Temas que habla',
+  posicionamientoOpinion: 'Posicionamiento y opinión',
+  estructuraNarrativa: 'Estructura narrativa',
+  usoIdioma: 'Uso del idioma',
+  criteriosCalidad: 'Criterios de calidad',
+  contextoMarca: 'Contexto de la marca',
+};
+
+type SpeakerVoice = {
+  nombre: string;
+  cargo?: string | null;
+  personalidadArquetipo?: string | null;
+  tonoVozPersonal?: string | null;
+  contextoExperiencia?: string | null;
+  temasHabla?: string | null;
+  posicionamientoOpinion?: string | null;
+  estructuraNarrativa?: string | null;
+  usoIdioma?: string | null;
+  criteriosCalidad?: string | null;
+  contextoMarca?: string | null;
+};
+
 function buildSystemPrompt(params: {
   clientName: string;
   title: string;
@@ -34,21 +60,42 @@ function buildSystemPrompt(params: {
   outputLength: string;
   currentContent: string;
   brandVoice: Record<string, string> | null;
+  speaker?: SpeakerVoice | null;
   textAttachments?: { name: string; content: string }[];
   contextLinks?: string[];
 }): string {
-  const { clientName, title, brief, tone, keywords, outputLength, currentContent, brandVoice, textAttachments, contextLinks } = params;
+  const { clientName, title, brief, tone, keywords, outputLength, currentContent, brandVoice, speaker, textAttachments, contextLinks } = params;
 
   const lengthGuide = LENGTH_GUIDE[outputLength] ?? LENGTH_GUIDE['M'];
 
-  // Brand voice — only inject sections with content
+  // Speaker voice — highest priority, placed first
+  let speakerBlock = '';
+  if (speaker) {
+    const filledFields = Object.entries(SPEAKER_VOICE_LABELS)
+      .filter(([key]) => {
+        const val = speaker[key as keyof SpeakerVoice];
+        return typeof val === 'string' && val.trim().length > 0;
+      });
+
+    const cargo = speaker.cargo ? ` — ${speaker.cargo}` : '';
+    speakerBlock = `\n## Voz del Vocero — ${speaker.nombre}${cargo}\n⚠️ PRIORIDAD MÁXIMA: Este contenido habla en primera persona como ${speaker.nombre}. Su voz personal TIENE PRIORIDAD sobre el kit de marca. Adaptá el estilo de marca a la voz del vocero, no al revés.\n${
+      filledFields
+        .map(([key]) => `### ${SPEAKER_VOICE_LABELS[key]}\n${speaker[key as keyof SpeakerVoice]}`)
+        .join('\n\n')
+    }`;
+  }
+
+  // Brand voice — secondary context when there's a speaker
   let brandVoiceBlock = '';
   if (brandVoice) {
     const filledSections = Object.entries(brandVoice)
       .filter(([, value]) => typeof value === 'string' && value.trim().length > 0);
 
     if (filledSections.length > 0) {
-      brandVoiceBlock = `\n## Kit de Marca — ${clientName}\n${
+      const brandLabel = speaker
+        ? `## Kit de Marca — ${clientName} (contexto de fondo, subordinado a la voz del vocero)`
+        : `## Kit de Marca — ${clientName}`;
+      brandVoiceBlock = `\n${brandLabel}\n${
         filledSections
           .map(([key, value]) => `### ${BRAND_VOICE_LABELS[key] ?? key}\n${value}`)
           .join('\n\n')
@@ -68,6 +115,8 @@ function buildSystemPrompt(params: {
     ? `\n## Links de referencia de la pieza\n${contextLinks.map(l => `- ${l}`).join('\n')}`
     : '';
 
+  const voiceContext = speakerBlock + brandVoiceBlock;
+
   return `Sos un redactor profesional especializado en contenido para redes sociales y marketing de contenidos. Trabajás para el cliente ${clientName}.
 
 ## Contexto de la pieza
@@ -75,7 +124,7 @@ Título: ${title || '(sin título)'}
 Brief: ${brief || '(sin brief)'}
 Tono de voz: ${tone || '(no especificado)'}
 Keywords: ${keywords || '(no especificadas)'}
-Longitud objetivo: ${lengthGuide}${brandVoiceBlock}${contextLinksBlock}${attachmentsBlock}${contentBlock}
+Longitud objetivo: ${lengthGuide}${voiceContext}${contextLinksBlock}${attachmentsBlock}${contentBlock}
 
 ## Instrucciones de respuesta
 
@@ -142,13 +191,12 @@ export async function aiRoutes(fastify: FastifyInstance) {
     const allowedModels = ['gpt-4o', 'claude-sonnet-4-6'];
     const selectedModel = model && allowedModels.includes(model) ? model : 'gpt-4o';
 
-    // Load ticket + client + brand voice
+    // Load ticket + client + brand voice + speaker
     const ticket = await prisma.ticket.findUnique({
       where: { id: ticketId },
       include: {
-        client: {
-          include: { brandVoice: true },
-        },
+        client: { include: { brandVoice: true } },
+        speaker: true,
       },
     });
 
@@ -157,6 +205,7 @@ export async function aiRoutes(fastify: FastifyInstance) {
     }
 
     const brandVoice = ticket.client.brandVoice?.content as Record<string, string> | null;
+    const speaker = ticket.speaker as SpeakerVoice | null;
 
     const textAttachments = attachments
       ?.filter(a => a.contentType === 'text')
@@ -173,6 +222,7 @@ export async function aiRoutes(fastify: FastifyInstance) {
       outputLength,
       currentContent,
       brandVoice,
+      speaker,
       textAttachments,
       contextLinks: ticket.links,
     });

@@ -120,7 +120,18 @@ class ApiClient {
     });
   }
 
-  async updateClient(id: string, data: { linkedinUrl?: string; name?: string; canales?: string[] }) {
+  async updateClient(id: string, data: {
+    linkedinUrl?: string;
+    instagramUrl?: string;
+    twitterUrl?: string;
+    tiktokUrl?: string;
+    webUrl?: string;
+    newsletterUrl?: string;
+    blogUrl?: string;
+    name?: string;
+    canales?: string[];
+    ownerId?: string;
+  }) {
     return this.request<{ data: any }>(`/catalogs/clients/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(data),
@@ -140,6 +151,52 @@ class ApiClient {
       method: 'PUT',
       body: JSON.stringify({ content }),
     });
+  }
+
+  // Speakers (voceros)
+  async getSpeakers(clientId: string) {
+    return this.request<{ data: any[] }>(`/catalogs/clients/${clientId}/speakers`);
+  }
+
+  async createSpeaker(clientId: string, data: { nombre: string; cargo?: string; linkedinUrl?: string }) {
+    return this.request<{ data: any }>(`/catalogs/clients/${clientId}/speakers`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateSpeaker(clientId: string, speakerId: string, data: Record<string, any>) {
+    return this.request<{ data: any }>(`/catalogs/clients/${clientId}/speakers/${speakerId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteSpeaker(clientId: string, speakerId: string) {
+    return this.request(`/catalogs/clients/${clientId}/speakers/${speakerId}`, { method: 'DELETE' });
+  }
+
+  // Pilares
+  async getPilares(clientId: string) {
+    return this.request<{ data: any[] }>(`/catalogs/clients/${clientId}/pilares`);
+  }
+
+  async createPilar(clientId: string, data: { nombre: string; descripcion?: string }) {
+    return this.request<{ data: any }>(`/catalogs/clients/${clientId}/pilares`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updatePilar(clientId: string, pilarId: string, data: { nombre?: string; descripcion?: string }) {
+    return this.request<{ data: any }>(`/catalogs/clients/${clientId}/pilares/${pilarId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deletePilar(clientId: string, pilarId: string) {
+    return this.request(`/catalogs/clients/${clientId}/pilares/${pilarId}`, { method: 'DELETE' });
   }
 
   async getUsers() {

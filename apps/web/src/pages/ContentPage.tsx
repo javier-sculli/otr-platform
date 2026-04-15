@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowLeft, Sparkles, Bold, Italic, Underline, List, ListOrdered,
   Link2, Image as ImageIcon, Type, Eye, Send, GripVertical, Check, AlertCircle,
-  Columns2, Paperclip, X, FileText, File, ExternalLink,
+  Columns2, Paperclip, X, FileText, File, ExternalLink, Mic,
 } from 'lucide-react';
 import * as pdfjsLib from 'pdfjs-dist';
 import { api } from '../lib/api';
@@ -315,6 +315,12 @@ export function ContentPage() {
               {ticket?.client && (
                 <span className="px-3 py-1 bg-[#024fff]/10 border-2 border-[#024fff]/20 text-[#024fff] text-sm font-bold rounded-lg flex-shrink-0">
                   {ticket.client.name}
+                </span>
+              )}
+              {(ticket as any)?.speaker && (
+                <span className="flex items-center gap-1.5 px-3 py-1 bg-[#000033]/5 border-2 border-[#000033]/10 text-[#000033] text-sm font-bold rounded-lg flex-shrink-0">
+                  <Mic className="w-3.5 h-3.5 text-[#024fff]" />
+                  {(ticket as any).speaker.nombre}
                 </span>
               )}
               {ticket?.status && (

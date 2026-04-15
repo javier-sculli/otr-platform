@@ -503,16 +503,6 @@ export function TicketDetallePage() {
                   </div>
                 )}
 
-                {ticket.area && (
-                  <div>
-                    <label className="text-xs font-bold text-[#000033]/60 uppercase block mb-1">
-                      Área / Pilar
-                    </label>
-                    <div className="px-3 py-2 border-2 border-[#000033]/10 rounded-lg bg-[#fafafa] text-xs text-[#000033]/60">
-                      {ticket.area.name}
-                    </div>
-                  </div>
-                )}
 
                 {ticket.ticketType && (
                   <div>

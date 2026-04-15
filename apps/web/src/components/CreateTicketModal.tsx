@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { X, Target, FileText, User, Building2, Tag, Package, Calendar, Info, Save, PenLine, Link2, Plus, ExternalLink, Copy, Check, Image as ImageIcon } from 'lucide-react';
+import { X, Target, FileText, User, Building2, Package, Calendar, Info, Save, PenLine, Link2, Plus, ExternalLink, Copy, Check, Image as ImageIcon, Layers } from 'lucide-react';
 import { api } from '../lib/api';
 
 interface TicketData {
@@ -44,8 +44,9 @@ function buildFormData(ticket?: TicketData | null) {
       redes: ['LinkedIn'] as string[],
       clientId: '',
       ownerId: '',
-      areaId: '',
       ticketTypeId: '',
+      pilarId: '',
+      speakerId: '',
       prioridad: 'MEDIA',
       status: 'BACKLOG',
       dueDate: '',
@@ -61,8 +62,9 @@ function buildFormData(ticket?: TicketData | null) {
     redes: ticket.canal ? [ticket.canal] : ['LinkedIn'],
     clientId: ticket.client.id,
     ownerId: ticket.owner.id,
-    areaId: ticket.area?.id ?? '',
     ticketTypeId: ticket.ticketType?.id ?? '',
+    pilarId: (ticket as any).pilar?.id ?? '',
+    speakerId: (ticket as any).speaker?.id ?? '',
     prioridad: ticket.prioridad,
     status: ticket.status,
     dueDate: ticket.dueDate ? ticket.dueDate.slice(0, 10) : '',
@@ -100,17 +102,25 @@ export function CreateTicketModal({ isOpen, onClose, ticket }: CreateTicketModal
     enabled: isOpen,
   });
 
-  const { data: areas } = useQuery({
-    queryKey: ['areas'],
-    queryFn: () => api.getAreas(),
-    enabled: isOpen,
-  });
-
   const { data: ticketTypes } = useQuery({
     queryKey: ['ticketTypes'],
     queryFn: () => api.getTicketTypes(),
     enabled: isOpen,
   });
+
+  const { data: pilaresData } = useQuery({
+    queryKey: ['pilares', formData.clientId],
+    queryFn: () => api.getPilares(formData.clientId),
+    enabled: isOpen && !!formData.clientId,
+  });
+  const pilares = pilaresData?.data ?? [];
+
+  const { data: speakersData } = useQuery({
+    queryKey: ['speakers', formData.clientId],
+    queryFn: () => api.getSpeakers(formData.clientId),
+    enabled: isOpen && !!formData.clientId,
+  });
+  const speakers = speakersData?.data ?? [];
 
   const createMutation = useMutation({
     mutationFn: (data: any) => api.createTicket(data),
@@ -137,7 +147,11 @@ export function CreateTicketModal({ isOpen, onClose, ticket }: CreateTicketModal
   const isPending = createMutation.isPending || updateMutation.isPending;
 
   const handleChange = (field: string, value: string) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
+    setFormData(prev => ({
+      ...prev,
+      [field]: value,
+      ...(field === 'clientId' ? { pilarId: '', speakerId: '' } : {}),
+    }));
     setError(null);
   };
 
@@ -167,8 +181,9 @@ export function CreateTicketModal({ isOpen, onClose, ticket }: CreateTicketModal
       objetivo: formData.brief || null,
       canal: formData.redes[0] || null,
       dueDate: formData.dueDate || null,
-      areaId: formData.areaId || null,
       ticketTypeId: formData.ticketTypeId || null,
+      pilarId: formData.pilarId || null,
+      speakerId: formData.speakerId || null,
     };
 
     if (isEditing) {
@@ -296,41 +311,85 @@ export function CreateTicketModal({ isOpen, onClose, ticket }: CreateTicketModal
             </div>
           </div>
 
-          {/* Área + Tipo */}
-          <div className="grid grid-cols-2 gap-3">
+          {/* Vocero — solo si el cliente tiene voceros */}
+          {formData.clientId && speakers.length > 0 && (
             <div>
               <label className="flex items-center gap-1.5 text-xs font-bold text-[#000033] mb-1.5">
-                <Tag className="w-3 h-3 text-[#024fff]" />
-                Área / Pilar
+                <User className="w-3 h-3 text-[#024fff]" />
+                Vocero
+                <span className="text-[#000033]/40 font-normal">(opcional — define voz del contenido)</span>
               </label>
-              <select
-                value={formData.areaId}
-                onChange={e => handleChange('areaId', e.target.value)}
-                className="w-full px-3 py-2 border-2 border-[#000033]/10 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#024fff] text-[#000033] hover:border-[#024fff]/40 transition-all bg-white font-medium"
-              >
-                <option value="">Seleccionar área</option>
-                {areas?.data.map((a: any) => (
-                  <option key={a.id} value={a.id}>{a.name}</option>
-                ))}
-              </select>
+              <div className="flex flex-wrap gap-1.5">
+                {speakers.map((s: any) => {
+                  const selected = formData.speakerId === s.id;
+                  return (
+                    <button
+                      key={s.id}
+                      type="button"
+                      onClick={() => handleChange('speakerId', selected ? '' : s.id)}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg border-2 transition-all ${
+                        selected
+                          ? 'bg-[#024fff]/10 text-[#024fff] border-[#024fff]/30'
+                          : 'bg-white text-[#000033]/60 border-[#000033]/10 hover:border-[#024fff]/40 hover:text-[#024fff]'
+                      }`}
+                    >
+                      <span className="w-5 h-5 rounded-full bg-[#024fff]/10 flex items-center justify-center text-[#024fff] font-bold text-[9px]">
+                        {s.nombre.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)}
+                      </span>
+                      {s.nombre}
+                      {s.cargo && <span className="font-normal opacity-60">· {s.cargo}</span>}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
+          )}
 
+          {/* Pilar — solo si el cliente tiene pilares definidos */}
+          {formData.clientId && pilares.length > 0 && (
             <div>
               <label className="flex items-center gap-1.5 text-xs font-bold text-[#000033] mb-1.5">
-                <Package className="w-3 h-3 text-[#024fff]" />
-                Tipo de contenido
+                <Layers className="w-3 h-3 text-[#024fff]" />
+                Pilar de contenido
               </label>
-              <select
-                value={formData.ticketTypeId}
-                onChange={e => handleChange('ticketTypeId', e.target.value)}
-                className="w-full px-3 py-2 border-2 border-[#000033]/10 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#024fff] text-[#000033] hover:border-[#024fff]/40 transition-all bg-white font-medium"
-              >
-                <option value="">Seleccionar tipo</option>
-                {ticketTypes?.data.map((t: any) => (
-                  <option key={t.id} value={t.id}>{t.name}</option>
-                ))}
-              </select>
+              <div className="flex flex-wrap gap-1.5">
+                {pilares.map((p: any) => {
+                  const selected = formData.pilarId === p.id;
+                  return (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => handleChange('pilarId', selected ? '' : p.id)}
+                      className={`px-3 py-1.5 text-xs font-bold rounded-lg border-2 transition-all text-left ${
+                        selected
+                          ? 'bg-[#024fff]/10 text-[#024fff] border-[#024fff]/30'
+                          : 'bg-white text-[#000033]/60 border-[#000033]/10 hover:border-[#024fff]/40 hover:text-[#024fff]'
+                      }`}
+                    >
+                      {p.nombre}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
+          )}
+
+          {/* Tipo de contenido */}
+          <div>
+            <label className="flex items-center gap-1.5 text-xs font-bold text-[#000033] mb-1.5">
+              <Package className="w-3 h-3 text-[#024fff]" />
+              Tipo de contenido
+            </label>
+            <select
+              value={formData.ticketTypeId}
+              onChange={e => handleChange('ticketTypeId', e.target.value)}
+              className="w-full px-3 py-2 border-2 border-[#000033]/10 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#024fff] text-[#000033] hover:border-[#024fff]/40 transition-all bg-white font-medium"
+            >
+              <option value="">Seleccionar tipo</option>
+              {ticketTypes?.data.map((t: any) => (
+                <option key={t.id} value={t.id}>{t.name}</option>
+              ))}
+            </select>
           </div>
 
           {/* Redes + Fecha */}

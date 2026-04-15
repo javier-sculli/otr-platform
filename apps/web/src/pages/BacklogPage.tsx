@@ -21,7 +21,6 @@ interface Ticket {
   linkEntregable?: string | null;
   owner: { id: string; name: string };
   client: { id: string; name: string };
-  area?: { id: string; name: string } | null;
   ticketType?: { id: string; name: string } | null;
 }
 

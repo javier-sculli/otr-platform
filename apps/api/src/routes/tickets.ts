@@ -8,17 +8,15 @@ export async function ticketsRoutes(fastify: FastifyInstance) {
 
   // List tickets with filters
   fastify.get('/', async (request) => {
-    const { clientId, ownerId, areaId, status } = request.query as {
+    const { clientId, ownerId, status } = request.query as {
       clientId?: string;
       ownerId?: string;
-      areaId?: string;
       status?: string;
     };
 
     const where: any = {};
     if (clientId) where.clientId = clientId;
     if (ownerId) where.ownerId = ownerId;
-    if (areaId) where.areaId = areaId;
     if (status) where.status = status;
 
     const tickets = await prisma.ticket.findMany({
@@ -26,8 +24,9 @@ export async function ticketsRoutes(fastify: FastifyInstance) {
       include: {
         client: true,
         owner: { select: { id: true, name: true, email: true } },
-        area: true,
         ticketType: true,
+        pilar: true,
+        speaker: true,
         publication: true,
       },
       orderBy: { createdAt: 'desc' },
@@ -45,8 +44,9 @@ export async function ticketsRoutes(fastify: FastifyInstance) {
       include: {
         client: true,
         owner: { select: { id: true, name: true, email: true } },
-        area: true,
         ticketType: true,
+        pilar: true,
+        speaker: true,
         publication: true,
       },
     });
@@ -71,8 +71,9 @@ export async function ticketsRoutes(fastify: FastifyInstance) {
         prioridad: data.prioridad,
         clientId: data.clientId,
         ownerId: data.ownerId,
-        areaId: data.areaId,
         ticketTypeId: data.ticketTypeId,
+        pilarId: data.pilarId || null,
+        speakerId: data.speakerId || null,
         status: data.status || 'BACKLOG',
         dueDate: data.dueDate ? new Date(data.dueDate) : undefined,
         links: data.links || [],
@@ -80,7 +81,6 @@ export async function ticketsRoutes(fastify: FastifyInstance) {
       include: {
         client: true,
         owner: { select: { id: true, name: true, email: true } },
-        area: true,
         ticketType: true,
       },
     });
@@ -100,8 +100,9 @@ export async function ticketsRoutes(fastify: FastifyInstance) {
     if (data.canal !== undefined) updateData.canal = data.canal;
     if (data.prioridad !== undefined) updateData.prioridad = data.prioridad;
     if (data.ownerId !== undefined) updateData.ownerId = data.ownerId;
-    if (data.areaId !== undefined) updateData.areaId = data.areaId;
     if (data.ticketTypeId !== undefined) updateData.ticketTypeId = data.ticketTypeId;
+    if (data.pilarId !== undefined) updateData.pilarId = data.pilarId || null;
+    if (data.speakerId !== undefined) updateData.speakerId = data.speakerId || null;
     if (data.status !== undefined) updateData.status = data.status;
     if (data.dueDate !== undefined) updateData.dueDate = data.dueDate ? new Date(data.dueDate) : null;
     if (data.links !== undefined) updateData.links = data.links;
@@ -117,8 +118,9 @@ export async function ticketsRoutes(fastify: FastifyInstance) {
       include: {
         client: true,
         owner: { select: { id: true, name: true, email: true } },
-        area: true,
         ticketType: true,
+        pilar: true,
+        speaker: true,
         publication: true,
       },
     });

@@ -108,6 +108,8 @@ Sistema de gestión de producción de contenido para On The Rocks (OTR), una age
 
 ## Proceso de documentación
 - **Historia de usuario** (Notion → Historias de usuario): todo el detalle — contexto, problema, decisiones tomadas, criterios de aceptación, módulos afectados, prioridad
+  - URL directa: https://www.notion.so/Historias-de-Usuario-311617fc369280539087d9efd37755c5
+  - **Siempre buscar las US en esta URL antes de implementar cualquier feature**
 - **Tarea de desarrollo** (Notion → Tareas de Desarrollo): lo necesario para implementar + link a la HU correspondiente
 
 ## Decisiones de producto tomadas
@@ -115,6 +117,11 @@ Sistema de gestión de producción de contenido para On The Rocks (OTR), una age
 - El modo dual es para fase de prueba/calibración, no necesariamente permanente
 - BacklogIdeas no es pantalla propia, vive dentro del kanban de Backlog
 - La Biblioteca de Ganadores alimenta sugerencias de referencia en el Workspace
+- El popup (ModalPieza) se simplifica: vista rápida + botones "Ver completo" y "Redactar"
+- El ticket tiene vista completa dedicada (/piezas/:id) para escalar con más campos
+- RECURSOS en ticket = links o adjuntos (múltiples). ENTREGABLE VISUAL = solo links (Drive) por ahora
+- El Brand Kit tendrá sección de canales: tono y lineamientos mínimos por red social
+- Kit del Vocero = capa sobre el Brand Kit, con tono personal y scraping de perfil social
 
 ## Memoria del proyecto
 

@@ -21,18 +21,28 @@ export async function catalogsRoutes(fastify: FastifyInstance) {
       where: { active: true },
       include: {
         owner: { select: { id: true, name: true } },
+        brandVoice: { select: { content: true } },
         tickets: {
           where: { status: { not: 'CANCELADO' } },
           select: { status: true },
         },
+        _count: { select: { speakers: true } },
       },
       orderBy: { name: 'asc' },
     });
 
+    const BRAND_VOICE_TOTAL = 11;
+
     const data = clients.map((client: typeof clients[number]) => {
       const tickets = client.tickets;
-      const enFlujo = tickets.filter((t: typeof tickets[number]) => t.status !== 'APROBADO').length;
-      const aprobados = tickets.filter((t: typeof tickets[number]) => t.status === 'APROBADO').length;
+      const draft = tickets.filter((t: typeof tickets[number]) => t.status === 'BACKLOG' || t.status === 'BRIEF').length;
+      const enRevision = tickets.filter((t: typeof tickets[number]) => t.status === 'REVISION').length;
+      const programadas = tickets.filter((t: typeof tickets[number]) => t.status === 'APROBADO').length;
+
+      // Brand voice completitud
+      const bvContent = (client.brandVoice?.content ?? {}) as Record<string, string>;
+      const bvFilled = Object.values(bvContent).filter(v => typeof v === 'string' && v.trim().length > 0).length;
+      const brandKitCompletitud = Math.round((bvFilled / BRAND_VOICE_TOTAL) * 100);
 
       return {
         id: client.id,
@@ -43,7 +53,9 @@ export async function catalogsRoutes(fastify: FastifyInstance) {
         owner: client.owner,
         createdAt: client.createdAt,
         updatedAt: client.updatedAt,
-        tickets: { enFlujo, aprobados },
+        brandKit: { completitud: brandKitCompletitud },
+        voceros: client._count.speakers,
+        contenido: { draft, enRevision, programadas },
       };
     });
 
@@ -67,11 +79,28 @@ export async function catalogsRoutes(fastify: FastifyInstance) {
   // Update client
   fastify.patch('/clients/:id', async (request, reply) => {
     const { id } = request.params as { id: string };
-    const body = request.body as { linkedinUrl?: string; name?: string; canales?: string[] };
+    const body = request.body as {
+      linkedinUrl?: string;
+      instagramUrl?: string;
+      twitterUrl?: string;
+      tiktokUrl?: string;
+      webUrl?: string;
+      newsletterUrl?: string;
+      blogUrl?: string;
+      name?: string;
+      canales?: string[];
+    };
     const data: any = {};
     if (body.linkedinUrl !== undefined) data.linkedinUrl = body.linkedinUrl || null;
+    if (body.instagramUrl !== undefined) data.instagramUrl = body.instagramUrl || null;
+    if (body.twitterUrl !== undefined) data.twitterUrl = body.twitterUrl || null;
+    if (body.tiktokUrl !== undefined) data.tiktokUrl = body.tiktokUrl || null;
+    if (body.webUrl !== undefined) data.webUrl = body.webUrl || null;
+    if (body.newsletterUrl !== undefined) data.newsletterUrl = body.newsletterUrl || null;
+    if (body.blogUrl !== undefined) data.blogUrl = body.blogUrl || null;
     if (body.name !== undefined) data.name = body.name;
     if (body.canales !== undefined) data.canales = body.canales;
+    if ((body as any).ownerId !== undefined) data.ownerId = (body as any).ownerId || null;
     const client = await prisma.client.update({ where: { id }, data });
     return { data: client };
   });
@@ -132,5 +161,130 @@ export async function catalogsRoutes(fastify: FastifyInstance) {
       orderBy: { name: 'asc' },
     });
     return { data: ticketTypes };
+  });
+
+  // ── Voceros ───────────────────────────────────────────────────────────────
+
+  // Get all speakers for a client
+  fastify.get('/clients/:id/speakers', async (request) => {
+    const { id } = request.params as { id: string };
+    const speakers = await prisma.speaker.findMany({
+      where: { clientId: id },
+      orderBy: { createdAt: 'asc' },
+    });
+    return { data: speakers };
+  });
+
+  // Create speaker
+  fastify.post('/clients/:id/speakers', async (request) => {
+    const { id } = request.params as { id: string };
+    const body = request.body as { nombre: string; cargo?: string; linkedinUrl?: string };
+    const speaker = await prisma.speaker.create({
+      data: {
+        clientId: id,
+        nombre: body.nombre,
+        cargo: body.cargo || null,
+        linkedinUrl: body.linkedinUrl || null,
+        canalesHabilitados: { linkedin: !!body.linkedinUrl },
+      },
+    });
+    return { data: speaker };
+  });
+
+  // Update speaker
+  fastify.patch('/clients/:clientId/speakers/:speakerId', async (request, reply) => {
+    const { clientId, speakerId } = request.params as { clientId: string; speakerId: string };
+    const body = request.body as {
+      nombre?: string;
+      cargo?: string;
+      linkedinUrl?: string;
+      instagramUrl?: string;
+      twitterUrl?: string;
+      tiktokUrl?: string;
+      newsletterUrl?: string;
+      blogUrl?: string;
+      canalesHabilitados?: Record<string, boolean>;
+      personalidadArquetipo?: string;
+      tonoVozPersonal?: string;
+      contextoExperiencia?: string;
+      temasHabla?: string;
+      posicionamientoOpinion?: string;
+      estructuraNarrativa?: string;
+      usoIdioma?: string;
+      criteriosCalidad?: string;
+      contextoMarca?: string;
+    };
+
+    const existing = await prisma.speaker.findFirst({ where: { id: speakerId, clientId } });
+    if (!existing) return reply.status(404).send({ error: 'Speaker not found' });
+
+    const data: any = {};
+    const strFields = [
+      'nombre', 'cargo', 'linkedinUrl', 'instagramUrl', 'twitterUrl',
+      'tiktokUrl', 'newsletterUrl', 'blogUrl',
+      'personalidadArquetipo', 'tonoVozPersonal', 'contextoExperiencia',
+      'temasHabla', 'posicionamientoOpinion', 'estructuraNarrativa',
+      'usoIdioma', 'criteriosCalidad', 'contextoMarca',
+    ] as const;
+    for (const field of strFields) {
+      if (body[field] !== undefined) data[field] = body[field] || null;
+    }
+    if (body.canalesHabilitados !== undefined) data.canalesHabilitados = body.canalesHabilitados;
+
+    const speaker = await prisma.speaker.update({ where: { id: speakerId }, data });
+    return { data: speaker };
+  });
+
+  // ── Pilares ───────────────────────────────────────────────────────────────
+
+  // Get all pilares for a client
+  fastify.get('/clients/:id/pilares', async (request) => {
+    const { id } = request.params as { id: string };
+    const pilares = await prisma.pilar.findMany({
+      where: { clientId: id },
+      orderBy: { createdAt: 'asc' },
+    });
+    return { data: pilares };
+  });
+
+  // Create pilar
+  fastify.post('/clients/:id/pilares', async (request) => {
+    const { id } = request.params as { id: string };
+    const body = request.body as { nombre: string; descripcion?: string };
+    const pilar = await prisma.pilar.create({
+      data: { clientId: id, nombre: body.nombre, descripcion: body.descripcion || null },
+    });
+    return { data: pilar };
+  });
+
+  // Update pilar
+  fastify.patch('/clients/:clientId/pilares/:pilarId', async (request, reply) => {
+    const { clientId, pilarId } = request.params as { clientId: string; pilarId: string };
+    const body = request.body as { nombre?: string; descripcion?: string };
+    const existing = await prisma.pilar.findFirst({ where: { id: pilarId, clientId } });
+    if (!existing) return reply.status(404).send({ error: 'Pilar not found' });
+    const pilar = await prisma.pilar.update({
+      where: { id: pilarId },
+      data: { nombre: body.nombre ?? existing.nombre, descripcion: body.descripcion !== undefined ? (body.descripcion || null) : existing.descripcion },
+    });
+    return { data: pilar };
+  });
+
+  // Delete pilar
+  fastify.delete('/clients/:clientId/pilares/:pilarId', async (request, reply) => {
+    const { clientId, pilarId } = request.params as { clientId: string; pilarId: string };
+    const existing = await prisma.pilar.findFirst({ where: { id: pilarId, clientId } });
+    if (!existing) return reply.status(404).send({ error: 'Pilar not found' });
+    await prisma.pilar.delete({ where: { id: pilarId } });
+    reply.code(204).send();
+  });
+
+  // Delete speaker
+  fastify.delete('/clients/:clientId/speakers/:speakerId', async (request, reply) => {
+    const { clientId, speakerId } = request.params as { clientId: string; speakerId: string };
+    const existing = await prisma.speaker.findFirst({ where: { id: speakerId, clientId } });
+    if (!existing) return reply.status(404).send({ error: 'Speaker not found' });
+    await prisma.speaker.delete({ where: { id: speakerId } });
+    reply.code(204).send();
   });
 }

@@ -4,6 +4,7 @@ import { LoginPage } from './pages/LoginPage';
 import { AuthCallbackPage } from './pages/AuthCallbackPage';
 import { BacklogPage } from './pages/BacklogPage';
 import { ClientesPage } from './pages/ClientesPage';
+import { ClienteDetallePage } from './pages/ClienteDetallePage';
 import { VozDeMarcaPage } from './pages/VozDeMarcaPage';
 import { ContentPage } from './pages/ContentPage';
 import { TicketDetallePage } from './pages/TicketDetallePage';
@@ -52,6 +53,14 @@ function AppRoutes() {
         element={
           <PrivateRoute>
             <ContentPage />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/clientes/:clientId"
+        element={
+          <PrivateRoute>
+            <ClienteDetallePage />
           </PrivateRoute>
         }
       />

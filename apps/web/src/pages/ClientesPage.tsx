@@ -2,8 +2,8 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import {
-  Search, Plus, X, Building2,
-  FileText, ChevronDown, Check, Trash2, Sparkles, Linkedin, Edit3,
+  Search, Plus, X, Building2, User,
+  FileText, ChevronDown, Check, Sparkles, Mic,
 } from 'lucide-react';
 import { api } from '../lib/api';
 
@@ -12,16 +12,12 @@ interface ClienteStats {
   name: string;
   active: boolean;
   canales: string[];
-  linkedinUrl?: string | null;
   owner: { id: string; name: string } | null;
+  brandKit: { completitud: number };
+  voceros: number;
+  contenido: { draft: number; enRevision: number; programadas: number };
   createdAt: string;
   updatedAt: string;
-  tickets: {
-    idea: number;
-    enProduccion: number;
-    publicado: number;
-    total: number;
-  };
 }
 
 interface Usuario {
@@ -69,14 +65,6 @@ export function ClientesPage() {
     },
   });
 
-  const deleteMutation = useMutation({
-    mutationFn: (id: string) => api.deleteClient(id),
-    onSuccess: () => {
-      queryClient.refetchQueries({ queryKey: ['clients-stats'] });
-      queryClient.refetchQueries({ queryKey: ['clients'] });
-    },
-  });
-
   const clientes: ClienteStats[] = data?.data ?? [];
   const usuarios: Usuario[] = usersData?.data ?? [];
 
@@ -87,80 +75,69 @@ export function ClientesPage() {
   return (
     <div className="min-h-screen bg-[#fafafa]">
       {/* Header */}
-      <div className="bg-white border-b-2 border-[#000033]/10 px-6 py-4">
+      <div className="bg-white border-b-2 border-[#000033]/10 px-8 py-6">
         <div className="max-w-[1600px] mx-auto">
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center justify-between mb-6">
             <div>
               <h1 className="text-xl font-bold text-[#000033] mb-0.5">Clientes</h1>
               <p className="text-xs text-[#000033]/60">
-                Gestiona los clientes y su contenido
+                Gestiona los clientes, su Voz de Marca y contenido
               </p>
             </div>
-
             <button
               onClick={() => setShowModalNuevo(true)}
-              className="flex items-center gap-1.5 px-3 py-2 bg-[#024fff] text-white rounded-lg hover:bg-[#024fff]/90 transition-all font-bold text-xs shadow-lg shadow-[#024fff]/20"
+              className="flex items-center gap-1.5 px-4 py-2.5 bg-[#024fff] text-white rounded-lg hover:bg-[#024fff]/90 transition-all font-bold text-sm shadow-lg shadow-[#024fff]/20"
             >
-              <Plus className="w-3.5 h-3.5" />
+              <Plus className="w-4 h-4" />
               Nuevo cliente
             </button>
           </div>
 
-          {/* Search */}
-          <div className="flex-1 max-w-sm relative">
+          <div className="flex-1 max-w-md relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#000033]/40" />
             <input
               type="text"
               placeholder="Buscar cliente..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-4 py-2 border-2 border-[#000033]/10 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#024fff] text-[#000033]"
+              className="w-full pl-9 pr-4 py-2.5 border-2 border-[#000033]/10 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#024fff] text-[#000033]"
             />
           </div>
         </div>
       </div>
 
-      {/* Grid de clientes */}
-      <div className="max-w-[1600px] mx-auto px-6 py-6">
+      {/* Grid */}
+      <div className="max-w-[1600px] mx-auto px-8 py-8">
         {isLoading ? (
-          <div className="flex items-center justify-center py-12">
-            <div className="text-[#000033]/60 text-xs">Cargando...</div>
-          </div>
+          <div className="flex items-center justify-center py-12 text-[#000033]/60 text-sm">Cargando...</div>
         ) : clientesFiltrados.length === 0 ? (
-          <div className="text-center py-12">
-            <Building2 className="w-12 h-12 text-[#000033]/20 mx-auto mb-3" />
-            <h3 className="text-sm font-bold text-[#000033] mb-1">
+          <div className="text-center py-16">
+            <Building2 className="w-14 h-14 text-[#000033]/20 mx-auto mb-4" />
+            <h3 className="text-base font-bold text-[#000033] mb-2">
               {searchQuery ? 'No se encontraron clientes' : 'Todavía no hay clientes'}
             </h3>
-            <p className="text-xs text-[#000033]/60 mb-4">
+            <p className="text-xs text-[#000033]/60 mb-6">
               {searchQuery
                 ? 'Intenta ajustar la búsqueda'
-                : 'Creá el primero para empezar a armar el flujo de contenido.'}
+                : 'Creá el primero para empezar a armar la Voz de Marca y el flujo de contenido.'}
             </p>
             {!searchQuery && (
               <button
                 onClick={() => setShowModalNuevo(true)}
-                className="inline-flex items-center gap-1.5 px-3 py-2 bg-[#024fff] text-white rounded-lg hover:bg-[#024fff]/90 transition-all font-bold text-xs shadow-lg shadow-[#024fff]/20"
+                className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-[#024fff] text-white rounded-lg hover:bg-[#024fff]/90 transition-all font-bold text-sm shadow-lg shadow-[#024fff]/20"
               >
-                <Plus className="w-3.5 h-3.5" />
+                <Plus className="w-4 h-4" />
                 Nuevo cliente
               </button>
             )}
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
             {clientesFiltrados.map(cliente => (
               <ClienteCard
                 key={cliente.id}
                 cliente={cliente}
-                onContenido={() => navigate(`/backlog?clientId=${cliente.id}`)}
-                onVozDeMarca={() => navigate(`/clientes/${cliente.id}/voz-de-marca`)}
-                onDelete={() => deleteMutation.mutate(cliente.id)}
-                onUpdateLinkedin={(url) => api.updateClient(cliente.id, { linkedinUrl: url }).then(() => {
-                  queryClient.invalidateQueries({ queryKey: ['clients-stats'] });
-                  queryClient.invalidateQueries({ queryKey: ['clients'] });
-                })}
-                isDeleting={deleteMutation.isPending && deleteMutation.variables === cliente.id}
+                onClick={() => navigate(`/clientes/${cliente.id}`)}
               />
             ))}
           </div>
@@ -181,39 +158,29 @@ export function ClientesPage() {
 
 function ClienteCard({
   cliente,
-  onContenido,
-  onVozDeMarca,
-  onDelete,
-  onUpdateLinkedin,
-  isDeleting,
+  onClick,
 }: {
   cliente: ClienteStats;
-  onContenido: () => void;
-  onVozDeMarca: () => void;
-  onDelete: () => void;
-  onUpdateLinkedin: (url: string) => void;
-  isDeleting: boolean;
+  onClick: () => void;
 }) {
-  const [confirming, setConfirming] = useState(false);
-  const [editingLinkedin, setEditingLinkedin] = useState(false);
-  const [linkedinInput, setLinkedinInput] = useState(cliente.linkedinUrl ?? '');
-
   return (
-    <div className="bg-white border-2 border-[#000033]/10 rounded-xl p-4 hover:border-[#024fff]/40 transition-all hover:shadow-lg group">
+    <div
+      onClick={onClick}
+      className="bg-white border-2 border-[#000033]/10 rounded-xl p-6 hover:border-[#024fff]/40 transition-all hover:shadow-lg cursor-pointer group"
+    >
       {/* Header */}
-      <div className="flex items-start justify-between mb-3">
-        <div className="flex-1">
-          <h3 className="text-sm font-bold text-[#000033] mb-1.5">{cliente.name}</h3>
-
-          {/* Canales */}
+      <div className="flex items-start justify-between mb-4">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2.5 mb-2">
+            <h3 className="text-base font-bold text-[#000033] group-hover:text-[#024fff] transition-colors truncate">
+              {cliente.name}
+            </h3>
+          </div>
           {cliente.canales.length > 0 && (
             <div className="flex items-center gap-1 flex-wrap">
               {cliente.canales.map(canal => (
-                <span
-                  key={canal}
-                  className="px-1.5 py-0.5 bg-[#000033]/5 text-[#000033]/60 text-xs font-bold rounded"
-                >
-                  {canalLabel[canal] ?? canal.slice(0, 3).toLowerCase()}
+                <span key={canal} className="px-1.5 py-0.5 bg-[#000033]/5 text-[#000033]/60 text-xs font-bold rounded">
+                  {canalLabel[canal] ?? canal.slice(0, 2).toLowerCase()}
                 </span>
               ))}
             </div>
@@ -222,119 +189,69 @@ function ClienteCard({
       </div>
 
       {/* Owner */}
-      {cliente.owner && (
-        <div className="mb-3">
-          <p className="text-xs text-[#000033]/60 truncate">{cliente.owner.name}</p>
-        </div>
-      )}
-
-      {/* LinkedIn URL */}
-      <div className="mb-3 pb-3 border-b border-[#000033]/10">
-        {editingLinkedin ? (
-          <div className="flex gap-1.5">
-            <input
-              autoFocus
-              type="url"
-              value={linkedinInput}
-              onChange={e => setLinkedinInput(e.target.value)}
-              onKeyDown={e => {
-                if (e.key === 'Enter') { onUpdateLinkedin(linkedinInput); setEditingLinkedin(false); }
-                if (e.key === 'Escape') { setLinkedinInput(cliente.linkedinUrl ?? ''); setEditingLinkedin(false); }
-              }}
-              placeholder="https://linkedin.com/company/..."
-              className="flex-1 px-2 py-1 border-2 border-[#024fff]/30 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-[#024fff] text-[#000033]"
-            />
-            <button
-              onClick={() => { onUpdateLinkedin(linkedinInput); setEditingLinkedin(false); }}
-              className="px-2 py-1 bg-[#024fff]/10 border border-[#024fff]/30 text-[#024fff] rounded-lg text-xs font-bold hover:bg-[#024fff]/20 transition-all"
-            >
-              OK
-            </button>
+      <div className="mb-4 pb-4 border-b border-[#000033]/10">
+        {cliente.owner ? (
+          <div className="flex items-center gap-1.5 text-sm text-[#000033]/60">
+            <User className="w-3.5 h-3.5 flex-shrink-0" />
+            <span className="truncate">{cliente.owner.name}</span>
           </div>
         ) : (
-          <button
-            onClick={() => setEditingLinkedin(true)}
-            className="flex items-center gap-1.5 group/li w-full"
-          >
-            <Linkedin className="w-3 h-3 flex-shrink-0 text-[#024fff]/60" />
-            {cliente.linkedinUrl ? (
-              <span className="text-xs text-[#024fff]/70 truncate flex-1 text-left group-hover/li:text-[#024fff] transition-colors">
-                {cliente.linkedinUrl.replace('https://linkedin.com/company/', '').replace('https://www.linkedin.com/company/', '')}
-              </span>
-            ) : (
-              <span className="text-xs text-[#000033]/30 italic flex-1 text-left group-hover/li:text-[#000033]/50 transition-colors">
-                Agregar LinkedIn...
-              </span>
-            )}
-            <Edit3 className="w-3 h-3 text-[#000033]/20 opacity-0 group-hover/li:opacity-100 transition-opacity flex-shrink-0" />
-          </button>
+          <span className="text-xs text-[#000033]/30 italic">Sin responsable</span>
         )}
       </div>
 
-      {/* Contenido stats */}
-      <div className="mb-3">
+      {/* Stats */}
+      <div className="space-y-3">
+        {/* Voz de Marca */}
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-2">
+            <Sparkles className="w-3.5 h-3.5 text-[#024fff]" />
+            <span className="text-sm font-bold text-[#000033]">Voz de Marca</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-16 h-1.5 bg-[#000033]/10 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-[#024fff] rounded-full transition-all"
+                style={{ width: `${cliente.brandKit.completitud}%` }}
+              />
+            </div>
+            <span className="text-xs font-bold text-[#024fff] w-8 text-right">
+              {cliente.brandKit.completitud}%
+            </span>
+          </div>
+        </div>
+
+        {/* Voceros */}
+        {cliente.voceros > 0 && (
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Mic className="w-3.5 h-3.5 text-[#024fff]" />
+              <span className="text-sm font-bold text-[#000033]">Voceros</span>
+            </div>
+            <span className="text-sm font-bold text-[#024fff]">{cliente.voceros}</span>
+          </div>
+        )}
+
+        {/* Contenido */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
             <FileText className="w-3.5 h-3.5 text-[#024fff]" />
-            <span className="text-xs font-bold text-[#000033]">Contenido</span>
+            <span className="text-sm font-bold text-[#000033]">Contenido</span>
           </div>
           <div className="flex items-center gap-1.5 text-xs">
             <span className="text-[#000033]/60">
-              <span className="font-bold text-[#000033]">{cliente.tickets.idea}</span> idea
+              <span className="font-bold text-[#000033]">{cliente.contenido.draft}</span> draft
             </span>
-            <span className="text-[#000033]/40">•</span>
+            <span className="text-[#000033]/30">·</span>
             <span className="text-[#000033]/60">
-              <span className="font-bold text-[#000033]">{cliente.tickets.enProduccion}</span> prod.
+              <span className="font-bold text-[#000033]">{cliente.contenido.enRevision}</span> rev.
             </span>
-            <span className="text-[#000033]/40">•</span>
+            <span className="text-[#000033]/30">·</span>
             <span className="text-[#000033]/60">
-              <span className="font-bold text-[#000033]">{cliente.tickets.publicado}</span> pub.
+              <span className="font-bold text-[#000033]">{cliente.contenido.programadas}</span> prog.
             </span>
           </div>
         </div>
-      </div>
-
-      {/* Acciones */}
-      <div className="pt-3 border-t border-[#000033]/10 flex items-center gap-1.5">
-        <button
-          onClick={onContenido}
-          className="flex-1 flex items-center justify-center gap-1.5 px-2.5 py-1.5 bg-[#024fff] text-white rounded-lg hover:bg-[#024fff]/90 transition-all font-bold text-xs shadow-lg shadow-[#024fff]/20"
-        >
-          <FileText className="w-3.5 h-3.5" />
-          Contenido
-        </button>
-        <button
-          onClick={onVozDeMarca}
-          className="flex items-center justify-center gap-1 px-2.5 py-1.5 border-2 border-[#024fff]/20 text-[#024fff] rounded-lg hover:bg-[#024fff]/10 transition-all font-bold text-xs"
-        >
-          <Sparkles className="w-3.5 h-3.5" />
-          Voz de Marca
-        </button>
-
-        {confirming ? (
-          <div className="flex items-center gap-1">
-            <button
-              onClick={() => { onDelete(); setConfirming(false); }}
-              disabled={isDeleting}
-              className="px-2 py-1.5 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-all text-xs font-bold disabled:opacity-50"
-            >
-              {isDeleting ? '...' : 'Sí'}
-            </button>
-            <button
-              onClick={() => setConfirming(false)}
-              className="px-2 py-1.5 border-2 border-[#000033]/10 text-[#000033]/60 rounded-lg hover:bg-[#000033]/5 transition-all text-xs font-bold"
-            >
-              No
-            </button>
-          </div>
-        ) : (
-          <button
-            onClick={() => setConfirming(true)}
-            className="p-1.5 border-2 border-[#000033]/10 text-[#000033]/40 rounded-lg hover:border-red-200 hover:text-red-500 hover:bg-red-50 transition-all"
-          >
-            <Trash2 className="w-3.5 h-3.5" />
-          </button>
-        )}
       </div>
     </div>
   );
@@ -366,28 +283,20 @@ function ModalNuevoCliente({
 
   const handleCrear = () => {
     if (!nombre.trim()) return;
-    onCrear({
-      name: nombre.trim(),
-      ownerId: ownerId || undefined,
-      canales: canalesSeleccionados,
-    });
+    onCrear({ name: nombre.trim(), ownerId: ownerId || undefined, canales: canalesSeleccionados });
   };
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl w-full max-w-md shadow-2xl">
-        <div className="flex items-center justify-between px-4 py-3 border-b-2 border-[#000033]/10">
+      <div className="bg-white rounded-xl w-full max-w-lg shadow-2xl">
+        <div className="flex items-center justify-between px-6 py-4 border-b-2 border-[#000033]/10">
           <h2 className="text-base font-bold text-[#000033]">Nuevo cliente</h2>
-          <button
-            onClick={onClose}
-            className="text-[#000033]/40 hover:text-[#000033] transition-colors"
-          >
+          <button onClick={onClose} className="text-[#000033]/40 hover:text-[#000033] transition-colors">
             <X className="w-4 h-4" />
           </button>
         </div>
 
-        <div className="px-4 py-4 space-y-4">
-          {/* Nombre */}
+        <div className="px-6 py-5 space-y-4">
           <div>
             <label className="flex items-center gap-1.5 text-xs font-bold text-[#000033] mb-1.5">
               Nombre del cliente <span className="text-[#024fff]">*</span>
@@ -398,34 +307,30 @@ function ModalNuevoCliente({
               onChange={(e) => setNombre(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleCrear()}
               placeholder="Ej: TechCorp, StartupHub..."
-              className="w-full px-3 py-2 border-2 border-[#000033]/10 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#024fff] text-[#000033]"
+              className="w-full px-3 py-2.5 border-2 border-[#000033]/10 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#024fff] text-[#000033]"
               autoFocus
             />
           </div>
 
-          {/* Owner */}
           <div>
-            <label className="text-xs font-bold text-[#000033] mb-1.5 block">
-              Responsable
-            </label>
+            <label className="text-xs font-bold text-[#000033] mb-1.5 block">Responsable</label>
             <div className="relative">
               <button
                 type="button"
                 onClick={() => setShowOwnerDropdown(prev => !prev)}
-                className="w-full flex items-center justify-between px-3 py-2 border-2 border-[#000033]/10 rounded-lg text-xs text-left focus:outline-none focus:ring-2 focus:ring-[#024fff]"
+                className="w-full flex items-center justify-between px-3 py-2.5 border-2 border-[#000033]/10 rounded-lg text-sm text-left focus:outline-none focus:ring-2 focus:ring-[#024fff]"
               >
                 <span className={ownerSeleccionado ? 'text-[#000033]' : 'text-[#000033]/40'}>
                   {ownerSeleccionado ? ownerSeleccionado.name : 'Seleccionar responsable...'}
                 </span>
                 <ChevronDown className="w-3.5 h-3.5 text-[#000033]/40 flex-shrink-0" />
               </button>
-
               {showOwnerDropdown && (
                 <div className="absolute top-full left-0 right-0 mt-1 bg-white border-2 border-[#000033]/10 rounded-lg shadow-lg z-10 max-h-48 overflow-y-auto">
                   <button
                     type="button"
                     onClick={() => { setOwnerId(''); setShowOwnerDropdown(false); }}
-                    className="w-full px-3 py-1.5 text-xs text-left text-[#000033]/40 hover:bg-[#000033]/5"
+                    className="w-full px-3 py-2 text-sm text-left text-[#000033]/40 hover:bg-[#000033]/5"
                   >
                     Sin responsable
                   </button>
@@ -434,11 +339,11 @@ function ModalNuevoCliente({
                       key={u.id}
                       type="button"
                       onClick={() => { setOwnerId(u.id); setShowOwnerDropdown(false); }}
-                      className="w-full flex items-center justify-between px-3 py-1.5 text-xs text-left hover:bg-[#000033]/5"
+                      className="w-full flex items-center justify-between px-3 py-2 text-sm text-left hover:bg-[#000033]/5"
                     >
                       <div>
                         <span className="font-medium text-[#000033]">{u.name}</span>
-                        <span className="ml-2 text-[#000033]/40">{u.role}</span>
+                        <span className="ml-2 text-[#000033]/40 text-xs">{u.role}</span>
                       </div>
                       {ownerId === u.id && <Check className="w-3.5 h-3.5 text-[#024fff]" />}
                     </button>
@@ -448,10 +353,9 @@ function ModalNuevoCliente({
             </div>
           </div>
 
-          {/* Redes sociales */}
           <div>
             <label className="text-xs font-bold text-[#000033] mb-1.5 block">
-              Redes sociales
+              Canales activos <span className="text-[#000033]/40 font-normal">(opcional)</span>
             </label>
             <div className="flex flex-wrap gap-1.5">
               {REDES_DISPONIBLES.map(red => {
@@ -461,7 +365,7 @@ function ModalNuevoCliente({
                     key={red}
                     type="button"
                     onClick={() => toggleCanal(red)}
-                    className={`px-2.5 py-1 rounded-lg text-xs font-bold border-2 transition-all ${
+                    className={`px-2.5 py-1.5 rounded-lg text-xs font-bold border-2 transition-all ${
                       activa
                         ? 'bg-[#024fff] text-white border-[#024fff]'
                         : 'bg-white text-[#000033]/60 border-[#000033]/10 hover:border-[#024fff]/40'
@@ -475,17 +379,17 @@ function ModalNuevoCliente({
           </div>
         </div>
 
-        <div className="flex items-center justify-end gap-2 px-4 py-3 border-t-2 border-[#000033]/10 bg-[#fafafa]">
+        <div className="flex items-center justify-end gap-2 px-6 py-4 border-t-2 border-[#000033]/10 bg-[#fafafa]">
           <button
             onClick={onClose}
-            className="px-3 py-1.5 border-2 border-[#000033]/10 rounded-lg text-[#000033] font-medium hover:bg-[#000033]/5 transition-all text-xs"
+            className="px-4 py-2 border-2 border-[#000033]/10 rounded-lg text-[#000033] font-medium hover:bg-[#000033]/5 transition-all text-sm"
           >
             Cancelar
           </button>
           <button
             onClick={handleCrear}
             disabled={!nombre.trim() || isLoading}
-            className="px-3 py-1.5 bg-[#024fff] text-white rounded-lg hover:bg-[#024fff]/90 transition-all font-bold shadow-lg shadow-[#024fff]/20 disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none text-xs"
+            className="px-4 py-2 bg-[#024fff] text-white rounded-lg hover:bg-[#024fff]/90 transition-all font-bold text-sm shadow-lg shadow-[#024fff]/20 disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none"
           >
             {isLoading ? 'Creando...' : 'Crear cliente'}
           </button>
