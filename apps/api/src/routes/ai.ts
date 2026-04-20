@@ -314,7 +314,7 @@ export async function aiRoutes(fastify: FastifyInstance) {
       if (!config.anthropicApiKey) {
         return reply.status(503).send({ error: 'Anthropic API key not configured' });
       }
-      const anthropic = new Anthropic({ apiKey: config.anthropicApiKey });
+      const anthropic = new Anthropic({ apiKey: config.anthropicApiKey, maxRetries: 5 });
 
       type ClaudeMediaType = 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp';
       type ClaudeContentPart =
