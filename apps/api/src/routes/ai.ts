@@ -5,6 +5,32 @@ import { prisma } from '../lib/prisma.js';
 import { authenticate } from '../middleware/auth.js';
 import { config } from '../config.js';
 
+async function fetchUrlContent(url: string): Promise<string | null> {
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8000);
+    const response = await fetch(url, {
+      signal: controller.signal,
+      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; OTR-bot/1.0)' },
+    });
+    clearTimeout(timeout);
+    if (!response.ok) return null;
+    const html = await response.text();
+    // strip <script>, <style>, <head> blocks, then all tags, collapse whitespace
+    const text = html
+      .replace(/<(script|style|head)[^>]*>[\s\S]*?<\/\1>/gi, ' ')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/&nbsp;/g, ' ')
+      .replace(/&[a-z]+;/gi, ' ')
+      .replace(/\s{2,}/g, ' ')
+      .trim()
+      .slice(0, 8000);
+    return text || null;
+  } catch {
+    return null;
+  }
+}
+
 const LENGTH_GUIDE: Record<string, string> = {
   S: 'corto (~100-150 palabras)',
   M: 'medio (~250-350 palabras)',
@@ -63,8 +89,9 @@ function buildSystemPrompt(params: {
   speaker?: SpeakerVoice | null;
   textAttachments?: { name: string; content: string }[];
   contextLinks?: string[];
+  fetchedLinks?: { url: string; content: string }[];
 }): string {
-  const { clientName, title, brief, tone, keywords, outputLength, currentContent, brandVoice, speaker, textAttachments, contextLinks } = params;
+  const { clientName, title, brief, tone, keywords, outputLength, currentContent, brandVoice, speaker, textAttachments, contextLinks, fetchedLinks } = params;
 
   const lengthGuide = LENGTH_GUIDE[outputLength] ?? LENGTH_GUIDE['M'];
 
@@ -111,9 +138,11 @@ function buildSystemPrompt(params: {
     ? `\n## Archivos adjuntos como contexto\n${textAttachments.map(f => `### ${f.name}\n${f.content}`).join('\n\n')}`
     : '';
 
-  const contextLinksBlock = contextLinks && contextLinks.length > 0
-    ? `\n## Links de referencia de la pieza\n${contextLinks.map(l => `- ${l}`).join('\n')}`
-    : '';
+  const fetchedLinksBlock = fetchedLinks && fetchedLinks.length > 0
+    ? `\n## Contenido de links de referencia\n${fetchedLinks.map(l => `### ${l.url}\n${l.content}`).join('\n\n')}`
+    : contextLinks && contextLinks.length > 0
+      ? `\n## Links de referencia de la pieza\n${contextLinks.map(l => `- ${l}`).join('\n')}`
+      : '';
 
   const voiceContext = speakerBlock + brandVoiceBlock;
 
@@ -124,7 +153,7 @@ Título: ${title || '(sin título)'}
 Brief: ${brief || '(sin brief)'}
 Tono de voz: ${tone || '(no especificado)'}
 Keywords: ${keywords || '(no especificadas)'}
-Longitud objetivo: ${lengthGuide}${voiceContext}${contextLinksBlock}${attachmentsBlock}${contentBlock}
+Longitud objetivo: ${lengthGuide}${voiceContext}${fetchedLinksBlock}${attachmentsBlock}${contentBlock}
 
 ## Instrucciones de respuesta
 
@@ -213,6 +242,15 @@ export async function aiRoutes(fastify: FastifyInstance) {
 
     const imageAttachments = attachments?.filter(a => a.contentType === 'image') ?? [];
 
+    const fetchedLinks = (await Promise.all(
+      (ticket.links ?? []).map(async (url) => {
+        const content = await fetchUrlContent(url);
+        return content ? { url, content } : null;
+      })
+    )).filter((x): x is { url: string; content: string } => x !== null);
+
+    console.log(`[ai/chat] fetched ${fetchedLinks.length}/${(ticket.links ?? []).length} links`);
+
     const systemPrompt = buildSystemPrompt({
       clientName: ticket.client.name,
       title: ticket.title,
@@ -225,6 +263,7 @@ export async function aiRoutes(fastify: FastifyInstance) {
       speaker,
       textAttachments,
       contextLinks: ticket.links,
+      fetchedLinks,
     });
 
     // ── LLM context debug log ──────────────────────────────────────────────
