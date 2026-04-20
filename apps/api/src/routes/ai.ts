@@ -218,7 +218,7 @@ export async function aiRoutes(fastify: FastifyInstance) {
     const { ticketId } = request.params;
     const { instruction, currentContent, brief, tone, keywords, outputLength, model, attachments, history } = request.body;
     const allowedModels = ['gpt-4o', 'claude-sonnet-4-6'];
-    const selectedModel = model && allowedModels.includes(model) ? model : 'gpt-4o';
+    const selectedModel = model && allowedModels.includes(model) ? model : 'claude-sonnet-4-6';
 
     // Load ticket + client + brand voice + speaker
     const ticket = await prisma.ticket.findUnique({
