@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowLeft, Sparkles, Bold, Italic, Underline, List, ListOrdered,
   Link2, Image as ImageIcon, Type, Eye, Send, GripVertical, Check, AlertCircle,
-  Columns2, Paperclip, X, FileText, File, ExternalLink, Mic,
+  Paperclip, X, FileText, File, ExternalLink, Mic, Trash2,
 } from 'lucide-react';
 import * as pdfjsLib from 'pdfjs-dist';
 import { api } from '../lib/api';
@@ -54,10 +54,6 @@ export function ContentPage() {
   const [outputLength] = useState<'S' | 'M' | 'L'>('M');
   const [contentText, setContentText] = useState('');
   const [charCount, setCharCount] = useState(0);
-  // Dual mode — second model content
-  const [contentTextB, setContentTextB] = useState('');
-  const [charCountB, setCharCountB] = useState(0);
-  const [dualMode, setDualMode] = useState(false);
 
   const [aiPrompt, setAiPrompt] = useState('');
   const [chatWidth, setChatWidth] = useState(300);
@@ -208,31 +204,7 @@ export function ContentPage() {
     setIsAiLoading(true);
 
     try {
-      if (dualMode) {
-        const [resultA, resultB] = await Promise.all([
-          api.chatWithAI(ticketId, { instruction: fullInstruction, currentContent: contentText, brief, tone, keywords, outputLength, model: 'claude-sonnet-4-6', attachments, history }),
-          api.chatWithAI(ticketId, { instruction: fullInstruction, currentContent: contentTextB, brief, tone, keywords, outputLength, model: 'gpt-4o', attachments, history }),
-        ]);
-
-        if (resultA.newContent !== null) {
-          setContentText(resultA.newContent);
-          setCharCount(resultA.newContent.length);
-          setHasChanges(true);
-        }
-        if (resultB.newContent !== null) {
-          setContentTextB(resultB.newContent);
-          setCharCountB(resultB.newContent.length);
-        }
-
-        setChatMessages(prev => {
-          const updated = prev.map(m => m.id === thinkingId
-            ? { ...m, content: `Claude Sonnet: ${resultA.summary}\n\nGPT-4o: ${resultB.summary}` }
-            : m
-          );
-          api.saveChatHistory(ticketId, updated).catch(() => {});
-          return updated;
-        });
-      } else {
+      {
         const result = await api.chatWithAI(ticketId, {
           instruction: fullInstruction, currentContent: contentText, brief, tone, keywords, outputLength, model: 'claude-sonnet-4-6', attachments, history,
         });
@@ -425,24 +397,10 @@ export function ContentPage() {
               <div className="flex items-center gap-2">
                 <Sparkles className="w-4 h-4 text-[#024fff]" />
                 <h3 className="text-xs font-bold text-[#000033]">Asistente IA</h3>
-                {!dualMode && (
-                  <span className="px-1.5 py-0.5 bg-[#024fff]/10 text-[#024fff] text-xs font-bold rounded">
+                <span className="px-1.5 py-0.5 bg-[#024fff]/10 text-[#024fff] text-xs font-bold rounded">
                     Claude
                   </span>
-                )}
               </div>
-              <button
-                onClick={() => setDualMode(prev => !prev)}
-                title="Modo dual: Claude Sonnet vs GPT-4o"
-                className={`flex items-center gap-1.5 px-2 py-1 text-xs font-bold rounded-md transition-all ${
-                  dualMode
-                    ? 'bg-[#024fff] text-white shadow shadow-[#024fff]/30'
-                    : 'border border-[#000033]/20 text-[#000033]/50 hover:border-[#024fff]/40 hover:text-[#024fff]'
-                }`}
-              >
-                <Columns2 className="w-3 h-3" />
-                DUAL
-              </button>
             </div>
           </div>
 
@@ -495,6 +453,17 @@ export function ContentPage() {
                 className="px-2 py-1.5 border-2 border-[#000033]/10 rounded-md hover:bg-[#000033]/5 transition-all h-fit self-end disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 <Paperclip className="w-3.5 h-3.5 text-[#000033]/60" />
+              </button>
+              <button
+                onClick={() => {
+                  setChatMessages([]);
+                  api.saveChatHistory(ticketId!, []).catch(() => {});
+                }}
+                disabled={isAiLoading || chatMessages.length === 0}
+                title="Limpiar chat"
+                className="px-2 py-1.5 border-2 border-[#000033]/10 rounded-md hover:bg-red-50 hover:border-red-200 transition-all h-fit self-end disabled:opacity-40 disabled:cursor-not-allowed group"
+              >
+                <Trash2 className="w-3.5 h-3.5 text-[#000033]/60 group-hover:text-red-400 transition-colors" />
               </button>
               <input
                 ref={fileInputRef}
@@ -692,68 +661,19 @@ export function ContentPage() {
                   <ImageIcon className="w-3.5 h-3.5 text-[#000033]/60" />
                 </button>
               </div>
-              {!dualMode && (
-                <span className="text-xs text-[#000033]/60">{charCount} caracteres</span>
-              )}
+              <span className="text-xs text-[#000033]/60">{charCount} caracteres</span>
             </div>
           </div>
 
-          {/* Editor Area — single o dual */}
-          {dualMode ? (
-            <div className="flex-1 overflow-hidden flex min-h-0">
-              {/* Editor A — Claude Sonnet */}
-              <div className="flex-1 flex flex-col border-r-2 border-[#000033]/10 min-h-0 min-w-0">
-                <div className="px-4 py-1.5 border-b border-[#000033]/10 flex items-center justify-between flex-shrink-0 bg-[#fafafa]">
-                  <span className="text-xs font-bold text-[#024fff]/70 uppercase tracking-wide">Claude Sonnet</span>
-                  <span className="text-xs text-[#000033]/40">{charCount} car</span>
-                </div>
-                <div className="flex-1 overflow-y-auto px-6 py-4 min-h-0">
-                  <textarea
-                    value={contentText}
-                    onChange={handleContentChange}
-                    className="w-full h-full resize-none border-none outline-none text-[#000033] text-sm leading-relaxed bg-transparent"
-                    placeholder="Respuesta de Claude Sonnet..."
-                  />
-                </div>
-              </div>
-              {/* Editor B — GPT-4o */}
-              <div className="flex-1 flex flex-col min-h-0 min-w-0">
-                <div className="px-4 py-1.5 border-b border-[#000033]/10 flex items-center justify-between flex-shrink-0 bg-[#fafafa]">
-                  <span className="text-xs font-bold text-[#000033]/50 uppercase tracking-wide">GPT-4o</span>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-[#000033]/40">{charCountB} car</span>
-                    <button
-                      onClick={() => {
-                        setContentText(contentTextB);
-                        setCharCount(charCountB);
-                        setHasChanges(true);
-                      }}
-                      className="text-xs px-2 py-0.5 bg-[#00ff99]/20 border border-[#00ff99]/50 text-[#000033] font-bold rounded-full hover:bg-[#00ff99]/40 transition-all"
-                    >
-                      Usar esta
-                    </button>
-                  </div>
-                </div>
-                <div className="flex-1 overflow-y-auto px-6 py-4 min-h-0">
-                  <textarea
-                    value={contentTextB}
-                    onChange={e => { setContentTextB(e.target.value); setCharCountB(e.target.value.length); }}
-                    className="w-full h-full resize-none border-none outline-none text-[#000033] text-sm leading-relaxed bg-transparent"
-                    placeholder="Respuesta de GPT-4o..."
-                  />
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div className="flex-1 overflow-y-auto px-8 py-4 min-h-0">
-              <textarea
-                value={contentText}
-                onChange={handleContentChange}
-                className="w-full h-full resize-none border-none outline-none text-[#000033] text-sm leading-relaxed bg-transparent"
-                placeholder="Empieza a escribir o pedile a la IA que genere contenido..."
-              />
-            </div>
-          )}
+          {/* Editor Area */}
+          <div className="flex-1 overflow-y-auto px-8 py-4 min-h-0">
+            <textarea
+              value={contentText}
+              onChange={handleContentChange}
+              className="w-full h-full resize-none border-none outline-none text-[#000033] text-sm leading-relaxed bg-transparent"
+              placeholder="Empieza a escribir o pedile a la IA que genere contenido..."
+            />
+          </div>
         </div>
       </div>
     </div>

@@ -11,12 +11,15 @@ async function fetchUrlContent(url: string): Promise<string | null> {
     const timeout = setTimeout(() => controller.abort(), 8000);
     const response = await fetch(url, {
       signal: controller.signal,
-      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; OTR-bot/1.0)' },
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'es-419,es;q=0.9,en;q=0.8',
+      },
     });
     clearTimeout(timeout);
     if (!response.ok) return null;
     const html = await response.text();
-    // strip <script>, <style>, <head> blocks, then all tags, collapse whitespace
     const text = html
       .replace(/<(script|style|head)[^>]*>[\s\S]*?<\/\1>/gi, ' ')
       .replace(/<[^>]+>/g, ' ')
@@ -30,6 +33,18 @@ async function fetchUrlContent(url: string): Promise<string | null> {
     return null;
   }
 }
+
+const FETCH_URL_TOOL: Anthropic.Tool = {
+  name: 'fetch_url',
+  description: 'Lee el contenido de una URL. Usalo cuando necesites leer el contenido de un link para usarlo como referencia o contexto.',
+  input_schema: {
+    type: 'object',
+    properties: {
+      url: { type: 'string', description: 'La URL a leer' },
+    },
+    required: ['url'],
+  },
+};
 
 const LENGTH_GUIDE: Record<string, string> = {
   S: 'corto (~100-150 palabras)',
@@ -89,13 +104,11 @@ function buildSystemPrompt(params: {
   speaker?: SpeakerVoice | null;
   textAttachments?: { name: string; content: string }[];
   contextLinks?: string[];
-  fetchedLinks?: { url: string; content: string }[];
 }): string {
-  const { clientName, title, brief, tone, keywords, outputLength, currentContent, brandVoice, speaker, textAttachments, contextLinks, fetchedLinks } = params;
+  const { clientName, title, brief, tone, keywords, outputLength, currentContent, brandVoice, speaker, textAttachments, contextLinks } = params;
 
   const lengthGuide = LENGTH_GUIDE[outputLength] ?? LENGTH_GUIDE['M'];
 
-  // Speaker voice — highest priority, placed first
   let speakerBlock = '';
   if (speaker) {
     const filledFields = Object.entries(SPEAKER_VOICE_LABELS)
@@ -112,7 +125,6 @@ function buildSystemPrompt(params: {
     }`;
   }
 
-  // Brand voice — secondary context when there's a speaker
   let brandVoiceBlock = '';
   if (brandVoice) {
     const filledSections = Object.entries(brandVoice)
@@ -138,11 +150,9 @@ function buildSystemPrompt(params: {
     ? `\n## Archivos adjuntos como contexto\n${textAttachments.map(f => `### ${f.name}\n${f.content}`).join('\n\n')}`
     : '';
 
-  const fetchedLinksBlock = fetchedLinks && fetchedLinks.length > 0
-    ? `\n## Contenido de links de referencia\n${fetchedLinks.map(l => `### ${l.url}\n${l.content}`).join('\n\n')}`
-    : contextLinks && contextLinks.length > 0
-      ? `\n## Links de referencia de la pieza\n${contextLinks.map(l => `- ${l}`).join('\n')}`
-      : '';
+  const linksBlock = contextLinks && contextLinks.length > 0
+    ? `\n## Links de referencia de la pieza\nPodés leer cualquiera de estos links usando la tool fetch_url:\n${contextLinks.map(l => `- ${l}`).join('\n')}`
+    : '';
 
   const voiceContext = speakerBlock + brandVoiceBlock;
 
@@ -153,7 +163,7 @@ Título: ${title || '(sin título)'}
 Brief: ${brief || '(sin brief)'}
 Tono de voz: ${tone || '(no especificado)'}
 Keywords: ${keywords || '(no especificadas)'}
-Longitud objetivo: ${lengthGuide}${voiceContext}${fetchedLinksBlock}${attachmentsBlock}${contentBlock}
+Longitud objetivo: ${lengthGuide}${voiceContext}${linksBlock}${attachmentsBlock}${contentBlock}
 
 ## Instrucciones de respuesta
 
@@ -187,7 +197,6 @@ function parseAIResponse(raw: string): { newContent: string | null; summary: str
     };
   }
 
-  // Chat-only response — no content change
   return {
     newContent: null,
     summary: responseMatch?.[1]?.trim() ?? raw.trim(),
@@ -220,7 +229,6 @@ export async function aiRoutes(fastify: FastifyInstance) {
     const allowedModels = ['gpt-4o', 'claude-sonnet-4-6'];
     const selectedModel = model && allowedModels.includes(model) ? model : 'claude-sonnet-4-6';
 
-    // Load ticket + client + brand voice + speaker
     const ticket = await prisma.ticket.findUnique({
       where: { id: ticketId },
       include: {
@@ -242,15 +250,6 @@ export async function aiRoutes(fastify: FastifyInstance) {
 
     const imageAttachments = attachments?.filter(a => a.contentType === 'image') ?? [];
 
-    const fetchedLinks = (await Promise.all(
-      (ticket.links ?? []).map(async (url) => {
-        const content = await fetchUrlContent(url);
-        return content ? { url, content } : null;
-      })
-    )).filter((x): x is { url: string; content: string } => x !== null);
-
-    console.log(`[ai/chat] fetched ${fetchedLinks.length}/${(ticket.links ?? []).length} links`);
-
     const systemPrompt = buildSystemPrompt({
       clientName: ticket.client.name,
       title: ticket.title,
@@ -263,13 +262,11 @@ export async function aiRoutes(fastify: FastifyInstance) {
       speaker,
       textAttachments,
       contextLinks: ticket.links,
-      fetchedLinks,
     });
 
-    // ── LLM context debug log ──────────────────────────────────────────────
     console.log('[ai/chat] ─────────────────────────────────────────────────');
     console.log(`[ai/chat] ticket=${ticketId} model=${selectedModel} client="${ticket.client.name}"`);
-    console.log(`[ai/chat] history_turns=${(history ?? []).length} attachments=${(attachments ?? []).length}`);
+    console.log(`[ai/chat] history_turns=${(history ?? []).length} attachments=${(attachments ?? []).length} links=${(ticket.links ?? []).length}`);
     console.log('[ai/chat] SYSTEM PROMPT:\n' + systemPrompt);
     if ((history ?? []).length > 0) {
       console.log('[ai/chat] HISTORY:');
@@ -279,7 +276,6 @@ export async function aiRoutes(fastify: FastifyInstance) {
     }
     console.log(`[ai/chat] USER: ${instruction}`);
     console.log('[ai/chat] ─────────────────────────────────────────────────');
-    // ──────────────────────────────────────────────────────────────────────
 
     let raw = '';
 
@@ -310,7 +306,8 @@ export async function aiRoutes(fastify: FastifyInstance) {
         ],
       });
       raw = completion.choices[0]?.message?.content ?? '';
-    } else if (selectedModel === 'claude-sonnet-4-6') {
+
+    } else {
       if (!config.anthropicApiKey) {
         return reply.status(503).send({ error: 'Anthropic API key not configured' });
       }
@@ -323,7 +320,6 @@ export async function aiRoutes(fastify: FastifyInstance) {
 
       const userContent: ClaudeContentPart[] = [{ type: 'text', text: instruction }];
       for (const img of imageAttachments) {
-        // dataURL format: "data:image/png;base64,XXXX"
         const [header, data] = img.content.split(',');
         const rawMediaType = header.replace('data:', '').replace(';base64', '');
         const supportedTypes: ClaudeMediaType[] = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
@@ -333,26 +329,49 @@ export async function aiRoutes(fastify: FastifyInstance) {
         userContent.push({ type: 'image', source: { type: 'base64', media_type, data } });
       }
 
-      const claudeHistory = (history ?? []).map(m => ({
-        role: m.role as 'user' | 'assistant',
-        content: m.content,
-      }));
+      const messages: Anthropic.MessageParam[] = [
+        ...(history ?? []).map(m => ({ role: m.role as 'user' | 'assistant', content: m.content })),
+        { role: 'user', content: userContent },
+      ];
 
-      const message = await anthropic.messages.create({
-        model: 'claude-sonnet-4-6',
-        max_tokens: 2048,
-        temperature: 0.7,
-        system: systemPrompt,
-        messages: [
-          ...claudeHistory,
-          { role: 'user', content: userContent },
-        ],
-      });
-      raw = message.content[0].type === 'text' ? message.content[0].text : '';
+      const MAX_ITERATIONS = 5;
+      for (let i = 0; i < MAX_ITERATIONS; i++) {
+        const response = await anthropic.messages.create({
+          model: 'claude-sonnet-4-6',
+          max_tokens: 2048,
+          temperature: 0.7,
+          system: systemPrompt,
+          tools: [FETCH_URL_TOOL],
+          messages,
+        });
+
+        if (response.stop_reason === 'tool_use') {
+          messages.push({ role: 'assistant', content: response.content });
+
+          const toolResults: Anthropic.ToolResultBlockParam[] = [];
+          for (const block of response.content) {
+            if (block.type === 'tool_use' && block.name === 'fetch_url') {
+              const url = (block.input as { url: string }).url;
+              console.log(`[ai/chat] tool fetch_url: ${url}`);
+              const content = await fetchUrlContent(url);
+              toolResults.push({
+                type: 'tool_result',
+                tool_use_id: block.id,
+                content: content ?? 'No se pudo obtener el contenido de esta URL.',
+              });
+            }
+          }
+          messages.push({ role: 'user', content: toolResults });
+          continue;
+        }
+
+        const textBlock = response.content.find(b => b.type === 'text');
+        raw = textBlock?.type === 'text' ? textBlock.text : '';
+        break;
+      }
     }
 
     const { newContent, summary } = parseAIResponse(raw);
-
     return { newContent, summary };
   });
 }
