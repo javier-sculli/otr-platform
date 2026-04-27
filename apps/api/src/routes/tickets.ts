@@ -67,7 +67,7 @@ export async function ticketsRoutes(fastify: FastifyInstance) {
         title: data.title,
         description: data.description,
         objetivo: data.objetivo,
-        canal: data.canal,
+        canales: data.canales || [],
         prioridad: data.prioridad,
         clientId: data.clientId,
         ownerId: data.ownerId,
@@ -97,7 +97,8 @@ export async function ticketsRoutes(fastify: FastifyInstance) {
     if (data.title !== undefined) updateData.title = data.title;
     if (data.description !== undefined) updateData.description = data.description;
     if (data.objetivo !== undefined) updateData.objetivo = data.objetivo;
-    if (data.canal !== undefined) updateData.canal = data.canal;
+    if (data.canales !== undefined) updateData.canales = data.canales;
+    if (data.contentPerCanal !== undefined) updateData.contentPerCanal = data.contentPerCanal;
     if (data.prioridad !== undefined) updateData.prioridad = data.prioridad;
     if (data.ownerId !== undefined) updateData.ownerId = data.ownerId;
     if (data.ticketTypeId !== undefined) updateData.ticketTypeId = data.ticketTypeId;

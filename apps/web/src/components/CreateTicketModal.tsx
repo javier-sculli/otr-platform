@@ -41,7 +41,7 @@ function buildFormData(ticket?: TicketData | null) {
     return {
       title: '',
       brief: '',
-      redes: ['LinkedIn'] as string[],
+      canales: ['LinkedIn'] as string[],
       clientId: '',
       ownerId: '',
       ticketTypeId: '',
@@ -53,13 +53,14 @@ function buildFormData(ticket?: TicketData | null) {
       links: [] as string[],
       linkEntregable: '',
       content: '',
+      contentPerCanal: {} as Record<string, string>,
       notasAudiovisual: '',
     };
   }
   return {
     title: ticket.title,
     brief: ticket.objetivo ?? '',
-    redes: ticket.canal ? [ticket.canal] : ['LinkedIn'],
+    canales: (ticket as any).canales?.length > 0 ? (ticket as any).canales : ['LinkedIn'],
     clientId: ticket.client.id,
     ownerId: ticket.owner.id,
     ticketTypeId: ticket.ticketType?.id ?? '',
@@ -71,6 +72,7 @@ function buildFormData(ticket?: TicketData | null) {
     links: ticket.links ?? [],
     linkEntregable: ticket.linkEntregable ?? '',
     content: (ticket as any).content ?? '',
+    contentPerCanal: (ticket as any).contentPerCanal && typeof (ticket as any).contentPerCanal === 'object' ? (ticket as any).contentPerCanal : {},
     notasAudiovisual: (ticket as any).notasAudiovisual ?? '',
   };
 }
@@ -83,6 +85,7 @@ export function CreateTicketModal({ isOpen, onClose, ticket }: CreateTicketModal
   const [formData, setFormData] = useState(() => buildFormData(ticket));
   const [newLinkInput, setNewLinkInput] = useState('');
   const [copyCopied, setCopyCopied] = useState(false);
+  const [activeCopyTab, setActiveCopyTab] = useState(() => formData.canales[0] ?? 'LinkedIn');
 
   // Re-populate when ticket changes (e.g. opening different card)
   useEffect(() => {
@@ -156,12 +159,19 @@ export function CreateTicketModal({ isOpen, onClose, ticket }: CreateTicketModal
   };
 
   const toggleRed = (red: string) => {
-    setFormData(prev => ({
-      ...prev,
-      redes: prev.redes.includes(red)
-        ? prev.redes.filter(r => r !== red)
-        : [...prev.redes, red],
-    }));
+    setFormData(prev => {
+      const newCanales = prev.canales.includes(red)
+        ? prev.canales.filter(r => r !== red)
+        : [...prev.canales, red];
+
+      if (isEditing && ticket) {
+        api.updateTicket(ticket.id, { canales: newCanales })
+          .then(() => queryClient.invalidateQueries({ queryKey: ['tickets'] }))
+          .catch(() => {});
+      }
+
+      return { ...prev, canales: newCanales };
+    });
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -179,7 +189,7 @@ export function CreateTicketModal({ isOpen, onClose, ticket }: CreateTicketModal
       status: formData.status,
       prioridad: formData.prioridad,
       objetivo: formData.brief || null,
-      canal: formData.redes[0] || null,
+      canales: formData.canales,
       dueDate: formData.dueDate || null,
       ticketTypeId: formData.ticketTypeId || null,
       pilarId: formData.pilarId || null,
@@ -192,6 +202,7 @@ export function CreateTicketModal({ isOpen, onClose, ticket }: CreateTicketModal
         links: formData.links,
         linkEntregable: formData.linkEntregable || null,
         content: formData.content || null,
+        contentPerCanal: formData.contentPerCanal,
         notasAudiovisual: formData.notasAudiovisual || null,
       });
     } else {
@@ -400,7 +411,7 @@ export function CreateTicketModal({ isOpen, onClose, ticket }: CreateTicketModal
               </label>
               <div className="flex flex-wrap gap-1.5">
                 {REDES.map(red => {
-                  const selected = formData.redes.includes(red);
+                  const selected = formData.canales.includes(red);
                   return (
                     <button
                       key={red}
@@ -533,11 +544,11 @@ export function CreateTicketModal({ isOpen, onClose, ticket }: CreateTicketModal
                     Copy
                     <span className="text-[#000033]/40 font-normal">Texto listo para publicar</span>
                   </label>
-                  {formData.content.trim() && (
+                  {(formData.contentPerCanal[activeCopyTab] ?? formData.content).trim() && (
                     <button
                       type="button"
                       onClick={async () => {
-                        await navigator.clipboard.writeText(formData.content);
+                        await navigator.clipboard.writeText(formData.contentPerCanal[activeCopyTab] ?? formData.content);
                         setCopyCopied(true);
                         setTimeout(() => setCopyCopied(false), 2000);
                       }}
@@ -547,10 +558,32 @@ export function CreateTicketModal({ isOpen, onClose, ticket }: CreateTicketModal
                     </button>
                   )}
                 </div>
+                {formData.canales.length > 1 && (
+                  <div className="flex items-center gap-1 mb-2">
+                    {formData.canales.map(canal => (
+                      <button
+                        key={canal}
+                        type="button"
+                        onClick={() => setActiveCopyTab(canal)}
+                        className={`px-3 py-1 text-xs font-bold rounded-t-md border-b-2 transition-all ${
+                          activeCopyTab === canal
+                            ? 'text-[#024fff] border-[#024fff] bg-[#024fff]/5'
+                            : 'text-[#000033]/40 border-transparent hover:text-[#000033]/70'
+                        }`}
+                      >
+                        {canal}
+                      </button>
+                    ))}
+                  </div>
+                )}
                 <textarea
-                  value={formData.content}
-                  onChange={e => setFormData(prev => ({ ...prev, content: e.target.value }))}
-                  placeholder={`Pegá aquí el copy aprobado, listo para publicar.\n\nPuede venir del workspace de redacción o escribirse directamente acá.`}
+                  value={formData.contentPerCanal[activeCopyTab] ?? (activeCopyTab === formData.canales[0] ? formData.content : '')}
+                  onChange={e => setFormData(prev => ({
+                    ...prev,
+                    contentPerCanal: { ...prev.contentPerCanal, [activeCopyTab]: e.target.value },
+                    content: activeCopyTab === prev.canales[0] ? e.target.value : prev.content,
+                  }))}
+                  placeholder={`Copy para ${activeCopyTab}...`}
                   className="w-full px-3 py-2 border-2 border-[#000033]/10 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#024fff] text-[#000033] hover:border-[#024fff]/40 transition-all resize-none font-mono"
                   rows={6}
                 />

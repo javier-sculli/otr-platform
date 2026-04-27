@@ -67,15 +67,22 @@ export function TicketDetallePage() {
   const [newEntregableInput, setNewEntregableInput] = useState('');
   const [editandoEntregable, setEditandoEntregable] = useState(false);
   const [notasAudiovisual, setNotasAudiovisual] = useState('');
+  const [briefTemp, setBriefTemp] = useState('');
   const [copyCopied, setCopyCopied] = useState(false);
+  const [activeCopyTab, setActiveCopyTab] = useState<string>('');
   const linkInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (ticket?.title) setTituloTemp(ticket.title);
+    if (ticket?.objetivo !== undefined) setBriefTemp(ticket.objetivo ?? '');
     if ((ticket as any)?.notasAudiovisual !== undefined) {
       setNotasAudiovisual((ticket as any).notasAudiovisual ?? '');
     }
-  }, [ticket?.title, (ticket as any)?.notasAudiovisual]);
+    if (ticket && !activeCopyTab) {
+      const canales = (ticket as any).canales;
+      setActiveCopyTab(canales?.length > 0 ? canales[0] : '');
+    }
+  }, [ticket?.title, (ticket as any)?.notasAudiovisual, ticket]);
 
   const handleGuardarTitulo = () => {
     if (tituloTemp.trim() && tituloTemp !== ticket?.title) {
@@ -190,10 +197,10 @@ export function TicketDetallePage() {
             <span className={`px-2.5 py-1 border-2 text-xs font-bold rounded-lg capitalize ${getStatusStyle(ticket.status)}`}>
               {statusLabel}
             </span>
-            {ticket.canal && (
+            {ticket.canales?.length > 0 && (
               <div className="flex items-center gap-1 text-xs text-[#000033]/60">
                 <Hash className="w-3.5 h-3.5" />
-                <span>{ticket.canal}</span>
+                <span>{ticket.canales.join(', ')}</span>
               </div>
             )}
             <div className="h-3.5 w-px bg-[#000033]/20" />
@@ -230,11 +237,18 @@ export function TicketDetallePage() {
                 <FileText className="w-3.5 h-3.5" />
                 Brief
               </h2>
-              {ticket.objetivo ? (
-                <p className="text-xs text-[#000033] leading-relaxed">{ticket.objetivo}</p>
-              ) : (
-                <p className="text-xs text-[#000033]/40 italic">Sin brief todavía.</p>
-              )}
+              <textarea
+                value={briefTemp}
+                onChange={e => setBriefTemp(e.target.value)}
+                onBlur={() => {
+                  if (briefTemp !== (ticket.objetivo ?? '')) {
+                    updateMutation.mutate({ objetivo: briefTemp || null });
+                  }
+                }}
+                placeholder="Escribí el brief acá..."
+                rows={3}
+                className="w-full text-xs text-[#000033] leading-relaxed resize-none border-none outline-none bg-transparent placeholder:text-[#000033]/30 hover:bg-[#000033]/3 focus:bg-[#000033]/5 rounded transition-all"
+              />
             </div>
 
             {/* Info / Recursos */}
@@ -315,36 +329,64 @@ export function TicketDetallePage() {
               <div className="flex items-center justify-between mb-3">
                 <h2 className="text-xs font-bold text-[#000033] uppercase flex items-center gap-2">
                   <FileText className="w-3.5 h-3.5 text-[#00ff99]" />
-                  Copy final
+                  Copy
                 </h2>
-                {ticket.content && (
-                  <button
-                    onClick={async () => {
-                      await navigator.clipboard.writeText(ticket.content);
-                      setCopyCopied(true);
-                      setTimeout(() => setCopyCopied(false), 2000);
-                    }}
-                    className="flex items-center gap-1 px-2.5 py-1 bg-[#00ff99]/20 border-2 border-[#00ff99]/40 text-[#000033] rounded-lg hover:bg-[#00ff99]/30 transition-all text-xs font-bold"
-                  >
-                    {copyCopied ? <><Check className="w-3 h-3" />Copiado</> : <><Copy className="w-3 h-3" />Copiar</>}
-                  </button>
-                )}
+                {(() => {
+                  const perCanal = (ticket as any).contentPerCanal as Record<string, string> | null;
+                  const activeContent = activeCopyTab && perCanal?.[activeCopyTab];
+                  return activeContent ? (
+                    <button
+                      onClick={async () => {
+                        await navigator.clipboard.writeText(activeContent);
+                        setCopyCopied(true);
+                        setTimeout(() => setCopyCopied(false), 2000);
+                      }}
+                      className="flex items-center gap-1 px-2.5 py-1 bg-[#00ff99]/20 border-2 border-[#00ff99]/40 text-[#000033] rounded-lg hover:bg-[#00ff99]/30 transition-all text-xs font-bold"
+                    >
+                      {copyCopied ? <><Check className="w-3 h-3" />Copiado</> : <><Copy className="w-3 h-3" />Copiar</>}
+                    </button>
+                  ) : null;
+                })()}
               </div>
-              {ticket.content ? (
-                <pre className="text-xs text-[#000033]/80 whitespace-pre-wrap font-mono bg-[#fafafa] border border-[#000033]/10 rounded-lg px-3 py-2 max-h-48 overflow-y-auto">
-                  {ticket.content}
-                </pre>
-              ) : (
-                <p className="text-xs text-[#000033]/40 italic">
-                  Aún no hay copy redactado.{' '}
-                  <button
-                    onClick={() => navigate(`/content/${ticket.id}`)}
-                    className="text-[#024fff] underline hover:no-underline"
-                  >
-                    Ir al workspace
-                  </button>
-                </p>
-              )}
+              {(() => {
+                const canales: string[] = (ticket as any).canales?.length > 0 ? (ticket as any).canales : ['LinkedIn'];
+                const perCanal = (ticket as any).contentPerCanal as Record<string, string> | null;
+                const activeContent = activeCopyTab && perCanal?.[activeCopyTab] ? perCanal[activeCopyTab] : (ticket.content ?? '');
+                const hasAnyContent = canales.some(c => perCanal?.[c] || ticket.content);
+                return (
+                  <>
+                    {canales.length > 1 && (
+                      <div className="flex items-center gap-1 mb-2">
+                        {canales.map(canal => (
+                          <button
+                            key={canal}
+                            onClick={() => setActiveCopyTab(canal)}
+                            className={`px-3 py-1 text-xs font-bold rounded-t-md border-b-2 transition-all ${
+                              activeCopyTab === canal
+                                ? 'text-[#024fff] border-[#024fff] bg-[#024fff]/5'
+                                : 'text-[#000033]/40 border-transparent hover:text-[#000033]/70'
+                            }`}
+                          >
+                            {canal}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    {hasAnyContent ? (
+                      <pre className="text-xs text-[#000033]/80 whitespace-pre-wrap font-mono bg-[#fafafa] border border-[#000033]/10 rounded-lg px-3 py-2 max-h-48 overflow-y-auto">
+                        {activeContent || <span className="italic text-[#000033]/30">Sin contenido para este canal aún.</span>}
+                      </pre>
+                    ) : (
+                      <p className="text-xs text-[#000033]/40 italic">
+                        Aún no hay copy redactado.{' '}
+                        <button onClick={() => navigate(`/content/${ticket.id}`)} className="text-[#024fff] underline hover:no-underline">
+                          Ir al workspace
+                        </button>
+                      </p>
+                    )}
+                  </>
+                );
+              })()}
             </div>
 
             {/* Notas para audiovisual */}
@@ -492,13 +534,13 @@ export function TicketDetallePage() {
                   </div>
                 </div>
 
-                {ticket.canal && (
+                {ticket.canales?.length > 0 && (
                   <div>
                     <label className="text-xs font-bold text-[#000033]/60 uppercase block mb-1">
                       Canal
                     </label>
                     <div className="px-3 py-2 border-2 border-[#000033]/10 rounded-lg bg-[#fafafa] text-xs text-[#000033]/60">
-                      {ticket.canal}
+                      {ticket.canales.join(', ')}
                     </div>
                   </div>
                 )}

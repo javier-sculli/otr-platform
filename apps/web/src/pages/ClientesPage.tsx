@@ -163,6 +163,7 @@ function ClienteCard({
   cliente: ClienteStats;
   onClick: () => void;
 }) {
+  const navigate = useNavigate();
   return (
     <div
       onClick={onClick}
@@ -252,6 +253,16 @@ function ClienteCard({
             </span>
           </div>
         </div>
+      </div>
+
+      {/* Acciones */}
+      <div className="mt-4 pt-4 border-t border-[#000033]/10">
+        <button
+          onClick={e => { e.stopPropagation(); navigate(`/backlog?clientId=${cliente.id}`); }}
+          className="w-full py-1.5 text-xs font-bold text-[#024fff] border border-[#024fff]/30 rounded-lg hover:bg-[#024fff]/5 hover:border-[#024fff] transition-all"
+        >
+          Ver Backlog
+        </button>
       </div>
     </div>
   );

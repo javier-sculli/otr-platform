@@ -104,10 +104,23 @@ function buildSystemPrompt(params: {
   speaker?: SpeakerVoice | null;
   textAttachments?: { name: string; content: string }[];
   contextLinks?: string[];
+  canal?: string;
 }): string {
-  const { clientName, title, brief, tone, keywords, outputLength, currentContent, brandVoice, speaker, textAttachments, contextLinks } = params;
+  const { clientName, title, brief, tone, keywords, outputLength, currentContent, brandVoice, speaker, textAttachments, contextLinks, canal } = params;
 
   const lengthGuide = LENGTH_GUIDE[outputLength] ?? LENGTH_GUIDE['M'];
+
+  const CANAL_CONTEXT: Record<string, string> = {
+    LinkedIn:  'Contenido de texto largo o medio, orientado a audiencia profesional.',
+    Twitter:   'Límite de 280 caracteres por tweet. Si es hilo, cada tweet debe tener sentido por sí solo.',
+    Instagram: 'Caption que acompaña una imagen o video. La primera línea es clave porque se corta antes del "ver más".',
+    Facebook:  'Publicación en feed. Permite texto extenso.',
+    TikTok:    'Caption corto que acompaña un video.',
+    YouTube:   'Descripción del video. El primer párrafo es el más importante para SEO.',
+  };
+  const canalContext = canal && CANAL_CONTEXT[canal]
+    ? `\n## Red social: ${canal}\n${CANAL_CONTEXT[canal]}`
+    : canal ? `\n## Red social: ${canal}` : '';
 
   let speakerBlock = '';
   if (speaker) {
@@ -163,7 +176,7 @@ Título: ${title || '(sin título)'}
 Brief: ${brief || '(sin brief)'}
 Tono de voz: ${tone || '(no especificado)'}
 Keywords: ${keywords || '(no especificadas)'}
-Longitud objetivo: ${lengthGuide}${voiceContext}${linksBlock}${attachmentsBlock}${contentBlock}
+Longitud objetivo: ${lengthGuide}${canalContext}${voiceContext}${linksBlock}${attachmentsBlock}${contentBlock}
 
 ## Instrucciones de respuesta
 
@@ -218,6 +231,7 @@ export async function aiRoutes(fastify: FastifyInstance) {
       model?: string;
       attachments?: { name: string; type: string; content: string; contentType: 'text' | 'image' | 'other' }[];
       history?: { role: 'user' | 'assistant'; content: string }[];
+      canal?: string;
     };
   }>('/:ticketId/chat', async (request, reply) => {
     if (!config.openaiApiKey) {
@@ -225,7 +239,7 @@ export async function aiRoutes(fastify: FastifyInstance) {
     }
 
     const { ticketId } = request.params;
-    const { instruction, currentContent, brief, tone, keywords, outputLength, model, attachments, history } = request.body;
+    const { instruction, currentContent, brief, tone, keywords, outputLength, model, attachments, history, canal } = request.body;
     const allowedModels = ['gpt-4o', 'claude-sonnet-4-6'];
     const selectedModel = model && allowedModels.includes(model) ? model : 'claude-sonnet-4-6';
 
@@ -262,6 +276,7 @@ export async function aiRoutes(fastify: FastifyInstance) {
       speaker,
       textAttachments,
       contextLinks: ticket.links,
+      canal,
     });
 
     console.log('[ai/chat] ─────────────────────────────────────────────────');

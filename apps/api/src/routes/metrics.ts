@@ -15,7 +15,7 @@ export async function metricsRoutes(fastify: FastifyInstance) {
       include: {
         client: { select: { id: true, name: true } },
         ticket: {
-          select: { id: true, title: true, clientId: true, canal: true },
+          select: { id: true, title: true, clientId: true, canales: true },
         },
         snapshots: {
           orderBy: { dayNumber: 'asc' },
@@ -35,7 +35,7 @@ export async function metricsRoutes(fastify: FastifyInstance) {
       where: { id: publicationId },
       include: {
         ticket: {
-          select: { id: true, title: true, clientId: true, canal: true, client: true },
+          select: { id: true, title: true, clientId: true, canales: true, client: true },
         },
         snapshots: {
           orderBy: { dayNumber: 'asc' },

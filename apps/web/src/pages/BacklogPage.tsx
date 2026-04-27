@@ -13,7 +13,7 @@ interface Ticket {
   id: string;
   title: string;
   objetivo?: string | null;
-  canal: string | null;
+  canales: string[];
   status: string;
   prioridad: string;
   dueDate: string | null;
@@ -386,12 +386,12 @@ function TicketCard({
         isDragging ? 'opacity-40' : ''
       }`}
     >
-      {/* Header */}
+      {/* Cliente */}
       <div className="flex items-center justify-between mb-2">
-        <span className={`text-xs font-bold px-1.5 py-0.5 rounded border ${PRIORIDAD_STYLES[ticket.prioridad] ?? ''}`}>
-          {PRIORIDAD_LABEL[ticket.prioridad] ?? ticket.prioridad}
+        <span className="text-xs font-bold text-[#024fff]/70 truncate">
+          {ticket.client.name}
         </span>
-        <button className="text-[#000033]/20 hover:text-[#000033] opacity-0 group-hover:opacity-100 transition-opacity">
+        <button className="text-[#000033]/20 hover:text-[#000033] opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 ml-1">
           <MoreVertical className="w-3 h-3" />
         </button>
       </div>
@@ -402,10 +402,10 @@ function TicketCard({
       </p>
 
       {/* Canal + Tipo */}
-      {(ticket.canal || ticket.ticketType) && (
+      {(ticket.canales?.length > 0 || ticket.ticketType) && (
         <div className="flex items-center gap-1.5 text-xs text-[#000033]/60 mb-2 pb-2 border-b border-[#000033]/10">
-          {ticket.canal && <span className="font-medium">{ticket.canal}</span>}
-          {ticket.canal && ticket.ticketType && <span>•</span>}
+          {ticket.canales?.length > 0 && <span className="font-medium">{ticket.canales.join(', ')}</span>}
+          {ticket.canales?.length > 0 && ticket.ticketType && <span>•</span>}
           {ticket.ticketType && <span className="font-medium">{ticket.ticketType.name}</span>}
         </div>
       )}
@@ -422,14 +422,19 @@ function TicketCard({
             {ticket.owner.name.split(' ')[0]}
           </span>
         </div>
-        {ticket.dueDate && (
-          <div className="flex items-center gap-1 text-[#000033]/60">
-            <Calendar className="w-2.5 h-2.5" />
-            <span className="font-medium">
-              {new Date(ticket.dueDate).toLocaleDateString('es-ES', { day: '2-digit', month: 'short' })}
-            </span>
-          </div>
-        )}
+        <div className="flex items-center gap-1.5">
+          {ticket.dueDate && (
+            <div className="flex items-center gap-1 text-[#000033]/60">
+              <Calendar className="w-2.5 h-2.5" />
+              <span className="font-medium">
+                {new Date(ticket.dueDate).toLocaleDateString('es-ES', { day: '2-digit', month: 'short' })}
+              </span>
+            </div>
+          )}
+          <span className={`text-xs font-bold px-1.5 py-0.5 rounded border ${PRIORIDAD_STYLES[ticket.prioridad] ?? ''}`}>
+            {PRIORIDAD_LABEL[ticket.prioridad] ?? ticket.prioridad}
+          </span>
+        </div>
       </div>
     </div>
   );

@@ -175,7 +175,7 @@ model Ticket {
   title        String
   objetivo     String?        @db.Text
   description  String?        @db.Text
-  canal        String?
+  canales      String[]       @default([])
   clientId     String         @map("client_id")
   ownerId      String         @map("owner_id")
   ticketTypeId String?        @map("ticket_type_id")
@@ -185,6 +185,7 @@ model Ticket {
   prioridad    Prioridad      @default(MEDIA)
   dueDate      DateTime?      @map("due_date")
   content      String?        @db.Text
+  contentPerCanal Json        @default("{}") @map("content_per_canal")
   keywords     String?
   links           String[]       @default([])
   linkEntregable  String?        @map("link_entregable")

@@ -4,7 +4,7 @@ import { ChevronLeft, ChevronRight, AlertCircle, Clock } from 'lucide-react';
 interface Ticket {
   id: string;
   title: string;
-  canal: string | null;
+  canales: string[];
   status: string;
   prioridad: string;
   dueDate: string | null;
@@ -214,7 +214,7 @@ export function CalendarioBacklog({ tickets, onTicketClick }: CalendarioBacklogP
                                 </p>
                               </div>
                               <div className="flex items-center gap-1.5 text-xs text-[#000033]/60">
-                                <span className="font-medium truncate">{ticket.canal ?? ticket.client.name}</span>
+                                <span className="font-medium truncate">{ticket.canales?.[0] ?? ticket.client.name}</span>
                               </div>
                               {label && (
                                 <div className={`text-xs font-bold ${text} mt-1`}>{label}</div>

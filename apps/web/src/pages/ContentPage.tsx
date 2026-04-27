@@ -34,7 +34,7 @@ const STATUS_LABELS: Record<string, string> = {
   DISENO: 'Diseño', REVISION: 'Revisión', APROBADO: 'Aprobado',
 };
 
-const QUICK_ACTIONS = ['Redactar nuevamente', 'Reforzar tono', 'Más conciso', 'Regenerar hook'];
+const QUICK_ACTIONS = ['Redactar', 'Reforzar tono', 'Más conciso', 'Regenerar hook'];
 
 export function ContentPage() {
   const { ticketId } = useParams<{ ticketId: string }>();
@@ -54,9 +54,12 @@ export function ContentPage() {
   const [outputLength] = useState<'S' | 'M' | 'L'>('M');
   const [contentText, setContentText] = useState('');
   const [charCount, setCharCount] = useState(0);
+  const [canales, setCanales] = useState<string[]>([]);
+  const [activeCanal, setActiveCanal] = useState<string>('');
+  const [contentPerCanal, setContentPerCanal] = useState<Record<string, string>>({});
 
   const [aiPrompt, setAiPrompt] = useState('');
-  const [chatWidth, setChatWidth] = useState(300);
+  const [chatWidth, setChatWidth] = useState(480);
   const [isResizing, setIsResizing] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
   const [isAiLoading, setIsAiLoading] = useState(false);
@@ -81,6 +84,7 @@ export function ContentPage() {
   });
 
   const [chatHistoryLoaded, setChatHistoryLoaded] = useState(false);
+  const [contentLoaded, setContentLoaded] = useState(false);
 
   useEffect(() => {
     if (ticketData?.data) {
@@ -88,10 +92,24 @@ export function ContentPage() {
       setTitle(t.title ?? '');
       setBrief(t.objetivo ?? '');
       setKeywords(t.keywords ?? '');
-      setContentText(t.content ?? '');
       setContextLinks(t.links ?? []);
       setLinkEntregable(t.linkEntregable ?? null);
-      setCharCount((t.content ?? '').length);
+
+      if (!contentLoaded) {
+        const canalList: string[] = t.canales?.length > 0 ? t.canales : ['LinkedIn'];
+        const perCanal: Record<string, string> = t.contentPerCanal && typeof t.contentPerCanal === 'object' ? t.contentPerCanal as Record<string, string> : {};
+        if (Object.keys(perCanal).length === 0 && t.content) {
+          perCanal[canalList[0]] = t.content;
+        }
+        setCanales(canalList);
+        setContentPerCanal(perCanal);
+        const initialCanal = canalList[0];
+        setActiveCanal(initialCanal);
+        const initialContent = perCanal[initialCanal] ?? '';
+        setContentText(initialContent);
+        setCharCount(initialContent.length);
+        setContentLoaded(true);
+      }
 
       if (!chatHistoryLoaded && Array.isArray(t.chatHistory) && t.chatHistory.length > 0) {
         setChatMessages(t.chatHistory as ChatMessage[]);
@@ -110,6 +128,7 @@ export function ContentPage() {
       objetivo: brief,
       keywords,
       content: contentText,
+      contentPerCanal,
       links: contextLinks,
       linkEntregable: linkEntregable || null,
     }),
@@ -121,8 +140,10 @@ export function ContentPage() {
   });
 
   const handleContentChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setContentText(e.target.value);
-    setCharCount(e.target.value.length);
+    const val = e.target.value;
+    setContentText(val);
+    setCharCount(val.length);
+    setContentPerCanal(prev => ({ ...prev, [activeCanal]: val }));
     setHasChanges(true);
   };
 
@@ -206,13 +227,27 @@ export function ContentPage() {
     try {
       {
         const result = await api.chatWithAI(ticketId, {
-          instruction: fullInstruction, currentContent: contentText, brief, tone, keywords, outputLength, model: 'claude-sonnet-4-6', attachments, history,
+          instruction: fullInstruction, currentContent: contentText, brief, tone, keywords, outputLength, model: 'claude-sonnet-4-6', attachments, history, canal: activeCanal,
         });
 
         if (result.newContent !== null) {
+          const updated = { ...contentPerCanal, [activeCanal]: result.newContent };
           setContentText(result.newContent);
           setCharCount(result.newContent.length);
-          setHasChanges(true);
+          setContentPerCanal(updated);
+          setHasChanges(false);
+          api.updateTicket(ticketId!, {
+            title,
+            objetivo: brief,
+            keywords,
+            content: result.newContent,
+            contentPerCanal: updated,
+            links: contextLinks,
+            linkEntregable: linkEntregable || null,
+          }).then(() => {
+            queryClient.invalidateQueries({ queryKey: ['ticket', ticketId] });
+            queryClient.invalidateQueries({ queryKey: ['tickets'] });
+          }).catch(() => {});
         }
 
         setChatMessages(prev => {
@@ -519,15 +554,6 @@ export function ContentPage() {
           <div className="bg-white border-b-2 border-[#000033]/10 px-4 py-2 flex-shrink-0">
             {/* Fila 1: Título + Brief */}
             <div className="flex items-start gap-3 mb-2">
-              <div className="w-40 flex-shrink-0">
-                <label className="block text-xs font-bold text-[#000033]/60 mb-1">TÍTULO</label>
-                <input
-                  type="text"
-                  value={title}
-                  onChange={e => { setTitle(e.target.value); setHasChanges(true); }}
-                  className="w-full px-2.5 py-1.5 border-2 border-[#000033]/10 rounded-md text-xs focus:outline-none focus:ring-2 focus:ring-[#024fff] text-[#000033] hover:border-[#024fff]/40 transition-all"
-                />
-              </div>
               <div className="flex-1 min-w-0">
                 <label className="block text-xs font-bold text-[#000033]/60 mb-1">BRIEF</label>
                 <input
@@ -665,11 +691,37 @@ export function ContentPage() {
             </div>
           </div>
 
+          {/* Tabs por canal */}
+          {canales.length > 0 && (
+            <div className="flex items-center gap-1 px-6 pt-3 pb-0 border-t border-[#000033]/10 flex-shrink-0">
+              {canales.map(canal => (
+                <button
+                  key={canal}
+                  onClick={() => {
+                    setContentPerCanal(prev => ({ ...prev, [activeCanal]: contentText }));
+                    const newContent = contentPerCanal[canal] ?? '';
+                    setActiveCanal(canal);
+                    setContentText(newContent);
+                    setCharCount(newContent.length);
+                  }}
+                  className={`px-3 py-1 text-xs font-bold rounded-t-md border-b-2 transition-all ${
+                    activeCanal === canal
+                      ? 'text-[#024fff] border-[#024fff] bg-[#024fff]/5'
+                      : 'text-[#000033]/40 border-transparent hover:text-[#000033]/70'
+                  }`}
+                >
+                  {canal}
+                </button>
+              ))}
+            </div>
+          )}
+
           {/* Editor Area */}
           <div className="flex-1 overflow-y-auto px-8 py-4 min-h-0">
             <textarea
               value={contentText}
               onChange={handleContentChange}
+              onBlur={() => { if (hasChanges) saveMutation.mutate(); }}
               className="w-full h-full resize-none border-none outline-none text-[#000033] text-sm leading-relaxed bg-transparent"
               placeholder="Empieza a escribir o pedile a la IA que genere contenido..."
             />
