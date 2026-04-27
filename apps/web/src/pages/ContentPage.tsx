@@ -227,7 +227,7 @@ export function ContentPage() {
     try {
       {
         const result = await api.chatWithAI(ticketId, {
-          instruction: fullInstruction, currentContent: contentText, brief, tone, keywords, outputLength, model: 'claude-sonnet-4-6', attachments, history, canal: activeCanal,
+          instruction: fullInstruction, currentContent: contentText, brief, tone, keywords, outputLength, model: 'claude-sonnet-4-6', attachments, history, canal: activeCanal, otherCanalesContent: Object.fromEntries(Object.entries(contentPerCanal).filter(([k, v]) => k !== activeCanal && v?.trim())),
         });
 
         if (result.newContent !== null) {

@@ -105,8 +105,9 @@ function buildSystemPrompt(params: {
   textAttachments?: { name: string; content: string }[];
   contextLinks?: string[];
   canal?: string;
+  otherCanalesContent?: Record<string, string>;
 }): string {
-  const { clientName, title, brief, tone, keywords, outputLength, currentContent, brandVoice, speaker, textAttachments, contextLinks, canal } = params;
+  const { clientName, title, brief, tone, keywords, outputLength, currentContent, brandVoice, speaker, textAttachments, contextLinks, canal, otherCanalesContent } = params;
 
   const lengthGuide = LENGTH_GUIDE[outputLength] ?? LENGTH_GUIDE['M'];
 
@@ -167,6 +168,10 @@ function buildSystemPrompt(params: {
     ? `\n## Links de referencia de la pieza\nPodés leer cualquiera de estos links usando la tool fetch_url:\n${contextLinks.map(l => `- ${l}`).join('\n')}`
     : '';
 
+  const otherCanalesBlock = otherCanalesContent && Object.keys(otherCanalesContent).length > 0
+    ? `\n## Contenido ya redactado en otros canales\nTenés versiones de esta pieza para otras redes. Siempre arrancá desde ahí: adaptá el mensaje al formato y tono del canal activo en lugar de escribir desde cero. El copy para ${canal ?? 'este canal'} es una adaptación, no una pieza nueva.\n${Object.entries(otherCanalesContent).map(([c, v]) => `### ${c}\n${v}`).join('\n\n')}`
+    : '';
+
   const voiceContext = speakerBlock + brandVoiceBlock;
 
   return `Sos un redactor profesional especializado en contenido para redes sociales y marketing de contenidos. Trabajás para el cliente ${clientName}.
@@ -176,7 +181,7 @@ Título: ${title || '(sin título)'}
 Brief: ${brief || '(sin brief)'}
 Tono de voz: ${tone || '(no especificado)'}
 Keywords: ${keywords || '(no especificadas)'}
-Longitud objetivo: ${lengthGuide}${canalContext}${voiceContext}${linksBlock}${attachmentsBlock}${contentBlock}
+Longitud objetivo: ${lengthGuide}${canalContext}${voiceContext}${linksBlock}${attachmentsBlock}${otherCanalesBlock}${contentBlock}
 
 ## Instrucciones de respuesta
 
@@ -232,6 +237,7 @@ export async function aiRoutes(fastify: FastifyInstance) {
       attachments?: { name: string; type: string; content: string; contentType: 'text' | 'image' | 'other' }[];
       history?: { role: 'user' | 'assistant'; content: string }[];
       canal?: string;
+      otherCanalesContent?: Record<string, string>;
     };
   }>('/:ticketId/chat', async (request, reply) => {
     if (!config.openaiApiKey) {
@@ -239,7 +245,7 @@ export async function aiRoutes(fastify: FastifyInstance) {
     }
 
     const { ticketId } = request.params;
-    const { instruction, currentContent, brief, tone, keywords, outputLength, model, attachments, history, canal } = request.body;
+    const { instruction, currentContent, brief, tone, keywords, outputLength, model, attachments, history, canal, otherCanalesContent } = request.body;
     const allowedModels = ['gpt-4o', 'claude-sonnet-4-6'];
     const selectedModel = model && allowedModels.includes(model) ? model : 'claude-sonnet-4-6';
 
@@ -277,6 +283,7 @@ export async function aiRoutes(fastify: FastifyInstance) {
       textAttachments,
       contextLinks: ticket.links,
       canal,
+      otherCanalesContent,
     });
 
     console.log('[ai/chat] ─────────────────────────────────────────────────');
