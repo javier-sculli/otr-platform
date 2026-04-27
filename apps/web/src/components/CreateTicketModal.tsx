@@ -161,7 +161,7 @@ export function CreateTicketModal({ isOpen, onClose, ticket }: CreateTicketModal
   const toggleRed = (red: string) => {
     setFormData(prev => {
       const newCanales = prev.canales.includes(red)
-        ? prev.canales.filter(r => r !== red)
+        ? prev.canales.filter((r: string) => r !== red)
         : [...prev.canales, red];
 
       if (isEditing && ticket) {
@@ -560,7 +560,7 @@ export function CreateTicketModal({ isOpen, onClose, ticket }: CreateTicketModal
                 </div>
                 {formData.canales.length > 1 && (
                   <div className="flex items-center gap-1 mb-2">
-                    {formData.canales.map(canal => (
+                    {formData.canales.map((canal: string) => (
                       <button
                         key={canal}
                         type="button"
