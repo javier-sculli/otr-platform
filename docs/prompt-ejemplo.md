@@ -222,6 +222,58 @@ Gracias Javi por la invitación y las preguntas. Una conversación que valió la
 
 ---
 
+## Prompt 3 — LinkedIn, con 2 lineamientos marcados en Performance
+
+Mismo contexto que el Prompt 1, pero ahora hay 2 posts reales marcados con ⭐. El bloque de lineamientos se inyecta entre el kit de marca y los links, antes del contenido del editor.
+
+Solo se muestra el bloque que cambia — todo lo demás (vocero, brand kit, instrucciones) es idéntico al Prompt 1.
+
+```
+## Ejemplos de lineamiento — posts reales marcados como referencia
+Estos son posts reales del cliente que funcionaron bien y fueron marcados como lineamiento de estilo. Usalos para calibrar el tono, estructura y voz, no para copiar el contenido.
+
+### Ejemplo 1 (LinkedIn)
+Last week we joined the LATAM Family Office Investment Summit in Mexico City invited by Alba Medina. It is one of the key gatherings where capital and innovation start speaking the same language. This year, we brought the conversation closer to where it matters: the portfolio.
+
+Victoria Costa Paz represented Eywa Biotech, and Yuyo Llamazares Vegh represented Stämm. Different stages, but same underlying conviction: Deep Tech built by Latin American talent can solve problems at a global scale.
+
+We also hosted a side dinner with the Draper Cygnus community. Founders, investors, and ecosystem builders in the same room, having the kind of conversation that doesn't happen on a panel.
+
+Family offices in LATAM are moving toward technology as a strategic allocation. Deep tech is still unfamiliar territory for many, but that gap is closing. Portfolio founders in the room make a stronger case than any pitch deck.
+
+That's the role the portfolio plays in these spaces: evidence, not narrative. Thanks Vicky and Yuyo for joining us on this trip.
+
+We'll be back! 🚀
+
+#VentureCapital #DeepTech #LATAM #Mexico
+
+### Ejemplo 2 (LinkedIn)
+Satellites on Fire closes a $2.7M Seed round 🔥
+
+Huge congratulations to Franco Rodriguez Viau and the entire Satellites on Fire team on closing their $2.7M Seed round.
+
+At 22 years, Franco is building critical infrastructure to address one of the fastest-growing global risks: wildfires.
+
+In 2025 alone, Satellites on Fire helped respond to 600+ fires across 21 countries, detecting ignition points earlier and enabling faster response across forestry, agriculture, energy, insurance and government sectors.
+
+We're proud to back this team as they expand into the U.S., deepen impact measurement, and launch parametric wildfire insurance products.
+
+From LATAM to the world.
+
+Onward 🚀
+
+#DeepTech #Portfolio #DraperCygnus #VentureCapital
+```
+
+Lo que el modelo aprende de estos dos ejemplos sin que nadie lo explique:
+- Los posts del fondo van en **inglés** (no en español)
+- La estructura es: contexto/evento → quiénes participaron → qué demuestra eso → implicancia estratégica → cierre corto
+- Usan hashtags al final (4-5, no más)
+- Tono institucional pero no frío — "the kind of conversation that doesn't happen on a panel"
+- El portfolio se nombra como evidencia concreta, no como lista
+
+---
+
 ## Qué bloque aparece en qué situación
 
 | Bloque | Cuándo aparece |
