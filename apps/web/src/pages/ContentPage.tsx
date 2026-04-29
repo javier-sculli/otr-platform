@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowLeft, Sparkles, Bold, Italic, Underline, List, ListOrdered,
   Link2, Image as ImageIcon, Type, Eye, Send, GripVertical, Check, AlertCircle,
-  Paperclip, X, FileText, File, ExternalLink, Mic, Trash2,
+  Paperclip, X, FileText, File, ExternalLink, Mic, Trash2, Star,
 } from 'lucide-react';
 import * as pdfjsLib from 'pdfjs-dist';
 import { api } from '../lib/api';
@@ -82,6 +82,16 @@ export function ContentPage() {
     queryFn: () => api.getTicket(ticketId!),
     enabled: !!ticketId,
   });
+
+  const clientId = (ticketData?.data as any)?.clientId;
+  const { data: lineamientosData } = useQuery({
+    queryKey: ['lineamientos', clientId],
+    queryFn: () => api.getLineamientos(clientId!),
+    enabled: !!clientId,
+  });
+  const lineamientoCanales = new Set<string>(
+    (lineamientosData?.data ?? []).map((p: any) => (p.canal ?? '').toLowerCase())
+  );
 
   const [chatHistoryLoaded, setChatHistoryLoaded] = useState(false);
   const [contentLoaded, setContentLoaded] = useState(false);
@@ -704,13 +714,16 @@ export function ContentPage() {
                     setContentText(newContent);
                     setCharCount(newContent.length);
                   }}
-                  className={`px-3 py-1 text-xs font-bold rounded-t-md border-b-2 transition-all ${
+                  className={`flex items-center gap-1 px-3 py-1 text-xs font-bold rounded-t-md border-b-2 transition-all ${
                     activeCanal === canal
                       ? 'text-[#024fff] border-[#024fff] bg-[#024fff]/5'
                       : 'text-[#000033]/40 border-transparent hover:text-[#000033]/70'
                   }`}
                 >
                   {canal}
+                  {lineamientoCanales.has(canal.toLowerCase()) && (
+                    <Star className="w-2.5 h-2.5" fill="#FFD700" style={{ color: '#FFD700' }} strokeWidth={0} />
+                  )}
                 </button>
               ))}
             </div>
