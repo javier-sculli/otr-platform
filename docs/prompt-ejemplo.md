@@ -224,9 +224,9 @@ Gracias Javi por la invitación y las preguntas. Una conversación que valió la
 
 ## Prompt 3 — LinkedIn, con 2 lineamientos marcados en Performance
 
-Mismo contexto que el Prompt 1, pero ahora hay 2 posts reales marcados con ⭐. El bloque de lineamientos se inyecta entre el kit de marca y los links, antes del contenido del editor.
+Mismo contexto que el Prompt 1 — el modelo recibe todo: vocero completo, brand kit completo, instrucciones de respuesta. Lo único que se agrega es el bloque de lineamientos, que se inyecta entre el brand kit y el contenido del editor.
 
-Solo se muestra el bloque que cambia — todo lo demás (vocero, brand kit, instrucciones) es idéntico al Prompt 1.
+Abajo solo se muestra ese bloque nuevo para no repetir las ~150 líneas idénticas al Prompt 1.
 
 ```
 ## Ejemplos de lineamiento — posts reales marcados como referencia
