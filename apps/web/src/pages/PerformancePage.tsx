@@ -71,6 +71,12 @@ export function PerformancePage() {
     },
   });
 
+  const toggleHighlight = async (e: React.MouseEvent, pub: any) => {
+    e.stopPropagation();
+    await api.updatePublication(pub.id, { isHighlight: !pub.isHighlight });
+    queryClient.invalidateQueries({ queryKey: ['metrics'] });
+  };
+
   const publications: any[] = data?.data ?? [];
   const clients: any[] = clientsData?.data ?? [];
 
@@ -269,7 +275,7 @@ export function PerformancePage() {
                   <div
                     key={pub.id}
                     onClick={() => pub.url && window.open(pub.url, '_blank', 'noopener,noreferrer')}
-                    className={`grid grid-cols-[90px_56px_1fr_140px_80px_80px_80px_44px] gap-3 px-4 py-3 transition-all ${pub.url ? 'cursor-pointer hover:bg-[#024fff]/5' : ''} ${
+                    className={`group grid grid-cols-[90px_56px_1fr_140px_80px_80px_80px_44px] gap-3 px-4 py-3 transition-all ${pub.url ? 'cursor-pointer hover:bg-[#024fff]/5' : ''} ${
                       index !== sorted.length - 1 ? 'border-b border-[#000033]/5' : ''
                     }`}
                   >
@@ -327,13 +333,24 @@ export function PerformancePage() {
                       </span>
                     </div>
 
-                    {/* Destacado */}
+                    {/* Lineamiento */}
                     <div className="flex items-center justify-center">
-                      {pub.isHighlight && (
-                        <div className="w-7 h-7 rounded-lg bg-[#00ff99]/20 flex items-center justify-center">
-                          <Star className="w-3.5 h-3.5 text-[#000033]" fill="currentColor" />
-                        </div>
-                      )}
+                      <button
+                        onClick={(e) => toggleHighlight(e, pub)}
+                        title={pub.isHighlight ? 'Quitar lineamiento' : 'Marcar como lineamiento'}
+                        className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all ${
+                          pub.isHighlight
+                            ? 'bg-[#FFD700]/20 hover:bg-[#FFD700]/30'
+                            : 'opacity-0 group-hover:opacity-100 hover:bg-[#000033]/5'
+                        }`}
+                      >
+                        <Star
+                          className="w-3.5 h-3.5"
+                          style={{ color: pub.isHighlight ? '#FFD700' : '#000033' }}
+                          fill={pub.isHighlight ? '#FFD700' : 'none'}
+                          strokeWidth={pub.isHighlight ? 0 : 1.5}
+                        />
+                      </button>
                     </div>
                   </div>
                 );

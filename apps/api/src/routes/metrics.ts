@@ -6,12 +6,17 @@ import { syncLinkedInMetrics } from '../jobs/syncLinkedInMetrics.js';
 export async function metricsRoutes(fastify: FastifyInstance) {
   fastify.addHook('preHandler', authenticate);
 
-  // GET /metrics?clientId=xxx — lista de publications con sus snapshots
+  // GET /metrics?clientId=xxx&highlight=true&canal=LinkedIn
   fastify.get('/', async (request) => {
-    const { clientId } = request.query as { clientId?: string };
+    const { clientId, highlight, canal } = request.query as { clientId?: string; highlight?: string; canal?: string };
+
+    const where: Record<string, unknown> = {};
+    if (clientId) where.clientId = clientId;
+    if (highlight === 'true') where.isHighlight = true;
+    if (canal) where.canal = { equals: canal, mode: 'insensitive' };
 
     const publications = await prisma.publication.findMany({
-      where: clientId ? { clientId } : {},
+      where,
       include: {
         client: { select: { id: true, name: true } },
         ticket: {

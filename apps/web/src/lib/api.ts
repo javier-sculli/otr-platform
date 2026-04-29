@@ -235,6 +235,12 @@ class ApiClient {
     return this.request<{ data: any[] }>(`/metrics${params}`);
   }
 
+  async getLineamientos(clientId: string, canal?: string) {
+    const params = new URLSearchParams({ clientId, highlight: 'true' });
+    if (canal) params.set('canal', canal);
+    return this.request<{ data: any[] }>(`/metrics?${params.toString()}`);
+  }
+
   async syncMetrics(clientId?: string) {
     return this.request<{ message: string }>('/metrics/sync', {
       method: 'POST',

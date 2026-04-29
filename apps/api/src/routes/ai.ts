@@ -106,8 +106,9 @@ function buildSystemPrompt(params: {
   contextLinks?: string[];
   canal?: string;
   otherCanalesContent?: Record<string, string>;
+  lineamientos?: { canal: string; content: string }[];
 }): string {
-  const { clientName, title, brief, tone, keywords, outputLength, currentContent, brandVoice, speaker, textAttachments, contextLinks, canal, otherCanalesContent } = params;
+  const { clientName, title, brief, tone, keywords, outputLength, currentContent, brandVoice, speaker, textAttachments, contextLinks, canal, otherCanalesContent, lineamientos } = params;
 
   const lengthGuide = LENGTH_GUIDE[outputLength] ?? LENGTH_GUIDE['M'];
 
@@ -172,6 +173,10 @@ function buildSystemPrompt(params: {
     ? `\n## Contenido ya redactado en otros canales\nTenés versiones de esta pieza para otras redes. Siempre arrancá desde ahí: adaptá el mensaje al formato y tono del canal activo en lugar de escribir desde cero. El copy para ${canal ?? 'este canal'} es una adaptación, no una pieza nueva.\n${Object.entries(otherCanalesContent).map(([c, v]) => `### ${c}\n${v}`).join('\n\n')}`
     : '';
 
+  const lineamientosBlock = lineamientos && lineamientos.length > 0
+    ? `\n## Ejemplos de lineamiento — posts reales marcados como referencia\nEstos son posts reales del cliente que funcionaron bien y fueron marcados como lineamiento de estilo. Usalos para calibrar el tono, estructura y voz, no para copiar el contenido.\n${lineamientos.map((l, i) => `### Ejemplo ${i + 1}${l.canal ? ` (${l.canal})` : ''}\n${l.content}`).join('\n\n')}`
+    : '';
+
   const voiceContext = speakerBlock + brandVoiceBlock;
 
   return `Sos un redactor profesional especializado en contenido para redes sociales y marketing de contenidos. Trabajás para el cliente ${clientName}.
@@ -181,7 +186,7 @@ Título: ${title || '(sin título)'}
 Brief: ${brief || '(sin brief)'}
 Tono de voz: ${tone || '(no especificado)'}
 Keywords: ${keywords || '(no especificadas)'}
-Longitud objetivo: ${lengthGuide}${canalContext}${voiceContext}${linksBlock}${attachmentsBlock}${otherCanalesBlock}${contentBlock}
+Longitud objetivo: ${lengthGuide}${canalContext}${voiceContext}${lineamientosBlock}${linksBlock}${attachmentsBlock}${otherCanalesBlock}${contentBlock}
 
 ## Instrucciones de respuesta
 
@@ -270,6 +275,20 @@ export async function aiRoutes(fastify: FastifyInstance) {
 
     const imageAttachments = attachments?.filter(a => a.contentType === 'image') ?? [];
 
+    const lineamientosRaw = await prisma.publication.findMany({
+      where: {
+        clientId: ticket.clientId,
+        isHighlight: true,
+        ...(canal ? { canal: { equals: canal, mode: 'insensitive' } } : {}),
+      },
+      select: { postContent: true, canal: true },
+      take: 3,
+      orderBy: { publishedAt: 'desc' },
+    });
+    const lineamientos = lineamientosRaw
+      .filter(p => p.postContent?.trim())
+      .map(p => ({ canal: p.canal, content: p.postContent! }));
+
     const systemPrompt = buildSystemPrompt({
       clientName: ticket.client.name,
       title: ticket.title,
@@ -284,6 +303,7 @@ export async function aiRoutes(fastify: FastifyInstance) {
       contextLinks: ticket.links,
       canal,
       otherCanalesContent,
+      lineamientos,
     });
 
     console.log('[ai/chat] ─────────────────────────────────────────────────');
