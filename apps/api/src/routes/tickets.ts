@@ -22,12 +22,11 @@ export async function ticketsRoutes(fastify: FastifyInstance) {
     const tickets = await prisma.ticket.findMany({
       where,
       include: {
-        client: true,
+        client: { select: { id: true, name: true } },
         owner: { select: { id: true, name: true, email: true } },
-        ticketType: true,
-        pilar: true,
-        speaker: true,
-        publication: true,
+        ticketType: { select: { id: true, name: true } },
+        pilar: { select: { id: true, nombre: true } },
+        speaker: { select: { id: true, nombre: true } },
       },
       orderBy: { createdAt: 'desc' },
     });
