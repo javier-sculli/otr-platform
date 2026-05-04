@@ -19,6 +19,7 @@ export async function metricsRoutes(fastify: FastifyInstance) {
       where,
       include: {
         client: { select: { id: true, name: true } },
+        speaker: { select: { id: true, nombre: true } },
         ticket: {
           select: { id: true, title: true, clientId: true, canales: true },
         },
@@ -62,6 +63,7 @@ export async function metricsRoutes(fastify: FastifyInstance) {
       url?: string;
       publishedAt?: string;
       canal?: string;
+      speakerId?: string | null;
     };
 
     const data: any = {};
@@ -71,6 +73,7 @@ export async function metricsRoutes(fastify: FastifyInstance) {
     if (body.url !== undefined) data.url = body.url;
     if (body.publishedAt !== undefined) data.publishedAt = new Date(body.publishedAt);
     if (body.canal !== undefined) data.canal = body.canal;
+    if (body.speakerId !== undefined) data.speakerId = body.speakerId;
 
     const publication = await prisma.publication.update({
       where: { id: publicationId },

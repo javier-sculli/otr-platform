@@ -154,6 +154,10 @@ class ApiClient {
   }
 
   // Speakers (voceros)
+  async getAllSpeakers() {
+    return this.request<{ data: any[] }>('/catalogs/speakers');
+  }
+
   async getSpeakers(clientId: string) {
     return this.request<{ data: any[] }>(`/catalogs/clients/${clientId}/speakers`);
   }

@@ -46,16 +46,32 @@ export async function syncLinkedInMetrics(clientId?: string) {
     return;
   }
 
-  console.log(`[syncLinkedIn] Procesando ${clients.length} cliente(s)...`);
+  // Cargar speakers con linkedinUrl por cliente
+  const speakers = await prisma.speaker.findMany({
+    where: {
+      clientId: { in: clients.map(c => c.id) },
+      linkedinUrl: { not: null },
+    },
+    select: { id: true, clientId: true, nombre: true, linkedinUrl: true },
+  });
 
-  for (const client of clients) {
-    console.log(`[syncLinkedIn] → ${client.name} (${client.linkedinUrl})`);
+  // Targets: perfil del cliente + perfiles de voceros
+  type SyncTarget = { url: string; clientId: string; speakerId: string | null; label: string };
+  const targets: SyncTarget[] = [
+    ...clients.map(c => ({ url: c.linkedinUrl!, clientId: c.id, speakerId: null, label: c.name })),
+    ...speakers.map(s => ({ url: s.linkedinUrl!, clientId: s.clientId, speakerId: s.id, label: s.nombre })),
+  ];
+
+  console.log(`[syncLinkedIn] Procesando ${targets.length} perfil(es) (${clients.length} clientes, ${speakers.length} voceros)...`);
+
+  for (const target of targets) {
+    console.log(`[syncLinkedIn] → ${target.label} (${target.url})`);
 
     try {
       const run = await apify.actor(ACTOR_ID).call({
-        targetUrls: [client.linkedinUrl],
+        targetUrls: [target.url],
         maxPosts: 50,
-        postedLimit: 'month', // solo posts del último mes
+        postedLimit: 'month',
         includeQuotePosts: false,
         includeReposts: false,
         scrapeReactions: false,
@@ -85,7 +101,8 @@ export async function syncLinkedInMetrics(clientId?: string) {
         const publication = await prisma.publication.upsert({
           where: { url: post.linkedinUrl },
           create: {
-            clientId: client.id,
+            clientId: target.clientId,
+            speakerId: target.speakerId,
             url: post.linkedinUrl,
             publishedAt,
             canal: 'LinkedIn',
@@ -93,7 +110,8 @@ export async function syncLinkedInMetrics(clientId?: string) {
             imageUrl,
           },
           update: {
-            // Solo actualiza imagen si no la teníamos
+            // Asigna speaker si aún no tenía uno
+            ...(target.speakerId ? { speakerId: target.speakerId } : {}),
             ...(imageUrl ? { imageUrl } : {}),
           },
         });
@@ -117,7 +135,7 @@ export async function syncLinkedInMetrics(clientId?: string) {
         console.log(`[syncLinkedIn]   ✓ día ${dayNumber === 99 ? 'final' : dayNumber} — ${likes}❤ ${comments}💬 ${shares}🔁 — ${post.linkedinUrl.slice(0, 60)}...`);
       }
     } catch (err) {
-      console.error(`[syncLinkedIn] Error en cliente ${client.name}:`, err);
+      console.error(`[syncLinkedIn] Error en ${target.label}:`, err);
     }
   }
 

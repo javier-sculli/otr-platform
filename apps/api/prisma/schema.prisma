@@ -96,8 +96,9 @@ model Speaker {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  client  Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  tickets Ticket[]
+  client       Client        @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  tickets      Ticket[]
+  publications Publication[]
 
   @@index([clientId])
   @@map("speakers")
@@ -216,6 +217,7 @@ model Publication {
   id          String    @id @default(uuid())
   ticketId    String?   @unique @map("ticket_id")       // null si fue scrapeado automáticamente
   clientId    String    @map("client_id")               // siempre tiene cliente
+  speakerId   String?   @map("speaker_id")              // null si es publicación de marca (no vocero)
   url         String    @unique                         // URL del post — evita duplicados
   publishedAt DateTime  @map("published_at")
   canal       String    @default("LinkedIn")
@@ -230,9 +232,11 @@ model Publication {
   // Relations
   ticket    Ticket?              @relation(fields: [ticketId], references: [id], onDelete: SetNull)
   client    Client               @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  speaker   Speaker?             @relation(fields: [speakerId], references: [id], onDelete: SetNull)
   snapshots PostMetricSnapshot[]
 
   @@index([clientId])
+  @@index([speakerId])
   @@map("publications")
 }
 

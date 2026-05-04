@@ -22,6 +22,7 @@ interface Ticket {
   owner: { id: string; name: string };
   client: { id: string; name: string };
   ticketType?: { id: string; name: string } | null;
+  speaker?: { id: string; nombre: string } | null;
 }
 
 interface Cliente {
@@ -56,7 +57,11 @@ export function BacklogPage() {
     return clientId ? [clientId] : [];
   });
   const [showDropdownClientes, setShowDropdownClientes] = useState(false);
-  const [filtroFecha, setFiltroFecha] = useState<'semana' | 'mes' | 'flexible'>('mes');
+  const [vocerosSeleccionados, setVocerosSeleccionados] = useState<string[]>([]);
+  const [showDropdownVoceros, setShowDropdownVoceros] = useState(false);
+  const [filtroFecha, setFiltroFecha] = useState<'semana' | 'mes' | 'rango' | null>(null);
+  const [fechaDesde, setFechaDesde] = useState('');
+  const [fechaHasta, setFechaHasta] = useState('');
   const [vista, setVista] = useState<'kanban' | 'calendario'>('kanban');
   const [showModalNueva, setShowModalNueva] = useState(false);
   const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
@@ -93,6 +98,14 @@ export function BacklogPage() {
   const allTickets: Ticket[] = ticketsData?.data ?? [];
   const clientes: Cliente[] = clientesData?.data ?? [];
 
+  const vocerosUnicos = Array.from(
+    new Map(
+      allTickets
+        .filter(t => t.speaker != null)
+        .map(t => [t.speaker!.id, t.speaker!])
+    ).values()
+  ).sort((a, b) => a.nombre.localeCompare(b.nombre));
+
   const ahora = new Date();
   const inicioSemana = new Date(ahora);
   inicioSemana.setDate(ahora.getDate() - ahora.getDay());
@@ -104,10 +117,15 @@ export function BacklogPage() {
   const ticketsFiltrados = allTickets.filter(t => {
     if (t.status === 'CANCELADO') return false;
     if (clientesSeleccionados.length > 0 && !clientesSeleccionados.includes(t.client.id)) return false;
-    if (filtroFecha !== 'flexible' && t.dueDate) {
+    if (vocerosSeleccionados.length > 0 && (!t.speaker || !vocerosSeleccionados.includes(t.speaker.id))) return false;
+    if (filtroFecha && t.dueDate) {
       const due = new Date(t.dueDate);
       if (filtroFecha === 'semana') return due >= inicioSemana && due <= finSemana;
       if (filtroFecha === 'mes') return due >= inicioMes && due <= finMes;
+      if (filtroFecha === 'rango') {
+        if (fechaDesde && due < new Date(fechaDesde)) return false;
+        if (fechaHasta) { const hasta = new Date(fechaHasta); hasta.setHours(23, 59, 59); if (due > hasta) return false; }
+      }
     }
     return true;
   });
@@ -118,6 +136,11 @@ export function BacklogPage() {
   const toggleCliente = (id: string) =>
     setClientesSeleccionados(prev =>
       prev.includes(id) ? prev.filter(c => c !== id) : [...prev, id]
+    );
+
+  const toggleVocero = (id: string) =>
+    setVocerosSeleccionados(prev =>
+      prev.includes(id) ? prev.filter(v => v !== id) : [...prev, id]
     );
 
   // Drag & drop
@@ -229,31 +252,90 @@ export function BacklogPage() {
 
           <div className="w-px h-6 bg-[#000033]/20" />
 
+          {/* Filtro voceros */}
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold text-[#000033]">Vocero:</span>
+            <div className="flex items-center gap-2 flex-wrap">
+              {vocerosSeleccionados.length > 0 ? (
+                vocerosUnicos
+                  .filter(v => vocerosSeleccionados.includes(v.id))
+                  .map(v => (
+                    <button
+                      key={v.id}
+                      onClick={() => toggleVocero(v.id)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-[#024fff]/10 text-[#024fff] text-xs font-bold rounded-lg border-2 border-[#024fff]/20 hover:bg-[#024fff]/20"
+                    >
+                      {v.nombre}
+                      <X className="w-3 h-3" />
+                    </button>
+                  ))
+              ) : (
+                <span className="text-xs text-[#000033]/40">Todos los voceros</span>
+              )}
+
+              {vocerosUnicos.length > 0 && (
+                <div className="relative">
+                  <button
+                    onClick={() => setShowDropdownVoceros(prev => !prev)}
+                    className="px-3 py-1.5 border-2 border-dashed border-[#000033]/20 text-[#000033]/60 text-xs font-bold rounded-lg hover:border-[#024fff]/40 hover:text-[#024fff] flex items-center gap-1.5"
+                  >
+                    + Agregar
+                    <ChevronDown className="w-3 h-3" />
+                  </button>
+                  {showDropdownVoceros && (
+                    <div className="absolute top-full left-0 mt-1 bg-white border-2 border-[#000033]/20 rounded-lg shadow-lg z-10 min-w-[160px]">
+                      {vocerosUnicos.map(v => (
+                        <button
+                          key={v.id}
+                          onClick={() => { toggleVocero(v.id); setShowDropdownVoceros(false); }}
+                          className="block w-full px-3 py-2 text-left text-xs font-bold text-[#000033] hover:bg-[#024fff]/10 hover:text-[#024fff]"
+                        >
+                          {v.nombre}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="w-px h-6 bg-[#000033]/20" />
+
           {/* Filtro fecha */}
           <div className="flex items-center gap-2">
             <span className="text-xs font-bold text-[#000033]">Fecha:</span>
-            <div className="flex gap-1.5">
-              {(['semana', 'mes', 'flexible'] as const).map(f => (
+            <div className="flex items-center gap-1.5">
+              {(['semana', 'mes', 'rango'] as const).map(f => (
                 <button
                   key={f}
-                  onClick={() => setFiltroFecha(f)}
+                  onClick={() => setFiltroFecha(prev => prev === f ? null : f)}
                   className={`px-3 py-1.5 text-xs font-bold rounded-lg border-2 transition-all ${
                     filtroFecha === f
                       ? 'bg-[#024fff]/10 text-[#024fff] border-[#024fff]/20'
                       : 'border-[#000033]/10 text-[#000033]/60 hover:border-[#024fff]/40 hover:text-[#024fff]'
                   }`}
                 >
-                  {f === 'semana' ? 'Esta semana' : f === 'mes' ? 'Este mes' : 'Flexible'}
+                  {f === 'semana' ? 'Esta semana' : f === 'mes' ? 'Este mes' : 'Rango'}
                 </button>
               ))}
+              {filtroFecha === 'rango' && (
+                <div className="flex items-center gap-1.5 ml-1">
+                  <input type="date" value={fechaDesde} onChange={e => setFechaDesde(e.target.value)}
+                    className="px-2 py-1.5 border-2 border-[#024fff]/20 rounded-lg text-xs text-[#000033] bg-white focus:outline-none focus:border-[#024fff]/50" />
+                  <span className="text-xs text-[#000033]/40">—</span>
+                  <input type="date" value={fechaHasta} onChange={e => setFechaHasta(e.target.value)}
+                    className="px-2 py-1.5 border-2 border-[#024fff]/20 rounded-lg text-xs text-[#000033] bg-white focus:outline-none focus:border-[#024fff]/50" />
+                </div>
+              )}
             </div>
           </div>
 
-          {(clientesSeleccionados.length > 0 || filtroFecha !== 'mes') && (
+          {(clientesSeleccionados.length > 0 || vocerosSeleccionados.length > 0 || filtroFecha !== null) && (
             <>
               <div className="flex-1" />
               <button
-                onClick={() => { setClientesSeleccionados([]); setFiltroFecha('mes'); }}
+                onClick={() => { setClientesSeleccionados([]); setVocerosSeleccionados([]); setFiltroFecha(null); setFechaDesde(''); setFechaHasta(''); }}
                 className="text-xs font-bold text-[#000033]/60 hover:text-[#024fff] underline"
               >
                 Limpiar filtros

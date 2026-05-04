@@ -165,6 +165,15 @@ export async function catalogsRoutes(fastify: FastifyInstance) {
 
   // ── Voceros ───────────────────────────────────────────────────────────────
 
+  // Get all speakers across all clients
+  fastify.get('/speakers', async () => {
+    const speakers = await prisma.speaker.findMany({
+      orderBy: [{ clientId: 'asc' }, { createdAt: 'asc' }],
+      select: { id: true, nombre: true, cargo: true, clientId: true, client: { select: { name: true } } },
+    });
+    return { data: speakers };
+  });
+
   // Get all speakers for a client
   fastify.get('/clients/:id/speakers', async (request) => {
     const { id } = request.params as { id: string };
