@@ -48,7 +48,7 @@ function buildFormData(ticket?: TicketData | null) {
       pilarId: '',
       speakerId: '',
       prioridad: 'MEDIA',
-      status: 'BACKLOG',
+      status: 'PENDIENTE',
       dueDate: '',
       links: [] as string[],
       linkEntregable: '',

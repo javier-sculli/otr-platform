@@ -21,21 +21,32 @@ import {
 import { api } from '../lib/api';
 
 const STATUS_OPTIONS = [
-  { value: 'BACKLOG',   label: 'Backlog' },
-  { value: 'BRIEF',     label: 'Brief' },
-  { value: 'CONTENIDO', label: 'Contenido' },
-  { value: 'DISENO',    label: 'Diseño' },
-  { value: 'REVISION',  label: 'Revisión' },
-  { value: 'APROBADO',  label: 'Aprobado' },
+  { value: 'PENDIENTE',           label: 'Pendiente' },
+  { value: 'REDACCION',           label: 'Redacción' },
+  { value: 'DISENO',              label: 'Diseño' },
+  { value: 'EDICION',             label: 'Edición' },
+  { value: 'REVISION_INTERNA',    label: 'Revisión Interna' },
+  { value: 'CLIENTE',             label: 'Cliente' },
+  { value: 'ESPERANDO_FEEDBACK',  label: 'Esperando feedback' },
+  { value: 'LISTO_PARA_PUBLICAR', label: 'Listo para publicar' },
+  { value: 'PUBLICADO',           label: 'Publicado' },
+  { value: 'CANCELADO',           label: 'Stand-by / Cancelados' },
+  { value: 'LISTO',               label: 'Listo' },
 ];
 
 function getStatusStyle(status: string) {
   switch (status) {
-    case 'APROBADO':   return 'bg-[#00ff99]/30 border-[#00ff99]/60 text-[#000033]';
-    case 'CONTENIDO':  return 'bg-[#00ff99]/20 border-[#00ff99]/40 text-[#000033]';
-    case 'REVISION':   return 'bg-[#024fff]/10 border-[#024fff]/20 text-[#024fff]';
-    case 'BRIEF':      return 'bg-[#024fff]/5 border-[#024fff]/10 text-[#024fff]';
-    default:           return 'bg-[#000033]/5 border-[#000033]/20 text-[#000033]/60';
+    case 'LISTO':                return 'bg-[#00ff99]/40 border-[#00ff99]/70 text-[#000033]';
+    case 'PUBLICADO':            return 'bg-[#00ff99]/30 border-[#00ff99]/60 text-[#000033]';
+    case 'LISTO_PARA_PUBLICAR':  return 'bg-[#00ff99]/20 border-[#00ff99]/40 text-[#000033]';
+    case 'ESPERANDO_FEEDBACK':   return 'bg-[#00ff99]/10 border-[#00ff99]/30 text-[#000033]';
+    case 'CLIENTE':              return 'bg-[#00ff99]/10 border-[#00ff99]/20 text-[#000033]';
+    case 'REVISION_INTERNA':     return 'bg-[#024fff]/10 border-[#024fff]/20 text-[#024fff]';
+    case 'EDICION':              return 'bg-[#024fff]/8 border-[#024fff]/15 text-[#024fff]';
+    case 'DISENO':               return 'bg-[#024fff]/5 border-[#024fff]/10 text-[#024fff]';
+    case 'REDACCION':            return 'bg-[#024fff]/5 border-[#024fff]/10 text-[#024fff]';
+    case 'CANCELADO':            return 'bg-[#000033]/5 border-[#000033]/15 text-[#000033]/50';
+    default:                     return 'bg-[#000033]/5 border-[#000033]/20 text-[#000033]/60';
   }
 }
 

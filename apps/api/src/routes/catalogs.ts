@@ -23,7 +23,7 @@ export async function catalogsRoutes(fastify: FastifyInstance) {
         owner: { select: { id: true, name: true } },
         brandVoice: { select: { content: true } },
         tickets: {
-          where: { status: { not: 'CANCELADO' } },
+          where: { status: { notIn: ['CANCELADO', 'LISTO'] } },
           select: { status: true },
         },
         _count: { select: { speakers: true } },
@@ -35,9 +35,9 @@ export async function catalogsRoutes(fastify: FastifyInstance) {
 
     const data = clients.map((client: typeof clients[number]) => {
       const tickets = client.tickets;
-      const draft = tickets.filter((t: typeof tickets[number]) => t.status === 'BACKLOG' || t.status === 'BRIEF').length;
-      const enRevision = tickets.filter((t: typeof tickets[number]) => t.status === 'REVISION').length;
-      const programadas = tickets.filter((t: typeof tickets[number]) => t.status === 'APROBADO').length;
+      const draft = tickets.filter((t: typeof tickets[number]) => t.status === 'PENDIENTE' || t.status === 'REDACCION').length;
+      const enRevision = tickets.filter((t: typeof tickets[number]) => t.status === 'REVISION_INTERNA' || t.status === 'CLIENTE' || t.status === 'ESPERANDO_FEEDBACK').length;
+      const programadas = tickets.filter((t: typeof tickets[number]) => t.status === 'LISTO_PARA_PUBLICAR').length;
 
       // Brand voice completitud
       const bvContent = (client.brandVoice?.content ?? {}) as Record<string, string>;

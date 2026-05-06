@@ -73,7 +73,7 @@ export async function ticketsRoutes(fastify: FastifyInstance) {
         ticketTypeId: data.ticketTypeId,
         pilarId: data.pilarId || null,
         speakerId: data.speakerId || null,
-        status: data.status || 'BACKLOG',
+        status: data.status || 'PENDIENTE',
         dueDate: data.dueDate ? new Date(data.dueDate) : undefined,
         links: data.links || [],
       },

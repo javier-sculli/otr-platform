@@ -31,12 +31,17 @@ interface Cliente {
 }
 
 const COLUMNAS = [
-  { id: 'BACKLOG',   nombre: 'Backlog',   color: 'bg-[#000033]/5',   border: 'border-[#000033]/20' },
-  { id: 'BRIEF',     nombre: 'Brief',     color: 'bg-[#024fff]/5',   border: 'border-[#024fff]/20' },
-  { id: 'CONTENIDO', nombre: 'Contenido', color: 'bg-[#00ff99]/10',  border: 'border-[#00ff99]/30' },
-  { id: 'DISENO',    nombre: 'Diseño',    color: 'bg-[#024fff]/10',  border: 'border-[#024fff]/30' },
-  { id: 'REVISION',  nombre: 'Revisión',  color: 'bg-[#00ff99]/20',  border: 'border-[#00ff99]/40' },
-  { id: 'APROBADO',  nombre: 'Aprobado',  color: 'bg-[#00ff99]/30',  border: 'border-[#00ff99]/50' },
+  { id: 'PENDIENTE',          nombre: 'Pendiente',            color: 'bg-[#000033]/5',   border: 'border-[#000033]/20' },
+  { id: 'REDACCION',          nombre: 'Redacción',            color: 'bg-[#024fff]/5',   border: 'border-[#024fff]/20' },
+  { id: 'DISENO',             nombre: 'Diseño',               color: 'bg-[#024fff]/10',  border: 'border-[#024fff]/30' },
+  { id: 'EDICION',            nombre: 'Edición',              color: 'bg-[#024fff]/15',  border: 'border-[#024fff]/35' },
+  { id: 'REVISION_INTERNA',   nombre: 'Revisión Interna',     color: 'bg-[#00ff99]/10',  border: 'border-[#00ff99]/30' },
+  { id: 'CLIENTE',            nombre: 'Cliente',              color: 'bg-[#00ff99]/15',  border: 'border-[#00ff99]/35' },
+  { id: 'ESPERANDO_FEEDBACK', nombre: 'Esperando feedback',   color: 'bg-[#00ff99]/20',  border: 'border-[#00ff99]/40' },
+  { id: 'LISTO_PARA_PUBLICAR',nombre: 'Listo para publicar',  color: 'bg-[#00ff99]/25',  border: 'border-[#00ff99]/45' },
+  { id: 'PUBLICADO',          nombre: 'Publicado',            color: 'bg-[#00ff99]/30',  border: 'border-[#00ff99]/50' },
+  { id: 'CANCELADO',          nombre: 'Stand-by / Cancelados',color: 'bg-[#000033]/5',   border: 'border-[#000033]/15' },
+  { id: 'LISTO',              nombre: 'Listo',                color: 'bg-[#00ff99]/40',  border: 'border-[#00ff99]/60' },
 ] as const;
 
 const PRIORIDAD_STYLES: Record<string, string> = {
@@ -115,7 +120,7 @@ export function BacklogPage() {
   const finMes = new Date(ahora.getFullYear(), ahora.getMonth() + 1, 0);
 
   const ticketsFiltrados = allTickets.filter(t => {
-    if (t.status === 'CANCELADO') return false;
+    if (t.status === 'CANCELADO' || t.status === 'LISTO') return false;
     if (clientesSeleccionados.length > 0 && !clientesSeleccionados.includes(t.client.id)) return false;
     if (vocerosSeleccionados.length > 0 && (!t.speaker || !vocerosSeleccionados.includes(t.speaker.id))) return false;
     if (filtroFecha && t.dueDate) {
@@ -396,7 +401,7 @@ export function BacklogPage() {
                       />
                     ))}
 
-                    {col.id === 'BACKLOG' && (
+                    {col.id === 'PENDIENTE' && (
                       <button
                         onClick={() => setShowModalNueva(true)}
                         className="w-full py-2 border-2 border-dashed border-[#000033]/20 rounded-lg text-xs font-bold text-[#000033]/40 hover:border-[#024fff]/40 hover:text-[#024fff] hover:bg-[#024fff]/5 transition-all"
@@ -405,7 +410,7 @@ export function BacklogPage() {
                       </button>
                     )}
 
-                    {tickets.length === 0 && col.id !== 'BACKLOG' && (
+                    {tickets.length === 0 && col.id !== 'PENDIENTE' && (
                       <div className="py-6 text-center text-xs text-[#000033]/30 font-medium">
                         Sin piezas
                       </div>

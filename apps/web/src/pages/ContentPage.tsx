@@ -30,8 +30,10 @@ type AttachedFile = {
 };
 
 const STATUS_LABELS: Record<string, string> = {
-  BACKLOG: 'Backlog', BRIEF: 'Brief', CONTENIDO: 'Contenido',
-  DISENO: 'Diseño', REVISION: 'Revisión', APROBADO: 'Aprobado',
+  PENDIENTE: 'Pendiente', REDACCION: 'Redacción', DISENO: 'Diseño',
+  EDICION: 'Edición', REVISION_INTERNA: 'Revisión Interna', CLIENTE: 'Cliente',
+  ESPERANDO_FEEDBACK: 'Esperando feedback', LISTO_PARA_PUBLICAR: 'Listo para publicar',
+  PUBLICADO: 'Publicado', CANCELADO: 'Stand-by / Cancelados', LISTO: 'Listo',
 };
 
 const QUICK_ACTIONS = ['Redactar', 'Reforzar tono', 'Más conciso', 'Regenerar hook'];

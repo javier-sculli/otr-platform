@@ -156,13 +156,17 @@ model TicketType {
 }
 
 enum TicketStatus {
-  BACKLOG
-  BRIEF
-  CONTENIDO
+  PENDIENTE
+  REDACCION
   DISENO
-  REVISION
-  APROBADO
+  EDICION
+  REVISION_INTERNA
+  CLIENTE
+  ESPERANDO_FEEDBACK
+  LISTO_PARA_PUBLICAR
+  PUBLICADO
   CANCELADO
+  LISTO
 }
 
 enum Prioridad {
@@ -182,7 +186,7 @@ model Ticket {
   ticketTypeId String?        @map("ticket_type_id")
   pilarId      String?        @map("pilar_id")
   speakerId    String?        @map("speaker_id")
-  status       TicketStatus   @default(BACKLOG)
+  status       TicketStatus   @default(PENDIENTE)
   prioridad    Prioridad      @default(MEDIA)
   dueDate      DateTime?      @map("due_date")
   content      String?        @db.Text
