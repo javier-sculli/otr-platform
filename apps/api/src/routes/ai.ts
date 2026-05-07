@@ -106,7 +106,7 @@ function buildSystemPrompt(params: {
   contextLinks?: string[];
   canal?: string;
   otherCanalesContent?: Record<string, string>;
-  lineamientos?: { canal: string; content: string }[];
+  lineamientos?: { canal: string; content: string; isHighlight?: boolean }[];
 }): string {
   const { clientName, title, brief, tone, keywords, outputLength, currentContent, brandVoice, speaker, textAttachments, contextLinks, canal, otherCanalesContent, lineamientos } = params;
 
@@ -173,8 +173,9 @@ function buildSystemPrompt(params: {
     ? `\n## Contenido ya redactado en otros canales\nTenés versiones de esta pieza para otras redes. Siempre arrancá desde ahí: adaptá el mensaje al formato y tono del canal activo en lugar de escribir desde cero. El copy para ${canal ?? 'este canal'} es una adaptación, no una pieza nueva.\n${Object.entries(otherCanalesContent).map(([c, v]) => `### ${c}\n${v}`).join('\n\n')}`
     : '';
 
+  const tieneHighlights = lineamientos?.some(l => l.isHighlight);
   const lineamientosBlock = lineamientos && lineamientos.length > 0
-    ? `\n## Ejemplos de lineamiento — posts reales marcados como referencia\nEstos son posts reales del cliente que funcionaron bien y fueron marcados como lineamiento de estilo. Usalos para calibrar el tono, estructura y voz, no para copiar el contenido.\n${lineamientos.map((l, i) => `### Ejemplo ${i + 1}${l.canal ? ` (${l.canal})` : ''}\n${l.content}`).join('\n\n')}`
+    ? `\n## Ejemplos de contenido real del cliente${tieneHighlights ? ' — posts de referencia marcados' : ''}\nEstos son posts reales publicados por ${clientName}. SIEMPRE usá estos ejemplos para calibrar el tono, estructura, vocabulario y voz antes de escribir. No copies el contenido, pero sí la esencia y el estilo.${tieneHighlights ? ' Son posts que el equipo marcó como de alta calidad.' : ''}\n${lineamientos.map((l, i) => `### Ejemplo ${i + 1}${l.canal ? ` (${l.canal})` : ''}${l.isHighlight ? ' ⭐' : ''}\n${l.content}`).join('\n\n')}`
     : '';
 
   const voiceContext = speakerBlock + brandVoiceBlock;
@@ -271,19 +272,25 @@ export async function aiRoutes(fastify: FastifyInstance) {
 
     const imageAttachments = attachments?.filter(a => a.contentType === 'image') ?? [];
 
-    const lineamientosRaw = await prisma.publication.findMany({
-      where: {
-        clientId: ticket.clientId,
-        isHighlight: true,
-        ...(canal ? { canal: { equals: canal, mode: 'insensitive' } } : {}),
-      },
-      select: { postContent: true, canal: true },
+    const canalFilter = canal ? { canal: { equals: canal, mode: 'insensitive' as const } } : {};
+    let lineamientosRaw = await prisma.publication.findMany({
+      where: { clientId: ticket.clientId, isHighlight: true, ...canalFilter },
+      select: { postContent: true, canal: true, isHighlight: true },
       take: 3,
       orderBy: { publishedAt: 'desc' },
     });
+    // Si no hay highlights, usar los últimos posts publicados del cliente como ejemplos de estilo
+    if (lineamientosRaw.filter(p => p.postContent?.trim()).length === 0) {
+      lineamientosRaw = await prisma.publication.findMany({
+        where: { clientId: ticket.clientId, postContent: { not: null }, ...canalFilter },
+        select: { postContent: true, canal: true, isHighlight: true },
+        take: 3,
+        orderBy: { publishedAt: 'desc' },
+      });
+    }
     const lineamientos = lineamientosRaw
       .filter(p => p.postContent?.trim())
-      .map(p => ({ canal: p.canal, content: p.postContent! }));
+      .map(p => ({ canal: p.canal, content: p.postContent!, isHighlight: p.isHighlight }));
 
     const systemPrompt = buildSystemPrompt({
       clientName: ticket.client.name,
