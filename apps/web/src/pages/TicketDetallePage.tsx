@@ -19,7 +19,11 @@ import {
   Check,
   Paperclip,
   File,
+  MessageSquare,
+  Send,
+  Trash2,
 } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
 
 type AttachedFile = {
   id: string;
@@ -65,6 +69,7 @@ export function TicketDetallePage() {
   const { ticketId } = useParams<{ ticketId: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { user: currentUser } = useAuth();
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['ticket', ticketId],
@@ -81,6 +86,71 @@ export function TicketDetallePage() {
       queryClient.invalidateQueries({ queryKey: ['tickets'] });
     },
   });
+
+  // Comments
+  const [commentText, setCommentText] = useState('');
+  const [mentionQuery, setMentionQuery] = useState<string | null>(null);
+  const [mentionStart, setMentionStart] = useState(-1);
+  const commentInputRef = useRef<HTMLTextAreaElement>(null);
+
+  const { data: commentsData } = useQuery({
+    queryKey: ['comments', ticketId],
+    queryFn: () => api.getComments(ticketId!),
+    enabled: !!ticketId,
+  });
+
+  const { data: usersData } = useQuery({
+    queryKey: ['users'],
+    queryFn: () => api.getUsers(),
+  });
+
+  const allUsers: any[] = usersData?.data ?? [];
+  const mentionSuggestions = mentionQuery !== null
+    ? allUsers.filter(u => u.name.toLowerCase().includes(mentionQuery.toLowerCase()) && u.id !== (currentUser as any)?.id)
+    : [];
+
+  const createCommentMutation = useMutation({
+    mutationFn: (content: string) => api.createComment(ticketId!, content),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['comments', ticketId] });
+      setCommentText('');
+    },
+  });
+
+  const deleteCommentMutation = useMutation({
+    mutationFn: (commentId: string) => api.deleteComment(ticketId!, commentId),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['comments', ticketId] }),
+  });
+
+  const handleCommentInput = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const val = e.target.value;
+    setCommentText(val);
+    const cursor = e.target.selectionStart ?? val.length;
+    const textBeforeCursor = val.slice(0, cursor);
+    const atIdx = textBeforeCursor.lastIndexOf('@');
+    if (atIdx !== -1 && (atIdx === 0 || /\s/.test(textBeforeCursor[atIdx - 1]))) {
+      const query = textBeforeCursor.slice(atIdx + 1);
+      if (!query.includes(' ') || query.length <= 20) {
+        setMentionQuery(query);
+        setMentionStart(atIdx);
+        return;
+      }
+    }
+    setMentionQuery(null);
+  };
+
+  const insertMention = (userName: string) => {
+    const before = commentText.slice(0, mentionStart);
+    const after = commentText.slice(commentInputRef.current?.selectionStart ?? commentText.length);
+    setCommentText(`${before}@${userName} ${after}`);
+    setMentionQuery(null);
+    setTimeout(() => commentInputRef.current?.focus(), 0);
+  };
+
+  const handleCommentSubmit = () => {
+    if (!commentText.trim()) return;
+    createCommentMutation.mutate(commentText.trim());
+  };
 
   const [editandoTitulo, setEditandoTitulo] = useState(false);
   const [tituloTemp, setTituloTemp] = useState('');
@@ -574,6 +644,101 @@ export function TicketDetallePage() {
                   )}
                 </div>
               )}
+            </div>
+
+            {/* Comentarios */}
+            <div className="bg-white border-2 border-[#000033]/10 rounded-lg p-5">
+              <h2 className="text-xs font-bold text-[#000033] uppercase flex items-center gap-2 mb-4">
+                <MessageSquare className="w-3.5 h-3.5 text-[#024fff]" />
+                Comentarios
+                {(commentsData?.data?.length ?? 0) > 0 && (
+                  <span className="ml-1 px-1.5 py-0.5 bg-[#024fff]/10 text-[#024fff] rounded-full text-[10px] font-bold">
+                    {commentsData!.data.length}
+                  </span>
+                )}
+              </h2>
+
+              {/* Lista de comentarios */}
+              <div className="space-y-3 mb-4">
+                {(commentsData?.data ?? []).length === 0 ? (
+                  <p className="text-xs text-[#000033]/30 italic">Sin comentarios aún. Usá @nombre para mencionar a alguien.</p>
+                ) : (
+                  (commentsData!.data).map((c: any) => (
+                    <div key={c.id} className="flex gap-3 group">
+                      <div className="w-6 h-6 rounded-full bg-[#024fff]/10 border border-[#024fff]/20 flex items-center justify-center flex-shrink-0 text-[10px] font-bold text-[#024fff] mt-0.5">
+                        {c.user.name.charAt(0).toUpperCase()}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-baseline gap-2">
+                          <span className="text-xs font-bold text-[#000033]">{c.user.name}</span>
+                          <span className="text-[10px] text-[#000033]/40">
+                            {new Date(c.createdAt).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                        </div>
+                        <p className="text-xs text-[#000033]/80 mt-0.5 leading-relaxed whitespace-pre-wrap break-words">
+                          {c.content.split(/(@[\w\sáéíóúÁÉÍÓÚñÑ]+?)(?=[^a-zA-ZáéíóúÁÉÍÓÚñÑ\s]|$)/).map((part: string, i: number) =>
+                            part.startsWith('@')
+                              ? <span key={i} className="text-[#024fff] font-bold">{part}</span>
+                              : part
+                          )}
+                        </p>
+                      </div>
+                      {c.user.id === (currentUser as any)?.id && (
+                        <button
+                          onClick={() => deleteCommentMutation.mutate(c.id)}
+                          className="opacity-0 group-hover:opacity-100 transition-opacity text-[#000033]/20 hover:text-red-400 flex-shrink-0 p-0.5"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      )}
+                    </div>
+                  ))
+                )}
+              </div>
+
+              {/* Input nuevo comentario */}
+              <div className="relative">
+                {mentionQuery !== null && mentionSuggestions.length > 0 && (
+                  <div className="absolute bottom-full mb-1 left-0 bg-white border-2 border-[#000033]/10 rounded-lg shadow-lg z-20 overflow-hidden w-48">
+                    {mentionSuggestions.slice(0, 5).map((u: any) => (
+                      <button
+                        key={u.id}
+                        onMouseDown={e => { e.preventDefault(); insertMention(u.name); }}
+                        className="w-full text-left px-3 py-2 text-xs hover:bg-[#024fff]/5 flex items-center gap-2"
+                      >
+                        <span className="w-5 h-5 rounded-full bg-[#024fff]/10 flex items-center justify-center text-[9px] font-bold text-[#024fff]">
+                          {u.name.charAt(0).toUpperCase()}
+                        </span>
+                        {u.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <div className="flex gap-2 items-end">
+                  <textarea
+                    ref={commentInputRef}
+                    value={commentText}
+                    onChange={handleCommentInput}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        handleCommentSubmit();
+                      }
+                      if (e.key === 'Escape') setMentionQuery(null);
+                    }}
+                    placeholder="Comentar... Usá @nombre para mencionar"
+                    rows={2}
+                    className="flex-1 px-3 py-2 border-2 border-[#000033]/10 rounded-lg text-xs text-[#000033] resize-none focus:outline-none focus:border-[#024fff]/40 focus:ring-2 focus:ring-[#024fff]/10 transition-all placeholder:text-[#000033]/30"
+                  />
+                  <button
+                    onClick={handleCommentSubmit}
+                    disabled={!commentText.trim() || createCommentMutation.isPending}
+                    className="p-2 bg-[#024fff] text-white rounded-lg hover:bg-[#024fff]/90 transition-all disabled:opacity-30 disabled:cursor-not-allowed flex-shrink-0"
+                  >
+                    <Send className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
             </div>
 
           </div>

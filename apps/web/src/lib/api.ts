@@ -267,6 +267,35 @@ class ApiClient {
     });
   }
 
+  // Comments
+  async getComments(ticketId: string) {
+    return this.request<{ data: any[] }>(`/tickets/${ticketId}/comments`);
+  }
+
+  async createComment(ticketId: string, content: string) {
+    return this.request<{ data: any }>(`/tickets/${ticketId}/comments`, {
+      method: 'POST',
+      body: JSON.stringify({ content }),
+    });
+  }
+
+  async deleteComment(ticketId: string, commentId: string) {
+    return this.request(`/tickets/${ticketId}/comments/${commentId}`, { method: 'DELETE' });
+  }
+
+  // Notifications
+  async getNotifications() {
+    return this.request<{ data: any[]; unreadCount: number }>('/notifications');
+  }
+
+  async markNotificationRead(id: string) {
+    return this.request(`/notifications/${id}/read`, { method: 'PATCH' });
+  }
+
+  async markAllNotificationsRead() {
+    return this.request('/notifications/read-all', { method: 'PATCH' });
+  }
+
   async chatWithAI(ticketId: string, payload: {
     instruction: string;
     currentContent: string;

@@ -30,9 +30,11 @@ model User {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   // Relations
-  area    Area?    @relation(fields: [areaId], references: [id])
-  tickets Ticket[]
-  clients Client[]
+  area              Area?            @relation(fields: [areaId], references: [id])
+  tickets           Ticket[]
+  clients           Client[]
+  comments          TicketComment[]
+  notifications     Notification[]   @relation("NotificationRecipient")
 
   @@map("users")
 }
@@ -200,12 +202,14 @@ model Ticket {
   updatedAt    DateTime       @updatedAt @map("updated_at")
 
   // Relations
-  client      Client       @relation(fields: [clientId], references: [id])
-  owner       User         @relation(fields: [ownerId], references: [id])
-  ticketType  TicketType?  @relation(fields: [ticketTypeId], references: [id])
-  pilar       Pilar?       @relation(fields: [pilarId], references: [id])
-  speaker     Speaker?     @relation(fields: [speakerId], references: [id])
-  publication Publication?
+  client        Client          @relation(fields: [clientId], references: [id])
+  owner         User            @relation(fields: [ownerId], references: [id])
+  ticketType    TicketType?     @relation(fields: [ticketTypeId], references: [id])
+  pilar         Pilar?          @relation(fields: [pilarId], references: [id])
+  speaker       Speaker?        @relation(fields: [speakerId], references: [id])
+  publication   Publication?
+  comments      TicketComment[]
+  notifications Notification[]
 
   @@index([clientId])
   @@index([ownerId])
@@ -258,4 +262,37 @@ model PostMetricSnapshot {
   @@unique([publicationId, dayNumber])
   @@index([publicationId])
   @@map("post_metric_snapshots")
+}
+
+model TicketComment {
+  id        String   @id @default(uuid())
+  ticketId  String   @map("ticket_id")
+  userId    String   @map("user_id")
+  content   String   @db.Text
+  mentions  String[] @default([])
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  ticket    Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id])
+
+  @@index([ticketId])
+  @@map("ticket_comments")
+}
+
+model Notification {
+  id         String   @id @default(uuid())
+  userId     String   @map("user_id")
+  ticketId   String?  @map("ticket_id")
+  commentId  String?  @map("comment_id")
+  fromName   String   @map("from_name")
+  message    String
+  read       Boolean  @default(false)
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  user       User     @relation("NotificationRecipient", fields: [userId], references: [id], onDelete: Cascade)
+  ticket     Ticket?  @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  @@index([userId, read])
+  @@map("notifications")
 }
