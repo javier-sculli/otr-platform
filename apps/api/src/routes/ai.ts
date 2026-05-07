@@ -166,7 +166,7 @@ function buildSystemPrompt(params: {
     : '';
 
   const linksBlock = contextLinks && contextLinks.length > 0
-    ? `\n## Links de referencia de la pieza\nPodés leer cualquiera de estos links usando la tool fetch_url:\n${contextLinks.map(l => `- ${l}`).join('\n')}`
+    ? `\n## Links de referencia de la pieza\n⚠️ OBLIGATORIO: Antes de responder, usá fetch_url para leer TODOS estos links. Su contenido es contexto esencial para esta pieza — no respondas sin haberlos leído:\n${contextLinks.map(l => `- ${l}`).join('\n')}`
     : '';
 
   const otherCanalesBlock = otherCanalesContent && Object.keys(otherCanalesContent).length > 0
@@ -245,10 +245,6 @@ export async function aiRoutes(fastify: FastifyInstance) {
       otherCanalesContent?: Record<string, string>;
     };
   }>('/:ticketId/chat', async (request, reply) => {
-    if (!config.openaiApiKey) {
-      return reply.status(503).send({ error: 'OpenAI API key not configured' });
-    }
-
     const { ticketId } = request.params;
     const { instruction, currentContent, brief, tone, keywords, outputLength, model, attachments, history, canal, otherCanalesContent } = request.body;
     const allowedModels = ['gpt-4o', 'claude-sonnet-4-6'];
@@ -321,7 +317,12 @@ export async function aiRoutes(fastify: FastifyInstance) {
 
     let raw = '';
 
+    try {
+
     if (selectedModel !== 'claude-sonnet-4-6') {
+      if (!config.openaiApiKey) {
+        return reply.status(503).send({ error: 'OpenAI API key not configured' });
+      }
       const openai = new OpenAI({ apiKey: config.openaiApiKey });
 
       type OpenAIContentPart =
@@ -411,6 +412,13 @@ export async function aiRoutes(fastify: FastifyInstance) {
         raw = textBlock?.type === 'text' ? textBlock.text : '';
         break;
       }
+    }
+
+    } catch (err: any) {
+      const anthropicMsg = err?.error?.error?.message as string | undefined;
+      const message = anthropicMsg ?? err?.message ?? 'Error al conectar con el modelo de IA';
+      console.error('[ai/chat] AI call failed:', message, err?.status ?? err?.statusCode ?? '');
+      return reply.status(500).send({ error: message });
     }
 
     const { newContent, summary } = parseAIResponse(raw);

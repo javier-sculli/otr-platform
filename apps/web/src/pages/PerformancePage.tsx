@@ -31,6 +31,13 @@ function formatDate(dateStr: string) {
   };
 }
 
+function formatDayTime(dateStr: string) {
+  const d = new Date(dateStr);
+  const dia = d.toLocaleDateString('es-ES', { weekday: 'short' });
+  const hora = d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', hour12: false });
+  return { dia: dia.replace('.', ''), hora };
+}
+
 function formatNum(n: number) {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
   if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
@@ -368,13 +375,14 @@ export function PerformancePage() {
           <div className="bg-white border-2 border-[#000033]/10 rounded-xl overflow-hidden">
             {/* Table header */}
             <div className="border-b-2 border-[#000033]/10 bg-[#fafafa]">
-              <div className="grid grid-cols-[90px_56px_1fr_120px_120px_80px_80px_80px_44px] gap-3 px-4 py-3">
+              <div className="grid grid-cols-[90px_80px_56px_1fr_120px_120px_80px_80px_80px_44px] gap-3 px-4 py-3">
                 <button
                   onClick={() => handleSort('fecha')}
                   className="flex items-center gap-1 text-[10px] font-bold text-[#000033]/60 uppercase tracking-wide hover:text-[#024fff] transition-colors"
                 >
                   Fecha <SortIcon col="fecha" />
                 </button>
+                <div className="text-[10px] font-bold text-[#000033]/60 uppercase tracking-wide">Día / Hora</div>
                 <div className="text-[10px] font-bold text-[#000033]/60 uppercase tracking-wide">Red</div>
                 <div className="text-[10px] font-bold text-[#000033]/60 uppercase tracking-wide">Contenido</div>
                 <div className="text-[10px] font-bold text-[#000033]/60 uppercase tracking-wide">Cliente</div>
@@ -410,12 +418,15 @@ export function PerformancePage() {
                 const { main: dateMain, year: dateYear } = pub.publishedAt
                   ? formatDate(pub.publishedAt)
                   : { main: '—', year: '' };
+                const { dia, hora } = pub.publishedAt
+                  ? formatDayTime(pub.publishedAt)
+                  : { dia: '—', hora: '' };
 
                 return (
                   <div
                     key={pub.id}
                     onClick={() => pub.url && window.open(pub.url, '_blank', 'noopener,noreferrer')}
-                    className={`group grid grid-cols-[90px_56px_1fr_120px_120px_80px_80px_80px_44px] gap-3 px-4 py-3 transition-all ${pub.url ? 'cursor-pointer hover:bg-[#024fff]/5' : ''} ${
+                    className={`group grid grid-cols-[90px_80px_56px_1fr_120px_120px_80px_80px_80px_44px] gap-3 px-4 py-3 transition-all ${pub.url ? 'cursor-pointer hover:bg-[#024fff]/5' : ''} ${
                       index !== sorted.length - 1 ? 'border-b border-[#000033]/5' : ''
                     }`}
                   >
@@ -423,6 +434,12 @@ export function PerformancePage() {
                     <div className="flex flex-col justify-center">
                       <span className="text-xs font-bold text-[#000033]">{dateMain}</span>
                       <span className="text-[10px] text-[#000033]/40">{dateYear}</span>
+                    </div>
+
+                    {/* Día / Hora */}
+                    <div className="flex flex-col justify-center">
+                      <span className="text-xs font-medium text-[#000033] capitalize">{dia}</span>
+                      <span className="text-[10px] text-[#000033]/40">{hora}</span>
                     </div>
 
                     {/* Red */}

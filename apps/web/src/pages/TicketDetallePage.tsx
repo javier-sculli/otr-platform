@@ -17,7 +17,18 @@ import {
   X as XIcon,
   Copy,
   Check,
+  Paperclip,
+  File,
 } from 'lucide-react';
+
+type AttachedFile = {
+  id: string;
+  name: string;
+  type: string;
+  size: number;
+  content: string | null;
+  contentType: 'text' | 'image' | 'other';
+};
 import { api } from '../lib/api';
 
 const STATUS_OPTIONS = [
@@ -81,7 +92,39 @@ export function TicketDetallePage() {
   const [briefTemp, setBriefTemp] = useState('');
   const [copyCopied, setCopyCopied] = useState(false);
   const [activeCopyTab, setActiveCopyTab] = useState<string>('');
+  const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>(() => {
+    if (!ticketId) return [];
+    const saved = sessionStorage.getItem(`ticket-files-${ticketId}`);
+    return saved ? JSON.parse(saved) : [];
+  });
   const linkInputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files) return;
+    Array.from(files).forEach(file => {
+      const id = `${Date.now()}-${file.name}`;
+      const isImage = file.type.startsWith('image/');
+      const isText = file.type.startsWith('text/') || /\.(txt|md|csv)$/i.test(file.name);
+      if (isImage) {
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          setAttachedFiles(prev => [...prev, { id, name: file.name, type: file.type, size: file.size, content: ev.target?.result as string, contentType: 'image' }]);
+        };
+        reader.readAsDataURL(file);
+      } else if (isText) {
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          setAttachedFiles(prev => [...prev, { id, name: file.name, type: file.type, size: file.size, content: ev.target?.result as string, contentType: 'text' }]);
+        };
+        reader.readAsText(file);
+      } else {
+        setAttachedFiles(prev => [...prev, { id, name: file.name, type: file.type, size: file.size, content: null, contentType: 'other' }]);
+      }
+    });
+    e.target.value = '';
+  };
 
   useEffect(() => {
     if (ticket?.title) setTituloTemp(ticket.title);
@@ -94,6 +137,12 @@ export function TicketDetallePage() {
       setActiveCopyTab(canales?.length > 0 ? canales[0] : '');
     }
   }, [ticket?.title, (ticket as any)?.notasAudiovisual, ticket]);
+
+  useEffect(() => {
+    if (ticketId) {
+      sessionStorage.setItem(`ticket-files-${ticketId}`, JSON.stringify(attachedFiles));
+    }
+  }, [attachedFiles, ticketId]);
 
   const handleGuardarTitulo = () => {
     if (tituloTemp.trim() && tituloTemp !== ticket?.title) {
@@ -191,7 +240,7 @@ export function TicketDetallePage() {
 
             <div className="flex items-center gap-2">
               <button
-                onClick={() => navigate(`/content/${ticket.id}`)}
+                onClick={() => navigate(`/content/${ticket.id}`, { state: { attachedFiles: attachedFiles.length > 0 ? attachedFiles : undefined } })}
                 className="flex items-center gap-1.5 px-4 py-2 bg-[#024fff] text-white rounded-lg text-xs font-bold hover:bg-[#024fff]/90 transition-all shadow-lg shadow-[#024fff]/20"
               >
                 <Sparkles className="w-3.5 h-3.5" />
@@ -292,8 +341,25 @@ export function TicketDetallePage() {
                     </button>
                   </div>
                 ))}
+                {attachedFiles.map(file => (
+                  <div key={file.id} className="flex items-center gap-2 px-3 py-2 border border-[#000033]/15 rounded-lg group hover:border-[#000033]/30 transition-all">
+                    {file.contentType === 'image' ? (
+                      <ImageIcon className="w-3.5 h-3.5 text-[#000033]/50 flex-shrink-0" />
+                    ) : (
+                      <File className="w-3.5 h-3.5 text-[#000033]/50 flex-shrink-0" />
+                    )}
+                    <span className="text-xs text-[#000033]/70 truncate flex-1">{file.name}</span>
+                    <span className="text-xs text-[#000033]/30 flex-shrink-0">{(file.size / 1024).toFixed(0)} KB</span>
+                    <button
+                      onClick={() => setAttachedFiles(prev => prev.filter(f => f.id !== file.id))}
+                      className="opacity-0 group-hover:opacity-100 transition-opacity text-[#000033]/30 hover:text-red-400 ml-1 flex-shrink-0"
+                    >
+                      <XIcon className="w-3 h-3" />
+                    </button>
+                  </div>
+                ))}
               </div>
-              {/* Add link input */}
+              {/* Add link / file input */}
               <div className="flex gap-2">
                 <input
                   ref={linkInputRef}
@@ -332,6 +398,21 @@ export function TicketDetallePage() {
                 >
                   <Plus className="w-3.5 h-3.5" />
                 </button>
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  title="Adjuntar archivo"
+                  className="px-2.5 py-1.5 bg-[#000033]/5 border-2 border-[#000033]/10 text-[#000033]/50 rounded-lg hover:bg-[#000033]/10 hover:text-[#000033] transition-all"
+                >
+                  <Paperclip className="w-3.5 h-3.5" />
+                </button>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  multiple
+                  className="hidden"
+                  onChange={handleFileChange}
+                />
               </div>
             </div>
 
@@ -504,7 +585,7 @@ export function TicketDetallePage() {
             <div className="bg-white border-2 border-[#000033]/10 rounded-lg p-5">
               <h3 className="text-xs font-bold text-[#000033] uppercase mb-3">Acciones</h3>
               <button
-                onClick={() => navigate(`/content/${ticket.id}`)}
+                onClick={() => navigate(`/content/${ticket.id}`, { state: { attachedFiles: attachedFiles.length > 0 ? attachedFiles : undefined } })}
                 className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-[#024fff] text-white rounded-lg text-xs font-bold hover:bg-[#024fff]/90 transition-all shadow-lg shadow-[#024fff]/20"
               >
                 <Sparkles className="w-3.5 h-3.5" />
@@ -522,12 +603,31 @@ export function TicketDetallePage() {
                   </label>
                   <select
                     value={ticket.status}
-                    onChange={e => updateMutation.mutate({ status: e.target.value })}
+                    onChange={e => {
+                      const next = e.target.value;
+                      if (next === 'LISTO' || next === 'CANCELADO') {
+                        const label = next === 'LISTO' ? 'Listo (archivado)' : 'Stand-by / Cancelado';
+                        if (!window.confirm(`¿Mover a "${label}"?\n\nEl ticket desaparecerá del kanban. Para recuperarlo tenés que buscarlo manualmente.`)) return;
+                      }
+                      updateMutation.mutate({ status: next });
+                    }}
                     className="w-full px-3 py-2 border-2 border-[#000033]/10 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#024fff] text-[#000033] bg-white hover:border-[#024fff]/30 transition-all"
                   >
-                    {STATUS_OPTIONS.map(s => (
-                      <option key={s.value} value={s.value}>{s.label}</option>
-                    ))}
+                    <optgroup label="Activo">
+                      <option value="PENDIENTE">Pendiente</option>
+                      <option value="REDACCION">Redacción</option>
+                      <option value="DISENO">Diseño</option>
+                      <option value="EDICION">Edición</option>
+                      <option value="REVISION_INTERNA">Revisión Interna</option>
+                      <option value="CLIENTE">Cliente</option>
+                      <option value="ESPERANDO_FEEDBACK">Esperando feedback</option>
+                      <option value="LISTO_PARA_PUBLICAR">Listo para publicar</option>
+                      <option value="PUBLICADO">Publicado</option>
+                    </optgroup>
+                    <optgroup label="⚠️ Archiva del kanban">
+                      <option value="CANCELADO">Stand-by / Cancelados</option>
+                      <option value="LISTO">Listo (archivado)</option>
+                    </optgroup>
                   </select>
                 </div>
 

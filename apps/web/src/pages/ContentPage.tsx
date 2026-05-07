@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowLeft, Sparkles, Bold, Italic, Underline, List, ListOrdered,
@@ -41,6 +41,7 @@ const QUICK_ACTIONS = ['Redactar', 'Reforzar tono', 'Más conciso', 'Regenerar h
 export function ContentPage() {
   const { ticketId } = useParams<{ ticketId: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const queryClient = useQueryClient();
 
   const [title, setTitle] = useState('');
@@ -73,7 +74,12 @@ export function ContentPage() {
     },
   ]);
 
-  const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([]);
+  const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>(() => {
+    const fromState = (location.state as any)?.attachedFiles;
+    if (fromState?.length > 0) return fromState;
+    const saved = sessionStorage.getItem(`ticket-files-${ticketId}`);
+    return saved ? JSON.parse(saved) : [];
+  });
 
   const chatEndRef = useRef<HTMLDivElement>(null);
   const resizingRef = useRef(false);

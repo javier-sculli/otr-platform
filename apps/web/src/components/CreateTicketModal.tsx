@@ -1,8 +1,17 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { X, Target, FileText, User, Building2, Package, Calendar, Info, Save, PenLine, Link2, Plus, ExternalLink, Copy, Check, Image as ImageIcon, Layers } from 'lucide-react';
+import { X, Target, FileText, User, Building2, Package, Calendar, Info, Save, PenLine, Link2, Plus, ExternalLink, Copy, Check, Image as ImageIcon, Layers, Paperclip, File } from 'lucide-react';
 import { api } from '../lib/api';
+
+type AttachedFile = {
+  id: string;
+  name: string;
+  type: string;
+  size: number;
+  content: string | null;
+  contentType: 'text' | 'image' | 'other';
+};
 
 interface TicketData {
   id: string;
@@ -86,12 +95,28 @@ export function CreateTicketModal({ isOpen, onClose, ticket }: CreateTicketModal
   const [newLinkInput, setNewLinkInput] = useState('');
   const [copyCopied, setCopyCopied] = useState(false);
   const [activeCopyTab, setActiveCopyTab] = useState(() => formData.canales[0] ?? 'LinkedIn');
+  const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Re-populate when ticket changes (e.g. opening different card)
   useEffect(() => {
     setFormData(buildFormData(ticket));
     setError(null);
-  }, [ticket]);
+    // Restore attached files from session for this ticket
+    if (ticket?.id) {
+      const saved = sessionStorage.getItem(`ticket-files-${ticket.id}`);
+      setAttachedFiles(saved ? JSON.parse(saved) : []);
+    } else {
+      setAttachedFiles([]);
+    }
+  }, [ticket?.id]);
+
+  // Persist attached files to sessionStorage while editing
+  useEffect(() => {
+    if (ticket?.id) {
+      sessionStorage.setItem(`ticket-files-${ticket.id}`, JSON.stringify(attachedFiles));
+    }
+  }, [attachedFiles, ticket?.id]);
 
   const { data: clients } = useQuery({
     queryKey: ['clients'],
@@ -158,6 +183,36 @@ export function CreateTicketModal({ isOpen, onClose, ticket }: CreateTicketModal
     setError(null);
   };
 
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files) return;
+    Array.from(files).forEach(file => {
+      const id = `${Date.now()}-${file.name}`;
+      const isImage = file.type.startsWith('image/');
+      const isText = file.type.startsWith('text/') || /\.(txt|md|csv)$/i.test(file.name);
+      if (isImage) {
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          setAttachedFiles(prev => [...prev, { id, name: file.name, type: file.type, size: file.size, content: ev.target?.result as string, contentType: 'image' }]);
+        };
+        reader.readAsDataURL(file);
+      } else if (isText) {
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          setAttachedFiles(prev => [...prev, { id, name: file.name, type: file.type, size: file.size, content: ev.target?.result as string, contentType: 'text' }]);
+        };
+        reader.readAsText(file);
+      } else {
+        setAttachedFiles(prev => [...prev, { id, name: file.name, type: file.type, size: file.size, content: null, contentType: 'other' }]);
+      }
+    });
+    e.target.value = '';
+  };
+
+  const handleRemoveFile = (id: string) => {
+    setAttachedFiles(prev => prev.filter(f => f.id !== id));
+  };
+
   const toggleRed = (red: string) => {
     setFormData(prev => {
       const newCanales = prev.canales.includes(red)
@@ -213,6 +268,7 @@ export function CreateTicketModal({ isOpen, onClose, ticket }: CreateTicketModal
   const handleClose = () => {
     setFormData(buildFormData(null));
     setError(null);
+    if (!isEditing) setAttachedFiles([]);
     onClose();
   };
 
@@ -514,19 +570,53 @@ export function CreateTicketModal({ isOpen, onClose, ticket }: CreateTicketModal
                   >
                     <Plus className="w-4 h-4" />
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    title="Adjuntar archivo"
+                    className="px-3 py-2 bg-[#000033]/5 border-2 border-[#000033]/10 text-[#000033]/60 rounded-lg hover:bg-[#000033]/10 hover:text-[#000033] transition-all"
+                  >
+                    <Paperclip className="w-4 h-4" />
+                  </button>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    multiple
+                    className="hidden"
+                    onChange={handleFileChange}
+                  />
                 </div>
-                {formData.links.length > 0 && (
-                  <div className="flex flex-wrap gap-1.5">
+                {(formData.links.length > 0 || attachedFiles.length > 0) && (
+                  <div className="space-y-1.5">
                     {formData.links.map((link, i) => (
-                      <div key={i} className="flex items-center gap-1 px-2.5 py-1 bg-[#024fff]/5 border border-[#024fff]/20 rounded-lg text-xs text-[#024fff]">
-                        <a href={link} target="_blank" rel="noopener noreferrer" className="max-w-[200px] truncate hover:underline">
-                          {link.split('/').pop() || link}
+                      <div key={i} className="flex items-center gap-2 px-3 py-2 border border-[#024fff]/20 rounded-lg group hover:border-[#024fff]/40 transition-all">
+                        <Link2 className="w-3.5 h-3.5 text-[#024fff] flex-shrink-0" />
+                        <a href={link} target="_blank" rel="noopener noreferrer" className="text-xs text-[#024fff] truncate flex-1 hover:underline">
+                          {link}
                         </a>
-                        <ExternalLink className="w-2.5 h-2.5 opacity-50 flex-shrink-0" />
+                        <ExternalLink className="w-2.5 h-2.5 text-[#024fff]/40 flex-shrink-0" />
                         <button
                           type="button"
                           onClick={() => setFormData(prev => ({ ...prev, links: prev.links.filter((_, j) => j !== i) }))}
-                          className="ml-0.5 hover:text-red-500 transition-colors"
+                          className="opacity-0 group-hover:opacity-100 transition-opacity text-[#000033]/30 hover:text-red-400 flex-shrink-0"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ))}
+                    {attachedFiles.map(file => (
+                      <div key={file.id} className="flex items-center gap-2 px-3 py-2 border border-[#000033]/15 rounded-lg group hover:border-[#000033]/30 transition-all">
+                        {file.contentType === 'image' ? (
+                          <ImageIcon className="w-3.5 h-3.5 text-[#000033]/50 flex-shrink-0" />
+                        ) : (
+                          <File className="w-3.5 h-3.5 text-[#000033]/50 flex-shrink-0" />
+                        )}
+                        <span className="text-xs text-[#000033]/70 truncate flex-1">{file.name}</span>
+                        <span className="text-xs text-[#000033]/30 flex-shrink-0">{(file.size / 1024).toFixed(0)} KB</span>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveFile(file.id)}
+                          className="opacity-0 group-hover:opacity-100 transition-opacity text-[#000033]/30 hover:text-red-400 flex-shrink-0"
                         >
                           <X className="w-3 h-3" />
                         </button>
@@ -631,7 +721,7 @@ export function CreateTicketModal({ isOpen, onClose, ticket }: CreateTicketModal
                 </button>
                 <button
                   type="button"
-                  onClick={() => { handleClose(); navigate(`/content/${ticket!.id}`); }}
+                  onClick={() => { handleClose(); navigate(`/content/${ticket!.id}`, { state: { attachedFiles: attachedFiles.length > 0 ? attachedFiles : undefined } }); }}
                   className="flex items-center gap-1.5 px-3 py-1.5 bg-[#024fff]/10 border-2 border-[#024fff]/20 text-[#024fff] rounded-lg hover:bg-[#024fff]/20 transition-all font-bold text-xs"
                 >
                   <PenLine className="w-3.5 h-3.5" />

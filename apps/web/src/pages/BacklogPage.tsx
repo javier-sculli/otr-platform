@@ -120,7 +120,6 @@ export function BacklogPage() {
   const finMes = new Date(ahora.getFullYear(), ahora.getMonth() + 1, 0);
 
   const ticketsFiltrados = allTickets.filter(t => {
-    if (t.status === 'CANCELADO' || t.status === 'LISTO') return false;
     if (clientesSeleccionados.length > 0 && !clientesSeleccionados.includes(t.client.id)) return false;
     if (vocerosSeleccionados.length > 0 && (!t.speaker || !vocerosSeleccionados.includes(t.speaker.id))) return false;
     if (filtroFecha && t.dueDate) {
