@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowLeft, Sparkles, Bold, Italic, Underline, List, ListOrdered,
   Link2, Image as ImageIcon, Type, Eye, Send, GripVertical, Check, AlertCircle,
-  Paperclip, X, FileText, File, ExternalLink, Mic, Trash2, Star,
+  Paperclip, X, FileText, File, ExternalLink, Mic, Trash2, Star, BookOpen,
 } from 'lucide-react';
 import * as pdfjsLib from 'pdfjs-dist';
 import { api } from '../lib/api';
@@ -100,6 +100,13 @@ export function ContentPage() {
   const lineamientoCanales = new Set<string>(
     (lineamientosData?.data ?? []).map((p: any) => (p.canal ?? '').toLowerCase())
   );
+  const { data: contextoPosts } = useQuery({
+    queryKey: ['contexto-posts', clientId, activeCanal],
+    queryFn: () => api.getContextoPosts(clientId!, activeCanal || undefined),
+    enabled: !!clientId,
+  });
+  const contexto = contextoPosts?.data ?? [];
+  const tieneEstrellas = contexto.some(p => p.isHighlight);
 
   const [chatHistoryLoaded, setChatHistoryLoaded] = useState(false);
   const [contentLoaded, setContentLoaded] = useState(false);
@@ -450,10 +457,45 @@ export function ContentPage() {
               <div className="flex items-center gap-2">
                 <Sparkles className="w-4 h-4 text-[#024fff]" />
                 <h3 className="text-xs font-bold text-[#000033]">Asistente IA</h3>
-                <span className="px-1.5 py-0.5 bg-[#024fff]/10 text-[#024fff] text-xs font-bold rounded">
-                    Claude
-                  </span>
+                <span className="px-1.5 py-0.5 bg-[#024fff]/10 text-[#024fff] text-xs font-bold rounded">Claude</span>
               </div>
+              {contexto.length > 0 && (
+                <div className="relative group">
+                  <button className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-bold transition-all ${
+                    tieneEstrellas
+                      ? 'text-amber-500 hover:bg-amber-50'
+                      : 'text-[#000033]/40 hover:bg-[#000033]/5'
+                  }`}>
+                    {tieneEstrellas
+                      ? <Star className="w-3 h-3" fill="currentColor" />
+                      : <BookOpen className="w-3 h-3" />
+                    }
+                    <span>{contexto.length}</span>
+                  </button>
+                  {/* Popover */}
+                  <div className="absolute right-0 top-full mt-1.5 w-72 bg-white border-2 border-[#000033]/10 rounded-xl shadow-xl z-50 opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto transition-opacity duration-150">
+                    <div className="px-3 py-2 border-b border-[#000033]/10">
+                      <p className="text-xs font-bold text-[#000033]">Contexto de marca activo</p>
+                      <p className="text-xs text-[#000033]/50 mt-0.5">
+                        {tieneEstrellas ? 'Posts ⭐ + recientes usados para calibrar el estilo' : 'Posts recientes usados como referencia de estilo'}
+                      </p>
+                    </div>
+                    <ul className="py-1.5 space-y-0.5 max-h-64 overflow-y-auto">
+                      {contexto.map((p, i) => (
+                        <li key={p.id ?? i} className="flex items-start gap-2 px-3 py-1.5 hover:bg-[#000033]/[0.03]">
+                          <span className="flex-shrink-0 mt-0.5">
+                            {p.isHighlight
+                              ? <Star className="w-3 h-3 text-amber-400" fill="currentColor" />
+                              : <div className="w-3 h-3 rounded-full bg-[#000033]/15 mt-0.5" />
+                            }
+                          </span>
+                          <span className="text-xs text-[#000033]/70 leading-relaxed line-clamp-2">{p.snippet}…</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 

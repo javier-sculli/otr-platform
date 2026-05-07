@@ -245,6 +245,14 @@ class ApiClient {
     return this.request<{ data: any[] }>(`/metrics?${params.toString()}`);
   }
 
+  async getContextoPosts(clientId: string, canal?: string) {
+    const params = new URLSearchParams({ clientId });
+    if (canal) params.set('canal', canal);
+    return this.request<{ data: { id: string; isHighlight: boolean; canal: string; snippet: string }[] }>(
+      `/metrics/contexto?${params.toString()}`
+    );
+  }
+
   async syncMetrics(clientId?: string) {
     return this.request<{ message: string }>('/metrics/sync', {
       method: 'POST',

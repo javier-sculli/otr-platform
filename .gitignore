@@ -30,3 +30,4 @@ build/
 
 # Prisma generated client (se regenera en build)
 **/prisma/generated/
+.vercel

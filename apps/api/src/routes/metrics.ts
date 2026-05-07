@@ -33,6 +33,37 @@ export async function metricsRoutes(fastify: FastifyInstance) {
     return { data: publications };
   });
 
+  // GET /metrics/contexto?clientId=xxx&canal=xxx — posts usados como contexto en el prompt de IA
+  fastify.get('/contexto', async (request, reply) => {
+    const { clientId, canal } = request.query as { clientId?: string; canal?: string };
+    if (!clientId) return reply.status(400).send({ error: 'clientId requerido' });
+
+    const canalFilter = canal ? { canal: { equals: canal, mode: 'insensitive' as const } } : {};
+    const highlights = await prisma.publication.findMany({
+      where: { clientId, isHighlight: true, postContent: { not: null }, ...canalFilter },
+      select: { id: true, postContent: true, canal: true, isHighlight: true, publishedAt: true },
+      orderBy: { publishedAt: 'desc' },
+    });
+    const filtered = highlights.filter(p => p.postContent?.trim());
+    const faltantes = Math.max(0, 5 - filtered.length);
+    const recientes = faltantes > 0 ? await prisma.publication.findMany({
+      where: { clientId, isHighlight: false, postContent: { not: null }, ...canalFilter },
+      select: { id: true, postContent: true, canal: true, isHighlight: true, publishedAt: true },
+      take: faltantes,
+      orderBy: { publishedAt: 'desc' },
+    }) : [];
+
+    const posts = [...filtered, ...recientes.filter(p => p.postContent?.trim())]
+      .map(p => ({
+        id: p.id,
+        isHighlight: p.isHighlight,
+        canal: p.canal,
+        snippet: p.postContent!.trim().slice(0, 120).replace(/\n+/g, ' '),
+      }));
+
+    return { data: posts };
+  });
+
   // GET /metrics/:publicationId — detalle de una publication con snapshots
   fastify.get('/:publicationId', async (request, reply) => {
     const { publicationId } = request.params as { publicationId: string };
