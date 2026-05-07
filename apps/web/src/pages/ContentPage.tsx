@@ -908,7 +908,7 @@ export function ContentPage() {
       {/* Modal: Siguiente paso */}
       {showSiguienteModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#000033]/40 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl border-2 border-[#000033]/10 w-full max-w-xl mx-4 p-8 flex flex-col gap-6">
+          <div className="bg-white rounded-2xl shadow-2xl border-2 border-[#000033]/10 w-full max-w-2xl mx-4 p-10 flex flex-col gap-7">
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="text-base font-bold text-[#000033]">Avanzar a {STATUS_LABELS[nextStatus!]}</h2>
@@ -929,7 +929,7 @@ export function ContentPage() {
                 value={notasAudiovisual}
                 onChange={e => setNotasAudiovisual(e.target.value)}
                 placeholder="Indicá referencias visuales, formato, resolución, música, etc."
-                className="w-full h-40 resize-none border-2 border-[#000033]/10 rounded-xl px-3 py-2.5 text-sm text-[#000033] outline-none focus:border-[#024fff]/40 focus:ring-2 focus:ring-[#024fff]/10 transition-all placeholder:text-[#000033]/30"
+                className="w-full h-48 resize-none border-2 border-[#000033]/10 rounded-xl px-3 py-2.5 text-sm text-[#000033] outline-none focus:border-[#024fff]/40 focus:ring-2 focus:ring-[#024fff]/10 transition-all placeholder:text-[#000033]/30"
               />
             </div>
 
