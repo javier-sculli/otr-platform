@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
-  ArrowLeft, Sparkles, Bold, Italic, Underline, List, ListOrdered,
+  ArrowLeft, ArrowRight, Sparkles, Bold, Italic, Underline, List, ListOrdered,
   Link2, Image as ImageIcon, Type, Eye, Send, GripVertical, Check, AlertCircle,
   Paperclip, X, FileText, File, ExternalLink, Mic, MicOff, Trash2, Star, BookOpen,
 } from 'lucide-react';
@@ -34,6 +34,17 @@ const STATUS_LABELS: Record<string, string> = {
   EDICION: 'Edición', REVISION_INTERNA: 'Revisión Interna', CLIENTE: 'Cliente',
   ESPERANDO_FEEDBACK: 'Esperando feedback', LISTO_PARA_PUBLICAR: 'Listo para publicar',
   PUBLICADO: 'Publicado', CANCELADO: 'Stand-by / Cancelados', LISTO: 'Listo',
+};
+
+const NEXT_STATUS: Record<string, string> = {
+  PENDIENTE: 'REDACCION',
+  REDACCION: 'DISENO',
+  DISENO: 'EDICION',
+  EDICION: 'REVISION_INTERNA',
+  REVISION_INTERNA: 'CLIENTE',
+  CLIENTE: 'ESPERANDO_FEEDBACK',
+  ESPERANDO_FEEDBACK: 'LISTO_PARA_PUBLICAR',
+  LISTO_PARA_PUBLICAR: 'PUBLICADO',
 };
 
 const QUICK_ACTIONS = ['Redactar', 'Reforzar tono', 'Más conciso', 'Regenerar hook'];
@@ -83,6 +94,9 @@ export function ContentPage() {
 
   const [isRecording, setIsRecording] = useState(false);
   const recognitionRef = useRef<any>(null);
+
+  const [showSiguienteModal, setShowSiguienteModal] = useState(false);
+  const [notasAudiovisual, setNotasAudiovisual] = useState('');
 
   const chatEndRef = useRef<HTMLDivElement>(null);
   const resizingRef = useRef(false);
@@ -215,6 +229,34 @@ export function ContentPage() {
       setHasChanges(false);
     },
   });
+
+  const ticket = ticketData?.data as any;
+  const nextStatus = ticket?.status ? NEXT_STATUS[ticket.status] : undefined;
+
+  const advanceMutation = useMutation({
+    mutationFn: () => api.updateTicket(ticketId!, {
+      title,
+      objetivo: brief,
+      keywords,
+      content: contentText,
+      contentPerCanal,
+      links: contextLinks,
+      linkEntregable: linkEntregable || null,
+      notasAudiovisual: notasAudiovisual || null,
+      status: nextStatus,
+    }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['ticket', ticketId] });
+      queryClient.invalidateQueries({ queryKey: ['tickets'] });
+      setShowSiguienteModal(false);
+      navigate(`/piezas/${ticketId}`);
+    },
+  });
+
+  const handleOpenSiguiente = () => {
+    setNotasAudiovisual((ticket as any)?.notasAudiovisual ?? '');
+    setShowSiguienteModal(true);
+  };
 
   const handleContentChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const val = e.target.value;
@@ -370,8 +412,6 @@ export function ContentPage() {
     };
   }, []);
 
-  const ticket = ticketData?.data;
-
   if (isLoading) {
     return (
       <div className="h-[calc(100vh-64px)] flex items-center justify-center bg-[#fafafa] text-[#000033]/60">
@@ -491,6 +531,15 @@ export function ContentPage() {
             >
               {saveMutation.isPending ? 'Guardando...' : 'Guardar'}
             </button>
+            {nextStatus && (
+              <button
+                onClick={handleOpenSiguiente}
+                className="flex items-center gap-2 px-3 py-1.5 bg-[#00ff99] text-[#000033] text-sm font-bold rounded-lg hover:bg-[#00ff99]/80 transition-all shadow-lg shadow-[#00ff99]/20"
+              >
+                Siguiente
+                <ArrowRight className="w-4 h-4" />
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -855,6 +904,54 @@ export function ContentPage() {
           </div>
         </div>
       </div>
+
+      {/* Modal: Siguiente paso */}
+      {showSiguienteModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#000033]/40 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl border-2 border-[#000033]/10 w-full max-w-md mx-4 p-6 flex flex-col gap-5">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-base font-bold text-[#000033]">Avanzar a {STATUS_LABELS[nextStatus!]}</h2>
+                <p className="text-xs text-[#000033]/50 mt-0.5">Dejá notas para el equipo de diseño antes de continuar</p>
+              </div>
+              <button
+                onClick={() => setShowSiguienteModal(false)}
+                className="p-1.5 hover:bg-[#000033]/5 rounded-lg transition-all text-[#000033]/40 hover:text-[#000033]"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-bold text-[#000033]/60 uppercase tracking-wide">Notas para audiovisual</label>
+              <textarea
+                autoFocus
+                value={notasAudiovisual}
+                onChange={e => setNotasAudiovisual(e.target.value)}
+                placeholder="Indicá referencias visuales, formato, resolución, música, etc."
+                className="w-full h-32 resize-none border-2 border-[#000033]/10 rounded-xl px-3 py-2.5 text-sm text-[#000033] outline-none focus:border-[#024fff]/40 focus:ring-2 focus:ring-[#024fff]/10 transition-all placeholder:text-[#000033]/30"
+              />
+            </div>
+
+            <div className="flex items-center justify-end gap-2">
+              <button
+                onClick={() => setShowSiguienteModal(false)}
+                className="px-4 py-2 text-sm font-medium text-[#000033]/60 hover:text-[#000033] hover:bg-[#000033]/5 rounded-lg transition-all"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => advanceMutation.mutate()}
+                disabled={advanceMutation.isPending}
+                className="flex items-center gap-2 px-4 py-2 bg-[#00ff99] text-[#000033] text-sm font-bold rounded-lg hover:bg-[#00ff99]/80 transition-all shadow-lg shadow-[#00ff99]/20 disabled:opacity-50"
+              >
+                {advanceMutation.isPending ? 'Guardando...' : `Avanzar a ${STATUS_LABELS[nextStatus!]}`}
+                {!advanceMutation.isPending && <ArrowRight className="w-4 h-4" />}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
