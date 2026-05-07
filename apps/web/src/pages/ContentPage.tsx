@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowLeft, Sparkles, Bold, Italic, Underline, List, ListOrdered,
   Link2, Image as ImageIcon, Type, Eye, Send, GripVertical, Check, AlertCircle,
-  Paperclip, X, FileText, File, ExternalLink, Mic, Trash2, Star, BookOpen,
+  Paperclip, X, FileText, File, ExternalLink, Mic, MicOff, Trash2, Star, BookOpen,
 } from 'lucide-react';
 import * as pdfjsLib from 'pdfjs-dist';
 import { api } from '../lib/api';
@@ -81,9 +81,61 @@ export function ContentPage() {
     return saved ? JSON.parse(saved) : [];
   });
 
+  const [isRecording, setIsRecording] = useState(false);
+  const recognitionRef = useRef<any>(null);
+
   const chatEndRef = useRef<HTMLDivElement>(null);
   const resizingRef = useRef(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const toggleRecording = () => {
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      alert('Tu browser no soporta dictado por voz. Usá Chrome o Safari.');
+      return;
+    }
+
+    if (isRecording) {
+      recognitionRef.current?.stop();
+      recognitionRef.current = null;
+      setIsRecording(false);
+      return;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.lang = 'es-ES';
+    recognition.continuous = true;
+    recognition.interimResults = false;
+
+    recognition.onstart = () => setIsRecording(true);
+
+    recognition.onresult = (e: any) => {
+      let transcript = '';
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        if (e.results[i].isFinal) transcript += e.results[i][0].transcript + ' ';
+      }
+      if (transcript.trim()) {
+        setAiPrompt(prev => (prev ? prev + ' ' : '') + transcript.trim());
+      }
+    };
+
+    recognition.onend = () => {
+      recognitionRef.current = null;
+      setIsRecording(false);
+    };
+
+    recognition.onerror = (e: any) => {
+      console.warn('[voice] error:', e.error, e.message);
+      if (e.error === 'not-allowed') {
+        alert('Permiso de micrófono denegado. Habilitalo en la configuración del browser.');
+        recognitionRef.current = null;
+        setIsRecording(false);
+      }
+    };
+
+    recognitionRef.current = recognition;
+    recognition.start();
+  };
 
   const { data: ticketData, isLoading } = useQuery({
     queryKey: ['ticket', ticketId],
@@ -577,11 +629,23 @@ export function ContentPage() {
                     handleSendMessage();
                   }
                 }}
-                placeholder="Escribe tu instrucción..."
+                placeholder={isRecording ? 'Escuchando...' : 'Escribe tu instrucción...'}
                 rows={2}
                 disabled={isAiLoading}
                 className="flex-1 px-2.5 py-1.5 border-2 border-[#000033]/10 rounded-md text-xs focus:outline-none focus:ring-2 focus:ring-[#024fff] text-[#000033] hover:border-[#024fff]/40 transition-all resize-none disabled:opacity-50"
               />
+              <button
+                onClick={toggleRecording}
+                disabled={isAiLoading}
+                title={isRecording ? 'Detener dictado' : 'Dictar por voz'}
+                className={`px-2.5 py-1.5 rounded-md transition-all h-fit self-end disabled:opacity-40 disabled:cursor-not-allowed ${
+                  isRecording
+                    ? 'bg-red-500 text-white animate-pulse shadow-lg shadow-red-500/30'
+                    : 'border-2 border-[#000033]/10 hover:bg-[#000033]/5 text-[#000033]/60'
+                }`}
+              >
+                {isRecording ? <MicOff className="w-3.5 h-3.5" /> : <Mic className="w-3.5 h-3.5" />}
+              </button>
               <button
                 onClick={handleSendMessage}
                 disabled={isAiLoading || !aiPrompt.trim()}
