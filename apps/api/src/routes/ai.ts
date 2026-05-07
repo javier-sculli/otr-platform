@@ -173,9 +173,9 @@ function buildSystemPrompt(params: {
     ? `\n## Contenido ya redactado en otros canales\nTenés versiones de esta pieza para otras redes. Siempre arrancá desde ahí: adaptá el mensaje al formato y tono del canal activo en lugar de escribir desde cero. El copy para ${canal ?? 'este canal'} es una adaptación, no una pieza nueva.\n${Object.entries(otherCanalesContent).map(([c, v]) => `### ${c}\n${v}`).join('\n\n')}`
     : '';
 
-  const tieneHighlights = lineamientos?.some(l => l.isHighlight);
+  const nHighlights = lineamientos?.filter(l => l.isHighlight).length ?? 0;
   const lineamientosBlock = lineamientos && lineamientos.length > 0
-    ? `\n## Ejemplos de contenido real del cliente${tieneHighlights ? ' — posts de referencia marcados' : ''}\nEstos son posts reales publicados por ${clientName}. SIEMPRE usá estos ejemplos para calibrar el tono, estructura, vocabulario y voz antes de escribir. No copies el contenido, pero sí la esencia y el estilo.${tieneHighlights ? ' Son posts que el equipo marcó como de alta calidad.' : ''}\n${lineamientos.map((l, i) => `### Ejemplo ${i + 1}${l.canal ? ` (${l.canal})` : ''}${l.isHighlight ? ' ⭐' : ''}\n${l.content}`).join('\n\n')}`
+    ? `\n## ⭐ Contenido real de ${clientName} — referencia de estilo OBLIGATORIA\nEstos son posts reales publicados por ${clientName}${nHighlights > 0 ? ` (los marcados con ⭐ son los que el equipo validó como los mejores)` : ''}.\n\n⚠️ REGLA CRÍTICA: Antes de escribir cualquier cosa, estudiá estos ejemplos en profundidad. Absorbé el vocabulario, el ritmo de las oraciones, la estructura, el tono, el nivel de formalidad y los recursos retóricos que usa ${clientName}. Tu output tiene que sonar como si lo hubiera escrito el mismo equipo que escribió estos posts — no como un redactor externo imitando el estilo.\n${lineamientos.map((l, i) => `### Post ${i + 1}${l.canal ? ` (${l.canal})` : ''}${l.isHighlight ? ' ⭐' : ''}\n${l.content}`).join('\n\n')}`
     : '';
 
   const voiceContext = speakerBlock + brandVoiceBlock;
@@ -273,23 +273,27 @@ export async function aiRoutes(fastify: FastifyInstance) {
     const imageAttachments = attachments?.filter(a => a.contentType === 'image') ?? [];
 
     const canalFilter = canal ? { canal: { equals: canal, mode: 'insensitive' as const } } : {};
-    let lineamientosRaw = await prisma.publication.findMany({
-      where: { clientId: ticket.clientId, isHighlight: true, ...canalFilter },
+    // Todos los highlights del cliente para este canal
+    const highlights = await prisma.publication.findMany({
+      where: { clientId: ticket.clientId, isHighlight: true, postContent: { not: null }, ...canalFilter },
       select: { postContent: true, canal: true, isHighlight: true },
-      take: 3,
       orderBy: { publishedAt: 'desc' },
     });
-    // Si no hay highlights, usar los últimos posts publicados del cliente como ejemplos de estilo
-    if (lineamientosRaw.filter(p => p.postContent?.trim()).length === 0) {
-      lineamientosRaw = await prisma.publication.findMany({
-        where: { clientId: ticket.clientId, postContent: { not: null }, ...canalFilter },
-        select: { postContent: true, canal: true, isHighlight: true },
-        take: 3,
-        orderBy: { publishedAt: 'desc' },
-      });
-    }
-    const lineamientos = lineamientosRaw
-      .filter(p => p.postContent?.trim())
+    const highlightsFiltrados = highlights.filter(p => p.postContent?.trim());
+    // Completar hasta 5 con posts recientes no-highlight si faltan
+    const faltantes = Math.max(0, 5 - highlightsFiltrados.length);
+    const recientes = faltantes > 0 ? await prisma.publication.findMany({
+      where: {
+        clientId: ticket.clientId,
+        isHighlight: false,
+        postContent: { not: null },
+        ...canalFilter,
+      },
+      select: { postContent: true, canal: true, isHighlight: true },
+      take: faltantes,
+      orderBy: { publishedAt: 'desc' },
+    }) : [];
+    const lineamientos = [...highlightsFiltrados, ...recientes.filter(p => p.postContent?.trim())]
       .map(p => ({ canal: p.canal, content: p.postContent!, isHighlight: p.isHighlight }));
 
     const systemPrompt = buildSystemPrompt({
