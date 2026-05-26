@@ -49,63 +49,6 @@ Sistema de gestión de producción de contenido para On The Rocks (OTR), una age
 ## Tareas pendientes de implementar
 > Surgidas de la weekly OTR con la contenidista. Ver Notion para detalle completo.
 
-### Sprint actual (de las primeras weeklies)
-
-### 1. [UI] Rescalar pantalla de Reacción
-- Problema: se ve con demasiado zoom en resoluciones bajas / zoom de sistema activo
-- Fix: revisar CSS/layout para que sea responsive entre 1280px–1920px y zoom 100%–150%
-- Testear que no se corte ningún elemento (chat, input, acciones)
-
-### 2. [UX] Mover quick actions al área del chat
-- Las quick actions están desconectadas del flujo del chat
-- Moverlas dentro del área de conversación (chips sobre el input o acciones flotantes)
-- Al clickearlas, el resultado se inserta directo en el chat
-
-### 3. [Feature] Modo respuesta dual con segundo modelo
-- Agregar selector de modelo alternativo en Settings (además de GPT)
-- Toggle para activar/desactivar modo dual
-- Cuando está activo: ambos modelos responden en paralelo con el mismo Brand Kit
-- UI: respuestas side-by-side o en tabs (Modelo A | Modelo B)
-- En el chat: cada modelo tiene su propia respuesta (no un resumen unificado)
-- Por defecto: arranca con los 2 modelos prendidos
-- Scope futuro: simplificar a botón "regenerar con otro modelo" si el dual no agrega valor en uso real
-
-### Weekly 17/03/2026 — Nuevas tareas de reporting y performance
-
-### 4. [Feature] Módulo de reportes de performance para clientes
-- Reportes inconsistentes y manuales → automatizarlos con visualizaciones
-- Definir jerarquía de métricas por cliente
-- Manuela comparte ejemplos de reportes actuales como referencia
-
-### 5. [Feature] Notificaciones automáticas al publicar nuevo post
-- Al publicar/aprobar una pieza, notificar al cliente automáticamente
-- Canal: email first, luego explorar push
-
-### 6. [Feature] Centralización de métricas desde redes sociales
-- Integrar Metricool u otra API de redes directamente en PublicationPerformance.tsx
-- Evaluar confiabilidad de fuentes (Bass Monitor tiene issues)
-
-### 7. [Research] Evaluar herramientas de reporting confiables
-- Comparar Bass Monitor, Metricool, Sprout Social, Iconosquare, APIs nativas
-
-### 8. [Feature] Medición del impacto visual en el performance
-- Etiquetar variables visuales en piezas y correlacionar con métricas
-- Conectar con BibliotecaGanadores.tsx
-
-### 9. [Feature] Upload de archivos en la Reacción para contexto de IA
-- Adjuntar PDF, imagen, brief o doc directamente en el workspace
-- El contenido se parsea e inyecta como contexto adicional en el prompt
-- Aparece como chip visible en el chat
-- Módulo: WorkspacePieza.tsx — área de input del chat
-- Alta prioridad — Manuela lo usa diariamente
-
-### 10. [HU] Agregar campos de links en tarjeta de pieza
-- INFO/RECURSOS: links a documentos, briefs, referencias
-- ENTREGABLE VISUAL: links a Drive con contenido gráfico
-- Campos opcionales, editables después de crear la pieza
-- Feedback de Shaiel Terán — reduce fricciones entre equipos
-- Módulo: ModalPieza.tsx
-
 ## Proceso de documentación
 - **Historia de usuario** (Notion → Historias de usuario): todo el detalle — contexto, problema, decisiones tomadas, criterios de aceptación, módulos afectados, prioridad
   - URL directa: https://www.notion.so/Historias-de-Usuario-311617fc369280539087d9efd37755c5
@@ -113,21 +56,49 @@ Sistema de gestión de producción de contenido para On The Rocks (OTR), una age
 - **Tarea de desarrollo** (Notion → Tareas de Desarrollo): lo necesario para implementar + link a la HU correspondiente
 
 ## Decisiones de producto tomadas
-- El chat muestra el razonamiento/decisiones; la Reacción muestra el contenido generado — mantener bien separado
-- El modo dual es para fase de prueba/calibración, no necesariamente permanente
+- El chat muestra el razonamiento/decisiones; la Reaccion muestra el contenido generado — mantener bien separado
+- El modo dual es para fase de prueba/calibracion, no necesariamente permanente
 - BacklogIdeas no es pantalla propia, vive dentro del kanban de Backlog
 - La Biblioteca de Ganadores alimenta sugerencias de referencia en el Workspace
-- El popup (ModalPieza) se simplifica: vista rápida + botones "Ver completo" y "Redactar"
-- El ticket tiene vista completa dedicada (/piezas/:id) para escalar con más campos
-- RECURSOS en ticket = links o adjuntos (múltiples). ENTREGABLE VISUAL = solo links (Drive) por ahora
-- El Brand Kit tendrá sección de canales: tono y lineamientos mínimos por red social
+- El popup (ModalPieza) se simplifica: vista rapida + botones "Ver completo" y "Redactar"
+- El ticket tiene vista completa dedicada (/piezas/:id) para escalar con mas campos
+- RECURSOS en ticket = links o adjuntos (multiples). ENTREGABLE VISUAL = solo links (Drive) por ahora
+- El Brand Kit tendra seccion de canales: tono y lineamientos minimos por red social
 - Kit del Vocero = capa sobre el Brand Kit, con tono personal y scraping de perfil social
 
 ## Memoria del proyecto
 
-> Los archivos de memoria viven en `/memory/` en la raíz del repo.
-> **Al iniciar una conversación, leer `/memory/INDEX.md`** para tener contexto de lo implementado y las decisiones tomadas.
+> Los archivos de memoria viven en `/memory/` en la raiz del repo.
+> **Al iniciar una conversacion, leer `/memory/INDEX.md`** para tener contexto de lo implementado y las decisiones tomadas.
 > **Al terminar algo nuevo, actualizar la memoria**: crear o editar el archivo correspondiente en `/memory/` y actualizar `INDEX.md`.
+
+## Deployment (Railway)
+
+**Estado actual (2026-05-26):**
+- `apps/web` (frontend) — Se despliega **automaticamente** en Railway al hacer push a `main` (webhook configurado)
+- `apps/api` (backend) — Requiere **deploy manual** via Railway CLI
+
+### Deploy del API (manual)
+
+```bash
+# 1. Instalar CLI de Railway (si no esta)
+npm install -g @railway/cli
+
+# 2. Login en Railway
+railway login
+
+# 3. Deploy del API
+railway up --service api -m "descripcion del cambio"
+
+# Con detach (no espera a que termine):
+railway up --service api --detach -m "descripcion del cambio"
+```
+
+**Notas:**
+- El comando `railway up` sube el codigo del proyecto actual y lo despliega
+- Usa `--service api` para especificar que es el servicio API
+- Usa `-m` para agregar un mensaje descriptivo al deployment
+- Usa `--detach` si quieres que termine rapido sin esperar logs
 
 ## Notion del proyecto
 - Hub principal: https://www.notion.so/2f1617fc36928073874dcd55f6937327
