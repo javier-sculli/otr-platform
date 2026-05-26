@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
 import {
   Plus, Calendar, MoreVertical, LayoutGrid,
-  ChevronDown, X,
+  ChevronDown, X, Search,
 } from 'lucide-react';
 import { api } from '../lib/api';
 import { CreateTicketModal } from '../components/CreateTicketModal';
@@ -65,6 +65,8 @@ export function BacklogPage() {
   const [vocerosSeleccionados, setVocerosSeleccionados] = useState<string[]>([]);
   const [showDropdownVoceros, setShowDropdownVoceros] = useState(false);
   const [filtroFecha, setFiltroFecha] = useState<'semana' | 'mes' | 'rango' | null>(null);
+  const [busqueda, setBusqueda] = useState('');
+  const [showBusqueda, setShowBusqueda] = useState(false);
   const [fechaDesde, setFechaDesde] = useState('');
   const [fechaHasta, setFechaHasta] = useState('');
   const [vista, setVista] = useState<'kanban' | 'calendario'>('kanban');
@@ -103,9 +105,13 @@ export function BacklogPage() {
   const allTickets: Ticket[] = ticketsData?.data ?? [];
   const clientes: Cliente[] = clientesData?.data ?? [];
 
+  const ticketsParaVoceros = clientesSeleccionados.length > 0
+    ? allTickets.filter(t => clientesSeleccionados.includes(t.client.id))
+    : allTickets;
+
   const vocerosUnicos = Array.from(
     new Map(
-      allTickets
+      ticketsParaVoceros
         .filter(t => t.speaker != null)
         .map(t => [t.speaker!.id, t.speaker!])
     ).values()
@@ -131,23 +137,30 @@ export function BacklogPage() {
         if (fechaHasta) { const hasta = new Date(fechaHasta); hasta.setHours(23, 59, 59); if (due > hasta) return false; }
       }
     }
+    if (busqueda) {
+      const searchLower = busqueda.toLowerCase();
+      const titleMatch = t.title.toLowerCase().includes(searchLower);
+      const briefMatch = t.objetivo?.toLowerCase().includes(searchLower) ?? false;
+      if (!titleMatch && !briefMatch) return false;
+    }
     return true;
   });
 
   const getTicketsPorColumna = (colId: string) =>
     ticketsFiltrados.filter(t => t.status === colId);
 
-  const toggleCliente = (id: string) =>
+  const toggleCliente = (id: string) => {
     setClientesSeleccionados(prev =>
       prev.includes(id) ? prev.filter(c => c !== id) : [...prev, id]
     );
+    setVocerosSeleccionados([]);
+  };
 
   const toggleVocero = (id: string) =>
     setVocerosSeleccionados(prev =>
       prev.includes(id) ? prev.filter(v => v !== id) : [...prev, id]
     );
 
-  // Drag & drop
   const handleDragStart = (e: React.DragEvent, id: string) => {
     setDraggedId(id);
     e.dataTransfer.effectAllowed = 'move';
@@ -170,7 +183,6 @@ export function BacklogPage() {
 
   return (
     <div className="h-[calc(100vh-64px)] flex flex-col bg-[#fafafa]">
-      {/* Header / Filtros */}
       <div className="bg-white border-b-2 border-[#000033]/10 px-4 py-3 flex-shrink-0">
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-1.5">
@@ -208,7 +220,30 @@ export function BacklogPage() {
         </div>
 
         <div className="flex items-center gap-4">
-          {/* Filtro clientes */}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowBusqueda(!showBusqueda)}
+              className={`p-1.5 rounded-lg border-2 transition-all ${
+                showBusqueda
+                  ? 'bg-[#024fff]/10 text-[#024fff] border-[#024fff]/30'
+                  : 'text-[#000033]/40 border-[#000033]/10 hover:text-[#024fff] hover:border-[#024fff]/30'
+              }`}
+            >
+              <Search className="w-4 h-4" />
+            </button>
+            {showBusqueda && (
+              <input
+                type="text"
+                placeholder="Buscar por nombre o brief..."
+                value={busqueda}
+                onChange={e => setBusqueda(e.target.value)}
+                className="px-3 py-1.5 border-2 border-[#024fff]/20 rounded-lg text-xs text-[#000033] bg-white focus:outline-none focus:border-[#024fff]/50 w-48"
+              />
+            )}
+          </div>
+
+          <div className="w-px h-6 bg-[#000033]/20" />
+
           <div className="flex items-center gap-2">
             <span className="text-xs font-bold text-[#000033]">Cliente:</span>
             <div className="flex items-center gap-2 flex-wrap">
@@ -256,7 +291,6 @@ export function BacklogPage() {
 
           <div className="w-px h-6 bg-[#000033]/20" />
 
-          {/* Filtro voceros */}
           <div className="flex items-center gap-2">
             <span className="text-xs font-bold text-[#000033]">Vocero:</span>
             <div className="flex items-center gap-2 flex-wrap">
@@ -306,7 +340,6 @@ export function BacklogPage() {
 
           <div className="w-px h-6 bg-[#000033]/20" />
 
-          {/* Filtro fecha */}
           <div className="flex items-center gap-2">
             <span className="text-xs font-bold text-[#000033]">Fecha:</span>
             <div className="flex items-center gap-1.5">
@@ -339,7 +372,7 @@ export function BacklogPage() {
             <>
               <div className="flex-1" />
               <button
-                onClick={() => { setClientesSeleccionados([]); setVocerosSeleccionados([]); setFiltroFecha(null); setFechaDesde(''); setFechaHasta(''); }}
+                onClick={() => { setClientesSeleccionados([]); setVocerosSeleccionados([]); setFiltroFecha(null); setFechaDesde(''); setFechaHasta(''); setBusqueda(''); }}
                 className="text-xs font-bold text-[#000033]/60 hover:text-[#024fff] underline"
               >
                 Limpiar filtros
@@ -349,7 +382,6 @@ export function BacklogPage() {
         </div>
       </div>
 
-      {/* Calendario */}
       {vista === 'calendario' && (
         <CalendarioBacklog
           tickets={ticketsFiltrados}
@@ -357,7 +389,6 @@ export function BacklogPage() {
         />
       )}
 
-      {/* Kanban */}
       {vista === 'kanban' && isLoading ? (
         <div className="flex-1 flex items-center justify-center text-[#000033]/60">
           Cargando...
@@ -372,7 +403,6 @@ export function BacklogPage() {
                   key={col.id}
                   className="flex flex-col w-[240px] flex-shrink-0"
                 >
-                  {/* Header columna */}
                   <div className={`${col.color} border-2 ${col.border} rounded-t-xl px-3 py-2 flex items-center justify-between`}>
                     <div className="flex items-center gap-1.5">
                       <h3 className="text-xs font-bold text-[#000033]">{col.nombre}</h3>
@@ -383,7 +413,6 @@ export function BacklogPage() {
                     <MoreVertical className="w-3.5 h-3.5 text-[#000033]/40" />
                   </div>
 
-                  {/* Cards */}
                   <div
                     onDragOver={e => e.preventDefault()}
                     onDrop={e => handleDrop(e, col.id)}
@@ -422,7 +451,6 @@ export function BacklogPage() {
         </div>
       ) : null}
 
-      {/* Stats footer — solo en kanban */}
       {vista === 'kanban' && <div className="bg-white border-t-2 border-[#000033]/10 px-6 py-3 flex-shrink-0">
         <div className="flex items-center justify-between text-xs text-[#000033]/60">
           <div className="flex items-center gap-6">
@@ -472,7 +500,6 @@ function TicketCard({
         isDragging ? 'opacity-40' : ''
       }`}
     >
-      {/* Cliente */}
       <div className="flex items-center justify-between mb-2">
         <span className="text-xs font-bold text-[#024fff]/70 truncate">
           {ticket.client.name}
@@ -482,12 +509,10 @@ function TicketCard({
         </button>
       </div>
 
-      {/* Título */}
       <p className="text-xs font-medium text-[#000033] mb-3 leading-relaxed line-clamp-3">
         {ticket.title}
       </p>
 
-      {/* Canal + Tipo */}
       {(ticket.canales?.length > 0 || ticket.ticketType) && (
         <div className="flex items-center gap-1.5 text-xs text-[#000033]/60 mb-2 pb-2 border-b border-[#000033]/10">
           {ticket.canales?.length > 0 && <span className="font-medium">{ticket.canales.join(', ')}</span>}
@@ -496,7 +521,6 @@ function TicketCard({
         </div>
       )}
 
-      {/* Footer */}
       <div className="flex items-center justify-between text-xs">
         <div className="flex items-center gap-1">
           <div className="w-4 h-4 rounded-full bg-[#024fff]/10 flex items-center justify-center flex-shrink-0">
