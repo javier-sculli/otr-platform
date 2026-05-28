@@ -158,6 +158,7 @@ export function ContentPage() {
   });
 
   const clientId = (ticketData?.data as any)?.clientId;
+  const speakerId = (ticketData?.data as any)?.speakerId ?? undefined;
   const { data: lineamientosData } = useQuery({
     queryKey: ['lineamientos', clientId],
     queryFn: () => api.getLineamientos(clientId!),
@@ -167,8 +168,8 @@ export function ContentPage() {
     (lineamientosData?.data ?? []).map((p: any) => (p.canal ?? '').toLowerCase())
   );
   const { data: contextoPosts } = useQuery({
-    queryKey: ['contexto-posts', clientId, activeCanal],
-    queryFn: () => api.getContextoPosts(clientId!, activeCanal || undefined),
+    queryKey: ['contexto-posts', clientId, activeCanal, speakerId],
+    queryFn: () => api.getContextoPosts(clientId!, activeCanal || undefined, speakerId),
     enabled: !!clientId,
   });
   const contexto = contextoPosts?.data ?? [];

@@ -37,12 +37,14 @@ export async function metricsRoutes(fastify: FastifyInstance) {
 
   // GET /metrics/contexto?clientId=xxx&canal=xxx — posts usados como contexto en el prompt de IA
   fastify.get('/contexto', async (request, reply) => {
-    const { clientId, canal } = request.query as { clientId?: string; canal?: string };
+    const { clientId, canal, speakerId } = request.query as { clientId?: string; canal?: string; speakerId?: string };
     if (!clientId) return reply.status(400).send({ error: 'clientId requerido' });
 
     const canalFilter = canal ? { canal: { equals: canal, mode: 'insensitive' as const } } : {};
+    // Si hay speakerId filtramos por vocero; si no, excluimos publicaciones de vocero (speakerId: null)
+    const speakerFilter = speakerId ? { speakerId } : { speakerId: null };
     const highlights = await prisma.publication.findMany({
-      where: { clientId, isHighlight: true, postContent: { not: null }, ...canalFilter },
+      where: { clientId, isHighlight: true, postContent: { not: null }, ...canalFilter, ...speakerFilter },
       select: { id: true, postContent: true, canal: true, isHighlight: true, publishedAt: true },
       orderBy: { publishedAt: 'desc' },
       take: 5,
@@ -50,7 +52,7 @@ export async function metricsRoutes(fastify: FastifyInstance) {
     const filtered = highlights.filter(p => p.postContent?.trim());
     const faltantes = Math.max(0, 5 - filtered.length);
     const recientes = faltantes > 0 ? await prisma.publication.findMany({
-      where: { clientId, isHighlight: false, postContent: { not: null }, ...canalFilter },
+      where: { clientId, isHighlight: false, postContent: { not: null }, ...canalFilter, ...speakerFilter },
       select: { id: true, postContent: true, canal: true, isHighlight: true, publishedAt: true },
       take: faltantes,
       orderBy: { publishedAt: 'desc' },
