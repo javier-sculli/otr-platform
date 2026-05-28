@@ -253,10 +253,10 @@ class ApiClient {
     );
   }
 
-  async syncMetrics(clientId?: string) {
-    return this.request<{ message: string }>('/metrics/sync', {
+  async syncMetrics(network: 'all' | 'linkedin' | 'instagram' | 'twitter' = 'all', clientId?: string) {
+    return this.request<{ message: string; network: string }>('/metrics/sync', {
       method: 'POST',
-      body: JSON.stringify(clientId ? { clientId } : {}),
+      body: JSON.stringify({ network, ...(clientId ? { clientId } : {}) }),
     });
   }
 

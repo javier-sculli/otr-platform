@@ -2,6 +2,8 @@ import { FastifyInstance } from 'fastify';
 import { prisma } from '../lib/prisma.js';
 import { authenticate } from '../middleware/auth.js';
 import { syncLinkedInMetrics } from '../jobs/syncLinkedInMetrics.js';
+import { syncInstagramMetrics } from '../jobs/syncInstagramMetrics.js';
+import { syncTwitterMetrics } from '../jobs/syncTwitterMetrics.js';
 
 export async function metricsRoutes(fastify: FastifyInstance) {
   fastify.addHook('preHandler', authenticate);
@@ -138,15 +140,28 @@ export async function metricsRoutes(fastify: FastifyInstance) {
     return { data: snapshot };
   });
 
-  // POST /metrics/sync — trigger manual del scraper (opcionalmente para un cliente)
+  // POST /metrics/sync — trigger manual del scraper
+  // Body: { clientId?: string; network?: 'linkedin' | 'instagram' | 'twitter' | 'all' }
   fastify.post('/sync', async (request) => {
-    const { clientId } = request.body as { clientId?: string };
+    const { clientId, network = 'all' } = request.body as {
+      clientId?: string;
+      network?: 'linkedin' | 'instagram' | 'twitter' | 'all';
+    };
 
-    // Corre async, no bloquea la respuesta
-    syncLinkedInMetrics(clientId).catch(err =>
-      console.error('[metrics/sync] Error:', err)
-    );
+    const runSync = async () => {
+      if (network === 'linkedin' || network === 'all') {
+        await syncLinkedInMetrics(clientId).catch(err => console.error('[metrics/sync] LinkedIn error:', err));
+      }
+      if (network === 'instagram' || network === 'all') {
+        await syncInstagramMetrics(clientId).catch(err => console.error('[metrics/sync] Instagram error:', err));
+      }
+      if (network === 'twitter' || network === 'all') {
+        await syncTwitterMetrics(clientId).catch(err => console.error('[metrics/sync] Twitter error:', err));
+      }
+    };
 
-    return { message: 'Sync iniciado' };
+    runSync().catch(err => console.error('[metrics/sync] Error:', err));
+
+    return { message: 'Sync iniciado', network };
   });
 }

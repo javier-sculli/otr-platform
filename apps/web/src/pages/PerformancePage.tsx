@@ -1,14 +1,14 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   TrendingUp, RefreshCw, CheckCircle2, AlertCircle,
-  Heart, MessageSquare, Share2, Star,
+  Heart, MessageSquare, Share2, Star, Eye, Bookmark, Quote,
   ArrowUpDown, ChevronDown, ChevronUp,
   Linkedin, Instagram, Facebook, Twitter, Globe, X,
 } from 'lucide-react';
 import { api } from '../lib/api';
 
-type SortKey = 'fecha' | 'likes' | 'comments' | 'shares';
+type SortKey = 'fecha' | 'likes' | 'comments' | 'shares' | 'views' | 'bookmarks' | 'quotes';
 type SortDir = 'asc' | 'desc';
 
 const CANAL_CONFIG: Record<string, { icon: React.ElementType; color: string }> = {
@@ -47,6 +47,9 @@ function formatNum(n: number) {
 export function PerformancePage() {
   const queryClient = useQueryClient();
   const [syncStatus, setSyncStatus] = useState<'idle' | 'running' | 'done' | 'error'>('idle');
+  const [syncNetwork, setSyncNetwork] = useState<'all' | 'linkedin' | 'instagram' | 'twitter'>('all');
+  const [showSyncDropdown, setShowSyncDropdown] = useState(false);
+  const syncDropdownRef = useRef<HTMLDivElement>(null);
   const [clientesSeleccionados, setClientesSeleccionados] = useState<string[]>([]);
   const [showDropdownClientes, setShowDropdownClientes] = useState(false);
   const [vocerosSeleccionados, setVocerosSeleccionados] = useState<string[]>([]);
@@ -74,7 +77,7 @@ export function PerformancePage() {
   });
 
   const syncMutation = useMutation({
-    mutationFn: () => api.syncMetrics(),
+    mutationFn: (network: 'all' | 'linkedin' | 'instagram' | 'twitter') => api.syncMetrics(network),
     onMutate: () => setSyncStatus('running'),
     onSuccess: () => {
       setSyncStatus('done');
@@ -88,6 +91,17 @@ export function PerformancePage() {
       setTimeout(() => setSyncStatus('idle'), 4000);
     },
   });
+
+  // Cerrar dropdown de sync al hacer click afuera
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (syncDropdownRef.current && !syncDropdownRef.current.contains(e.target as Node)) {
+        setShowSyncDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const toggleHighlight = async (e: React.MouseEvent, pub: any) => {
     e.stopPropagation();
@@ -139,7 +153,7 @@ export function PerformancePage() {
     } else {
       const aSnap = a.snapshots?.slice(-1)[0];
       const bSnap = b.snapshots?.slice(-1)[0];
-      cmp = (aSnap?.[sortKey] ?? 0) - (bSnap?.[sortKey] ?? 0);
+      cmp = (aSnap?.[sortKey] ?? -1) - (bSnap?.[sortKey] ?? -1);
     }
     return sortDir === 'asc' ? cmp : -cmp;
   });
@@ -166,25 +180,73 @@ export function PerformancePage() {
             <h1 className="text-xl font-bold text-[#000033]">Performance de Posteos</h1>
             <p className="text-xs text-[#000033]/60 mt-0.5">Seguimiento y análisis de contenido publicado</p>
           </div>
-          <button
-            onClick={() => syncMutation.mutate()}
-            disabled={syncStatus === 'running'}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium border-2 transition-all ${
-              syncStatus === 'done'    ? 'bg-[#00ff99]/20 border-[#00ff99]/50 text-[#000033]'
-              : syncStatus === 'error'  ? 'bg-red-50 border-red-200 text-red-600'
-              : syncStatus === 'running'? 'bg-[#024fff]/5 border-[#024fff]/20 text-[#024fff]/60 cursor-not-allowed'
-              : 'bg-[#024fff] border-[#024fff] text-white hover:bg-[#024fff]/90 shadow-lg shadow-[#024fff]/20'
-            }`}
-          >
-            {syncStatus === 'running' && <RefreshCw className="w-4 h-4 animate-spin" />}
-            {syncStatus === 'done'    && <CheckCircle2 className="w-4 h-4" />}
-            {syncStatus === 'error'   && <AlertCircle className="w-4 h-4" />}
-            {syncStatus === 'idle'    && <RefreshCw className="w-4 h-4" />}
-            {syncStatus === 'running' ? 'Sincronizando...'
-              : syncStatus === 'done'   ? 'Listo — actualizando'
-              : syncStatus === 'error'  ? 'Error al sincronizar'
-              : 'Sincronizar LinkedIn'}
-          </button>
+          <div className="relative" ref={syncDropdownRef}>
+            <div className="flex items-center">
+              {/* Botón principal de sync */}
+              <button
+                onClick={() => syncStatus === 'idle' && syncMutation.mutate(syncNetwork)}
+                disabled={syncStatus === 'running'}
+                className={`flex items-center gap-2 px-4 py-2 rounded-l-xl text-sm font-medium border-2 border-r-0 transition-all ${
+                  syncStatus === 'done'     ? 'bg-[#00ff99]/20 border-[#00ff99]/50 text-[#000033]'
+                  : syncStatus === 'error'  ? 'bg-red-50 border-red-200 text-red-600'
+                  : syncStatus === 'running'? 'bg-[#024fff]/5 border-[#024fff]/20 text-[#024fff]/60 cursor-not-allowed'
+                  : 'bg-[#024fff] border-[#024fff] text-white hover:bg-[#024fff]/90 shadow-lg shadow-[#024fff]/20'
+                }`}
+              >
+                {syncStatus === 'running' && <RefreshCw className="w-4 h-4 animate-spin" />}
+                {syncStatus === 'done'    && <CheckCircle2 className="w-4 h-4" />}
+                {syncStatus === 'error'   && <AlertCircle className="w-4 h-4" />}
+                {syncStatus === 'idle'    && <RefreshCw className="w-4 h-4" />}
+                {syncStatus === 'running' ? 'Sincronizando...'
+                  : syncStatus === 'done'  ? 'Listo — actualizando'
+                  : syncStatus === 'error' ? 'Error al sincronizar'
+                  : syncNetwork === 'all'       ? 'Sincronizar todas'
+                  : syncNetwork === 'linkedin'  ? 'Sincronizar LinkedIn'
+                  : syncNetwork === 'instagram' ? 'Sincronizar Instagram'
+                  : 'Sincronizar Twitter'}
+              </button>
+              {/* Chevron para abrir el dropdown de red */}
+              <button
+                onClick={() => setShowSyncDropdown(prev => !prev)}
+                disabled={syncStatus === 'running'}
+                className={`flex items-center justify-center px-2.5 py-2 rounded-r-xl text-sm font-medium border-2 transition-all ${
+                  syncStatus === 'done'     ? 'bg-[#00ff99]/20 border-[#00ff99]/50 text-[#000033]'
+                  : syncStatus === 'error'  ? 'bg-red-50 border-red-200 text-red-600'
+                  : syncStatus === 'running'? 'bg-[#024fff]/5 border-[#024fff]/20 text-[#024fff]/60 cursor-not-allowed'
+                  : 'bg-[#024fff] border-[#024fff] text-white hover:bg-[#024fff]/90 shadow-lg shadow-[#024fff]/20'
+                }`}
+              >
+                <ChevronDown className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
+            {/* Dropdown de redes */}
+            {showSyncDropdown && syncStatus === 'idle' && (
+              <div className="absolute right-0 top-full mt-1.5 bg-white border-2 border-[#000033]/15 rounded-xl shadow-xl z-20 overflow-hidden min-w-[200px]">
+                {([
+                  { id: 'all', label: 'Todas las redes', Icon: RefreshCw, color: '#000033' },
+                  { id: 'linkedin', label: 'LinkedIn', Icon: Linkedin, color: '#0077B5' },
+                  { id: 'instagram', label: 'Instagram', Icon: Instagram, color: '#E4405F' },
+                  { id: 'twitter', label: 'Twitter / X', Icon: Twitter, color: '#1DA1F2' },
+                ] as const).map(({ id, label, Icon, color }) => (
+                  <button
+                    key={id}
+                    onClick={() => {
+                      setSyncNetwork(id);
+                      setShowSyncDropdown(false);
+                      syncMutation.mutate(id);
+                    }}
+                    className={`flex items-center gap-2.5 w-full px-4 py-2.5 text-left text-sm font-medium transition-all hover:bg-[#024fff]/5 ${
+                      syncNetwork === id ? 'text-[#024fff] bg-[#024fff]/5' : 'text-[#000033]'
+                    }`}
+                  >
+                    <Icon className="w-4 h-4 flex-shrink-0" style={{ color }} />
+                    {label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -344,6 +406,9 @@ export function PerformancePage() {
                 <option value="likes">Likes</option>
                 <option value="comments">Comentarios</option>
                 <option value="shares">Compartidos</option>
+                <option value="views">Views</option>
+                <option value="bookmarks">Bookmarks</option>
+                <option value="quotes">Quotes</option>
               </select>
               <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-[#000033]/50 pointer-events-none" />
             </div>
@@ -366,7 +431,7 @@ export function PerformancePage() {
             <TrendingUp className="w-10 h-10 text-[#000033]/10 mx-auto mb-4" />
             <p className="text-sm font-bold text-[#000033]/40 mb-1">Sin publicaciones todavía</p>
             <p className="text-xs text-[#000033]/30 max-w-xs mx-auto">
-              Asegurate de que los clientes tengan su LinkedIn URL cargada y hacé clic en "Sincronizar LinkedIn".
+              Asegurate de que los clientes tengan sus URLs de redes configuradas y hacé clic en "Sincronizar".
             </p>
           </div>
         )}
@@ -375,11 +440,8 @@ export function PerformancePage() {
           <div className="bg-white border-2 border-[#000033]/10 rounded-xl overflow-hidden">
             {/* Table header */}
             <div className="border-b-2 border-[#000033]/10 bg-[#fafafa]">
-              <div className="grid grid-cols-[90px_80px_56px_1fr_120px_120px_80px_80px_80px_44px] gap-3 px-4 py-3">
-                <button
-                  onClick={() => handleSort('fecha')}
-                  className="flex items-center gap-1 text-[10px] font-bold text-[#000033]/60 uppercase tracking-wide hover:text-[#024fff] transition-colors"
-                >
+              <div className="grid grid-cols-[90px_80px_56px_1fr_120px_120px_70px_70px_70px_70px_70px_70px_44px] gap-3 px-4 py-3">
+                <button onClick={() => handleSort('fecha')} className="flex items-center gap-1 text-[10px] font-bold text-[#000033]/60 uppercase tracking-wide hover:text-[#024fff] transition-colors">
                   Fecha <SortIcon col="fecha" />
                 </button>
                 <div className="text-[10px] font-bold text-[#000033]/60 uppercase tracking-wide">Día / Hora</div>
@@ -387,23 +449,23 @@ export function PerformancePage() {
                 <div className="text-[10px] font-bold text-[#000033]/60 uppercase tracking-wide">Contenido</div>
                 <div className="text-[10px] font-bold text-[#000033]/60 uppercase tracking-wide">Cliente</div>
                 <div className="text-[10px] font-bold text-[#000033]/60 uppercase tracking-wide">Vocero</div>
-                <button
-                  onClick={() => handleSort('likes')}
-                  className="flex items-center gap-1 justify-end text-[10px] font-bold text-[#000033]/60 uppercase tracking-wide hover:text-[#024fff] transition-colors"
-                >
+                <button onClick={() => handleSort('likes')} className="flex items-center gap-1 justify-end text-[10px] font-bold text-[#000033]/60 uppercase tracking-wide hover:text-[#024fff] transition-colors">
                   Likes <SortIcon col="likes" />
                 </button>
-                <button
-                  onClick={() => handleSort('comments')}
-                  className="flex items-center gap-1 justify-end text-[10px] font-bold text-[#000033]/60 uppercase tracking-wide hover:text-[#024fff] transition-colors"
-                >
-                  Comments <SortIcon col="comments" />
+                <button onClick={() => handleSort('comments')} className="flex items-center gap-1 justify-end text-[10px] font-bold text-[#000033]/60 uppercase tracking-wide hover:text-[#024fff] transition-colors">
+                  Coments <SortIcon col="comments" />
                 </button>
-                <button
-                  onClick={() => handleSort('shares')}
-                  className="flex items-center gap-1 justify-end text-[10px] font-bold text-[#000033]/60 uppercase tracking-wide hover:text-[#024fff] transition-colors"
-                >
+                <button onClick={() => handleSort('shares')} className="flex items-center gap-1 justify-end text-[10px] font-bold text-[#000033]/60 uppercase tracking-wide hover:text-[#024fff] transition-colors">
                   Shares <SortIcon col="shares" />
+                </button>
+                <button onClick={() => handleSort('views')} className="flex items-center gap-1 justify-end text-[10px] font-bold text-[#1DA1F2]/70 uppercase tracking-wide hover:text-[#1DA1F2] transition-colors" title="Twitter/X solamente">
+                  Views <SortIcon col="views" />
+                </button>
+                <button onClick={() => handleSort('bookmarks')} className="flex items-center gap-1 justify-end text-[10px] font-bold text-[#1DA1F2]/70 uppercase tracking-wide hover:text-[#1DA1F2] transition-colors" title="Twitter/X solamente">
+                  Saves <SortIcon col="bookmarks" />
+                </button>
+                <button onClick={() => handleSort('quotes')} className="flex items-center gap-1 justify-end text-[10px] font-bold text-[#1DA1F2]/70 uppercase tracking-wide hover:text-[#1DA1F2] transition-colors" title="Twitter/X solamente">
+                  Quotes <SortIcon col="quotes" />
                 </button>
                 <div />
               </div>
@@ -426,7 +488,7 @@ export function PerformancePage() {
                   <div
                     key={pub.id}
                     onClick={() => pub.url && window.open(pub.url, '_blank', 'noopener,noreferrer')}
-                    className={`group grid grid-cols-[90px_80px_56px_1fr_120px_120px_80px_80px_80px_44px] gap-3 px-4 py-3 transition-all ${pub.url ? 'cursor-pointer hover:bg-[#024fff]/5' : ''} ${
+                    className={`group grid grid-cols-[90px_80px_56px_1fr_120px_120px_70px_70px_70px_70px_70px_70px_44px] gap-3 px-4 py-3 transition-all ${pub.url ? 'cursor-pointer hover:bg-[#024fff]/5' : ''} ${
                       index !== sorted.length - 1 ? 'border-b border-[#000033]/5' : ''
                     }`}
                   >
@@ -503,6 +565,30 @@ export function PerformancePage() {
                       <Share2 className="w-3 h-3 text-[#000033]/50" />
                       <span className="text-sm font-bold text-[#000033]">
                         {lastSnap ? formatNum(lastSnap.shares) : '—'}
+                      </span>
+                    </div>
+
+                    {/* Views (Twitter) */}
+                    <div className="flex items-center justify-end gap-1.5">
+                      <Eye className="w-3 h-3 text-[#1DA1F2]/60" />
+                      <span className="text-sm font-bold text-[#000033]">
+                        {lastSnap?.views != null ? formatNum(lastSnap.views) : <span className="text-[#000033]/20 text-xs">—</span>}
+                      </span>
+                    </div>
+
+                    {/* Bookmarks (Twitter) */}
+                    <div className="flex items-center justify-end gap-1.5">
+                      <Bookmark className="w-3 h-3 text-[#1DA1F2]/60" />
+                      <span className="text-sm font-bold text-[#000033]">
+                        {lastSnap?.bookmarks != null ? formatNum(lastSnap.bookmarks) : <span className="text-[#000033]/20 text-xs">—</span>}
+                      </span>
+                    </div>
+
+                    {/* Quotes (Twitter) */}
+                    <div className="flex items-center justify-end gap-1.5">
+                      <Quote className="w-3 h-3 text-[#1DA1F2]/60" />
+                      <span className="text-sm font-bold text-[#000033]">
+                        {lastSnap?.quotes != null ? formatNum(lastSnap.quotes) : <span className="text-[#000033]/20 text-xs">—</span>}
                       </span>
                     </div>
 

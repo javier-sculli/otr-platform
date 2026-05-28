@@ -255,6 +255,9 @@ model PostMetricSnapshot {
   likes         Int         @default(0)
   comments      Int         @default(0)
   shares        Int         @default(0)
+  views         Int?        // impresiones (Twitter/X)
+  bookmarks     Int?        // guardados (Twitter/X)
+  quotes        Int?        // quote tweets (Twitter/X)
   takenAt       DateTime    @default(now()) @map("taken_at")
 
   publication Publication @relation(fields: [publicationId], references: [id], onDelete: Cascade)

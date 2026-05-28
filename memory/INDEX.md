@@ -10,7 +10,8 @@
 | Campos links en ticket (Info/Recursos + Entregable visual) | [ticket-detalle.md](ticket-detalle.md) | ✅ Implementado inline en TicketDetallePage | 2026-03-31 |
 | Modo dual de modelos (Claude + GPT) | [modo-dual.md](modo-dual.md) | ✅ Implementado | Antes de 2026-03-31 |
 | Reducción densidad visual ~20% | — | ✅ Commiteado | Antes de 2026-03-31 |
-| LinkedIn Metrics — scraping con Apify + cron diario | [linkedin-metrics.md](linkedin-metrics.md) | ✅ Backend listo, frontend pendiente | 2026-03-31 |
+| LinkedIn Metrics — scraping con Apify + cron diario | [linkedin-metrics.md](linkedin-metrics.md) | ✅ Backend listo, frontend conectado | 2026-03-31 |
+| Instagram + Twitter Metrics — Apify sync + UI multi-red | [social-metrics.md](social-metrics.md) | ✅ Backend + Frontend completo | 2026-05-28 |
 
 ## Decisiones de producto activas
 
