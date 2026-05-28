@@ -252,9 +252,10 @@ class ApiClient {
     return this.request<{ data: any[] }>(`/metrics?${params.toString()}`);
   }
 
-  async getContextoPosts(clientId: string, canal?: string) {
+  async getContextoPosts(clientId: string, canal?: string, speakerId?: string) {
     const params = new URLSearchParams({ clientId });
     if (canal) params.set('canal', canal);
+    if (speakerId) params.set('speakerId', speakerId);
     return this.request<{ data: { id: string; isHighlight: boolean; canal: string; snippet: string }[] }>(
       `/metrics/contexto?${params.toString()}`
     );

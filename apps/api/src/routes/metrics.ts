@@ -45,6 +45,7 @@ export async function metricsRoutes(fastify: FastifyInstance) {
       where: { clientId, isHighlight: true, postContent: { not: null }, ...canalFilter },
       select: { id: true, postContent: true, canal: true, isHighlight: true, publishedAt: true },
       orderBy: { publishedAt: 'desc' },
+      take: 5,
     });
     const filtered = highlights.filter(p => p.postContent?.trim());
     const faltantes = Math.max(0, 5 - filtered.length);
