@@ -67,7 +67,7 @@ export function BacklogPage() {
   const [showDropdownClientes, setShowDropdownClientes] = useState(false);
   const [vocerosSeleccionados, setVocerosSeleccionados] = useState<string[]>([]);
   const [showDropdownVoceros, setShowDropdownVoceros] = useState(false);
-  const [filtroFecha, setFiltroFecha] = useState<'semana' | 'mes0' | 'mes1' | 'mes2' | 'rango' | null>(null);
+  const [filtroFecha, setFiltroFecha] = useState<'semana' | 'mes0' | 'mes1' | 'mes2' | 'rango' | null>('mes0');
   const [busqueda, setBusqueda] = useState('');
   const [showBusqueda, setShowBusqueda] = useState(false);
   const [fechaDesde, setFechaDesde] = useState('');
