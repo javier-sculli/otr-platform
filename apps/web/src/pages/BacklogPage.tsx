@@ -67,7 +67,7 @@ export function BacklogPage() {
   const [showDropdownClientes, setShowDropdownClientes] = useState(false);
   const [vocerosSeleccionados, setVocerosSeleccionados] = useState<string[]>([]);
   const [showDropdownVoceros, setShowDropdownVoceros] = useState(false);
-  const [filtroFecha, setFiltroFecha] = useState<'semana' | 'mes' | 'rango' | null>(null);
+  const [filtroFecha, setFiltroFecha] = useState<'semana' | 'mes0' | 'mes1' | 'mes2' | 'rango' | null>(null);
   const [busqueda, setBusqueda] = useState('');
   const [showBusqueda, setShowBusqueda] = useState(false);
   const [fechaDesde, setFechaDesde] = useState('');
@@ -122,11 +122,16 @@ export function BacklogPage() {
 
   const ahora = new Date();
   const inicioSemana = new Date(ahora);
-  inicioSemana.setDate(ahora.getDate() - ahora.getDay());
+  inicioSemana.setDate(ahora.getDate() - ahora.getDay() + 1); // lunes
   const finSemana = new Date(inicioSemana);
   finSemana.setDate(inicioSemana.getDate() + 6);
-  const inicioMes = new Date(ahora.getFullYear(), ahora.getMonth(), 1);
-  const finMes = new Date(ahora.getFullYear(), ahora.getMonth() + 1, 0);
+
+  const meses = [0, 1, 2].map(offset => ({
+    inicio: new Date(ahora.getFullYear(), ahora.getMonth() - offset, 1),
+    fin: new Date(ahora.getFullYear(), ahora.getMonth() - offset + 1, 0),
+    label: new Date(ahora.getFullYear(), ahora.getMonth() - offset, 1)
+      .toLocaleDateString('es-ES', { month: 'long' }),
+  }));
 
   const ticketsFiltrados = allTickets.filter(t => {
     if (clientesSeleccionados.length > 0 && !clientesSeleccionados.includes(t.client.id)) return false;
@@ -134,7 +139,9 @@ export function BacklogPage() {
     if (filtroFecha && t.dueDate) {
       const due = new Date(t.dueDate);
       if (filtroFecha === 'semana') return due >= inicioSemana && due <= finSemana;
-      if (filtroFecha === 'mes') return due >= inicioMes && due <= finMes;
+      if (filtroFecha === 'mes0') return due >= meses[0].inicio && due <= meses[0].fin;
+      if (filtroFecha === 'mes1') return due >= meses[1].inicio && due <= meses[1].fin;
+      if (filtroFecha === 'mes2') return due >= meses[2].inicio && due <= meses[2].fin;
       if (filtroFecha === 'rango') {
         if (fechaDesde && due < new Date(fechaDesde)) return false;
         if (fechaHasta) { const hasta = new Date(fechaHasta); hasta.setHours(23, 59, 59); if (due > hasta) return false; }
@@ -345,18 +352,24 @@ export function BacklogPage() {
 
           <div className="flex items-center gap-2">
             <span className="text-xs font-bold text-[#000033]">Fecha:</span>
-            <div className="flex items-center gap-1.5">
-              {(['semana', 'mes', 'rango'] as const).map(f => (
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {([
+                { key: 'semana', label: 'Esta semana' },
+                { key: 'mes0',   label: meses[0].label },
+                { key: 'mes1',   label: meses[1].label },
+                { key: 'mes2',   label: meses[2].label },
+                { key: 'rango',  label: 'Rango' },
+              ] as const).map(({ key, label }) => (
                 <button
-                  key={f}
-                  onClick={() => setFiltroFecha(prev => prev === f ? null : f)}
-                  className={`px-3 py-1.5 text-xs font-bold rounded-lg border-2 transition-all ${
-                    filtroFecha === f
+                  key={key}
+                  onClick={() => setFiltroFecha(prev => prev === key ? null : key)}
+                  className={`px-3 py-1.5 text-xs font-bold rounded-lg border-2 transition-all capitalize ${
+                    filtroFecha === key
                       ? 'bg-[#024fff]/10 text-[#024fff] border-[#024fff]/20'
                       : 'border-[#000033]/10 text-[#000033]/60 hover:border-[#024fff]/40 hover:text-[#024fff]'
                   }`}
                 >
-                  {f === 'semana' ? 'Esta semana' : f === 'mes' ? 'Este mes' : 'Rango'}
+                  {label}
                 </button>
               ))}
               {filtroFecha === 'rango' && (
