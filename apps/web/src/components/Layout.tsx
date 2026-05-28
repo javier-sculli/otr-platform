@@ -1,5 +1,5 @@
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Lightbulb, LogOut, User, Building2, TrendingUp, Bell } from 'lucide-react';
+import { Lightbulb, LogOut, User, Building2, TrendingUp, Bell, Check } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState, useRef, useEffect } from 'react';
@@ -18,10 +18,12 @@ interface LayoutProps {
 export function Layout({ children }: LayoutProps) {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, logout } = useAuth();
+  const { user, logout, updatePreferredClients } = useAuth();
   const queryClient = useQueryClient();
   const [showNotifications, setShowNotifications] = useState(false);
+  const [showProfile, setShowProfile] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
+  const profileRef = useRef<HTMLDivElement>(null);
 
   const { data: notifData } = useQuery({
     queryKey: ['notifications'],
@@ -29,8 +31,15 @@ export function Layout({ children }: LayoutProps) {
     refetchInterval: 30000,
   });
 
+  const { data: clientsData } = useQuery({
+    queryKey: ['clients'],
+    queryFn: () => api.getClients(),
+  });
+
   const notifications = notifData?.data ?? [];
   const unreadCount = notifData?.unreadCount ?? 0;
+  const clients: { id: string; name: string }[] = clientsData?.data ?? [];
+  const preferredIds: string[] = user?.preferredClientIds ?? [];
 
   const markReadMutation = useMutation({
     mutationFn: (id: string) => api.markNotificationRead(id),
@@ -47,10 +56,20 @@ export function Layout({ children }: LayoutProps) {
       if (panelRef.current && !panelRef.current.contains(e.target as Node)) {
         setShowNotifications(false);
       }
+      if (profileRef.current && !profileRef.current.contains(e.target as Node)) {
+        setShowProfile(false);
+      }
     };
-    if (showNotifications) document.addEventListener('mousedown', handler);
+    if (showNotifications || showProfile) document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
-  }, [showNotifications]);
+  }, [showNotifications, showProfile]);
+
+  const toggleClient = (id: string) => {
+    const next = preferredIds.includes(id)
+      ? preferredIds.filter(c => c !== id)
+      : [...preferredIds, id];
+    updatePreferredClients(next);
+  };
 
   return (
     <div className="min-h-screen bg-[#fafafa]">
@@ -85,15 +104,90 @@ export function Layout({ children }: LayoutProps) {
             </div>
 
             <div className="flex items-center gap-3">
-              <div className="flex items-center gap-2 text-sm text-[#000033]/60">
-                <User className="w-4 h-4" />
-                {user?.name}
+              {/* Profile button */}
+              <div className="relative" ref={profileRef}>
+                <button
+                  onClick={() => { setShowProfile(v => !v); setShowNotifications(false); }}
+                  className="flex items-center gap-1.5 text-sm text-[#000033]/60 hover:text-[#000033] transition-colors px-2 py-1 rounded-lg hover:bg-[#000033]/5"
+                >
+                  <User className="w-4 h-4" />
+                  <span className="text-xs font-medium">{user?.name}</span>
+                  {preferredIds.length > 0 && (
+                    <span className="ml-0.5 text-[10px] font-bold text-[#024fff] bg-[#024fff]/10 rounded-full px-1.5 py-0.5">
+                      {preferredIds.length}
+                    </span>
+                  )}
+                </button>
+
+                {showProfile && (
+                  <div className="absolute right-0 top-full mt-2 w-72 bg-white border-2 border-[#000033]/10 rounded-xl shadow-xl z-50 overflow-hidden">
+                    {/* Header */}
+                    <div className="px-4 py-3 border-b border-[#000033]/10">
+                      <p className="text-xs font-bold text-[#000033]">{user?.name}</p>
+                      <p className="text-[11px] text-[#000033]/40">{user?.email}</p>
+                    </div>
+
+                    {/* Mis clientes */}
+                    <div className="px-4 py-3 border-b border-[#000033]/10">
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="text-[10px] font-bold text-[#000033]/50 uppercase tracking-wide">Mis clientes</p>
+                        {preferredIds.length > 0 && (
+                          <button
+                            onClick={() => updatePreferredClients([])}
+                            className="text-[10px] text-[#000033]/40 hover:text-[#000033] transition-colors"
+                          >
+                            Limpiar
+                          </button>
+                        )}
+                      </div>
+                      {preferredIds.length === 0 && (
+                        <p className="text-[11px] text-[#000033]/40 mb-2">
+                          Sin selección — ves todos los clientes por defecto.
+                        </p>
+                      )}
+                      <div className="space-y-0.5 max-h-52 overflow-y-auto">
+                        {clients.map(c => {
+                          const selected = preferredIds.includes(c.id);
+                          return (
+                            <button
+                              key={c.id}
+                              onClick={() => toggleClient(c.id)}
+                              className={`w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-left transition-all ${
+                                selected
+                                  ? 'bg-[#024fff]/8 text-[#024fff]'
+                                  : 'text-[#000033]/70 hover:bg-[#000033]/5'
+                              }`}
+                            >
+                              <div className={`w-3.5 h-3.5 rounded border flex items-center justify-center flex-shrink-0 transition-all ${
+                                selected ? 'bg-[#024fff] border-[#024fff]' : 'border-[#000033]/20'
+                              }`}>
+                                {selected && <Check className="w-2.5 h-2.5 text-white" />}
+                              </div>
+                              <span className="text-xs font-medium truncate">{c.name}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Logout */}
+                    <div className="px-4 py-2.5">
+                      <button
+                        onClick={() => { logout(); setShowProfile(false); }}
+                        className="flex items-center gap-1.5 text-xs text-[#000033]/40 hover:text-[#000033] font-medium transition-colors"
+                      >
+                        <LogOut className="w-3.5 h-3.5" />
+                        Salir
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Notification Bell */}
               <div className="relative" ref={panelRef}>
                 <button
-                  onClick={() => setShowNotifications(v => !v)}
+                  onClick={() => { setShowNotifications(v => !v); setShowProfile(false); }}
                   className="relative p-1.5 rounded-lg hover:bg-[#000033]/5 transition-all text-[#000033]/60 hover:text-[#000033]"
                 >
                   <Bell className="w-4 h-4" />
@@ -146,14 +240,6 @@ export function Layout({ children }: LayoutProps) {
                   </div>
                 )}
               </div>
-
-              <button
-                onClick={() => logout()}
-                className="flex items-center gap-1.5 text-xs text-[#000033]/40 hover:text-[#000033] font-medium transition-colors"
-              >
-                <LogOut className="w-3.5 h-3.5" />
-                Salir
-              </button>
             </div>
           </div>
         </div>

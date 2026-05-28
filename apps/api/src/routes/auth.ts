@@ -127,6 +127,20 @@ export async function authRoutes(fastify: FastifyInstance) {
     return { user: userWithoutPassword };
   });
 
+  fastify.patch('/me', { preHandler: authenticate }, async (request) => {
+    const { id } = request.user as { id: string };
+    const { preferredClientIds } = request.body as { preferredClientIds?: string[] };
+
+    const user = await prisma.user.update({
+      where: { id },
+      data: { ...(preferredClientIds !== undefined ? { preferredClientIds } : {}) },
+      include: { area: true },
+    });
+
+    const { password: _, ...userWithoutPassword } = user;
+    return { user: userWithoutPassword };
+  });
+
   // Logout (el cliente limpia el token)
   fastify.post('/logout', { preHandler: authenticate }, async () => {
     return { message: 'Logged out successfully' };

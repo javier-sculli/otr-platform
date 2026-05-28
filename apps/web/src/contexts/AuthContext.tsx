@@ -6,6 +6,7 @@ interface User {
   email: string;
   name: string;
   role: string;
+  preferredClientIds: string[];
 }
 
 interface AuthContextType {
@@ -14,6 +15,7 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<void>;
   loginWithToken: (token: string) => Promise<void>;
   logout: () => Promise<void>;
+  updatePreferredClients: (clientIds: string[]) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -49,8 +51,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
   };
 
+  const updatePreferredClients = async (clientIds: string[]) => {
+    const result = await api.updateMe({ preferredClientIds: clientIds });
+    setUser(result.user);
+  };
+
   return (
-    <AuthContext.Provider value={{ user, loading, login, loginWithToken, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, loginWithToken, logout, updatePreferredClients }}>
       {children}
     </AuthContext.Provider>
   );

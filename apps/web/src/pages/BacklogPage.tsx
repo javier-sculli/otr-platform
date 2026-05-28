@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
 import {
   Plus, Calendar, MoreVertical, LayoutGrid,
   ChevronDown, X, Search,
@@ -57,9 +58,11 @@ const PRIORIDAD_LABEL: Record<string, string> = {
 export function BacklogPage() {
   const queryClient = useQueryClient();
   const [searchParams] = useSearchParams();
+  const { user } = useAuth();
   const [clientesSeleccionados, setClientesSeleccionados] = useState<string[]>(() => {
     const clientId = searchParams.get('clientId');
-    return clientId ? [clientId] : [];
+    if (clientId) return [clientId];
+    return user?.preferredClientIds ?? [];
   });
   const [showDropdownClientes, setShowDropdownClientes] = useState(false);
   const [vocerosSeleccionados, setVocerosSeleccionados] = useState<string[]>([]);

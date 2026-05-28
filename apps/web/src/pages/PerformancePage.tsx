@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useAuth } from '../contexts/AuthContext';
 import {
   TrendingUp, RefreshCw, CheckCircle2, AlertCircle,
   Heart, MessageSquare, Share2, Star, Eye, Bookmark, Quote,
@@ -46,11 +47,12 @@ function formatNum(n: number) {
 
 export function PerformancePage() {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
   const [syncStatus, setSyncStatus] = useState<'idle' | 'running' | 'done' | 'error'>('idle');
   const [syncNetwork, setSyncNetwork] = useState<'all' | 'linkedin' | 'instagram' | 'twitter'>('all');
   const [showSyncDropdown, setShowSyncDropdown] = useState(false);
   const syncDropdownRef = useRef<HTMLDivElement>(null);
-  const [clientesSeleccionados, setClientesSeleccionados] = useState<string[]>([]);
+  const [clientesSeleccionados, setClientesSeleccionados] = useState<string[]>(() => user?.preferredClientIds ?? []);
   const [showDropdownClientes, setShowDropdownClientes] = useState(false);
   const [vocerosSeleccionados, setVocerosSeleccionados] = useState<string[]>([]);
   const [showDropdownVoceros, setShowDropdownVoceros] = useState(false);

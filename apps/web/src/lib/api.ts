@@ -70,6 +70,13 @@ class ApiClient {
     return this.request<{ user: any }>('/auth/me');
   }
 
+  async updateMe(data: { preferredClientIds?: string[] }) {
+    return this.request<{ user: any }>('/auth/me', {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  }
+
   // Guarda un token JWT obtenido externamente (ej: Google OAuth callback)
   async loginWithToken(token: string) {
     this.setToken(token);
