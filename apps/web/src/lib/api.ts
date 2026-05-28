@@ -316,7 +316,7 @@ class ApiClient {
     canal?: string;
     otherCanalesContent?: Record<string, string>;
   }) {
-    return this.request<{ newContent: string | null; summary: string; webSearches: string[] }>(`/ai/${ticketId}/chat`, {
+    return this.request<{ newContent: string | null; summary: string }>(`/ai/${ticketId}/chat`, {
       method: 'POST',
       body: JSON.stringify(payload),
     });
