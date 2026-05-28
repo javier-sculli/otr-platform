@@ -18,6 +18,7 @@ type ChatMessage = {
   id: string;
   role: 'user' | 'assistant';
   content: string;
+  webSearches?: string[];
 };
 
 type AttachedFile = {
@@ -370,7 +371,10 @@ export function ContentPage() {
         }
 
         setChatMessages(prev => {
-          const updated = prev.map(m => m.id === thinkingId ? { ...m, content: result.summary } : m);
+          const updated = prev.map(m => m.id === thinkingId
+            ? { ...m, content: result.summary, webSearches: result.webSearches?.length ? result.webSearches : undefined }
+            : m
+          );
           api.saveChatHistory(ticketId, updated).catch(() => {});
           return updated;
         });
@@ -605,8 +609,18 @@ export function ContentPage() {
             {chatMessages.map(message => (
               <div
                 key={message.id}
-                className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                className={`flex flex-col ${message.role === 'user' ? 'items-end' : 'items-start'}`}
               >
+                {message.webSearches && message.webSearches.length > 0 && (
+                  <div className="flex flex-wrap gap-1 mb-1 max-w-[88%]">
+                    {message.webSearches.map((q, i) => (
+                      <span key={i} className="flex items-center gap-1 px-2 py-0.5 bg-[#024fff]/8 text-[#024fff] text-[10px] font-medium rounded-full border border-[#024fff]/20">
+                        <svg className="w-2.5 h-2.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+                        {q}
+                      </span>
+                    ))}
+                  </div>
+                )}
                 <div
                   className={`max-w-[88%] px-2.5 py-1.5 rounded-lg text-xs leading-relaxed whitespace-pre-wrap ${
                     message.role === 'user'

@@ -34,6 +34,8 @@ async function fetchUrlContent(url: string): Promise<string | null> {
   }
 }
 
+const WEB_SEARCH_TOOL = { type: 'web_search_20250305' };
+
 const FETCH_URL_TOOL: Anthropic.Tool = {
   name: 'fetch_url',
   description: 'Lee el contenido de una URL. Usalo cuando necesites leer el contenido de un link para usarlo como referencia o contexto.',
@@ -327,6 +329,7 @@ export async function aiRoutes(fastify: FastifyInstance) {
     console.log('[ai/chat] ─────────────────────────────────────────────────');
 
     let raw = '';
+    let webSearchQueries: string[] = [];
 
     try {
 
@@ -388,14 +391,14 @@ export async function aiRoutes(fastify: FastifyInstance) {
         { role: 'user', content: userContent },
       ];
 
-      const MAX_ITERATIONS = 5;
+      const MAX_ITERATIONS = 8;
       for (let i = 0; i < MAX_ITERATIONS; i++) {
         const response = await anthropic.messages.create({
           model: 'claude-sonnet-4-6',
           max_tokens: 2048,
           temperature: 0.7,
           system: systemPrompt,
-          tools: [FETCH_URL_TOOL],
+          tools: [WEB_SEARCH_TOOL as any, FETCH_URL_TOOL],
           messages,
         });
 
@@ -403,24 +406,33 @@ export async function aiRoutes(fastify: FastifyInstance) {
           messages.push({ role: 'assistant', content: response.content });
 
           const toolResults: Anthropic.ToolResultBlockParam[] = [];
-          for (const block of response.content) {
-            if (block.type === 'tool_use' && block.name === 'fetch_url') {
-              const url = (block.input as { url: string }).url;
-              console.log(`[ai/chat] tool fetch_url: ${url}`);
-              const content = await fetchUrlContent(url);
-              toolResults.push({
-                type: 'tool_result',
-                tool_use_id: block.id,
-                content: content ?? 'No se pudo obtener el contenido de esta URL.',
-              });
+          for (const block of response.content as any[]) {
+            if (block.type === 'tool_use' || block.type === 'server_tool_use') {
+              if (block.name === 'web_search') {
+                const query: string = block.input?.query ?? '';
+                if (query) webSearchQueries.push(query);
+                console.log(`[ai/chat] tool web_search: "${query}"`);
+                // Anthropic ejecuta web_search server-side — no necesitamos hacer nada
+              } else if (block.name === 'fetch_url') {
+                const url = (block.input as { url: string }).url;
+                console.log(`[ai/chat] tool fetch_url: ${url}`);
+                const content = await fetchUrlContent(url);
+                toolResults.push({
+                  type: 'tool_result',
+                  tool_use_id: block.id,
+                  content: content ?? 'No se pudo obtener el contenido de esta URL.',
+                });
+              }
             }
           }
-          messages.push({ role: 'user', content: toolResults });
+          if (toolResults.length > 0) {
+            messages.push({ role: 'user', content: toolResults });
+          }
           continue;
         }
 
-        const textBlock = response.content.find(b => b.type === 'text');
-        raw = textBlock?.type === 'text' ? textBlock.text : '';
+        const textBlock = response.content.find((b: any) => b.type === 'text');
+        raw = (textBlock as any)?.text ?? '';
         break;
       }
     }
@@ -433,6 +445,6 @@ export async function aiRoutes(fastify: FastifyInstance) {
     }
 
     const { newContent, summary } = parseAIResponse(raw);
-    return { newContent, summary };
+    return { newContent, summary, webSearches: webSearchQueries };
   });
 }
