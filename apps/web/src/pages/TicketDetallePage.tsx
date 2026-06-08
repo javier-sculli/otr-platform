@@ -88,6 +88,14 @@ export function TicketDetallePage() {
     },
   });
 
+  const deleteMutation = useMutation({
+    mutationFn: () => api.deleteTicket(ticketId!),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tickets'] });
+      navigate('/backlog');
+    },
+  });
+
   // Comments
   const [commentText, setCommentText] = useState('');
   const [mentionQuery, setMentionQuery] = useState<string | null>(null);
@@ -882,6 +890,20 @@ export function TicketDetallePage() {
                 )}
               </div>
             </div>
+
+            {/* Eliminar tarjeta */}
+            <button
+              onClick={() => {
+                if (window.confirm('¿Eliminar esta tarjeta? Esta acción no se puede deshacer.')) {
+                  deleteMutation.mutate();
+                }
+              }}
+              disabled={deleteMutation.isPending}
+              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 border-2 border-red-200 text-red-600 rounded-lg text-xs font-bold hover:bg-red-50 hover:border-red-300 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              {deleteMutation.isPending ? 'Eliminando...' : 'Eliminar tarjeta'}
+            </button>
           </div>
         </div>
       </div>
