@@ -14,6 +14,14 @@ Sistema de gestión de producción de contenido para On The Rocks (OTR), una age
 - `apps/api` — backend
 - `packages/schemas` / `packages/types` — tipos compartidos
 
+## Modelo de datos (real, en código)
+- Entidad central: **`Ticket`** — unifica contenido y no-contenido. Campos en shared types (`packages/types`): `title`, `description`, `clientId`, `ownerId`, `areaId`, `ticketTypeId`, `status`, `closeReason`, `dueDate`, `links[]`.
+- **`TicketType`** es una **tabla dinámica** (no un enum): los tipos/formatos (Carrusel, Reporte, etc.) son filas configurables. El modal los lee con `api.getTicketTypes()`.
+- **`TicketStatus`** (enum, 5 estados gruesos): `BACKLOG · EN_PROGRESO · REVISION · BLOQUEADO · CERRADO`.
+- **`TicketCloseReason`**: `PUBLICADO · ENTREGADO · CANCELADO` (al pasar a CERRADO). Contenido cierra en `PUBLICADO`; las Tareas cierran en `ENTREGADO`.
+- ⚠️ **Drift frontend ↔ shared types:** el frontend (`CreateTicketModal`, `TicketDetallePage`) usa más campos que los shared types, casteando con `as any`: `prioridad` (`ALTA/MEDIA/BAJA`), `objetivo` (brief), `canales[]`, `pilarId`, `speakerId`, `linkEntregable` (string único), `content`/`contentPerCanal`, `notasAudiovisual`. Conviene ir subiéndolos a `packages/types` + `packages/schemas`.
+- ⚠️ El default de status en el modal es `'PENDIENTE'`, que NO existe en el enum `TicketStatus` (`BACKLOG`...). Hay drift; verificar al implementar.
+
 ## Pantallas principales (nav)
 | Pantalla | Componente principal |
 |----------|----------------------|
@@ -21,6 +29,8 @@ Sistema de gestión de producción de contenido para On The Rocks (OTR), una age
 | Backlog | `CalendarioBacklog.tsx` (kanban: Backlog → Brief → Contenido) |
 | Content / Workspace | `WorkspacePieza.tsx` |
 | Performance | `PublicationPerformance.tsx` |
+
+> ⚠️ **Mapa de archivos real (verificado 2026-06-08).** Las pages están en `apps/web/src/pages/`: `BacklogPage`, `ContentPage`, `ClientesPage`, `ClienteDetallePage`, `PerformancePage`, `PublicationDetailPage`, `TicketDetallePage`, `VozDeMarcaPage`, `VocerosPage`, `LoginPage`, `AuthCallbackPage`. Componentes en `apps/web/src/components/`: `CalendarioBacklog`, `CreateTicketModal`, `Layout`, `Toggle`. Varios nombres de la tabla de arriba y de la lista de abajo (`WorkspacePieza`, `PublicationPerformance`, `BrandManager`, `ReviewAprobacion`, `TicketList/Detail/Estructurado`, `ModalPieza`, `BibliotecaGanadores`, `DerivacionesRed`, `BacklogIdeas`) son conceptuales/Figma y **todavía NO existen en el código**. El kanban real es `CalendarioBacklog.tsx`; el modal real es `CreateTicketModal.tsx`; el detalle es `TicketDetallePage.tsx` (`/piezas/:id`).
 
 ## Módulos clave
 - `BrandManager.tsx` — Brand Kit por cliente (voz, tono, reglas do/don't, overrides por canal)
@@ -46,8 +56,28 @@ Sistema de gestión de producción de contenido para On The Rocks (OTR), una age
 | **Shaiel Terán** | Equipo OTR |
 | **Paloma Ascurdía** | Equipo OTR |
 
-## Tareas pendientes de implementar
-> Surgidas de la weekly OTR con la contenidista. Ver Notion para detalle completo.
+## Contenido vs Tareas — feature en curso (nomenclatura + fases)
+**Nomenclatura (decisión):**
+- **Contenido** = piezas publicables en redes (carrusel, imagen, story, reel, texto, hilo, repost, álbum, blog, **newsletter**). El newsletter ES Contenido, no Tarea.
+- **Tareas** = otros entregables no-contenido / no publicables (deck, estrategia, reporte, diseño puntual, otro). Antes lo llamábamos "tarea genérica".
+- En el modelo actual, **una Tarea = un `Ticket` con un `TicketType` no-contenido** que cierra en `ENTREGADO`. Reusa la infraestructura existente; NO es un modelo nuevo.
+
+**Fase 1 — construir AHORA (aditiva, no rompe el backlog):**
+- Tipo de ticket "Tarea" reusando las **columnas del backlog actual**. NO agregar columnas, carriles (swimlanes), zoom ni filtros avanzados.
+- Diferenciar visualmente Tarea vs Contenido (badge/color de tipo) + filtro básico `Todos / Contenido / Tareas`.
+- Campos de la Tarea (según doc de la contenidista): título, cliente, tipo de entregable (Deck/Estrategia/Reporte/Diseño puntual/Otro), descripción, fecha de entrega, responsable, prioridad, link del entregable, estado, comentarios.
+- Módulos reales a tocar: `CreateTicketModal.tsx`, `CalendarioBacklog.tsx`, `BacklogPage.tsx`, `TicketDetallePage.tsx`, `packages/schemas`, `packages/types`.
+
+**Fase 2 — NO construir todavía (a validar con el equipo):**
+- Rediseño de vistas del tablero: zoom consolidada/extendida, carriles por tipo, filtro por tipo, agrupar por persona. Documentado pero pendiente de validación; no implementar en Fase 1.
+
+⚠️ **Decisión pendiente (estados):** la contenidista documentó un flujo granular para las Tareas — `Ideación → Redacción (si aplica) → Diseño/Edición (si aplica) → Revisión interna → Para enviar → Pend. aprobación → Requiere ajustes ↺ / Listo` — que **NO existe en el modelo** (hoy son 5 estados gruesos: `BACKLOG/EN_PROGRESO/REVISION/BLOQUEADO/CERRADO` + `closeReason`). Antes de codear hay que decidir: ¿overhaul del status para soportar los estados granulares, o mapear el flujo del doc a los 5 estados actuales? La decisión de producto fue "mantener los estados completos del doc", pero implica cambiar el modelo de status.
+
+**Referencias:**
+- HU Fase 1 (Tareas): https://app.notion.com/p/379617fc369281419f9de57970caf426
+- HU Fase 2 (Vistas del tablero): https://app.notion.com/p/376617fc36928116866fd6b2d1b7d8b9
+- Tareas de desarrollo Fase 1: 5 ítems con prefijo `F1 ·` en la base de Tareas de Desarrollo.
+- Doc de procesos de la contenidista: `BAJADAS INFO ROCKY` (flujos por formato, publicable vs no publicable, ticket de "otros pedidos").
 
 ## Proceso de documentación
 - **Historia de usuario** (Notion → Historias de usuario): todo el detalle — contexto, problema, decisiones tomadas, criterios de aceptación, módulos afectados, prioridad

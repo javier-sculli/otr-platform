@@ -4,7 +4,7 @@ import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import {
   Plus, Calendar, MoreVertical, LayoutGrid,
-  ChevronDown, X, Search,
+  ChevronDown, X, Search, ClipboardList,
 } from 'lucide-react';
 import { api } from '../lib/api';
 import { CreateTicketModal } from '../components/CreateTicketModal';
@@ -22,7 +22,7 @@ interface Ticket {
   linkEntregable?: string | null;
   owner: { id: string; name: string };
   client: { id: string; name: string };
-  ticketType?: { id: string; name: string } | null;
+  ticketType?: { id: string; name: string; kind?: string } | null;
   speaker?: { id: string; nombre: string } | null;
 }
 
@@ -68,6 +68,7 @@ export function BacklogPage() {
   const [vocerosSeleccionados, setVocerosSeleccionados] = useState<string[]>([]);
   const [showDropdownVoceros, setShowDropdownVoceros] = useState(false);
   const [filtroFecha, setFiltroFecha] = useState<'semana' | 'mes0' | 'mes1' | 'mes2' | 'rango' | null>('mes0');
+  const [filtroTipo, setFiltroTipo] = useState<'TODOS' | 'CONTENIDO' | 'TAREA'>('TODOS');
   const [busqueda, setBusqueda] = useState('');
   const [showBusqueda, setShowBusqueda] = useState(false);
   const [fechaDesde, setFechaDesde] = useState('');
@@ -135,6 +136,8 @@ export function BacklogPage() {
 
   const ticketsFiltrados = allTickets.filter(t => {
     if (clientesSeleccionados.length > 0 && !clientesSeleccionados.includes(t.client.id)) return false;
+    if (filtroTipo === 'TAREA' && t.ticketType?.kind !== 'TAREA') return false;
+    if (filtroTipo === 'CONTENIDO' && t.ticketType?.kind === 'TAREA') return false;
     if (vocerosSeleccionados.length > 0 && (!t.speaker || !vocerosSeleccionados.includes(t.speaker.id))) return false;
     if (filtroFecha && t.dueDate) {
       const due = new Date(t.dueDate);
@@ -225,7 +228,7 @@ export function BacklogPage() {
             className="flex items-center gap-1.5 px-3 py-1.5 bg-[#00ff99]/20 border-2 border-[#00ff99]/40 text-[#000033] rounded-lg hover:bg-[#00ff99]/30 font-bold text-xs transition-all"
           >
             <Plus className="w-3.5 h-3.5" />
-            Nueva pieza
+            Nueva
           </button>
         </div>
 
@@ -250,6 +253,31 @@ export function BacklogPage() {
                 className="px-3 py-1.5 border-2 border-[#024fff]/20 rounded-lg text-xs text-[#000033] bg-white focus:outline-none focus:border-[#024fff]/50 w-48"
               />
             )}
+          </div>
+
+          <div className="w-px h-6 bg-[#000033]/20" />
+
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold text-[#000033]">Tipo:</span>
+            <div className="inline-flex p-0.5 rounded-lg border-2 border-[#000033]/10 bg-[#fafafa]">
+              {([
+                { key: 'TODOS', label: 'Todos' },
+                { key: 'CONTENIDO', label: 'Contenido' },
+                { key: 'TAREA', label: 'Tareas' },
+              ] as const).map(({ key, label }) => (
+                <button
+                  key={key}
+                  onClick={() => setFiltroTipo(key)}
+                  className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${
+                    filtroTipo === key
+                      ? (key === 'TAREA' ? 'bg-[#000033] text-white shadow' : 'bg-[#024fff] text-white shadow')
+                      : 'text-[#000033]/50 hover:text-[#000033]'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
           </div>
 
           <div className="w-px h-6 bg-[#000033]/20" />
@@ -384,11 +412,11 @@ export function BacklogPage() {
             </div>
           </div>
 
-          {(clientesSeleccionados.length > 0 || vocerosSeleccionados.length > 0 || filtroFecha !== null) && (
+          {(clientesSeleccionados.length > 0 || vocerosSeleccionados.length > 0 || filtroFecha !== null || filtroTipo !== 'TODOS') && (
             <>
               <div className="flex-1" />
               <button
-                onClick={() => { setClientesSeleccionados([]); setVocerosSeleccionados([]); setFiltroFecha(null); setFechaDesde(''); setFechaHasta(''); setBusqueda(''); }}
+                onClick={() => { setClientesSeleccionados([]); setVocerosSeleccionados([]); setFiltroFecha(null); setFiltroTipo('TODOS'); setFechaDesde(''); setFechaHasta(''); setBusqueda(''); }}
                 className="text-xs font-bold text-[#000033]/60 hover:text-[#024fff] underline"
               >
                 Limpiar filtros
@@ -506,23 +534,32 @@ function TicketCard({
   onDragEnd: () => void;
   onClick: () => void;
 }) {
+  const esTarea = ticket.ticketType?.kind === 'TAREA';
   return (
     <div
       draggable
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
       onClick={onClick}
-      className={`bg-white border-2 border-[#000033]/10 rounded-lg p-3 hover:shadow-lg hover:border-[#024fff]/30 transition-all cursor-pointer group ${
-        isDragging ? 'opacity-40' : ''
-      }`}
+      className={`bg-white border-2 rounded-lg p-3 hover:shadow-lg transition-all cursor-pointer group ${
+        esTarea ? 'border-[#000033]/15 hover:border-[#000033]/30' : 'border-[#024fff]/40 hover:border-[#024fff]/70'
+      } ${isDragging ? 'opacity-40' : ''}`}
     >
-      <div className="flex items-center justify-between mb-2">
+      <div className="flex items-center justify-between mb-2 gap-1.5">
         <span className="text-xs font-bold text-[#024fff]/70 truncate">
           {ticket.client.name}
         </span>
-        <button className="text-[#000033]/20 hover:text-[#000033] opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 ml-1">
-          <MoreVertical className="w-3 h-3" />
-        </button>
+        <div className="flex items-center gap-1 flex-shrink-0">
+          {esTarea && (
+            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-[#000033] text-white text-[10px] font-bold rounded">
+              <ClipboardList className="w-2.5 h-2.5" />
+              Tarea
+            </span>
+          )}
+          <button className="text-[#000033]/20 hover:text-[#000033] opacity-0 group-hover:opacity-100 transition-opacity">
+            <MoreVertical className="w-3 h-3" />
+          </button>
+        </div>
       </div>
 
       <p className="text-xs font-medium text-[#000033] mb-3 leading-relaxed line-clamp-3">
@@ -531,8 +568,8 @@ function TicketCard({
 
       {(ticket.canales?.length > 0 || ticket.ticketType) && (
         <div className="flex items-center gap-1.5 text-xs text-[#000033]/60 mb-2 pb-2 border-b border-[#000033]/10">
-          {ticket.canales?.length > 0 && <span className="font-medium">{ticket.canales.join(', ')}</span>}
-          {ticket.canales?.length > 0 && ticket.ticketType && <span>•</span>}
+          {!esTarea && ticket.canales?.length > 0 && <span className="font-medium">{ticket.canales.join(', ')}</span>}
+          {!esTarea && ticket.canales?.length > 0 && ticket.ticketType && <span>•</span>}
           {ticket.ticketType && <span className="font-medium">{ticket.ticketType.name}</span>}
         </div>
       )}

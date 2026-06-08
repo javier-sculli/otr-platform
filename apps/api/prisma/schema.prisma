@@ -146,11 +146,17 @@ model Area {
   @@map("areas")
 }
 
+enum TicketTypeKind {
+  CONTENIDO
+  TAREA
+}
+
 model TicketType {
-  id        String   @id @default(uuid())
-  name      String   @unique
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  id        String         @id @default(uuid())
+  name      String         @unique
+  kind      TicketTypeKind @default(CONTENIDO)
+  createdAt DateTime       @default(now()) @map("created_at")
+  updatedAt DateTime       @updatedAt @map("updated_at")
 
   // Relations
   tickets Ticket[]

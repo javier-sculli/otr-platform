@@ -24,7 +24,7 @@ export async function ticketsRoutes(fastify: FastifyInstance) {
       include: {
         client: { select: { id: true, name: true } },
         owner: { select: { id: true, name: true, email: true } },
-        ticketType: { select: { id: true, name: true } },
+        ticketType: { select: { id: true, name: true, kind: true } },
         pilar: { select: { id: true, nombre: true } },
         speaker: { select: { id: true, nombre: true } },
       },

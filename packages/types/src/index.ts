@@ -33,9 +33,15 @@ export interface Area {
 }
 
 // TicketType types
+export enum TicketTypeKind {
+  CONTENIDO = 'CONTENIDO',
+  TAREA = 'TAREA',
+}
+
 export interface TicketType {
   id: string;
   name: string;
+  kind: TicketTypeKind;
   createdAt: Date;
   updatedAt: Date;
 }

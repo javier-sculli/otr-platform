@@ -158,7 +158,7 @@ export async function catalogsRoutes(fastify: FastifyInstance) {
   // Get all ticket types
   fastify.get('/ticket-types', async () => {
     const ticketTypes = await prisma.ticketType.findMany({
-      orderBy: { name: 'asc' },
+      orderBy: [{ kind: 'asc' }, { name: 'asc' }],
     });
     return { data: ticketTypes };
   });

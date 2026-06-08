@@ -22,6 +22,7 @@ import {
   MessageSquare,
   Send,
   Trash2,
+  ClipboardList,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -248,6 +249,7 @@ export function TicketDetallePage() {
     );
   }
 
+  const esTarea = (ticket as any).ticketType?.kind === 'TAREA';
   const statusLabel = STATUS_OPTIONS.find(s => s.value === ticket.status)?.label ?? ticket.status;
   const createdAt = ticket.createdAt ? new Date(ticket.createdAt).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
   const updatedAt = ticket.updatedAt ? new Date(ticket.updatedAt).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
@@ -309,13 +311,15 @@ export function TicketDetallePage() {
             </div>
 
             <div className="flex items-center gap-2">
-              <button
-                onClick={() => navigate(`/content/${ticket.id}`, { state: { attachedFiles: attachedFiles.length > 0 ? attachedFiles : undefined } })}
-                className="flex items-center gap-1.5 px-4 py-2 bg-[#024fff] text-white rounded-lg text-xs font-bold hover:bg-[#024fff]/90 transition-all shadow-lg shadow-[#024fff]/20"
-              >
-                <Sparkles className="w-3.5 h-3.5" />
-                Redactar
-              </button>
+              {!esTarea && (
+                <button
+                  onClick={() => navigate(`/content/${ticket.id}`, { state: { attachedFiles: attachedFiles.length > 0 ? attachedFiles : undefined } })}
+                  className="flex items-center gap-1.5 px-4 py-2 bg-[#024fff] text-white rounded-lg text-xs font-bold hover:bg-[#024fff]/90 transition-all shadow-lg shadow-[#024fff]/20"
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  Redactar
+                </button>
+              )}
             </div>
           </div>
 
@@ -324,6 +328,12 @@ export function TicketDetallePage() {
             <span className="px-2.5 py-1 bg-[#024fff]/10 border-2 border-[#024fff]/20 text-[#024fff] text-xs font-bold rounded-lg">
               {ticket.client?.name}
             </span>
+            {esTarea && (
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-[#000033] text-white text-xs font-bold rounded-lg">
+                <ClipboardList className="w-3 h-3" />
+                Tarea
+              </span>
+            )}
             <span className={`px-2.5 py-1 border-2 text-xs font-bold rounded-lg capitalize ${getStatusStyle(ticket.status)}`}>
               {statusLabel}
             </span>
@@ -365,7 +375,7 @@ export function TicketDetallePage() {
             <div className="bg-white border-2 border-[#000033]/10 rounded-lg p-5">
               <h2 className="text-xs font-bold text-[#000033] uppercase flex items-center gap-2 mb-3">
                 <FileText className="w-3.5 h-3.5" />
-                Brief
+                {esTarea ? 'Descripción' : 'Brief'}
               </h2>
               <textarea
                 value={briefTemp}
@@ -375,7 +385,7 @@ export function TicketDetallePage() {
                     updateMutation.mutate({ objetivo: briefTemp || null });
                   }
                 }}
-                placeholder="Escribí el brief acá..."
+                placeholder={esTarea ? 'Describí el entregable acá...' : 'Escribí el brief acá...'}
                 rows={3}
                 className="w-full text-xs text-[#000033] leading-relaxed resize-none border-none outline-none bg-transparent placeholder:text-[#000033]/30 hover:bg-[#000033]/3 focus:bg-[#000033]/5 rounded transition-all"
               />
@@ -486,6 +496,7 @@ export function TicketDetallePage() {
               </div>
             </div>
 
+            {!esTarea && (<>
             {/* Copy final */}
             <div className="bg-white border-2 border-[#00ff99]/20 rounded-lg p-5">
               <div className="flex items-center justify-between mb-3">
@@ -566,12 +577,13 @@ export function TicketDetallePage() {
                 rows={4}
               />
             </div>
+            </>)}
 
             {/* Entregable visual */}
             <div className="bg-white border-2 border-[#000033]/10 rounded-lg p-5">
               <h2 className="text-xs font-bold text-[#000033] uppercase flex items-center gap-2 mb-3">
                 <ImageIcon className="w-3.5 h-3.5" />
-                Entregable visual
+                {esTarea ? 'Link del entregable' : 'Entregable visual'}
               </h2>
               {ticket.linkEntregable && !editandoEntregable ? (
                 <div className="flex items-center gap-2 px-3 py-2 border border-[#00ff99]/30 rounded-lg group hover:border-[#00ff99]/50 transition-all">
@@ -746,17 +758,19 @@ export function TicketDetallePage() {
           {/* Sidebar — 1/3 */}
           <div className="space-y-5">
 
-            {/* CTA principal */}
-            <div className="bg-white border-2 border-[#000033]/10 rounded-lg p-5">
-              <h3 className="text-xs font-bold text-[#000033] uppercase mb-3">Acciones</h3>
-              <button
-                onClick={() => navigate(`/content/${ticket.id}`, { state: { attachedFiles: attachedFiles.length > 0 ? attachedFiles : undefined } })}
-                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-[#024fff] text-white rounded-lg text-xs font-bold hover:bg-[#024fff]/90 transition-all shadow-lg shadow-[#024fff]/20"
-              >
-                <Sparkles className="w-3.5 h-3.5" />
-                Redactar contenido
-              </button>
-            </div>
+            {/* CTA principal — solo contenido */}
+            {!esTarea && (
+              <div className="bg-white border-2 border-[#000033]/10 rounded-lg p-5">
+                <h3 className="text-xs font-bold text-[#000033] uppercase mb-3">Acciones</h3>
+                <button
+                  onClick={() => navigate(`/content/${ticket.id}`, { state: { attachedFiles: attachedFiles.length > 0 ? attachedFiles : undefined } })}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-[#024fff] text-white rounded-lg text-xs font-bold hover:bg-[#024fff]/90 transition-all shadow-lg shadow-[#024fff]/20"
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  Redactar contenido
+                </button>
+              </div>
+            )}
 
             {/* Detalles editables */}
             <div className="bg-white border-2 border-[#000033]/10 rounded-lg p-5">

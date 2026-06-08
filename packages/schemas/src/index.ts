@@ -35,8 +35,11 @@ export const createAreaSchema = z.object({
 export const updateAreaSchema = createAreaSchema.partial();
 
 // TicketType schemas
+export const ticketTypeKindSchema = z.enum(['CONTENIDO', 'TAREA']);
+
 export const createTicketTypeSchema = z.object({
   name: z.string().min(1),
+  kind: ticketTypeKindSchema.default('CONTENIDO'),
 });
 
 export const updateTicketTypeSchema = createTicketTypeSchema.partial();
