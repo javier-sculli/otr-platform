@@ -341,7 +341,7 @@ export function CreateTicketModal({ isOpen, onClose, ticket }: CreateTicketModal
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={handleClose} />
 
-      <div className="relative bg-white rounded-2xl shadow-2xl max-w-xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+      <div className="relative bg-white rounded-2xl shadow-2xl w-full md:w-[50vw] md:min-w-[560px] md:max-w-[1200px] max-h-[90vh] overflow-hidden flex flex-col">
         {/* Header */}
         <div className="px-5 pt-4 pb-3 flex-shrink-0">
           <div className="flex items-center justify-between">
