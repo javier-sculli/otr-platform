@@ -71,6 +71,7 @@ export const updateTicketSchema = z.object({
   closeReason: ticketCloseReasonSchema.optional(),
   dueDate: z.string().datetime().optional().nullable(),
   links: z.array(z.string().url()).optional(),
+  referenceIds: z.array(z.string().uuid()).max(3).optional(),
 });
 
 // Publication schemas

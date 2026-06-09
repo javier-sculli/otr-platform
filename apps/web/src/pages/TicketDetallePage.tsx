@@ -35,6 +35,7 @@ type AttachedFile = {
   contentType: 'text' | 'image' | 'other';
 };
 import { api } from '../lib/api';
+import { TicketsReferencia } from '../components/TicketsReferencia';
 
 const STATUS_OPTIONS = [
   { value: 'PENDIENTE',           label: 'Pendiente' },
@@ -502,6 +503,16 @@ export function TicketDetallePage() {
                   onChange={handleFileChange}
                 />
               </div>
+            </div>
+
+            {/* Tickets de referencia */}
+            <div className="bg-white border-2 border-[#000033]/10 rounded-lg p-5">
+              <TicketsReferencia
+                ticketId={ticket.id}
+                clientId={ticket.client?.id}
+                speakerId={(ticket as any).speaker?.id ?? null}
+                references={(ticket as any).references ?? []}
+              />
             </div>
 
             {!esTarea && (<>

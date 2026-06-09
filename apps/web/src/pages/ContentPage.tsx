@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import * as pdfjsLib from 'pdfjs-dist';
 import { api } from '../lib/api';
+import { TicketsReferencia } from '../components/TicketsReferencia';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
   'pdfjs-dist/build/pdf.worker.mjs',
@@ -740,6 +741,18 @@ export function ContentPage() {
               </div>
             </div>
           </div>
+
+          {/* Tickets de referencia */}
+          {ticket && clientId && (
+            <div className="bg-white border-b border-[#000033]/10 px-4 py-2 flex-shrink-0">
+              <TicketsReferencia
+                ticketId={ticketId!}
+                clientId={clientId}
+                speakerId={speakerId ?? null}
+                references={ticket.references ?? []}
+              />
+            </div>
+          )}
 
           {/* Barra de Contexto: links de recursos + archivos adjuntos */}
           <div className="bg-[#fafafa] border-b border-[#000033]/10 px-4 py-1.5 flex-shrink-0">

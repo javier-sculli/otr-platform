@@ -218,6 +218,10 @@ model Ticket {
   comments      TicketComment[]
   notifications Notification[]
 
+  // Tickets de referencia (N:N self) — vínculo vivo, no copia
+  references    Ticket[]        @relation("TicketReferences")
+  referencedBy  Ticket[]        @relation("TicketReferences")
+
   @@index([clientId])
   @@index([ownerId])
   @@index([status])

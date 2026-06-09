@@ -81,6 +81,7 @@ export interface Ticket {
   area?: Area;
   ticketType?: TicketType;
   publication?: Publication;
+  references?: Pick<Ticket, 'id' | 'title' | 'status'>[];
 }
 
 // Publication types

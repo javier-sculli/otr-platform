@@ -105,10 +105,28 @@ export function PerformancePage() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const toggleHighlight = async (e: React.MouseEvent, pub: any) => {
+  // Update optimista: la estrella cambia al instante, el server sincroniza en background
+  const highlightMutation = useMutation({
+    mutationFn: ({ id, isHighlight }: { id: string; isHighlight: boolean }) =>
+      api.updatePublication(id, { isHighlight }),
+    onMutate: async ({ id, isHighlight }) => {
+      await queryClient.cancelQueries({ queryKey: ['metrics'] });
+      const prev = queryClient.getQueryData(['metrics']);
+      queryClient.setQueryData(['metrics'], (old: any) => ({
+        ...old,
+        data: old?.data?.map((p: any) => p.id === id ? { ...p, isHighlight } : p) ?? [],
+      }));
+      return { prev };
+    },
+    onError: (_err, _vars, ctx: any) => {
+      if (ctx?.prev) queryClient.setQueryData(['metrics'], ctx.prev);
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ['metrics'] }),
+  });
+
+  const toggleHighlight = (e: React.MouseEvent, pub: any) => {
     e.stopPropagation();
-    await api.updatePublication(pub.id, { isHighlight: !pub.isHighlight });
-    queryClient.invalidateQueries({ queryKey: ['metrics'] });
+    highlightMutation.mutate({ id: pub.id, isHighlight: !pub.isHighlight });
   };
 
   const publications: any[] = data?.data ?? [];

@@ -8,16 +8,18 @@ export async function ticketsRoutes(fastify: FastifyInstance) {
 
   // List tickets with filters
   fastify.get('/', async (request) => {
-    const { clientId, ownerId, status } = request.query as {
+    const { clientId, ownerId, status, speakerId } = request.query as {
       clientId?: string;
       ownerId?: string;
       status?: string;
+      speakerId?: string;
     };
 
     const where: any = {};
     if (clientId) where.clientId = clientId;
     if (ownerId) where.ownerId = ownerId;
     if (status) where.status = status;
+    if (speakerId) where.speakerId = speakerId;
 
     const tickets = await prisma.ticket.findMany({
       where,
@@ -47,6 +49,14 @@ export async function ticketsRoutes(fastify: FastifyInstance) {
         pilar: true,
         speaker: true,
         publication: true,
+        references: {
+          select: {
+            id: true,
+            title: true,
+            status: true,
+            ticketType: { select: { id: true, name: true, kind: true } },
+          },
+        },
       },
     });
 
@@ -111,6 +121,13 @@ export async function ticketsRoutes(fastify: FastifyInstance) {
     if (data.keywords !== undefined) updateData.keywords = data.keywords;
     if (data.copyFinal !== undefined) updateData.copyFinal = data.copyFinal;
     if (data.notasAudiovisual !== undefined) updateData.notasAudiovisual = data.notasAudiovisual;
+    // Tickets de referencia (N:N) — máx 3, excluye self, dedup
+    if (data.referenceIds !== undefined) {
+      const ids = [...new Set(data.referenceIds as string[])]
+        .filter((rid) => rid && rid !== id)
+        .slice(0, 3);
+      updateData.references = { set: ids.map((rid) => ({ id: rid })) };
+    }
 
     const ticket = await prisma.ticket.update({
       where: { id },
@@ -122,6 +139,14 @@ export async function ticketsRoutes(fastify: FastifyInstance) {
         pilar: true,
         speaker: true,
         publication: true,
+        references: {
+          select: {
+            id: true,
+            title: true,
+            status: true,
+            ticketType: { select: { id: true, name: true, kind: true } },
+          },
+        },
       },
     });
 

@@ -107,8 +107,9 @@ function buildSystemPrompt(params: {
   canal?: string;
   otherCanalesContent?: Record<string, string>;
   lineamientos?: { canal: string; content: string; isHighlight?: boolean }[];
+  referencias?: { title: string; brief: string; content: string }[];
 }): string {
-  const { clientName, title, brief, tone, keywords, outputLength, currentContent, brandVoice, speaker, textAttachments, contextLinks, canal, otherCanalesContent, lineamientos } = params;
+  const { clientName, title, brief, tone, keywords, outputLength, currentContent, brandVoice, speaker, textAttachments, contextLinks, canal, otherCanalesContent, lineamientos, referencias } = params;
 
   const lengthGuide = LENGTH_GUIDE[outputLength] ?? LENGTH_GUIDE['M'];
 
@@ -178,6 +179,11 @@ function buildSystemPrompt(params: {
     ? `\n## ⭐ Contenido real de ${clientName} — referencia de estilo OBLIGATORIA\nEstos son posts reales publicados por ${clientName}${nHighlights > 0 ? ` (los marcados con ⭐ son los que el equipo validó como los mejores)` : ''}.\n\n⚠️ REGLA CRÍTICA: Antes de escribir cualquier cosa, estudiá estos ejemplos en profundidad. Absorbé el vocabulario, el ritmo de las oraciones, la estructura, el tono, el nivel de formalidad y los recursos retóricos que usa ${clientName}. Tu output tiene que sonar como si lo hubiera escrito el mismo equipo que escribió estos posts — no como un redactor externo imitando el estilo.\n${lineamientos.map((l, i) => `### Post ${i + 1}${l.canal ? ` (${l.canal})` : ''}${l.isHighlight ? ' ⭐' : ''}\n${l.content}`).join('\n\n')}`
     : '';
 
+  const referenciasValidas = (referencias ?? []).filter(r => (r.brief?.trim() || r.content?.trim()));
+  const referenciasBlock = referenciasValidas.length > 0
+    ? `\n## Tickets de referencia (mismo cliente y vocero)\nEstos tickets de referencia son del mismo cliente y vocero, y están acá para que no tengas que repetir contexto en esta tarea. Usalos como referencia relevante: si sentís que algo aplica, o hay un dato concreto que sirve, tomá la información que veas acorde al pedido del contenido actual. La pieza a redactar es solo la PIEZA ACTUAL — no rehagas ni mezcles estas referencias como si fueran el contenido a producir.\n${referenciasValidas.map((r, i) => `### Referencia ${i + 1}: ${r.title || '(sin título)'}\n${r.brief?.trim() ? `Brief: ${r.brief.trim()}\n` : ''}${r.content?.trim() ? `Contenido:\n${r.content.trim()}` : ''}`).join('\n\n')}`
+    : '';
+
   const voiceContext = speakerBlock + brandVoiceBlock;
 
   return `Sos un redactor profesional especializado en contenido para redes sociales y marketing de contenidos. Trabajás para el cliente ${clientName}.
@@ -187,7 +193,7 @@ Título: ${title || '(sin título)'}
 Brief: ${brief || '(sin brief)'}
 Tono de voz: ${tone || '(no especificado)'}
 Keywords: ${keywords || '(no especificadas)'}
-Longitud objetivo: ${lengthGuide}${canalContext}${voiceContext}${lineamientosBlock}${linksBlock}${attachmentsBlock}${otherCanalesBlock}${contentBlock}
+Longitud objetivo: ${lengthGuide}${canalContext}${voiceContext}${referenciasBlock}${lineamientosBlock}${linksBlock}${attachmentsBlock}${otherCanalesBlock}${contentBlock}
 
 ## Instrucciones de respuesta
 
@@ -256,6 +262,7 @@ export async function aiRoutes(fastify: FastifyInstance) {
       include: {
         client: { include: { brandVoice: true } },
         speaker: true,
+        references: { select: { title: true, objetivo: true, content: true } },
       },
     });
 
@@ -311,6 +318,11 @@ export async function aiRoutes(fastify: FastifyInstance) {
       canal,
       otherCanalesContent,
       lineamientos,
+      referencias: ticket.references.map((r) => ({
+        title: r.title,
+        brief: r.objetivo ?? '',
+        content: r.content ?? '',
+      })),
     });
 
     console.log('[ai/chat] ─────────────────────────────────────────────────');

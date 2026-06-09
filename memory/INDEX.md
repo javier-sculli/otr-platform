@@ -13,6 +13,7 @@
 | LinkedIn Metrics — scraping con Apify + cron diario | [linkedin-metrics.md](linkedin-metrics.md) | ✅ Backend listo, frontend conectado | 2026-03-31 |
 | Instagram + Twitter Metrics — Apify sync + UI multi-red | [social-metrics.md](social-metrics.md) | ✅ Backend + Frontend completo | 2026-05-28 |
 | Tareas (HU Fase 1) — TicketType.kind, toggle en modal, badge navy, filtro Todos/Contenido/Tareas | [tareas-fase1.md](tareas-fase1.md) | ✅ Implementado y verificado en local | 2026-06-08 |
+| Tickets de referencia (HU) — N:N self, máx 3, filtro cliente+vocero, inyección al prompt IA | [ticket-referencias.md](ticket-referencias.md) | ✅ Implementado y verificado en local | 2026-06-09 |
 
 ## Decisiones de producto activas
 
