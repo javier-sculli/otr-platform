@@ -58,7 +58,7 @@ function buildFormData(ticket?: TicketData | null) {
     return {
       title: '',
       brief: '',
-      canales: ['LinkedIn'] as string[],
+      canales: [] as string[],
       clientId: '',
       ownerId: '',
       ticketTypeId: '',
@@ -77,7 +77,7 @@ function buildFormData(ticket?: TicketData | null) {
   return {
     title: ticket.title,
     brief: ticket.objetivo ?? '',
-    canales: (ticket as any).canales?.length > 0 ? (ticket as any).canales : ['LinkedIn'],
+    canales: (ticket as any).canales?.length > 0 ? (ticket as any).canales : [],
     clientId: ticket.client.id,
     ownerId: ticket.owner.id,
     ticketTypeId: ticket.ticketType?.id ?? '',
@@ -106,7 +106,7 @@ export function CreateTicketModal({ isOpen, onClose, ticket }: CreateTicketModal
   const esTarea = tipoTicket === 'TAREA';
   const [newLinkInput, setNewLinkInput] = useState('');
   const [copyCopied, setCopyCopied] = useState(false);
-  const [activeCopyTab, setActiveCopyTab] = useState(() => formData.canales[0] ?? 'LinkedIn');
+  const [activeCopyTab, setActiveCopyTab] = useState(() => formData.canales[0] ?? 'Contenido');
   const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -161,10 +161,15 @@ export function CreateTicketModal({ isOpen, onClose, ticket }: CreateTicketModal
   });
   const speakers = speakersData?.data ?? [];
 
-  // Tipos disponibles según Pieza vs Tarea
-  const tiposFiltrados = (ticketTypes?.data ?? []).filter((t: any) =>
-    esTarea ? t.kind === 'TAREA' : t.kind !== 'TAREA'
-  );
+  // Tipos disponibles según Pieza vs Tarea — "Otro/Otros" siempre al final
+  const tiposFiltrados = (ticketTypes?.data ?? [])
+    .filter((t: any) => esTarea ? t.kind === 'TAREA' : t.kind !== 'TAREA')
+    .sort((a: any, b: any) => {
+      const ao = /^otros?$/i.test(a.name) ? 1 : 0;
+      const bo = /^otros?$/i.test(b.name) ? 1 : 0;
+      if (ao !== bo) return ao - bo;
+      return a.name.localeCompare(b.name);
+    });
 
   const handleTipoTicketChange = (next: 'CONTENIDO' | 'TAREA') => {
     if (isEditing) return; // no se cambia la naturaleza al editar
@@ -177,7 +182,6 @@ export function CreateTicketModal({ isOpen, onClose, ticket }: CreateTicketModal
     mutationFn: (data: any) => api.createTicket(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tickets'] });
-      handleClose();
     },
     onError: (err: any) => {
       setError(err.message || 'Error al crear');
@@ -188,7 +192,6 @@ export function CreateTicketModal({ isOpen, onClose, ticket }: CreateTicketModal
     mutationFn: (data: any) => api.updateTicket(ticket!.id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tickets'] });
-      handleClose();
     },
     onError: (err: any) => {
       setError(err.message || 'Error al guardar los cambios');
@@ -258,8 +261,14 @@ export function CreateTicketModal({ isOpen, onClose, ticket }: CreateTicketModal
     });
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  const goRedactar = (id: string, files: AttachedFile[]) => {
+    if (files.length > 0) {
+      sessionStorage.setItem(`ticket-files-${id}`, JSON.stringify(files));
+    }
+    navigate(`/content/${id}`, { state: { attachedFiles: files.length > 0 ? files : undefined } });
+  };
+
+  const submitTicket = async ({ redactar }: { redactar: boolean }) => {
     setError(null);
 
     if (!formData.title || !formData.clientId || !formData.ownerId) {
@@ -280,23 +289,41 @@ export function CreateTicketModal({ isOpen, onClose, ticket }: CreateTicketModal
       speakerId: esTarea ? null : (formData.speakerId || null),
     };
 
-    if (isEditing) {
-      updateMutation.mutate({
-        ...payload,
-        links: formData.links,
-        linkEntregable: formData.linkEntregable || null,
-        content: esTarea ? undefined : (formData.content || null),
-        contentPerCanal: esTarea ? undefined : formData.contentPerCanal,
-        notasAudiovisual: esTarea ? undefined : (formData.notasAudiovisual || null),
-      });
-    } else {
-      createMutation.mutate({
-        ...payload,
-        clientId: formData.clientId,
-        // Pieza puede llevar recursos (links a Drive) ya en la creación
-        ...(!esTarea && formData.links.length > 0 ? { links: formData.links } : {}),
-      });
+    const files = attachedFiles;
+
+    try {
+      if (isEditing) {
+        await updateMutation.mutateAsync({
+          ...payload,
+          links: formData.links,
+          linkEntregable: formData.linkEntregable || null,
+          content: esTarea ? undefined : (formData.content || null),
+          contentPerCanal: esTarea ? undefined : formData.contentPerCanal,
+          notasAudiovisual: esTarea ? undefined : (formData.notasAudiovisual || null),
+        });
+        const id = ticket!.id;
+        handleClose();
+        if (redactar) goRedactar(id, files);
+      } else {
+        const res = await createMutation.mutateAsync({
+          ...payload,
+          clientId: formData.clientId,
+          // Pieza puede llevar recursos (links a Drive) ya en la creación
+          ...(!esTarea && formData.links.length > 0 ? { links: formData.links } : {}),
+        });
+        const newId = res?.data?.id;
+        handleClose();
+        if (redactar && newId) goRedactar(newId, files);
+      }
+    } catch {
+      // onError de la mutación ya seteó el mensaje
     }
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    // En creación de Pieza, el botón primario es "Crear y redactar"
+    submitTicket({ redactar: !isEditing && !esTarea });
   };
 
   const handleClose = () => {
@@ -529,6 +556,7 @@ export function CreateTicketModal({ isOpen, onClose, ticket }: CreateTicketModal
               <label className={labelCls}>
                 <Share2 className="w-3 h-3" />
                 Red(es) objetivo
+                <span className="lowercase font-medium text-[#000033]/30 tracking-normal">opcional</span>
               </label>
               <div className="flex flex-wrap gap-1.5">
                 {REDES.map(red => {
@@ -577,19 +605,15 @@ export function CreateTicketModal({ isOpen, onClose, ticket }: CreateTicketModal
                 >
                   <Plus className="w-4 h-4" />
                 </button>
-                {isEditing && (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => fileInputRef.current?.click()}
-                      title="Adjuntar archivo"
-                      className="px-3 py-2 bg-[#000033]/5 border border-[#000033]/10 text-[#000033]/50 rounded-lg hover:bg-[#000033]/10 hover:text-[#000033] transition-all"
-                    >
-                      <Paperclip className="w-4 h-4" />
-                    </button>
-                    <input ref={fileInputRef} type="file" multiple className="hidden" onChange={handleFileChange} />
-                  </>
-                )}
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  title="Adjuntar archivo"
+                  className="px-3 py-2 bg-[#000033]/5 border border-[#000033]/10 text-[#000033]/50 rounded-lg hover:bg-[#000033]/10 hover:text-[#000033] transition-all"
+                >
+                  <Paperclip className="w-4 h-4" />
+                </button>
+                <input ref={fileInputRef} type="file" multiple className="hidden" onChange={handleFileChange} />
               </div>
               {(formData.links.length > 0 || attachedFiles.length > 0) && (
                 <div className="space-y-1.5 mt-2">
@@ -743,6 +767,32 @@ export function CreateTicketModal({ isOpen, onClose, ticket }: CreateTicketModal
             >
               Cancelar
             </button>
+
+            {/* Crear sin redactar — solo Pieza en creación */}
+            {!isEditing && !esTarea && (
+              <button
+                type="button"
+                onClick={() => submitTicket({ redactar: false })}
+                disabled={isPending}
+                className="px-3 py-1.5 text-xs font-bold text-[#000033]/60 border border-[#000033]/15 rounded-lg hover:bg-[#000033]/5 hover:text-[#000033] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Crear
+              </button>
+            )}
+
+            {/* Redactar — solo Pieza en edición (guarda y va al workspace) */}
+            {isEditing && !esTarea && (
+              <button
+                type="button"
+                onClick={() => submitTicket({ redactar: true })}
+                disabled={isPending}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-[#024fff] border border-[#024fff]/30 rounded-lg hover:bg-[#024fff]/10 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                Redactar
+              </button>
+            )}
+
             <button
               type="submit"
               form="ticket-form"
@@ -752,10 +802,11 @@ export function CreateTicketModal({ isOpen, onClose, ticket }: CreateTicketModal
               }`}
             >
               {isPending ? 'Guardando...' : (
-                <>
-                  {esTarea ? <Check className="w-3.5 h-3.5" /> : <Sparkles className="w-3.5 h-3.5" />}
-                  {isEditing ? 'Guardar' : (esTarea ? 'Crear tarea' : 'Crear pieza')}
-                </>
+                isEditing
+                  ? <><Check className="w-3.5 h-3.5" />Guardar</>
+                  : esTarea
+                    ? <><Check className="w-3.5 h-3.5" />Crear tarea</>
+                    : <><Sparkles className="w-3.5 h-3.5" />Crear y redactar</>
               )}
             </button>
           </div>

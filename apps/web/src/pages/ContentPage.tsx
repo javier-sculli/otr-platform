@@ -188,7 +188,8 @@ export function ContentPage() {
       setLinkEntregable(t.linkEntregable ?? null);
 
       if (!contentLoaded) {
-        const canalList: string[] = t.canales?.length > 0 ? t.canales : ['LinkedIn'];
+        // Sin red elegida → tab virtual "Contenido" (no referencia ninguna red)
+        const canalList: string[] = t.canales?.length > 0 ? t.canales : ['Contenido'];
         const perCanal: Record<string, string> = t.contentPerCanal && typeof t.contentPerCanal === 'object' ? t.contentPerCanal as Record<string, string> : {};
         if (Object.keys(perCanal).length === 0 && t.content) {
           perCanal[canalList[0]] = t.content;
@@ -347,7 +348,7 @@ export function ContentPage() {
     try {
       {
         const result = await api.chatWithAI(ticketId, {
-          instruction: fullInstruction, currentContent: contentText, brief, tone, keywords, outputLength, model: 'claude-sonnet-4-6', attachments, history, canal: activeCanal, otherCanalesContent: Object.fromEntries(Object.entries(contentPerCanal).filter(([k, v]) => k !== activeCanal && v?.trim())),
+          instruction: fullInstruction, currentContent: contentText, brief, tone, keywords, outputLength, model: 'claude-sonnet-4-6', attachments, history, canal: activeCanal === 'Contenido' ? undefined : activeCanal, otherCanalesContent: Object.fromEntries(Object.entries(contentPerCanal).filter(([k, v]) => k !== activeCanal && v?.trim())),
         });
 
         if (result.newContent !== null) {
