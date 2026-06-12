@@ -14,13 +14,12 @@ interface RefTicket {
 interface TicketsReferenciaProps {
   ticketId: string;
   clientId: string;
-  speakerId?: string | null;
   references: RefTicket[];
 }
 
 const MAX_REFS = 3;
 
-export function TicketsReferencia({ ticketId, clientId, speakerId, references }: TicketsReferenciaProps) {
+export function TicketsReferencia({ ticketId, clientId, references }: TicketsReferenciaProps) {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
@@ -40,7 +39,7 @@ export function TicketsReferencia({ ticketId, clientId, speakerId, references }:
     return () => document.removeEventListener('mousedown', onClick);
   }, []);
 
-  // Candidatos: mismo cliente; filtro de vocero y resto client-side (cubre el caso sin vocero)
+  // Candidatos: mismo cliente, cualquier vocero (sirve referenciar el mismo contenido entre voceros)
   const { data: candidatesData, isLoading } = useQuery({
     queryKey: ['tickets', 'refs', clientId],
     queryFn: () => api.getTickets({ clientId }),
@@ -50,9 +49,6 @@ export function TicketsReferencia({ ticketId, clientId, speakerId, references }:
   const candidates = (candidatesData?.data ?? []).filter((t: any) => {
     if (t.id === ticketId) return false; // no a sí misma
     if (linkedIds.has(t.id)) return false; // ya vinculada
-    // mismo vocero (o ambos sin vocero)
-    const tSpeaker = t.speaker?.id ?? null;
-    if ((speakerId ?? null) !== tSpeaker) return false;
     if (search.trim() && !t.title.toLowerCase().includes(search.trim().toLowerCase())) return false;
     return true;
   });
@@ -116,7 +112,7 @@ export function TicketsReferencia({ ticketId, clientId, speakerId, references }:
                   <div className="px-3 py-3 text-xs text-[#000033]/40">Cargando...</div>
                 ) : candidates.length === 0 ? (
                   <div className="px-3 py-3 text-xs text-[#000033]/40">
-                    {search.trim() ? 'Sin resultados.' : 'No hay tickets del mismo cliente y vocero para referenciar.'}
+                    {search.trim() ? 'Sin resultados.' : 'No hay tickets del mismo cliente para referenciar.'}
                   </div>
                 ) : (
                   candidates.slice(0, 30).map((t: any) => {
@@ -132,6 +128,9 @@ export function TicketsReferencia({ ticketId, clientId, speakerId, references }:
                           ? <ClipboardList className="w-3 h-3 text-[#000033]/40 flex-shrink-0" />
                           : <Link2 className="w-3 h-3 text-[#024fff]/50 flex-shrink-0" />}
                         <span className="text-xs text-[#000033] truncate flex-1">{t.title}</span>
+                        {t.speaker && (
+                          <span className="text-[10px] text-[#024fff]/60 flex-shrink-0">{t.speaker.nombre}</span>
+                        )}
                         {t.ticketType && (
                           <span className="text-[10px] text-[#000033]/40 flex-shrink-0">{t.ticketType.name}</span>
                         )}
@@ -147,7 +146,7 @@ export function TicketsReferencia({ ticketId, clientId, speakerId, references }:
 
       {linked.length === 0 ? (
         <p className="text-xs text-[#000033]/40 italic">
-          Vinculá hasta 3 tickets del mismo cliente y vocero para reutilizar su contexto al redactar (sin copiarlo).
+          Vinculá hasta 3 tickets del mismo cliente para reutilizar su contexto al redactar (sin copiarlo).
         </p>
       ) : (
         <div className="space-y-1.5">

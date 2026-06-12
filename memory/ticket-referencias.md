@@ -11,13 +11,13 @@ Vincular hasta **3** tickets de referencia a una pieza (**vínculo vivo, no copi
 
 ## Backend (`apps/api/src/routes`)
 - `tickets.ts`: GET `/:id` y PATCH `/:id` incluyen `references` (id, title, status, ticketType). PATCH acepta `referenceIds` → `references: { set }`, con **defensa server**: dedup, excluye self, `slice(0,3)`. GET `/` lista acepta filtro `speakerId`.
-- `ai.ts`: el `findUnique` incluye `references {title, objetivo, content}`; se pasa `referencias` a `buildSystemPrompt`, que arma `referenciasBlock` = `## Tickets de referencia (mismo cliente y vocero)` + instrucción de uso + por cada ref `### Referencia N: título / Brief / Contenido`. Insertado **después de Brand Kit/Vocero** (`voiceContext`), antes de lineamientos. Solo si hay refs con contenido.
+- `ai.ts`: el `findUnique` incluye `references {title, objetivo, content}`; se pasa `referencias` a `buildSystemPrompt`, que arma `referenciasBlock` = `## Tickets de referencia (mismo cliente)` + instrucción de uso (si la ref es de otro vocero: tomar info/contexto pero NO copiar su tono personal) + por cada ref `### Referencia N: título / Brief / Contenido`. Insertado **después de Brand Kit/Vocero** (`voiceContext`), antes de lineamientos. Solo si hay refs con contenido.
 
 ## Frontend
-- **`components/TicketsReferencia.tsx`** (nombre del componente del Figma): chips de refs vinculadas (título + link a `/piezas/:id` + quitar), botón "+ Agregar" → desplegable con buscador. Candidatos vía `api.getTickets({ clientId })` **filtrados client-side** por mismo vocero (cubre el caso sin vocero: ambos `null`), excluyendo self y ya-vinculadas. Tope 3 deshabilita "Agregar". Guarda con `api.updateTicket(id,{referenceIds})` + invalida `['ticket',id]` y `['tickets']`. Vínculo vivo (siempre lee del ticket).
+- **`components/TicketsReferencia.tsx`** (nombre del componente del Figma): chips de refs vinculadas (título + link a `/piezas/:id` + quitar), botón "+ Agregar" → desplegable con buscador. Candidatos vía `api.getTickets({ clientId })` — **solo mismo cliente, cualquier vocero** (cambio 2026-06-12: a veces se hace el mismo contenido para distintos voceros y sirve referenciarlo); el desplegable muestra el nombre del vocero de cada candidato. Excluye self y ya-vinculadas. Tope 3 deshabilita "Agregar". Guarda con `api.updateTicket(id,{referenceIds})` + invalida `['ticket',id]` y `['tickets']`. Vínculo vivo (siempre lee del ticket).
 - Integrado en **`TicketDetallePage.tsx`** (card en columna principal) y **`ContentPage.tsx`** (Redactar, debajo del BRIEF). El modal de creación NO lo incluye (el ticket aún no existe).
 
 ## Notas
-- Filtro estricto cliente+vocero (incluye match de "sin vocero").
+- Filtro por cliente solamente. (Originalmente era cliente+vocero estricto; se relajó el 2026-06-12 a pedido de Javi para poder referenciar el mismo contenido entre voceros.)
 - Tope 3 y formato de prompt son de fase de calibración, ajustables.
 - Figma: existe `TicketsReferencia.tsx` en el diseño Make pero el tooling no lee su código; se hizo con el estilo minimalista actual.

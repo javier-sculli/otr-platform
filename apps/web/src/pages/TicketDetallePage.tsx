@@ -510,7 +510,6 @@ export function TicketDetallePage() {
               <TicketsReferencia
                 ticketId={ticket.id}
                 clientId={ticket.client?.id}
-                speakerId={(ticket as any).speaker?.id ?? null}
                 references={(ticket as any).references ?? []}
               />
             </div>
