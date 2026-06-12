@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowLeft, ArrowRight, Sparkles, Bold, Italic, Underline, List, ListOrdered,
   Link2, Image as ImageIcon, Type, Eye, Send, GripVertical, Check, AlertCircle,
-  Paperclip, X, FileText, File, ExternalLink, Mic, MicOff, Trash2, Star, BookOpen,
+  Paperclip, X, FileText, File, ExternalLink, Mic, MicOff, Trash2, Star, BookOpen, Undo2,
 } from 'lucide-react';
 import * as pdfjsLib from 'pdfjs-dist';
 import { api } from '../lib/api';
@@ -72,6 +72,8 @@ export function ContentPage() {
   const [canales, setCanales] = useState<string[]>([]);
   const [activeCanal, setActiveCanal] = useState<string>('');
   const [contentPerCanal, setContentPerCanal] = useState<Record<string, string>>({});
+  // Versiones previas por canal (solo en memoria): snapshot antes de cada generación de IA
+  const [versionsPerCanal, setVersionsPerCanal] = useState<Record<string, string[]>>({});
 
   const [aiPrompt, setAiPrompt] = useState('');
   const [chatWidth, setChatWidth] = useState(480);
@@ -353,6 +355,10 @@ export function ContentPage() {
         });
 
         if (result.newContent !== null) {
+          setVersionsPerCanal(prev => ({
+            ...prev,
+            [activeCanal]: [...(prev[activeCanal] ?? []), contentText],
+          }));
           const updated = { ...contentPerCanal, [activeCanal]: result.newContent };
           setContentText(result.newContent);
           setCharCount(result.newContent.length);
@@ -388,6 +394,30 @@ export function ContentPage() {
     } finally {
       setIsAiLoading(false);
     }
+  };
+
+  const handleUndo = () => {
+    const stack = versionsPerCanal[activeCanal];
+    if (!stack?.length || isAiLoading) return;
+    const previous = stack[stack.length - 1];
+    setVersionsPerCanal(prev => ({ ...prev, [activeCanal]: stack.slice(0, -1) }));
+    const updated = { ...contentPerCanal, [activeCanal]: previous };
+    setContentText(previous);
+    setCharCount(previous.length);
+    setContentPerCanal(updated);
+    setHasChanges(false);
+    api.updateTicket(ticketId!, {
+      title,
+      objetivo: brief,
+      keywords,
+      content: previous,
+      contentPerCanal: updated,
+      links: contextLinks,
+      linkEntregable: linkEntregable || null,
+    }).then(() => {
+      queryClient.invalidateQueries({ queryKey: ['ticket', ticketId] });
+      queryClient.invalidateQueries({ queryKey: ['tickets'] });
+    }).catch(() => {});
   };
 
   const handleSendMessage = () => {
@@ -748,7 +778,6 @@ export function ContentPage() {
               <TicketsReferencia
                 ticketId={ticketId!}
                 clientId={clientId}
-                speakerId={speakerId ?? null}
                 references={ticket.references ?? []}
               />
             </div>
@@ -875,7 +904,18 @@ export function ContentPage() {
                   <ImageIcon className="w-3.5 h-3.5 text-[#000033]/60" />
                 </button>
               </div>
-              <span className="text-xs text-[#000033]/60">{charCount} caracteres</span>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleUndo}
+                  disabled={!versionsPerCanal[activeCanal]?.length || isAiLoading}
+                  title="Volver a la versión anterior del contenido"
+                  className="flex items-center gap-1 p-1.5 rounded transition-all text-[#000033]/60 hover:bg-[#000033]/5 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+                >
+                  <Undo2 className="w-3.5 h-3.5" />
+                  <span className="text-xs font-bold">Deshacer</span>
+                </button>
+                <span className="text-xs text-[#000033]/60">{charCount} caracteres</span>
+              </div>
             </div>
           </div>
 
