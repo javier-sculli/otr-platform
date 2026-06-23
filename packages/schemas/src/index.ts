@@ -58,22 +58,27 @@ export const subEstadoSchema = z.enum([
   'ENVIADO_CLIENTE', 'A_PUBLICAR', 'LISTO', 'CANCELADO',
 ]);
 export const estadoRespuestaSchema = z.enum(['ENVIADO', 'RESPONDIDO', 'SIN_RESPUESTA']);
+export const estadoAprobacionClienteSchema = z.enum(['BORRADOR', 'ENVIADO_AL_CLIENTE', 'APROBADO', 'RECHAZADO', 'REQUIERE_AJUSTES']);
 
 export const createTicketSchema = z.object({
   title: z.string().min(1),
   description: z.string().optional(),
   clientId: z.string().uuid(),
   ownerId: z.string().uuid(),
-  areaId: z.string().uuid(),
-  ticketTypeId: z.string().uuid(),
+  areaId: z.string().uuid().optional(),
+  ticketTypeId: z.string().uuid().optional(),
   status: ticketStatusSchema.default('BACKLOG'),
   area: ticketAreaSchema.default('CONTENIDO'),
   subEstado: subEstadoSchema.optional(),
   medio: z.string().optional(),
   periodista: z.string().optional(),
   estadoRespuesta: estadoRespuestaSchema.optional(),
-  dueDate: z.string().datetime().optional(),
-  links: z.array(z.string().url()).default([]),
+  dueDate: z.string().optional().nullable(),
+  plannedDate: z.string().optional().nullable(),
+  isDraftPlan: z.boolean().default(false),
+  estadoAprobacionCliente: estadoAprobacionClienteSchema.default('BORRADOR'),
+  publishedAt: z.string().optional().nullable(),
+  links: z.array(z.string()).default([]),
 });
 
 export const updateTicketSchema = z.object({
@@ -81,16 +86,20 @@ export const updateTicketSchema = z.object({
   description: z.string().optional(),
   ownerId: z.string().uuid().optional(),
   areaId: z.string().uuid().optional(),
-  ticketTypeId: z.string().uuid().optional(),
+  ticketTypeId: z.string().uuid().optional().nullable(),
   status: ticketStatusSchema.optional(),
   closeReason: ticketCloseReasonSchema.optional(),
   area: ticketAreaSchema.optional(),
-  subEstado: subEstadoSchema.optional(),
-  medio: z.string().optional(),
-  periodista: z.string().optional(),
+  subEstado: subEstadoSchema.optional().nullable(),
+  medio: z.string().optional().nullable(),
+  periodista: z.string().optional().nullable(),
   estadoRespuesta: estadoRespuestaSchema.optional().nullable(),
-  dueDate: z.string().datetime().optional().nullable(),
-  links: z.array(z.string().url()).optional(),
+  dueDate: z.string().optional().nullable(),
+  plannedDate: z.string().optional().nullable(),
+  isDraftPlan: z.boolean().optional(),
+  estadoAprobacionCliente: estadoAprobacionClienteSchema.optional(),
+  publishedAt: z.string().optional().nullable(),
+  links: z.array(z.string()).optional(),
   referenceIds: z.array(z.string().uuid()).max(3).optional(),
 });
 

@@ -138,6 +138,7 @@ class ApiClient {
     name?: string;
     canales?: string[];
     ownerId?: string;
+    monthlyContentTarget?: number;
   }) {
     return this.request<{ data: any }>(`/catalogs/clients/${id}`, {
       method: 'PATCH',
@@ -320,6 +321,34 @@ class ApiClient {
     return this.request<{ newContent: string | null; summary: string }>(`/ai/${ticketId}/chat`, {
       method: 'POST',
       body: JSON.stringify(payload),
+    });
+  }
+
+  async bulkCreateTickets(tickets: any[]) {
+    return this.request<{ count: number; data: any[] }>('/tickets/bulk-create', {
+      method: 'POST',
+      body: JSON.stringify({ tickets }),
+    });
+  }
+
+  async bulkPublishTickets(ids: string[]) {
+    return this.request<{ count: number }>('/tickets/bulk-publish', {
+      method: 'POST',
+      body: JSON.stringify({ ids }),
+    });
+  }
+
+  async bulkDeleteTickets(ids: string[]) {
+    return this.request<{ count: number }>('/tickets/bulk-delete', {
+      method: 'POST',
+      body: JSON.stringify({ ids }),
+    });
+  }
+
+  async bulkUpdateTickets(ids: string[], data: any) {
+    return this.request<{ count: number }>('/tickets/bulk-update', {
+      method: 'POST',
+      body: JSON.stringify({ ids, data }),
     });
   }
 }

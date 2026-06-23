@@ -20,6 +20,7 @@ export interface Client {
   id: string;
   name: string;
   active: boolean;
+  monthlyContentTarget?: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -141,6 +142,14 @@ export const MACRO_DEFAULT_SUBESTADO: Record<MacroEstado, SubEstado> = {
   [MacroEstado.FINALIZADO]: SubEstado.LISTO,
 };
 
+export enum EstadoAprobacionCliente {
+  BORRADOR = 'BORRADOR',
+  ENVIADO_AL_CLIENTE = 'ENVIADO_AL_CLIENTE',
+  APROBADO = 'APROBADO',
+  RECHAZADO = 'RECHAZADO',
+  REQUIERE_AJUSTES = 'REQUIERE_AJUSTES',
+}
+
 /** Deriva el macroEstado de un subestado de Prensa. */
 export function subEstadoToMacro(sub: SubEstado): MacroEstado {
   const def = PRENSA_SUBESTADOS.find((d) => d.sub === sub);
@@ -165,6 +174,10 @@ export interface Ticket {
   periodista?: string;
   estadoRespuesta?: EstadoRespuesta;
   dueDate?: Date;
+  plannedDate?: Date;
+  isDraftPlan?: boolean;
+  publishedAt?: Date;
+  estadoAprobacionCliente?: EstadoAprobacionCliente;
   links: string[];
   createdAt: Date;
   updatedAt: Date;

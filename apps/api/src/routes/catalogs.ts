@@ -89,6 +89,7 @@ export async function catalogsRoutes(fastify: FastifyInstance) {
       blogUrl?: string;
       name?: string;
       canales?: string[];
+      monthlyContentTarget?: number;
     };
     const data: any = {};
     if (body.linkedinUrl !== undefined) data.linkedinUrl = body.linkedinUrl || null;
@@ -100,6 +101,7 @@ export async function catalogsRoutes(fastify: FastifyInstance) {
     if (body.blogUrl !== undefined) data.blogUrl = body.blogUrl || null;
     if (body.name !== undefined) data.name = body.name;
     if (body.canales !== undefined) data.canales = body.canales;
+    if (body.monthlyContentTarget !== undefined) data.monthlyContentTarget = body.monthlyContentTarget;
     if ((body as any).ownerId !== undefined) data.ownerId = (body as any).ownerId || null;
     const client = await prisma.client.update({ where: { id }, data });
     return { data: client };

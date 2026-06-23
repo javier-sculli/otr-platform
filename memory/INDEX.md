@@ -16,6 +16,7 @@
 | Tickets de referencia (HU) — N:N self, máx 3, filtro cliente+vocero, inyección al prompt IA | [ticket-referencias.md](ticket-referencias.md) | ✅ Implementado y verificado en local | 2026-06-09 |
 | Deshacer en redacción — pila de versiones por canal (en memoria) + botón ↶ en toolbar | [undo-redaccion.md](undo-redaccion.md) | ✅ Implementado, pendiente prueba manual de Javi | 2026-06-12 |
 | Backlog de Prensa (HU Fase 2) — tab `/prensa`, controles Agrupación/Densidad, tarjetas violeta | [prensa-backlog.md](prensa-backlog.md) | ✅ Completamente implementado y verificado | 2026-06-23 |
+| Sumario de Contenidos (HU Glosario) — Grilla interactiva, BD, backend y react-query | [glosario-contenidos.md](glosario-contenidos.md) | ✅ Implementado y verificado | 2026-06-23 |
 
 ## Decisiones de producto activas
 

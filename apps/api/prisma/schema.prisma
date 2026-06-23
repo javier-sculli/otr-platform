@@ -53,6 +53,7 @@ model Client {
   webUrl        String?  @map("web_url")
   newsletterUrl String?  @map("newsletter_url")
   blogUrl       String?  @map("blog_url")
+  monthlyContentTarget Int @default(0) @map("monthly_content_target")
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @updatedAt @map("updated_at")
 
@@ -221,6 +222,14 @@ enum EstadoRespuesta {
   SIN_RESPUESTA
 }
 
+enum EstadoAprobacionCliente {
+  BORRADOR
+  ENVIADO_AL_CLIENTE
+  APROBADO
+  RECHAZADO
+  REQUIERE_AJUSTES
+}
+
 model Ticket {
   id           String         @id @default(uuid())
   title        String
@@ -244,6 +253,10 @@ model Ticket {
   periodista      String?
   estadoRespuesta EstadoRespuesta? @map("estado_respuesta")
   dueDate      DateTime?      @map("due_date")
+  plannedDate  DateTime?      @map("planned_date")
+  isDraftPlan  Boolean        @default(false) @map("is_draft_plan")
+  publishedAt  DateTime?      @map("published_at")
+  estadoAprobacionCliente EstadoAprobacionCliente @default(BORRADOR) @map("estado_aprobacion_cliente")
   content      String?        @db.Text
   contentPerCanal Json        @default("{}") @map("content_per_canal")
   keywords     String?

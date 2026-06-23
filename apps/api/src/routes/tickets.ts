@@ -23,12 +23,13 @@ export async function ticketsRoutes(fastify: FastifyInstance) {
 
   // List tickets with filters
   fastify.get('/', async (request) => {
-    const { clientId, ownerId, status, speakerId, area } = request.query as {
+    const { clientId, ownerId, status, speakerId, area, isDraftPlan } = request.query as {
       clientId?: string;
       ownerId?: string;
       status?: string;
       speakerId?: string;
       area?: string;
+      isDraftPlan?: string;
     };
 
     const where: any = {};
@@ -37,6 +38,20 @@ export async function ticketsRoutes(fastify: FastifyInstance) {
     if (status) where.status = status;
     if (speakerId) where.speakerId = speakerId;
     if (area) where.area = area;
+
+    if (isDraftPlan === 'true') {
+      where.isDraftPlan = true;
+    } else if (isDraftPlan === 'false') {
+      where.isDraftPlan = false;
+    } else if (isDraftPlan === 'all') {
+      // No filter on isDraftPlan: returns both drafts and active tickets
+    } else {
+      where.isDraftPlan = false;
+    }
+
+    const orderBy: any = (isDraftPlan === 'true' || isDraftPlan === 'all') 
+      ? { plannedDate: 'asc' } 
+      : { createdAt: 'desc' };
 
     const tickets = await prisma.ticket.findMany({
       where,
@@ -47,7 +62,7 @@ export async function ticketsRoutes(fastify: FastifyInstance) {
         pilar: { select: { id: true, nombre: true } },
         speaker: { select: { id: true, nombre: true } },
       },
-      orderBy: { createdAt: 'desc' },
+      orderBy,
     });
 
     return { data: tickets };
@@ -91,13 +106,13 @@ export async function ticketsRoutes(fastify: FastifyInstance) {
     const ticket = await prisma.ticket.create({
       data: {
         title: data.title,
-        description: data.description,
+        description: data.referencias !== undefined ? data.referencias : data.description,
         objetivo: data.objetivo,
-        canales: data.canales || [],
-        prioridad: data.prioridad,
+        canales: data.canales || (data.canal ? [data.canal] : []),
+        prioridad: data.prioridad || 'MEDIA',
         clientId: data.clientId,
         ownerId: data.ownerId,
-        ticketTypeId: data.ticketTypeId,
+        ticketTypeId: data.ticketTypeId || null,
         pilarId: data.pilarId || null,
         speakerId: data.speakerId || null,
         status: data.status || 'PENDIENTE',
@@ -108,6 +123,11 @@ export async function ticketsRoutes(fastify: FastifyInstance) {
         periodista: data.periodista || null,
         estadoRespuesta: data.estadoRespuesta || null,
         dueDate: data.dueDate ? new Date(data.dueDate) : undefined,
+        plannedDate: data.plannedDate ? new Date(data.plannedDate) : null,
+        isDraftPlan: data.isDraftPlan !== undefined ? data.isDraftPlan : false,
+        estadoAprobacionCliente: data.estadoAprobacionCliente || 'BORRADOR',
+        content: data.copy !== undefined ? data.copy : data.content,
+        linkEntregable: data.linkPublicacionReal !== undefined ? data.linkPublicacionReal : data.linkEntregable,
         links: data.links || [],
       },
       include: {
@@ -128,8 +148,10 @@ export async function ticketsRoutes(fastify: FastifyInstance) {
     const updateData: any = {};
     if (data.title !== undefined) updateData.title = data.title;
     if (data.description !== undefined) updateData.description = data.description;
+    if (data.referencias !== undefined) updateData.description = data.referencias;
     if (data.objetivo !== undefined) updateData.objetivo = data.objetivo;
     if (data.canales !== undefined) updateData.canales = data.canales;
+    if (data.canal !== undefined) updateData.canales = [data.canal];
     if (data.contentPerCanal !== undefined) updateData.contentPerCanal = data.contentPerCanal;
     if (data.prioridad !== undefined) updateData.prioridad = data.prioridad;
     if (data.ownerId !== undefined) updateData.ownerId = data.ownerId;
@@ -146,9 +168,15 @@ export async function ticketsRoutes(fastify: FastifyInstance) {
     if (data.periodista !== undefined) updateData.periodista = data.periodista || null;
     if (data.estadoRespuesta !== undefined) updateData.estadoRespuesta = data.estadoRespuesta || null;
     if (data.dueDate !== undefined) updateData.dueDate = data.dueDate ? new Date(data.dueDate) : null;
+    if (data.plannedDate !== undefined) updateData.plannedDate = data.plannedDate ? new Date(data.plannedDate) : null;
+    if (data.isDraftPlan !== undefined) updateData.isDraftPlan = data.isDraftPlan;
+    if (data.estadoAprobacionCliente !== undefined) updateData.estadoAprobacionCliente = data.estadoAprobacionCliente;
+    if (data.publishedAt !== undefined) updateData.publishedAt = data.publishedAt ? new Date(data.publishedAt) : null;
     if (data.links !== undefined) updateData.links = data.links;
     if (data.linkEntregable !== undefined) updateData.linkEntregable = data.linkEntregable;
+    if (data.linkPublicacionReal !== undefined) updateData.linkEntregable = data.linkPublicacionReal;
     if (data.content !== undefined) updateData.content = data.content;
+    if (data.copy !== undefined) updateData.content = data.copy;
     if (data.keywords !== undefined) updateData.keywords = data.keywords;
     if (data.copyFinal !== undefined) updateData.copyFinal = data.copyFinal;
     if (data.notasAudiovisual !== undefined) updateData.notasAudiovisual = data.notasAudiovisual;
@@ -249,5 +277,91 @@ export async function ticketsRoutes(fastify: FastifyInstance) {
     }
 
     return { data: publication };
+  });
+
+  // Bulk publish tickets to backlog (Sumario -> Backlog)
+  fastify.post('/bulk-publish', async (request) => {
+    const { ids } = request.body as { ids: string[] };
+    
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      return { count: 0 };
+    }
+
+    const result = await prisma.ticket.updateMany({
+      where: { id: { in: ids } },
+      data: {
+        isDraftPlan: false,
+        status: 'PENDIENTE',
+      },
+    });
+
+    return { count: result.count };
+  });
+
+  // Bulk create draft tickets (Initialize Sumario)
+  fastify.post('/bulk-create', async (request) => {
+    const { tickets } = request.body as { tickets: any[] };
+
+    if (!tickets || !Array.isArray(tickets) || tickets.length === 0) {
+      return { count: 0 };
+    }
+
+    const created = [];
+    for (const t of tickets) {
+      const ticket = await prisma.ticket.create({
+        data: {
+          title: t.title || 'Contenido Planificado',
+          description: t.description || t.referencias || null,
+          canales: t.canales || (t.canal ? [t.canal] : []),
+          clientId: t.clientId,
+          ownerId: t.ownerId,
+          ticketTypeId: t.ticketTypeId || null,
+          pilarId: t.pilarId || null,
+          speakerId: t.speakerId || null,
+          status: t.status || 'PENDIENTE',
+          area: 'CONTENIDO',
+          plannedDate: t.plannedDate ? new Date(t.plannedDate) : null,
+          isDraftPlan: t.isDraftPlan !== undefined ? t.isDraftPlan : true,
+          estadoAprobacionCliente: t.estadoAprobacionCliente || 'BORRADOR',
+          content: t.copy || t.content || null,
+          linkEntregable: t.linkPublicacionReal || t.linkEntregable || null,
+          keywords: t.keywords || null,
+        }
+      });
+      created.push(ticket);
+    }
+
+    return { count: created.length, data: created };
+  });
+
+  // Bulk delete tickets (e.g. clear auto-generated drafts)
+  fastify.post('/bulk-delete', async (request) => {
+    const { ids } = request.body as { ids: string[] };
+
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      return { count: 0 };
+    }
+
+    const result = await prisma.ticket.deleteMany({
+      where: { id: { in: ids } },
+    });
+
+    return { count: result.count };
+  });
+
+  // Bulk update tickets (e.g. set client approval in bulk)
+  fastify.post('/bulk-update', async (request) => {
+    const { ids, data } = request.body as { ids: string[]; data: any };
+
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      return { count: 0 };
+    }
+
+    const result = await prisma.ticket.updateMany({
+      where: { id: { in: ids } },
+      data,
+    });
+
+    return { count: result.count };
   });
 }
