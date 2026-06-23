@@ -70,7 +70,7 @@ export async function syncLinkedInMetrics(clientId?: string) {
     try {
       const run = await apify.actor(ACTOR_ID).call({
         targetUrls: [target.url],
-        maxPosts: 150, // backfill: subido de 50 — bajar a 50 tras la corrida de recuperación
+        maxPosts: 50,
         postedLimit: 'month',
         includeQuotePosts: false,
         includeReposts: false,
