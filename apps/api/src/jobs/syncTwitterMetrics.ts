@@ -108,12 +108,12 @@ export async function syncTwitterMetrics(clientId?: string) {
         actorInput = {
           query: `from:${target.handle} since:${sinceStr}`,
           search_type: 'Latest',
-          max_posts: 20,
+          max_posts: 150, // backfill: subido de 20 — bajar a 20 tras la corrida de recuperación
         };
         console.log(`[syncTwitter]   modo incremental desde ${sinceStr}`);
       } else {
         // Primera vez: traer historial completo
-        actorInput = { username: target.handle, max_posts: 50 };
+        actorInput = { username: target.handle, max_posts: 150 }; // backfill: subido de 50 — bajar a 50 tras la corrida
         console.log(`[syncTwitter]   modo inicial — cargando historial`);
       }
 

@@ -102,13 +102,13 @@ export async function syncInstagramMetrics(clientId?: string) {
         const sinceStr = since.toISOString().slice(0, 10);
         actorInput = {
           username: [target.username],
-          resultsLimit: 20,
+          resultsLimit: 150, // backfill: subido de 20 — bajar a 20 tras la corrida de recuperación
           onlyPostsNewerThan: sinceStr,
         };
         console.log(`[syncInstagram]   modo incremental desde ${sinceStr}`);
       } else {
         // Primera vez: traer historial completo
-        actorInput = { username: [target.username], resultsLimit: 50 };
+        actorInput = { username: [target.username], resultsLimit: 150 }; // backfill: subido de 50 — bajar a 50 tras la corrida
         console.log(`[syncInstagram]   modo inicial — cargando historial`);
       }
 
