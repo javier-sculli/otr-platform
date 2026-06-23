@@ -1,5 +1,5 @@
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Lightbulb, LogOut, User, Building2, TrendingUp, Bell, Check } from 'lucide-react';
+import { Lightbulb, LogOut, User, Building2, TrendingUp, Bell, Check, Newspaper } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState, useRef, useEffect } from 'react';
@@ -8,6 +8,7 @@ import { api } from '../lib/api';
 const navItems = [
   { path: '/clientes', label: 'Clientes', icon: Building2 },
   { path: '/backlog', label: 'Backlog', icon: Lightbulb },
+  { path: '/prensa', label: 'Prensa', icon: Newspaper },
   { path: '/performance', label: 'Performance', icon: TrendingUp },
 ];
 

@@ -4,9 +4,10 @@ import { useNavigate } from 'react-router-dom';
 import {
   X, FileText, CheckSquare, Package, Building2, AlignLeft, Calendar, User,
   Flag, Share2, Link2, Plus, ExternalLink, Sparkles, Check, Copy,
-  Image as ImageIcon, Paperclip, File, Layers,
+  Image as ImageIcon, Paperclip, File, Layers, Newspaper,
 } from 'lucide-react';
 import { api } from '../lib/api';
+import { TIPO_GESTION_PITCH } from '../lib/estados';
 
 type AttachedFile = {
   id: string;
@@ -31,7 +32,11 @@ interface TicketData {
   notasAudiovisual?: string | null;
   client: { id: string; name: string };
   owner: { id: string; name: string };
-  area?: { id: string; name: string } | null;
+  area?: string;
+  subEstado?: string | null;
+  medio?: string | null;
+  periodista?: string | null;
+  estadoRespuesta?: string | null;
   ticketType?: { id: string; name: string; kind?: string } | null;
 }
 
@@ -39,6 +44,8 @@ interface CreateTicketModalProps {
   isOpen: boolean;
   onClose: () => void;
   ticket?: TicketData | null;
+  /** Área en la que se crea el ticket. 'PRENSA' fuerza tipos y campos de Prensa. */
+  area?: 'CONTENIDO' | 'PRENSA';
 }
 
 const REDES = ['LinkedIn', 'Instagram', 'Twitter'];
@@ -72,6 +79,9 @@ function buildFormData(ticket?: TicketData | null) {
       content: '',
       contentPerCanal: {} as Record<string, string>,
       notasAudiovisual: '',
+      medio: '',
+      periodista: '',
+      estadoRespuesta: '',
     };
   }
   return {
@@ -91,19 +101,28 @@ function buildFormData(ticket?: TicketData | null) {
     content: (ticket as any).content ?? '',
     contentPerCanal: (ticket as any).contentPerCanal && typeof (ticket as any).contentPerCanal === 'object' ? (ticket as any).contentPerCanal : {},
     notasAudiovisual: (ticket as any).notasAudiovisual ?? '',
+    medio: (ticket as any).medio ?? '',
+    periodista: (ticket as any).periodista ?? '',
+    estadoRespuesta: (ticket as any).estadoRespuesta ?? '',
   };
 }
 
-export function CreateTicketModal({ isOpen, onClose, ticket }: CreateTicketModalProps) {
+export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO' }: CreateTicketModalProps) {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const isEditing = !!ticket;
   const [error, setError] = useState<string | null>(null);
   const [formData, setFormData] = useState(() => buildFormData(ticket));
-  const [tipoTicket, setTipoTicket] = useState<'CONTENIDO' | 'TAREA'>(
-    ticket?.ticketType?.kind === 'TAREA' ? 'TAREA' : 'CONTENIDO'
-  );
+  const initTipo = (t?: TicketData | null): 'CONTENIDO' | 'TAREA' | 'PRENSA' => {
+    if (t?.ticketType?.kind === 'PRENSA' || (!t && area === 'PRENSA')) return 'PRENSA';
+    if (t?.ticketType?.kind === 'TAREA') return 'TAREA';
+    return 'CONTENIDO';
+  };
+  const [tipoTicket, setTipoTicket] = useState<'CONTENIDO' | 'TAREA' | 'PRENSA'>(() => initTipo(ticket));
   const esTarea = tipoTicket === 'TAREA';
+  const esPrensa = tipoTicket === 'PRENSA';
+  // Prensa comparte el gateo de campos de no-contenido con Tarea (sin canales/pilar/vocero).
+  const noContenido = esTarea || esPrensa;
   const [newLinkInput, setNewLinkInput] = useState('');
   const [copyCopied, setCopyCopied] = useState(false);
   const [activeCopyTab, setActiveCopyTab] = useState(() => formData.canales[0] ?? 'Contenido');
@@ -113,7 +132,7 @@ export function CreateTicketModal({ isOpen, onClose, ticket }: CreateTicketModal
   // Re-populate when ticket changes (e.g. opening different card)
   useEffect(() => {
     setFormData(buildFormData(ticket));
-    setTipoTicket(ticket?.ticketType?.kind === 'TAREA' ? 'TAREA' : 'CONTENIDO');
+    setTipoTicket(initTipo(ticket));
     setError(null);
     if (ticket?.id) {
       const saved = sessionStorage.getItem(`ticket-files-${ticket.id}`);
@@ -150,20 +169,23 @@ export function CreateTicketModal({ isOpen, onClose, ticket }: CreateTicketModal
   const { data: pilaresData } = useQuery({
     queryKey: ['pilares', formData.clientId],
     queryFn: () => api.getPilares(formData.clientId),
-    enabled: isOpen && !!formData.clientId && !esTarea,
+    enabled: isOpen && !!formData.clientId && !noContenido,
   });
   const pilares = pilaresData?.data ?? [];
 
   const { data: speakersData } = useQuery({
     queryKey: ['speakers', formData.clientId],
     queryFn: () => api.getSpeakers(formData.clientId),
-    enabled: isOpen && !!formData.clientId && !esTarea,
+    enabled: isOpen && !!formData.clientId && !noContenido,
   });
   const speakers = speakersData?.data ?? [];
 
-  // Tipos disponibles según Pieza vs Tarea — "Otro/Otros" siempre al final
+  // Tipos disponibles según Pieza / Tarea / Prensa — "Otro/Otros" siempre al final
   const tiposFiltrados = (ticketTypes?.data ?? [])
-    .filter((t: any) => esTarea ? t.kind === 'TAREA' : t.kind !== 'TAREA')
+    .filter((t: any) =>
+      esPrensa ? t.kind === 'PRENSA'
+        : esTarea ? t.kind === 'TAREA'
+        : (t.kind !== 'TAREA' && t.kind !== 'PRENSA'))
     .sort((a: any, b: any) => {
       const ao = /^otros?$/i.test(a.name) ? 1 : 0;
       const bo = /^otros?$/i.test(b.name) ? 1 : 0;
@@ -171,12 +193,15 @@ export function CreateTicketModal({ isOpen, onClose, ticket }: CreateTicketModal
       return a.name.localeCompare(b.name);
     });
 
-  const handleTipoTicketChange = (next: 'CONTENIDO' | 'TAREA') => {
+  const handleTipoTicketChange = (next: 'CONTENIDO' | 'TAREA' | 'PRENSA') => {
     if (isEditing) return; // no se cambia la naturaleza al editar
     setTipoTicket(next);
     setFormData(prev => ({ ...prev, ticketTypeId: '' }));
     setError(null);
   };
+
+  const selectedType = (ticketTypes?.data ?? []).find((t: any) => t.id === formData.ticketTypeId);
+  const esGestionPitch = esPrensa && selectedType?.name === TIPO_GESTION_PITCH;
 
   const createMutation = useMutation({
     mutationFn: (data: any) => api.createTicket(data),
@@ -282,12 +307,21 @@ export function CreateTicketModal({ isOpen, onClose, ticket }: CreateTicketModal
       status: formData.status,
       prioridad: formData.prioridad,
       objetivo: formData.brief || null,
-      canales: esTarea ? [] : formData.canales,
+      canales: noContenido ? [] : formData.canales,
       dueDate: formData.dueDate || null,
       ticketTypeId: formData.ticketTypeId || null,
-      pilarId: esTarea ? null : (formData.pilarId || null),
-      speakerId: esTarea ? null : (formData.speakerId || null),
+      pilarId: noContenido ? null : (formData.pilarId || null),
+      speakerId: noContenido ? null : (formData.speakerId || null),
     };
+
+    if (esPrensa) {
+      payload.area = 'PRENSA';
+      // subEstado se conserva al editar; nuevo arranca en Pendiente (macro Backlog).
+      payload.subEstado = (ticket as any)?.subEstado ?? 'PENDIENTE';
+      payload.medio = formData.medio || null;
+      payload.periodista = formData.periodista || null;
+      payload.estadoRespuesta = formData.estadoRespuesta || null;
+    }
 
     const files = attachedFiles;
 
@@ -297,9 +331,9 @@ export function CreateTicketModal({ isOpen, onClose, ticket }: CreateTicketModal
           ...payload,
           links: formData.links,
           linkEntregable: formData.linkEntregable || null,
-          content: esTarea ? undefined : (formData.content || null),
-          contentPerCanal: esTarea ? undefined : formData.contentPerCanal,
-          notasAudiovisual: esTarea ? undefined : (formData.notasAudiovisual || null),
+          content: noContenido ? undefined : (formData.content || null),
+          contentPerCanal: noContenido ? undefined : formData.contentPerCanal,
+          notasAudiovisual: noContenido ? undefined : (formData.notasAudiovisual || null),
         });
         const id = ticket!.id;
         handleClose();
@@ -309,7 +343,7 @@ export function CreateTicketModal({ isOpen, onClose, ticket }: CreateTicketModal
           ...payload,
           clientId: formData.clientId,
           // Pieza puede llevar recursos (links a Drive) ya en la creación
-          ...(!esTarea && formData.links.length > 0 ? { links: formData.links } : {}),
+          ...(!noContenido && formData.links.length > 0 ? { links: formData.links } : {}),
         });
         const newId = res?.data?.id;
         handleClose();
@@ -323,7 +357,7 @@ export function CreateTicketModal({ isOpen, onClose, ticket }: CreateTicketModal
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     // En creación de Pieza, el botón primario es "Crear y redactar"
-    submitTicket({ redactar: !isEditing && !esTarea });
+    submitTicket({ redactar: !isEditing && !noContenido });
   };
 
   const handleClose = () => {
@@ -335,7 +369,7 @@ export function CreateTicketModal({ isOpen, onClose, ticket }: CreateTicketModal
 
   if (!isOpen) return null;
 
-  const showRecursos = !esTarea || isEditing;
+  const showRecursos = !noContenido || isEditing;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -354,28 +388,35 @@ export function CreateTicketModal({ isOpen, onClose, ticket }: CreateTicketModal
             </button>
           </div>
 
-          {/* Toggle Pieza / Tarea */}
+          {/* Tipo de ticket — Prensa muestra chip estático; resto, toggle Pieza/Tarea */}
           <div className="flex items-center gap-2 mt-3">
-            {([
-              { value: 'CONTENIDO', label: 'Pieza', Icon: FileText, active: 'border-[#024fff] text-[#024fff]' },
-              { value: 'TAREA', label: 'Tarea', Icon: CheckSquare, active: 'border-[#00b87f] text-[#00b87f]' },
-            ] as const).map(({ value, label, Icon, active }) => {
-              const isActive = tipoTicket === value;
-              return (
-                <button
-                  key={value}
-                  type="button"
-                  onClick={() => handleTipoTicketChange(value)}
-                  disabled={isEditing}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg border bg-white transition-all disabled:cursor-not-allowed ${
-                    isActive ? active : 'border-[#000033]/10 text-[#000033]/40 hover:text-[#000033]/60'
-                  }`}
-                >
-                  <Icon className="w-3.5 h-3.5" />
-                  {label}
-                </button>
-              );
-            })}
+            {esPrensa ? (
+              <span className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg border border-[#024fff] text-[#024fff] bg-white">
+                <Newspaper className="w-3.5 h-3.5" />
+                Prensa
+              </span>
+            ) : (
+              ([
+                { value: 'CONTENIDO', label: 'Pieza', Icon: FileText, active: 'border-[#024fff] text-[#024fff]' },
+                { value: 'TAREA', label: 'Tarea', Icon: CheckSquare, active: 'border-[#00b87f] text-[#00b87f]' },
+              ] as const).map(({ value, label, Icon, active }) => {
+                const isActive = tipoTicket === value;
+                return (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => handleTipoTicketChange(value)}
+                    disabled={isEditing}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg border bg-white transition-all disabled:cursor-not-allowed ${
+                      isActive ? active : 'border-[#000033]/10 text-[#000033]/40 hover:text-[#000033]/60'
+                    }`}
+                  >
+                    <Icon className="w-3.5 h-3.5" />
+                    {label}
+                  </button>
+                );
+              })
+            )}
           </div>
         </div>
 
@@ -395,7 +436,7 @@ export function CreateTicketModal({ isOpen, onClose, ticket }: CreateTicketModal
               type="text"
               value={formData.title}
               onChange={e => handleChange('title', e.target.value)}
-              placeholder={esTarea ? 'Nombre del pedido' : 'Nombre de la pieza'}
+              placeholder={esPrensa ? 'Título del ticket de prensa' : esTarea ? 'Nombre del pedido' : 'Nombre de la pieza'}
               className={fieldCls}
               autoFocus
             />
@@ -406,7 +447,7 @@ export function CreateTicketModal({ isOpen, onClose, ticket }: CreateTicketModal
             <div>
               <label className={labelCls}>
                 <Package className="w-3 h-3" />
-                {esTarea ? 'Tipo de entregable' : 'Tipo de contenido'}
+                {esPrensa ? 'Tipo de prensa' : esTarea ? 'Tipo de entregable' : 'Tipo de contenido'}
               </label>
               <select
                 value={formData.ticketTypeId}
@@ -443,23 +484,71 @@ export function CreateTicketModal({ isOpen, onClose, ticket }: CreateTicketModal
           <div>
             <label className={labelCls}>
               <AlignLeft className="w-3 h-3" />
-              {esTarea ? 'Descripción' : 'Brief'}
+              {noContenido ? 'Descripción' : 'Brief'}
             </label>
             <textarea
               value={formData.brief}
               onChange={e => handleChange('brief', e.target.value)}
-              placeholder={esTarea ? 'Descripción — detalle del pedido' : 'Brief — qué querés comunicar y por qué'}
+              placeholder={noContenido ? 'Descripción — detalle del pedido' : 'Brief — qué querés comunicar y por qué'}
               className={`${fieldCls} resize-none`}
               rows={3}
             />
           </div>
+
+          {/* Gestión-pitch (Prensa): contacto con medios */}
+          {esGestionPitch && (
+            <div className="grid grid-cols-3 gap-3 p-3 rounded-xl border border-[#024fff]/20 bg-[#024fff]/[0.03]">
+              <div>
+                <label className={labelCls}>
+                  <Newspaper className="w-3 h-3" />
+                  Medio
+                </label>
+                <input
+                  type="text"
+                  value={formData.medio}
+                  onChange={e => handleChange('medio', e.target.value)}
+                  placeholder="La Nación, Clarín…"
+                  className={fieldCls}
+                />
+              </div>
+              <div>
+                <label className={labelCls}>
+                  <User className="w-3 h-3" />
+                  Periodista
+                </label>
+                <input
+                  type="text"
+                  value={formData.periodista}
+                  onChange={e => handleChange('periodista', e.target.value)}
+                  placeholder="Nombre del cronista"
+                  className={fieldCls}
+                />
+              </div>
+              <div>
+                <label className={labelCls}>
+                  <Flag className="w-3 h-3" />
+                  Respuesta
+                </label>
+                <select
+                  value={formData.estadoRespuesta}
+                  onChange={e => handleChange('estadoRespuesta', e.target.value)}
+                  className={fieldCls}
+                >
+                  <option value="">—</option>
+                  <option value="ENVIADO">Enviado</option>
+                  <option value="RESPONDIDO">Respondido</option>
+                  <option value="SIN_RESPUESTA">Sin respuesta</option>
+                </select>
+              </div>
+            </div>
+          )}
 
           {/* Fecha + Responsable/Owner */}
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className={labelCls}>
                 <Calendar className="w-3 h-3" />
-                {esTarea ? 'Fecha de entrega' : 'Fecha objetivo'}
+                {noContenido ? 'Fecha de entrega' : 'Fecha objetivo'}
               </label>
               <input
                 type="date"
@@ -472,7 +561,7 @@ export function CreateTicketModal({ isOpen, onClose, ticket }: CreateTicketModal
             <div>
               <label className={labelCls}>
                 <User className="w-3 h-3" />
-                {esTarea ? 'Responsable' : 'Owner'}
+                {noContenido ? 'Responsable' : 'Owner'}
               </label>
               <select
                 value={formData.ownerId}
@@ -488,7 +577,7 @@ export function CreateTicketModal({ isOpen, onClose, ticket }: CreateTicketModal
           </div>
 
           {/* Vocero — solo Pieza, si el cliente tiene voceros */}
-          {!esTarea && formData.clientId && speakers.length > 0 && (
+          {!noContenido && formData.clientId && speakers.length > 0 && (
             <div>
               <label className={labelCls}>
                 <User className="w-3 h-3" />
@@ -522,7 +611,7 @@ export function CreateTicketModal({ isOpen, onClose, ticket }: CreateTicketModal
           )}
 
           {/* Pilar — solo Pieza, si el cliente tiene pilares */}
-          {!esTarea && formData.clientId && pilares.length > 0 && (
+          {!noContenido && formData.clientId && pilares.length > 0 && (
             <div>
               <label className={labelCls}>
                 <Layers className="w-3 h-3" />
@@ -551,7 +640,7 @@ export function CreateTicketModal({ isOpen, onClose, ticket }: CreateTicketModal
           )}
 
           {/* Red(es) objetivo — solo Pieza */}
-          {!esTarea && (
+          {!noContenido && (
             <div>
               <label className={labelCls}>
                 <Share2 className="w-3 h-3" />
@@ -651,7 +740,7 @@ export function CreateTicketModal({ isOpen, onClose, ticket }: CreateTicketModal
           )}
 
           {/* COPY — solo Pieza en edición */}
-          {isEditing && !esTarea && (
+          {isEditing && !noContenido && (
             <div>
               <div className="flex items-center justify-between mb-1.5">
                 <label className={`${labelCls} mb-0`}>
@@ -705,7 +794,7 @@ export function CreateTicketModal({ isOpen, onClose, ticket }: CreateTicketModal
           )}
 
           {/* ENTREGABLE VISUAL — solo Pieza en edición */}
-          {isEditing && !esTarea && (
+          {isEditing && !noContenido && (
             <div>
               <label className={labelCls}>
                 <ImageIcon className="w-3 h-3" />
@@ -769,7 +858,7 @@ export function CreateTicketModal({ isOpen, onClose, ticket }: CreateTicketModal
             </button>
 
             {/* Crear sin redactar — solo Pieza en creación */}
-            {!isEditing && !esTarea && (
+            {!isEditing && !noContenido && (
               <button
                 type="button"
                 onClick={() => submitTicket({ redactar: false })}
@@ -781,7 +870,7 @@ export function CreateTicketModal({ isOpen, onClose, ticket }: CreateTicketModal
             )}
 
             {/* Redactar — solo Pieza en edición (guarda y va al workspace) */}
-            {isEditing && !esTarea && (
+            {isEditing && !noContenido && (
               <button
                 type="button"
                 onClick={() => submitTicket({ redactar: true })}
@@ -804,9 +893,11 @@ export function CreateTicketModal({ isOpen, onClose, ticket }: CreateTicketModal
               {isPending ? 'Guardando...' : (
                 isEditing
                   ? <><Check className="w-3.5 h-3.5" />Guardar</>
-                  : esTarea
-                    ? <><Check className="w-3.5 h-3.5" />Crear tarea</>
-                    : <><Sparkles className="w-3.5 h-3.5" />Crear y redactar</>
+                  : esPrensa
+                    ? <><Check className="w-3.5 h-3.5" />Crear</>
+                    : esTarea
+                      ? <><Check className="w-3.5 h-3.5" />Crear tarea</>
+                      : <><Sparkles className="w-3.5 h-3.5" />Crear y redactar</>
               )}
             </button>
           </div>

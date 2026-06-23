@@ -23,6 +23,7 @@ import {
   Send,
   Trash2,
   ClipboardList,
+  Newspaper,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -36,6 +37,7 @@ type AttachedFile = {
 };
 import { api } from '../lib/api';
 import { TicketsReferencia } from '../components/TicketsReferencia';
+import { SUB_DEF, TIPO_GESTION_PITCH, type SubEstado } from '../lib/estados';
 
 const STATUS_OPTIONS = [
   { value: 'PENDIENTE',           label: 'Pendiente' },
@@ -51,7 +53,21 @@ const STATUS_OPTIONS = [
   { value: 'LISTO',               label: 'Listo' },
 ];
 
-function getStatusStyle(status: string) {
+function getStatusStyle(status: string, esPrensa?: boolean, subEstado?: string | null) {
+  if (esPrensa && subEstado) {
+    switch (subEstado) {
+      case 'LISTO':
+      case 'A_PUBLICAR':      return 'bg-[#00ff99]/20 border-[#00ff99]/45 text-[#000033]';
+      case 'EN_CURSO':
+      case 'REV_SANTI':
+      case 'REV_MANU':
+      case 'ENVIADO_CLIENTE':  return 'bg-[#024fff]/10 border-[#024fff]/30 text-[#024fff]';
+      case 'CANCELADO':
+      case 'STAND_BY':
+      case 'PENDIENTE':       return 'bg-[#000033]/5 border-[#000033]/20 text-[#000033]/60';
+      default:                return 'bg-[#000033]/5 border-[#000033]/20 text-[#000033]/60';
+    }
+  }
   switch (status) {
     case 'LISTO':                return 'bg-[#00ff99]/40 border-[#00ff99]/70 text-[#000033]';
     case 'PUBLICADO':            return 'bg-[#00ff99]/30 border-[#00ff99]/60 text-[#000033]';
@@ -170,6 +186,8 @@ export function TicketDetallePage() {
   const [editandoEntregable, setEditandoEntregable] = useState(false);
   const [notasAudiovisual, setNotasAudiovisual] = useState('');
   const [briefTemp, setBriefTemp] = useState('');
+  const [medioTemp, setMedioTemp] = useState('');
+  const [periodistaTemp, setPeriodistaTemp] = useState('');
   const [copyCopied, setCopyCopied] = useState(false);
   const [activeCopyTab, setActiveCopyTab] = useState<string>('');
   const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>(() => {
@@ -212,11 +230,13 @@ export function TicketDetallePage() {
     if ((ticket as any)?.notasAudiovisual !== undefined) {
       setNotasAudiovisual((ticket as any).notasAudiovisual ?? '');
     }
+    if (ticket?.medio !== undefined) setMedioTemp(ticket.medio ?? '');
+    if (ticket?.periodista !== undefined) setPeriodistaTemp(ticket.periodista ?? '');
     if (ticket && !activeCopyTab) {
       const canales = (ticket as any).canales;
       setActiveCopyTab(canales?.length > 0 ? canales[0] : '');
     }
-  }, [ticket?.title, (ticket as any)?.notasAudiovisual, ticket]);
+  }, [ticket?.title, (ticket as any)?.notasAudiovisual, ticket?.medio, ticket?.periodista, ticket]);
 
   useEffect(() => {
     if (ticketId) {
@@ -259,7 +279,10 @@ export function TicketDetallePage() {
   }
 
   const esTarea = (ticket as any).ticketType?.kind === 'TAREA';
-  const statusLabel = STATUS_OPTIONS.find(s => s.value === ticket.status)?.label ?? ticket.status;
+  const esPrensa = (ticket as any).ticketType?.kind === 'PRENSA' || (ticket as any).area === 'PRENSA';
+  const esNoContenido = esTarea || esPrensa;
+  const subEstadoLabel = ticket.subEstado ? (SUB_DEF[ticket.subEstado as SubEstado]?.label ?? ticket.subEstado) : 'Pendiente';
+  const statusLabel = esPrensa ? subEstadoLabel : (STATUS_OPTIONS.find(s => s.value === ticket.status)?.label ?? ticket.status);
   const createdAt = ticket.createdAt ? new Date(ticket.createdAt).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
   const updatedAt = ticket.updatedAt ? new Date(ticket.updatedAt).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
 
@@ -320,7 +343,7 @@ export function TicketDetallePage() {
             </div>
 
             <div className="flex items-center gap-2">
-              {!esTarea && (
+              {!esNoContenido && (
                 <button
                   onClick={() => navigate(`/content/${ticket.id}`, { state: { attachedFiles: attachedFiles.length > 0 ? attachedFiles : undefined } })}
                   className="flex items-center gap-1.5 px-4 py-2 bg-[#024fff] text-white rounded-lg text-xs font-bold hover:bg-[#024fff]/90 transition-all shadow-lg shadow-[#024fff]/20"
@@ -343,7 +366,13 @@ export function TicketDetallePage() {
                 Tarea
               </span>
             )}
-            <span className={`px-2.5 py-1 border-2 text-xs font-bold rounded-lg capitalize ${getStatusStyle(ticket.status)}`}>
+            {esPrensa && (
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-violet-600 text-white text-xs font-bold rounded-lg">
+                <Newspaper className="w-3 h-3" />
+                Prensa
+              </span>
+            )}
+            <span className={`px-2.5 py-1 border-2 text-xs font-bold rounded-lg capitalize ${getStatusStyle(ticket.status, esPrensa, ticket.subEstado)}`}>
               {statusLabel}
             </span>
             {ticket.canales?.length > 0 && (
@@ -384,7 +413,7 @@ export function TicketDetallePage() {
             <div className="bg-white border-2 border-[#000033]/10 rounded-lg p-5">
               <h2 className="text-xs font-bold text-[#000033] uppercase flex items-center gap-2 mb-3">
                 <FileText className="w-3.5 h-3.5" />
-                {esTarea ? 'Descripción' : 'Brief'}
+                {esNoContenido ? 'Descripción' : 'Brief'}
               </h2>
               <textarea
                 value={briefTemp}
@@ -394,7 +423,7 @@ export function TicketDetallePage() {
                     updateMutation.mutate({ objetivo: briefTemp || null });
                   }
                 }}
-                placeholder={esTarea ? 'Describí el entregable acá...' : 'Escribí el brief acá...'}
+                placeholder={esNoContenido ? 'Describí el entregable acá...' : 'Escribí el brief acá...'}
                 rows={3}
                 className="w-full text-xs text-[#000033] leading-relaxed resize-none border-none outline-none bg-transparent placeholder:text-[#000033]/30 hover:bg-[#000033]/3 focus:bg-[#000033]/5 rounded transition-all"
               />
@@ -506,15 +535,17 @@ export function TicketDetallePage() {
             </div>
 
             {/* Tickets de referencia */}
-            <div className="bg-white border-2 border-[#000033]/10 rounded-lg p-5">
-              <TicketsReferencia
-                ticketId={ticket.id}
-                clientId={ticket.client?.id}
-                references={(ticket as any).references ?? []}
-              />
-            </div>
+            {(!esPrensa || (ticket.references && ticket.references.length > 0)) && (
+              <div className="bg-white border-2 border-[#000033]/10 rounded-lg p-5">
+                <TicketsReferencia
+                  ticketId={ticket.id}
+                  clientId={ticket.client?.id}
+                  references={(ticket as any).references ?? []}
+                />
+              </div>
+            )}
 
-            {!esTarea && (<>
+            {!esNoContenido && (<>
             {/* Copy final */}
             <div className="bg-white border-2 border-[#00ff99]/20 rounded-lg p-5">
               <div className="flex items-center justify-between mb-3">
@@ -601,7 +632,7 @@ export function TicketDetallePage() {
             <div className="bg-white border-2 border-[#000033]/10 rounded-lg p-5">
               <h2 className="text-xs font-bold text-[#000033] uppercase flex items-center gap-2 mb-3">
                 <ImageIcon className="w-3.5 h-3.5" />
-                {esTarea ? 'Link del entregable' : 'Entregable visual'}
+                {esNoContenido ? 'Link del entregable' : 'Entregable visual'}
               </h2>
               {ticket.linkEntregable && !editandoEntregable ? (
                 <div className="flex items-center gap-2 px-3 py-2 border border-[#00ff99]/30 rounded-lg group hover:border-[#00ff99]/50 transition-all">
@@ -777,7 +808,7 @@ export function TicketDetallePage() {
           <div className="space-y-5">
 
             {/* CTA principal — solo contenido */}
-            {!esTarea && (
+            {!esNoContenido && (
               <div className="bg-white border-2 border-[#000033]/10 rounded-lg p-5">
                 <h3 className="text-xs font-bold text-[#000033] uppercase mb-3">Acciones</h3>
                 <button
@@ -794,39 +825,120 @@ export function TicketDetallePage() {
             <div className="bg-white border-2 border-[#000033]/10 rounded-lg p-5">
               <h3 className="text-xs font-bold text-[#000033] uppercase mb-3">Detalles</h3>
               <div className="space-y-3">
-                <div>
-                  <label className="text-xs font-bold text-[#000033]/60 uppercase block mb-1">
-                    Estado
-                  </label>
-                  <select
-                    value={ticket.status}
-                    onChange={e => {
-                      const next = e.target.value;
-                      if (next === 'LISTO' || next === 'CANCELADO') {
-                        const label = next === 'LISTO' ? 'Listo (archivado)' : 'Stand-by / Cancelado';
-                        if (!window.confirm(`¿Mover a "${label}"?\n\nEl ticket desaparecerá del kanban. Para recuperarlo tenés que buscarlo manualmente.`)) return;
-                      }
-                      updateMutation.mutate({ status: next });
-                    }}
-                    className="w-full px-3 py-2 border-2 border-[#000033]/10 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#024fff] text-[#000033] bg-white hover:border-[#024fff]/30 transition-all"
-                  >
-                    <optgroup label="Activo">
+                {esPrensa ? (
+                  <div>
+                    <label className="text-xs font-bold text-[#000033]/60 uppercase block mb-1">
+                      Estado (Prensa)
+                    </label>
+                    <select
+                      value={ticket.subEstado ?? 'PENDIENTE'}
+                      onChange={e => updateMutation.mutate({ subEstado: e.target.value })}
+                      className="w-full px-3 py-2 border-2 border-[#000033]/10 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#024fff] text-[#000033] bg-white hover:border-[#024fff]/30 transition-all"
+                    >
+                      <option value="STAND_BY">Stand by</option>
                       <option value="PENDIENTE">Pendiente</option>
-                      <option value="REDACCION">Redacción</option>
-                      <option value="DISENO">Diseño</option>
-                      <option value="EDICION">Edición</option>
-                      <option value="REVISION_INTERNA">Revisión Interna</option>
-                      <option value="CLIENTE">Cliente</option>
-                      <option value="ESPERANDO_FEEDBACK">Esperando feedback</option>
-                      <option value="LISTO_PARA_PUBLICAR">Listo para publicar</option>
-                      <option value="PUBLICADO">Publicado</option>
-                    </optgroup>
-                    <optgroup label="⚠️ Archiva del kanban">
-                      <option value="CANCELADO">Stand-by / Cancelados</option>
-                      <option value="LISTO">Listo (archivado)</option>
-                    </optgroup>
-                  </select>
-                </div>
+                      <option value="EN_CURSO">En curso</option>
+                      <option value="REV_SANTI">Rev. Santi</option>
+                      <option value="REV_MANU">Rev. Manu</option>
+                      <option value="ENVIADO_CLIENTE">Enviado al cliente</option>
+                      <option value="A_PUBLICAR">A publicar</option>
+                      <option value="LISTO">Listo</option>
+                      <option value="CANCELADO">Cancelado</option>
+                    </select>
+                  </div>
+                ) : (
+                  <div>
+                    <label className="text-xs font-bold text-[#000033]/60 uppercase block mb-1">
+                      Estado
+                    </label>
+                    <select
+                      value={ticket.status}
+                      onChange={e => {
+                        const next = e.target.value;
+                        if (next === 'LISTO' || next === 'CANCELADO') {
+                          const label = next === 'LISTO' ? 'Listo (archivado)' : 'Stand-by / Cancelado';
+                          if (!window.confirm(`¿Mover a "${label}"?\n\nEl ticket desaparecerá del kanban. Para recuperarlo tenés que buscarlo manualmente.`)) return;
+                        }
+                        updateMutation.mutate({ status: next });
+                      }}
+                      className="w-full px-3 py-2 border-2 border-[#000033]/10 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#024fff] text-[#000033] bg-white hover:border-[#024fff]/30 transition-all"
+                    >
+                      <optgroup label="Activo">
+                        <option value="PENDIENTE">Pendiente</option>
+                        <option value="REDACCION">Redacción</option>
+                        <option value="DISENO">Diseño</option>
+                        <option value="EDICION">Edición</option>
+                        <option value="REVISION_INTERNA">Revisión Interna</option>
+                        <option value="CLIENTE">Cliente</option>
+                        <option value="ESPERANDO_FEEDBACK">Esperando feedback</option>
+                        <option value="LISTO_PARA_PUBLICAR">Listo para publicar</option>
+                        <option value="PUBLICADO">Publicado</option>
+                      </optgroup>
+                      <optgroup label="⚠️ Archiva del kanban">
+                        <option value="CANCELADO">Stand-by / Cancelados</option>
+                        <option value="LISTO">Listo (archivado)</option>
+                      </optgroup>
+                    </select>
+                  </div>
+                )}
+
+                {esPrensa && (
+                  <>
+                    <div>
+                      <label className="text-xs font-bold text-[#000033]/60 uppercase block mb-1">
+                        Medio
+                      </label>
+                      <input
+                        type="text"
+                        value={medioTemp}
+                        onChange={e => setMedioTemp(e.target.value)}
+                        onBlur={() => {
+                          if (medioTemp !== (ticket.medio ?? '')) {
+                            updateMutation.mutate({ medio: medioTemp || null });
+                          }
+                        }}
+                        placeholder="Ej: La Nación, Infobae..."
+                        className="w-full px-3 py-2 border-2 border-[#000033]/10 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#024fff] text-[#000033] bg-white hover:border-[#024fff]/30 transition-all"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-xs font-bold text-[#000033]/60 uppercase block mb-1">
+                        Periodista
+                      </label>
+                      <input
+                        type="text"
+                        value={periodistaTemp}
+                        onChange={e => setPeriodistaTemp(e.target.value)}
+                        onBlur={() => {
+                          if (periodistaTemp !== (ticket.periodista ?? '')) {
+                            updateMutation.mutate({ periodista: periodistaTemp || null });
+                          }
+                        }}
+                        placeholder="Nombre del periodista..."
+                        className="w-full px-3 py-2 border-2 border-[#000033]/10 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#024fff] text-[#000033] bg-white hover:border-[#024fff]/30 transition-all"
+                      />
+                    </div>
+
+                    {ticket.ticketType?.name === TIPO_GESTION_PITCH && (
+                      <div>
+                        <label className="text-xs font-bold text-[#000033]/60 uppercase block mb-1">
+                          Estado de respuesta
+                        </label>
+                        <select
+                          value={ticket.estadoRespuesta ?? ''}
+                          onChange={e => updateMutation.mutate({ estadoRespuesta: e.target.value || null })}
+                          className="w-full px-3 py-2 border-2 border-[#000033]/10 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#024fff] text-[#000033] bg-white hover:border-[#024fff]/30 transition-all"
+                        >
+                          <option value="">Seleccionar...</option>
+                          <option value="ENVIADO">Enviado</option>
+                          <option value="RESPONDIDO">Respondido</option>
+                          <option value="SIN_RESPUESTA">Sin respuesta</option>
+                        </select>
+                      </div>
+                    )}
+                  </>
+                )}
 
                 <div>
                   <label className="text-xs font-bold text-[#000033]/60 uppercase block mb-1">

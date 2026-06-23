@@ -3,6 +3,7 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { LoginPage } from './pages/LoginPage';
 import { AuthCallbackPage } from './pages/AuthCallbackPage';
 import { BacklogPage } from './pages/BacklogPage';
+import { PrensaBacklogPage } from './pages/PrensaBacklogPage';
 import { ClientesPage } from './pages/ClientesPage';
 import { ClienteDetallePage } from './pages/ClienteDetallePage';
 import { VozDeMarcaPage } from './pages/VozDeMarcaPage';
@@ -37,6 +38,14 @@ function AppRoutes() {
         element={
           <PrivateRoute>
             <BacklogPage />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/prensa"
+        element={
+          <PrivateRoute>
+            <PrensaBacklogPage />
           </PrivateRoute>
         }
       />

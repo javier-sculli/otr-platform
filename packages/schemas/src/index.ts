@@ -35,7 +35,7 @@ export const createAreaSchema = z.object({
 export const updateAreaSchema = createAreaSchema.partial();
 
 // TicketType schemas
-export const ticketTypeKindSchema = z.enum(['CONTENIDO', 'TAREA']);
+export const ticketTypeKindSchema = z.enum(['CONTENIDO', 'TAREA', 'PRENSA']);
 
 export const createTicketTypeSchema = z.object({
   name: z.string().min(1),
@@ -49,6 +49,16 @@ export const ticketStatusSchema = z.enum(['BACKLOG', 'EN_PROGRESO', 'REVISION', 
 
 export const ticketCloseReasonSchema = z.enum(['PUBLICADO', 'ENTREGADO', 'CANCELADO']);
 
+// Modelo de dos niveles (HU Fase 2)
+export const ticketAreaSchema = z.enum(['CONTENIDO', 'PRENSA']);
+export const macroEstadoSchema = z.enum(['BACKLOG', 'EN_PROGRESO', 'EN_REVISION', 'FINALIZADO']);
+export const generalStatusSchema = macroEstadoSchema;
+export const subEstadoSchema = z.enum([
+  'STAND_BY', 'PENDIENTE', 'EN_CURSO', 'REV_SANTI', 'REV_MANU',
+  'ENVIADO_CLIENTE', 'A_PUBLICAR', 'LISTO', 'CANCELADO',
+]);
+export const estadoRespuestaSchema = z.enum(['ENVIADO', 'RESPONDIDO', 'SIN_RESPUESTA']);
+
 export const createTicketSchema = z.object({
   title: z.string().min(1),
   description: z.string().optional(),
@@ -57,6 +67,11 @@ export const createTicketSchema = z.object({
   areaId: z.string().uuid(),
   ticketTypeId: z.string().uuid(),
   status: ticketStatusSchema.default('BACKLOG'),
+  area: ticketAreaSchema.default('CONTENIDO'),
+  subEstado: subEstadoSchema.optional(),
+  medio: z.string().optional(),
+  periodista: z.string().optional(),
+  estadoRespuesta: estadoRespuestaSchema.optional(),
   dueDate: z.string().datetime().optional(),
   links: z.array(z.string().url()).default([]),
 });
@@ -69,6 +84,11 @@ export const updateTicketSchema = z.object({
   ticketTypeId: z.string().uuid().optional(),
   status: ticketStatusSchema.optional(),
   closeReason: ticketCloseReasonSchema.optional(),
+  area: ticketAreaSchema.optional(),
+  subEstado: subEstadoSchema.optional(),
+  medio: z.string().optional(),
+  periodista: z.string().optional(),
+  estadoRespuesta: estadoRespuestaSchema.optional().nullable(),
   dueDate: z.string().datetime().optional().nullable(),
   links: z.array(z.string().url()).optional(),
   referenceIds: z.array(z.string().uuid()).max(3).optional(),
@@ -95,6 +115,7 @@ export const ticketListQuerySchema = z.object({
   clientId: z.string().uuid().optional(),
   ownerId: z.string().uuid().optional(),
   areaId: z.string().uuid().optional(),
+  area: ticketAreaSchema.optional(),
   status: ticketStatusSchema.optional(),
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(50),

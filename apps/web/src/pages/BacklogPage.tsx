@@ -17,6 +17,7 @@ interface Ticket {
   canales: string[];
   status: string;
   prioridad: string;
+  area?: string;
   dueDate: string | null;
   links: string[];
   linkEntregable?: string | null;
@@ -135,6 +136,8 @@ export function BacklogPage() {
   }));
 
   const ticketsFiltrados = allTickets.filter(t => {
+    // Prensa tiene su propia tab (/prensa) — no se mezcla en el backlog de Contenido.
+    if (t.area === 'PRENSA') return false;
     if (clientesSeleccionados.length > 0 && !clientesSeleccionados.includes(t.client.id)) return false;
     if (filtroTipo === 'TAREA' && t.ticketType?.kind !== 'TAREA') return false;
     if (filtroTipo === 'CONTENIDO' && t.ticketType?.kind === 'TAREA') return false;

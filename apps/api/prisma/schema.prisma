@@ -149,6 +149,7 @@ model Area {
 enum TicketTypeKind {
   CONTENIDO
   TAREA
+  PRENSA
 }
 
 model TicketType {
@@ -184,6 +185,42 @@ enum Prioridad {
   BAJA
 }
 
+// Área del ticket — separa el flujo de Contenido del de Prensa (HU Fase 2).
+enum TicketArea {
+  CONTENIDO
+  PRENSA
+}
+
+// Macro-estado compartido entre áreas (columnas del backlog evolucionado).
+enum MacroEstado {
+  BACKLOG
+  EN_PROGRESO
+  EN_REVISION
+  FINALIZADO
+}
+
+// Subestado propio por área. En esta iteración se modelan los 9 de Prensa;
+// cada subestado pertenece a un único macroEstado (ver catálogo en @otr/types).
+enum SubEstado {
+  // Prensa
+  STAND_BY
+  PENDIENTE
+  EN_CURSO
+  REV_SANTI
+  REV_MANU
+  ENVIADO_CLIENTE
+  A_PUBLICAR
+  LISTO
+  CANCELADO
+}
+
+// Estado de respuesta de un pitch a un medio (tipo Gestión-pitch de Prensa).
+enum EstadoRespuesta {
+  ENVIADO
+  RESPONDIDO
+  SIN_RESPUESTA
+}
+
 model Ticket {
   id           String         @id @default(uuid())
   title        String
@@ -197,6 +234,15 @@ model Ticket {
   speakerId    String?        @map("speaker_id")
   status       TicketStatus   @default(PENDIENTE)
   prioridad    Prioridad      @default(MEDIA)
+  // Modelo de dos niveles (HU Fase 2). Contenido sigue usando `status`;
+  // Prensa usa `subEstado` (+ `macroEstado` derivado y persistido).
+  area         TicketArea     @default(CONTENIDO)
+  macroEstado  MacroEstado?   @map("macro_estado")
+  subEstado    SubEstado?     @map("sub_estado")
+  // Campos de gestión-pitch (tipo de Prensa): contacto con medios.
+  medio           String?
+  periodista      String?
+  estadoRespuesta EstadoRespuesta? @map("estado_respuesta")
   dueDate      DateTime?      @map("due_date")
   content      String?        @db.Text
   contentPerCanal Json        @default("{}") @map("content_per_canal")
@@ -227,6 +273,7 @@ model Ticket {
   @@index([status])
   @@index([status, createdAt])
   @@index([clientId, status])
+  @@index([area, macroEstado])
   @@index([pilarId])
   @@index([speakerId])
   @@map("tickets")

@@ -2,17 +2,33 @@ import { FastifyInstance } from 'fastify';
 import { prisma } from '../lib/prisma.js';
 import { authenticate } from '../middleware/auth.js';
 
+// Catálogo subestado → macroEstado de Prensa (HU Fase 2). Espejo de
+// PRENSA_SUBESTADOS en @otr/types; inline acá porque el API no consume el
+// paquete compartido en runtime.
+const SUBESTADO_TO_MACRO: Record<string, string> = {
+  STAND_BY: 'BACKLOG',
+  PENDIENTE: 'BACKLOG',
+  EN_CURSO: 'EN_PROGRESO',
+  REV_SANTI: 'EN_REVISION',
+  REV_MANU: 'EN_REVISION',
+  ENVIADO_CLIENTE: 'EN_REVISION',
+  A_PUBLICAR: 'FINALIZADO',
+  LISTO: 'FINALIZADO',
+  CANCELADO: 'FINALIZADO',
+};
+
 export async function ticketsRoutes(fastify: FastifyInstance) {
   // All routes require authentication
   fastify.addHook('preHandler', authenticate);
 
   // List tickets with filters
   fastify.get('/', async (request) => {
-    const { clientId, ownerId, status, speakerId } = request.query as {
+    const { clientId, ownerId, status, speakerId, area } = request.query as {
       clientId?: string;
       ownerId?: string;
       status?: string;
       speakerId?: string;
+      area?: string;
     };
 
     const where: any = {};
@@ -20,6 +36,7 @@ export async function ticketsRoutes(fastify: FastifyInstance) {
     if (ownerId) where.ownerId = ownerId;
     if (status) where.status = status;
     if (speakerId) where.speakerId = speakerId;
+    if (area) where.area = area;
 
     const tickets = await prisma.ticket.findMany({
       where,
@@ -84,6 +101,12 @@ export async function ticketsRoutes(fastify: FastifyInstance) {
         pilarId: data.pilarId || null,
         speakerId: data.speakerId || null,
         status: data.status || 'PENDIENTE',
+        area: data.area || 'CONTENIDO',
+        subEstado: data.subEstado || null,
+        macroEstado: (data.subEstado ? SUBESTADO_TO_MACRO[data.subEstado] : null) as any,
+        medio: data.medio || null,
+        periodista: data.periodista || null,
+        estadoRespuesta: data.estadoRespuesta || null,
         dueDate: data.dueDate ? new Date(data.dueDate) : undefined,
         links: data.links || [],
       },
@@ -114,6 +137,14 @@ export async function ticketsRoutes(fastify: FastifyInstance) {
     if (data.pilarId !== undefined) updateData.pilarId = data.pilarId || null;
     if (data.speakerId !== undefined) updateData.speakerId = data.speakerId || null;
     if (data.status !== undefined) updateData.status = data.status;
+    if (data.area !== undefined) updateData.area = data.area;
+    if (data.subEstado !== undefined) {
+      updateData.subEstado = data.subEstado || null;
+      updateData.macroEstado = data.subEstado ? SUBESTADO_TO_MACRO[data.subEstado] : null;
+    }
+    if (data.medio !== undefined) updateData.medio = data.medio || null;
+    if (data.periodista !== undefined) updateData.periodista = data.periodista || null;
+    if (data.estadoRespuesta !== undefined) updateData.estadoRespuesta = data.estadoRespuesta || null;
     if (data.dueDate !== undefined) updateData.dueDate = data.dueDate ? new Date(data.dueDate) : null;
     if (data.links !== undefined) updateData.links = data.links;
     if (data.linkEntregable !== undefined) updateData.linkEntregable = data.linkEntregable;
