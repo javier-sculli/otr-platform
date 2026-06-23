@@ -145,11 +145,20 @@ export async function metricsRoutes(fastify: FastifyInstance) {
 
   // POST /metrics/sync — trigger manual del scraper
   // Body: { clientId?: string; network?: 'linkedin' | 'instagram' | 'twitter' | 'all' }
-  fastify.post('/sync', async (request) => {
+  fastify.post('/sync', async (request, reply) => {
     const { clientId, network = 'all' } = request.body as {
       clientId?: string;
       network?: 'linkedin' | 'instagram' | 'twitter' | 'all';
     };
+
+    // El scraper no puede correr sin token de Apify. Cortamos temprano con un error
+    // visible en vez de iniciar un sync que falla en silencio (fire-and-forget).
+    if (!process.env.APIFY_TOKEN) {
+      console.error('[metrics/sync] APIFY_TOKEN no configurado — sync abortado');
+      return reply.status(503).send({
+        error: 'El scraper no está configurado: falta APIFY_TOKEN en el servidor. Avisá al equipo de desarrollo.',
+      });
+    }
 
     const runSync = async () => {
       if (network === 'linkedin' || network === 'all') {

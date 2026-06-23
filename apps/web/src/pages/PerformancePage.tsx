@@ -49,6 +49,7 @@ export function PerformancePage() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const [syncStatus, setSyncStatus] = useState<'idle' | 'running' | 'done' | 'error'>('idle');
+  const [syncError, setSyncError] = useState<string | null>(null);
   const [syncNetwork, setSyncNetwork] = useState<'all' | 'linkedin' | 'instagram' | 'twitter'>('all');
   const [showSyncDropdown, setShowSyncDropdown] = useState(false);
   const syncDropdownRef = useRef<HTMLDivElement>(null);
@@ -80,7 +81,7 @@ export function PerformancePage() {
 
   const syncMutation = useMutation({
     mutationFn: (network: 'all' | 'linkedin' | 'instagram' | 'twitter') => api.syncMetrics(network),
-    onMutate: () => setSyncStatus('running'),
+    onMutate: () => { setSyncError(null); setSyncStatus('running'); },
     onSuccess: () => {
       setSyncStatus('done');
       setTimeout(() => {
@@ -88,9 +89,10 @@ export function PerformancePage() {
         setSyncStatus('idle');
       }, 3000);
     },
-    onError: () => {
+    onError: (err: any) => {
+      setSyncError(err?.message ?? 'No se pudo iniciar el sync.');
       setSyncStatus('error');
-      setTimeout(() => setSyncStatus('idle'), 4000);
+      setTimeout(() => setSyncStatus('idle'), 8000);
     },
   });
 
@@ -268,6 +270,14 @@ export function PerformancePage() {
             )}
           </div>
         </div>
+
+        {/* Alerta de error de sync — muestra el motivo real (ej: scraper sin configurar) */}
+        {syncStatus === 'error' && syncError && (
+          <div className="mt-3 flex items-start gap-2 rounded-xl border-2 border-red-200 bg-red-50 px-4 py-2.5">
+            <AlertCircle className="w-4 h-4 text-red-600 flex-shrink-0 mt-0.5" />
+            <p className="text-sm text-red-700 leading-snug">{syncError}</p>
+          </div>
+        )}
       </div>
 
       {/* Filters */}
