@@ -182,14 +182,21 @@ export function SumarioTab({ clientId }: { clientId: string }) {
       queryClient.setQueryData(sumarioKey, (old: any) =>
         old ? { ...old, data: [...old.data, optimisticRow] } : old
       );
-      return { previous };
+      return { previous, tempId: optimisticRow.id };
+    },
+    onSuccess: (created: any, _ticket, context: any) => {
+      // Reemplaza la fila temporal por la real en el mismo lugar del array,
+      // sin refetch: evitar que la fila se desmonte (pierde foco/texto en
+      // progreso) o se reordene mientras el usuario sigue escribiendo.
+      queryClient.setQueryData(sumarioKey, (old: any) =>
+        old
+          ? { ...old, data: old.data.map((t: any) => (t.id === context.tempId ? created.data : t)) }
+          : old
+      );
     },
     onError: (_err, _ticket, context: any) => {
       if (context?.previous) queryClient.setQueryData(sumarioKey, context.previous);
       showFeedback('info', 'No se pudo crear la fila. Reintentá.');
-    },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: sumarioKey });
     },
   });
 
@@ -242,11 +249,15 @@ export function SumarioTab({ clientId }: { clientId: string }) {
       );
       return { previous };
     },
+    onSuccess: (updated: any, { id }) => {
+      // Merge in-place, sin refetch: no desmonta ni reordena otras filas
+      // que puedan estar siendo editadas al mismo tiempo.
+      queryClient.setQueryData(sumarioKey, (old: any) =>
+        old ? { ...old, data: old.data.map((t: any) => (t.id === id ? updated.data : t)) } : old
+      );
+    },
     onError: (_err, _vars, context: any) => {
       if (context?.previous) queryClient.setQueryData(sumarioKey, context.previous);
-    },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: sumarioKey });
     },
   });
 
