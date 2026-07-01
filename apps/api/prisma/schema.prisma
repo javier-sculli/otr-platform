@@ -33,6 +33,7 @@ model User {
   // Relations
   area              Area?            @relation(fields: [areaId], references: [id])
   tickets           Ticket[]
+  reviewedTickets   Ticket[]         @relation("TicketReviewer")
   clients           Client[]
   comments          TicketComment[]
   notifications     Notification[]   @relation("NotificationRecipient")
@@ -204,11 +205,9 @@ enum MacroEstado {
 // cada subestado pertenece a un único macroEstado (ver catálogo en @otr/types).
 enum SubEstado {
   // Prensa
-  STAND_BY
   PENDIENTE
   EN_CURSO
-  REV_SANTI
-  REV_MANU
+  REVISION_INTERNA
   ENVIADO_CLIENTE
   A_PUBLICAR
   LISTO
@@ -248,6 +247,8 @@ model Ticket {
   area         TicketArea     @default(CONTENIDO)
   macroEstado  MacroEstado?   @map("macro_estado")
   subEstado    SubEstado?     @map("sub_estado")
+  // Asignado a revisar el ticket cuando subEstado = REVISION_INTERNA.
+  reviewerId   String?        @map("reviewer_id")
   // Campos de gestión-pitch (tipo de Prensa): contacto con medios.
   medio           String?
   periodista      String?
@@ -270,6 +271,7 @@ model Ticket {
   // Relations
   client        Client          @relation(fields: [clientId], references: [id])
   owner         User            @relation(fields: [ownerId], references: [id])
+  reviewer      User?           @relation("TicketReviewer", fields: [reviewerId], references: [id], onDelete: SetNull)
   ticketType    TicketType?     @relation(fields: [ticketTypeId], references: [id])
   pilar         Pilar?          @relation(fields: [pilarId], references: [id])
   speaker       Speaker?        @relation(fields: [speakerId], references: [id])
@@ -287,6 +289,7 @@ model Ticket {
   @@index([status, createdAt])
   @@index([clientId, status])
   @@index([area, macroEstado])
+  @@index([reviewerId])
   @@index([pilarId])
   @@index([speakerId])
   @@map("tickets")

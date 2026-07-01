@@ -6,11 +6,9 @@ import { authenticate } from '../middleware/auth.js';
 // PRENSA_SUBESTADOS en @otr/types; inline acá porque el API no consume el
 // paquete compartido en runtime.
 const SUBESTADO_TO_MACRO: Record<string, string> = {
-  STAND_BY: 'BACKLOG',
   PENDIENTE: 'BACKLOG',
   EN_CURSO: 'EN_PROGRESO',
-  REV_SANTI: 'EN_REVISION',
-  REV_MANU: 'EN_REVISION',
+  REVISION_INTERNA: 'EN_REVISION',
   ENVIADO_CLIENTE: 'EN_REVISION',
   A_PUBLICAR: 'FINALIZADO',
   LISTO: 'FINALIZADO',
@@ -58,6 +56,7 @@ export async function ticketsRoutes(fastify: FastifyInstance) {
       include: {
         client: { select: { id: true, name: true } },
         owner: { select: { id: true, name: true, email: true } },
+        reviewer: { select: { id: true, name: true, email: true } },
         ticketType: { select: { id: true, name: true, kind: true } },
         pilar: { select: { id: true, nombre: true } },
         speaker: { select: { id: true, nombre: true } },
@@ -77,6 +76,7 @@ export async function ticketsRoutes(fastify: FastifyInstance) {
       include: {
         client: true,
         owner: { select: { id: true, name: true, email: true } },
+        reviewer: { select: { id: true, name: true, email: true } },
         ticketType: true,
         pilar: true,
         speaker: true,
@@ -119,6 +119,7 @@ export async function ticketsRoutes(fastify: FastifyInstance) {
         area: data.area || 'CONTENIDO',
         subEstado: data.subEstado || null,
         macroEstado: (data.subEstado ? SUBESTADO_TO_MACRO[data.subEstado] : null) as any,
+        reviewerId: data.reviewerId || null,
         medio: data.medio || null,
         periodista: data.periodista || null,
         estadoRespuesta: data.estadoRespuesta || null,
@@ -164,6 +165,7 @@ export async function ticketsRoutes(fastify: FastifyInstance) {
       updateData.subEstado = data.subEstado || null;
       updateData.macroEstado = data.subEstado ? SUBESTADO_TO_MACRO[data.subEstado] : null;
     }
+    if (data.reviewerId !== undefined) updateData.reviewerId = data.reviewerId || null;
     if (data.medio !== undefined) updateData.medio = data.medio || null;
     if (data.periodista !== undefined) updateData.periodista = data.periodista || null;
     if (data.estadoRespuesta !== undefined) updateData.estadoRespuesta = data.estadoRespuesta || null;
@@ -194,6 +196,7 @@ export async function ticketsRoutes(fastify: FastifyInstance) {
       include: {
         client: true,
         owner: { select: { id: true, name: true, email: true } },
+        reviewer: { select: { id: true, name: true, email: true } },
         ticketType: true,
         pilar: true,
         speaker: true,

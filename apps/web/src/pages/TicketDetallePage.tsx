@@ -59,11 +59,9 @@ function getStatusStyle(status: string, esPrensa?: boolean, subEstado?: string |
       case 'LISTO':
       case 'A_PUBLICAR':      return 'bg-[#00ff99]/20 border-[#00ff99]/45 text-[#000033]';
       case 'EN_CURSO':
-      case 'REV_SANTI':
-      case 'REV_MANU':
+      case 'REVISION_INTERNA':
       case 'ENVIADO_CLIENTE':  return 'bg-[#024fff]/10 border-[#024fff]/30 text-[#024fff]';
       case 'CANCELADO':
-      case 'STAND_BY':
       case 'PENDIENTE':       return 'bg-[#000033]/5 border-[#000033]/20 text-[#000033]/60';
       default:                return 'bg-[#000033]/5 border-[#000033]/20 text-[#000033]/60';
     }
@@ -835,18 +833,36 @@ export function TicketDetallePage() {
                       onChange={e => updateMutation.mutate({ subEstado: e.target.value })}
                       className="w-full px-3 py-2 border-2 border-[#000033]/10 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#024fff] text-[#000033] bg-white hover:border-[#024fff]/30 transition-all"
                     >
-                      <option value="STAND_BY">Stand by</option>
                       <option value="PENDIENTE">Pendiente</option>
-                      <option value="EN_CURSO">En curso</option>
-                      <option value="REV_SANTI">Rev. Santi</option>
-                      <option value="REV_MANU">Rev. Manu</option>
-                      <option value="ENVIADO_CLIENTE">Enviado al cliente</option>
+                      <option value="EN_CURSO">Ongoing</option>
+                      <option value="REVISION_INTERNA">En revisión interna</option>
+                      <option value="ENVIADO_CLIENTE">En revisión del cliente</option>
                       <option value="A_PUBLICAR">A publicar</option>
-                      <option value="LISTO">Listo</option>
+                      <option value="LISTO">Completado</option>
                       <option value="CANCELADO">Cancelado</option>
                     </select>
                   </div>
-                ) : (
+                ) : null}
+
+                {esPrensa && ticket.subEstado === 'REVISION_INTERNA' && (
+                  <div>
+                    <label className="text-xs font-bold text-[#000033]/60 uppercase block mb-1">
+                      Asignado a (revisión interna)
+                    </label>
+                    <select
+                      value={ticket.reviewerId ?? ''}
+                      onChange={e => updateMutation.mutate({ reviewerId: e.target.value || null })}
+                      className="w-full px-3 py-2 border-2 border-[#000033]/10 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#024fff] text-[#000033] bg-white hover:border-[#024fff]/30 transition-all"
+                    >
+                      <option value="">Sin asignar</option>
+                      {allUsers.map(u => (
+                        <option key={u.id} value={u.id}>{u.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                {!esPrensa && (
                   <div>
                     <label className="text-xs font-bold text-[#000033]/60 uppercase block mb-1">
                       Estado

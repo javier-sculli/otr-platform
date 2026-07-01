@@ -5,7 +5,7 @@ export type MacroEstado = 'BACKLOG' | 'EN_PROGRESO' | 'EN_REVISION' | 'FINALIZAD
 export type GeneralStatus = MacroEstado;
 
 export type SubEstado =
-  | 'STAND_BY' | 'PENDIENTE' | 'EN_CURSO' | 'REV_SANTI' | 'REV_MANU'
+  | 'PENDIENTE' | 'EN_CURSO' | 'REVISION_INTERNA'
   | 'ENVIADO_CLIENTE' | 'A_PUBLICAR' | 'LISTO' | 'CANCELADO';
 
 export interface MacroDef {
@@ -32,22 +32,20 @@ export const MACROS: MacroDef[] = [
 
 // Subestados de Prensa en orden, con su macro y estilo de chip.
 export const PRENSA_SUBESTADOS: SubDef[] = [
-  { sub: 'STAND_BY',        macro: 'BACKLOG',     label: 'Stand by',           chip: 'bg-[#000033]/5 text-[#000033]/60 border-[#000033]/20' },
-  { sub: 'PENDIENTE',       macro: 'BACKLOG',     label: 'Pendiente',          chip: 'bg-[#000033]/10 text-[#000033] border-[#000033]/25' },
-  { sub: 'EN_CURSO',        macro: 'EN_PROGRESO', label: 'En curso',           chip: 'bg-[#024fff]/10 text-[#024fff] border-[#024fff]/30' },
-  { sub: 'REV_SANTI',       macro: 'EN_REVISION', label: 'Rev. Santi',         chip: 'bg-[#024fff]/15 text-[#024fff] border-[#024fff]/35' },
-  { sub: 'REV_MANU',        macro: 'EN_REVISION', label: 'Rev. Manu',          chip: 'bg-[#024fff]/15 text-[#024fff] border-[#024fff]/35' },
-  { sub: 'ENVIADO_CLIENTE', macro: 'EN_REVISION', label: 'Enviado al cliente', chip: 'bg-[#024fff]/20 text-[#024fff] border-[#024fff]/40' },
-  { sub: 'A_PUBLICAR',      macro: 'FINALIZADO',  label: 'A publicar',         chip: 'bg-[#00ff99]/20 text-[#000033] border-[#00ff99]/40' },
-  { sub: 'LISTO',           macro: 'FINALIZADO',  label: 'Listo',              chip: 'bg-[#00ff99]/30 text-[#000033] border-[#00ff99]/50' },
-  { sub: 'CANCELADO',       macro: 'FINALIZADO',  label: 'Cancelado',          chip: 'bg-[#000033]/5 text-[#000033]/40 border-[#000033]/15' },
+  { sub: 'PENDIENTE',        macro: 'BACKLOG',     label: 'Pendiente',              chip: 'bg-[#000033]/10 text-[#000033] border-[#000033]/25' },
+  { sub: 'EN_CURSO',         macro: 'EN_PROGRESO', label: 'Ongoing',                chip: 'bg-[#024fff]/10 text-[#024fff] border-[#024fff]/30' },
+  { sub: 'REVISION_INTERNA', macro: 'EN_REVISION', label: 'En revisión interna',    chip: 'bg-[#024fff]/15 text-[#024fff] border-[#024fff]/35' },
+  { sub: 'ENVIADO_CLIENTE',  macro: 'EN_REVISION', label: 'En revisión del cliente', chip: 'bg-[#024fff]/20 text-[#024fff] border-[#024fff]/40' },
+  { sub: 'A_PUBLICAR',       macro: 'FINALIZADO',  label: 'A publicar',             chip: 'bg-[#00ff99]/20 text-[#000033] border-[#00ff99]/40' },
+  { sub: 'LISTO',            macro: 'FINALIZADO',  label: 'Completado',             chip: 'bg-[#00ff99]/30 text-[#000033] border-[#00ff99]/50' },
+  { sub: 'CANCELADO',        macro: 'FINALIZADO',  label: 'Cancelado',              chip: 'bg-[#000033]/5 text-[#000033]/40 border-[#000033]/15' },
 ];
 
 // Subestado default al soltar una card en cada macro-columna.
 export const MACRO_DEFAULT_SUB: Record<GeneralStatus, SubEstado> = {
   BACKLOG: 'PENDIENTE',
   EN_PROGRESO: 'EN_CURSO',
-  EN_REVISION: 'REV_SANTI',
+  EN_REVISION: 'REVISION_INTERNA',
   FINALIZADO: 'LISTO',
 };
 

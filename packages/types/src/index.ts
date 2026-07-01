@@ -81,11 +81,9 @@ export type GeneralStatus = MacroEstado;
 export const GeneralStatus = MacroEstado;
 
 export enum SubEstado {
-  STAND_BY = 'STAND_BY',
   PENDIENTE = 'PENDIENTE',
   EN_CURSO = 'EN_CURSO',
-  REV_SANTI = 'REV_SANTI',
-  REV_MANU = 'REV_MANU',
+  REVISION_INTERNA = 'REVISION_INTERNA',
   ENVIADO_CLIENTE = 'ENVIADO_CLIENTE',
   A_PUBLICAR = 'A_PUBLICAR',
   LISTO = 'LISTO',
@@ -108,15 +106,13 @@ export interface SubEstadoDef {
 // único macroEstado. Fuente única reutilizada por backend (derivar macro) y
 // frontend (columnas, chips, labels).
 export const PRENSA_SUBESTADOS: SubEstadoDef[] = [
-  { sub: SubEstado.STAND_BY,        macro: MacroEstado.BACKLOG,     label: 'Stand by' },
-  { sub: SubEstado.PENDIENTE,       macro: MacroEstado.BACKLOG,     label: 'Pendiente' },
-  { sub: SubEstado.EN_CURSO,        macro: MacroEstado.EN_PROGRESO, label: 'En curso' },
-  { sub: SubEstado.REV_SANTI,       macro: MacroEstado.EN_REVISION, label: 'Rev. Santi' },
-  { sub: SubEstado.REV_MANU,        macro: MacroEstado.EN_REVISION, label: 'Rev. Manu' },
-  { sub: SubEstado.ENVIADO_CLIENTE, macro: MacroEstado.EN_REVISION, label: 'Enviado al cliente' },
-  { sub: SubEstado.A_PUBLICAR,      macro: MacroEstado.FINALIZADO,  label: 'A publicar' },
-  { sub: SubEstado.LISTO,           macro: MacroEstado.FINALIZADO,  label: 'Listo' },
-  { sub: SubEstado.CANCELADO,       macro: MacroEstado.FINALIZADO,  label: 'Cancelado' },
+  { sub: SubEstado.PENDIENTE,         macro: MacroEstado.BACKLOG,     label: 'Pendiente' },
+  { sub: SubEstado.EN_CURSO,          macro: MacroEstado.EN_PROGRESO, label: 'Ongoing' },
+  { sub: SubEstado.REVISION_INTERNA,  macro: MacroEstado.EN_REVISION, label: 'En revisión interna' },
+  { sub: SubEstado.ENVIADO_CLIENTE,   macro: MacroEstado.EN_REVISION, label: 'En revisión del cliente' },
+  { sub: SubEstado.A_PUBLICAR,        macro: MacroEstado.FINALIZADO,  label: 'A publicar' },
+  { sub: SubEstado.LISTO,             macro: MacroEstado.FINALIZADO,  label: 'Completado' },
+  { sub: SubEstado.CANCELADO,         macro: MacroEstado.FINALIZADO,  label: 'Cancelado' },
 ];
 
 // Orden de las macro-columnas del backlog.
@@ -138,7 +134,7 @@ export const MACRO_ESTADO_LABEL: Record<MacroEstado, string> = {
 export const MACRO_DEFAULT_SUBESTADO: Record<MacroEstado, SubEstado> = {
   [MacroEstado.BACKLOG]: SubEstado.PENDIENTE,
   [MacroEstado.EN_PROGRESO]: SubEstado.EN_CURSO,
-  [MacroEstado.EN_REVISION]: SubEstado.REV_SANTI,
+  [MacroEstado.EN_REVISION]: SubEstado.REVISION_INTERNA,
   [MacroEstado.FINALIZADO]: SubEstado.LISTO,
 };
 
@@ -170,6 +166,7 @@ export interface Ticket {
   area: TicketArea;
   macroEstado?: MacroEstado;
   subEstado?: SubEstado;
+  reviewerId?: string;
   medio?: string;
   periodista?: string;
   estadoRespuesta?: EstadoRespuesta;
@@ -184,6 +181,7 @@ export interface Ticket {
   // Relations
   client?: Client;
   owner?: User;
+  reviewer?: User;
   ticketType?: TicketType;
   publication?: Publication;
   references?: Pick<Ticket, 'id' | 'title' | 'status'>[];

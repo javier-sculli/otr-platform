@@ -54,7 +54,7 @@ export const ticketAreaSchema = z.enum(['CONTENIDO', 'PRENSA']);
 export const macroEstadoSchema = z.enum(['BACKLOG', 'EN_PROGRESO', 'EN_REVISION', 'FINALIZADO']);
 export const generalStatusSchema = macroEstadoSchema;
 export const subEstadoSchema = z.enum([
-  'STAND_BY', 'PENDIENTE', 'EN_CURSO', 'REV_SANTI', 'REV_MANU',
+  'PENDIENTE', 'EN_CURSO', 'REVISION_INTERNA',
   'ENVIADO_CLIENTE', 'A_PUBLICAR', 'LISTO', 'CANCELADO',
 ]);
 export const estadoRespuestaSchema = z.enum(['ENVIADO', 'RESPONDIDO', 'SIN_RESPUESTA']);
@@ -70,6 +70,7 @@ export const createTicketSchema = z.object({
   status: ticketStatusSchema.default('BACKLOG'),
   area: ticketAreaSchema.default('CONTENIDO'),
   subEstado: subEstadoSchema.optional(),
+  reviewerId: z.string().uuid().optional().nullable(),
   medio: z.string().optional(),
   periodista: z.string().optional(),
   estadoRespuesta: estadoRespuestaSchema.optional(),
@@ -91,6 +92,7 @@ export const updateTicketSchema = z.object({
   closeReason: ticketCloseReasonSchema.optional(),
   area: ticketAreaSchema.optional(),
   subEstado: subEstadoSchema.optional().nullable(),
+  reviewerId: z.string().uuid().optional().nullable(),
   medio: z.string().optional().nullable(),
   periodista: z.string().optional().nullable(),
   estadoRespuesta: estadoRespuestaSchema.optional().nullable(),

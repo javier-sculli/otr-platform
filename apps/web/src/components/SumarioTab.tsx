@@ -99,7 +99,7 @@ export function SumarioTab({ clientId }: { clientId: string }) {
         }
         if (t.subEstado) {
           if (['A_PUBLICAR', 'LISTO', 'PUBLICADO'].includes(t.subEstado)) return 'Publicado';
-          if (['REV_SANTI', 'REV_MANU', 'ENVIADO_CLIENTE'].includes(t.subEstado)) return 'Diseño/Edición';
+          if (['REVISION_INTERNA', 'ENVIADO_CLIENTE'].includes(t.subEstado)) return 'Diseño/Edición';
           if (t.subEstado === 'EN_CURSO') return 'Redacción';
           return 'Ideación';
         }
@@ -211,7 +211,7 @@ export function SumarioTab({ clientId }: { clientId: string }) {
   const ESTADO_PROD_TO_SUBESTADO: Record<string, string> = {
     'Ideación': 'PENDIENTE',
     'Redacción': 'EN_CURSO',
-    'Diseño/Edición': 'REV_MANU',
+    'Diseño/Edición': 'REVISION_INTERNA',
     'Publicado': 'LISTO',
   };
 
