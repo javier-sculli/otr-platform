@@ -56,8 +56,7 @@ const STATUS_OPTIONS = [
 function getStatusStyle(status: string, esPrensa?: boolean, subEstado?: string | null) {
   if (esPrensa && subEstado) {
     switch (subEstado) {
-      case 'LISTO':
-      case 'A_PUBLICAR':      return 'bg-[#00ff99]/20 border-[#00ff99]/45 text-[#000033]';
+      case 'LISTO':           return 'bg-[#00ff99]/20 border-[#00ff99]/45 text-[#000033]';
       case 'EN_CURSO':
       case 'REVISION_INTERNA':
       case 'ENVIADO_CLIENTE':  return 'bg-[#024fff]/10 border-[#024fff]/30 text-[#024fff]';
@@ -837,7 +836,6 @@ export function TicketDetallePage() {
                       <option value="EN_CURSO">Ongoing</option>
                       <option value="REVISION_INTERNA">En revisión interna</option>
                       <option value="ENVIADO_CLIENTE">En revisión del cliente</option>
-                      <option value="A_PUBLICAR">A publicar</option>
                       <option value="LISTO">Completado</option>
                       <option value="CANCELADO">Cancelado</option>
                     </select>

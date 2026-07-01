@@ -55,7 +55,7 @@ export const macroEstadoSchema = z.enum(['BACKLOG', 'EN_PROGRESO', 'EN_REVISION'
 export const generalStatusSchema = macroEstadoSchema;
 export const subEstadoSchema = z.enum([
   'PENDIENTE', 'EN_CURSO', 'REVISION_INTERNA',
-  'ENVIADO_CLIENTE', 'A_PUBLICAR', 'LISTO', 'CANCELADO',
+  'ENVIADO_CLIENTE', 'LISTO', 'CANCELADO',
 ]);
 export const estadoRespuestaSchema = z.enum(['ENVIADO', 'RESPONDIDO', 'SIN_RESPUESTA']);
 export const estadoAprobacionClienteSchema = z.enum(['BORRADOR', 'ENVIADO_AL_CLIENTE', 'APROBADO', 'RECHAZADO', 'REQUIERE_AJUSTES']);

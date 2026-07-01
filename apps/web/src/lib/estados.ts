@@ -6,7 +6,7 @@ export type GeneralStatus = MacroEstado;
 
 export type SubEstado =
   | 'PENDIENTE' | 'EN_CURSO' | 'REVISION_INTERNA'
-  | 'ENVIADO_CLIENTE' | 'A_PUBLICAR' | 'LISTO' | 'CANCELADO';
+  | 'ENVIADO_CLIENTE' | 'LISTO' | 'CANCELADO';
 
 export interface MacroDef {
   id: GeneralStatus;
@@ -36,7 +36,6 @@ export const PRENSA_SUBESTADOS: SubDef[] = [
   { sub: 'EN_CURSO',         macro: 'EN_PROGRESO', label: 'Ongoing',                chip: 'bg-[#024fff]/10 text-[#024fff] border-[#024fff]/30' },
   { sub: 'REVISION_INTERNA', macro: 'EN_REVISION', label: 'En revisión interna',    chip: 'bg-[#024fff]/15 text-[#024fff] border-[#024fff]/35' },
   { sub: 'ENVIADO_CLIENTE',  macro: 'EN_REVISION', label: 'En revisión del cliente', chip: 'bg-[#024fff]/20 text-[#024fff] border-[#024fff]/40' },
-  { sub: 'A_PUBLICAR',       macro: 'FINALIZADO',  label: 'A publicar',             chip: 'bg-[#00ff99]/20 text-[#000033] border-[#00ff99]/40' },
   { sub: 'LISTO',            macro: 'FINALIZADO',  label: 'Completado',             chip: 'bg-[#00ff99]/30 text-[#000033] border-[#00ff99]/50' },
   { sub: 'CANCELADO',        macro: 'FINALIZADO',  label: 'Cancelado',              chip: 'bg-[#000033]/5 text-[#000033]/40 border-[#000033]/15' },
 ];
