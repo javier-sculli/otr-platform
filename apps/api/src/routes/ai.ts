@@ -110,8 +110,9 @@ function buildSystemPrompt(params: {
   referencias?: { title: string; brief: string; content: string }[];
   pressReferenceContent?: string | null;
   ticketTypeName?: string;
+  area: 'CONTENIDO' | 'PRENSA';
 }): string {
-  const { clientName, title, brief, tone, keywords, outputLength, currentContent, brandVoice, speaker, textAttachments, contextLinks, canal, otherCanalesContent, lineamientos, referencias, pressReferenceContent, ticketTypeName } = params;
+  const { clientName, title, brief, tone, keywords, outputLength, currentContent, brandVoice, speaker, textAttachments, contextLinks, canal, otherCanalesContent, lineamientos, referencias, pressReferenceContent, ticketTypeName, area } = params;
 
   const lengthGuide = LENGTH_GUIDE[outputLength] ?? LENGTH_GUIDE['M'];
 
@@ -193,7 +194,15 @@ function buildSystemPrompt(params: {
 
   const voiceContext = speakerBlock + brandVoiceBlock;
 
-  return `Sos un redactor profesional especializado en contenido para redes sociales y marketing de contenidos. Trabajás para el cliente ${clientName}.
+  const persona = area === 'PRENSA'
+    ? `Sos un redactor profesional especializado en prensa, relaciones públicas (PR) y comunicación institucional. Trabajás para el cliente ${clientName}. Tu objetivo es estructurar notas de prensa, comunicados oficiales, cuestionarios/respuestas para voceros, o pitches para periodistas. Usá un tono profesional, periodístico, informativo y neutral, a menos que el brief o tono indique lo contrario.`
+    : `Sos un redactor profesional especializado en contenido para redes sociales y marketing de contenidos. Trabajás para el cliente ${clientName}. Tu objetivo es redactar textos persuasivos, dinámicos y adaptados a audiencias digitales.`;
+
+  const instructionContext = area === 'PRENSA'
+    ? `\n⚠️ PRIORIDAD DE FORMATO Y ESTILO: Para estructurar la pieza de prensa, usá estrictamente la "Referencia de Prensa" provista. El Kit de Marca y los Voceros proporcionan los hechos, citas y contexto de fondo, pero el formato debe ser estrictamente periodístico/comunicado.`
+    : `\n⚠️ PRIORIDAD DE FORMATO Y ESTILO: Seguí fielmente los posts reales (lineamientos) del cliente y la personalidad del Kit de Marca y el Vocero (si está configurado).`;
+
+  return `${persona}
 
 ## Contexto de la pieza
 Título: ${title || '(sin título)'}
@@ -201,6 +210,7 @@ Brief: ${brief || '(sin brief)'}
 Tono de voz: ${tone || '(no especificado)'}
 Keywords: ${keywords || '(no especificadas)'}
 Longitud objetivo: ${lengthGuide}${canalContext}${voiceContext}${referenciasBlock}${pressReferenceBlock}${lineamientosBlock}${linksBlock}${attachmentsBlock}${otherCanalesBlock}${contentBlock}
+${instructionContext}
 
 ## Instrucciones de respuesta
 
@@ -362,7 +372,8 @@ export async function aiRoutes(fastify: FastifyInstance) {
       contextLinks: ticket.links,
       canal,
       otherCanalesContent,
-      lineamientos,
+      // Only include social media lineamientos/posts for Contenido tickets
+      lineamientos: ticket.area === 'CONTENIDO' ? lineamientos : [],
       referencias: ticket.references.map((r) => ({
         title: r.title,
         brief: r.objetivo ?? '',
@@ -370,6 +381,7 @@ export async function aiRoutes(fastify: FastifyInstance) {
       })),
       pressReferenceContent,
       ticketTypeName: ticket.ticketType?.name ?? '',
+      area: ticket.area as 'CONTENIDO' | 'PRENSA',
     });
 
     console.log('[ai/chat] ─────────────────────────────────────────────────');
