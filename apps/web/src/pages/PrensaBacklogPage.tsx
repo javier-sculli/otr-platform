@@ -230,8 +230,18 @@ export function PrensaBacklogPage() {
   // Effective subState of a ticket (fallback PENDIENTE if not set).
   const subOf = (t: Ticket): SubEstado => (t.subEstado && SUB_DEF[t.subEstado] ? t.subEstado : 'PENDIENTE');
 
-  const ticketsDeSub = (sub: SubEstado, items = ticketsFiltrados) =>
-    items.filter(t => subOf(t) === sub);
+  const ticketsDeSub = (sub: SubEstado, items = ticketsFiltrados) => {
+    const list = items.filter(t => subOf(t) === sub);
+    const subDef = SUB_DEF[sub];
+    if (subDef?.macro === 'FINALIZADO') {
+      return [...list].sort((a, b) => {
+        const timeA = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
+        const timeB = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
+        return timeB - timeA;
+      });
+    }
+    return list;
+  };
 
   const countMacro = (macro: GeneralStatus, items = ticketsFiltrados) =>
     items.filter(t => SUB_DEF[subOf(t)].macro === macro).length;
@@ -472,28 +482,20 @@ export function PrensaBacklogPage() {
 
                   <div className="flex-1 overflow-y-auto bg-[#000033]/[0.02] border-2 border-t-0 border-[#000033]/10 rounded-b-xl p-2 space-y-3 min-h-[400px]">
                     {macro.id === 'FINALIZADO' && !expandedFinalizados ? (
-                      <div className="flex flex-col items-center justify-center py-12 text-center h-full min-h-[300px]">
-                        <Archive className="w-8 h-8 text-[#000033]/20 mb-2" />
-                        <p className="text-[11px] font-medium text-[#000033]/40 mb-3 px-4">
-                          Tareas finalizadas (últimos 30 días)
+                      <div
+                        onClick={() => setExpandedFinalizados(true)}
+                        className="flex-grow flex flex-col items-center justify-center py-16 text-center bg-[#00ff99]/[0.02] hover:bg-[#00ff99]/5 border-2 border-dashed border-[#00ff99]/20 hover:border-[#00ff99]/40 rounded-xl cursor-pointer transition-all m-1 min-h-[320px]"
+                      >
+                        <Archive className="w-8 h-8 text-[#000033]/30 mb-2" />
+                        <p className="text-xs font-bold text-[#000033] mb-1">
+                          Ver finalizadas ({countMacro('FINALIZADO')})
                         </p>
-                        <button
-                          onClick={() => setExpandedFinalizados(true)}
-                          className="px-3 py-1.5 bg-[#00ff99]/20 hover:bg-[#00ff99]/30 border-2 border-[#00ff99]/40 text-[#000033] text-xs font-bold rounded-lg transition-all"
-                        >
-                          Mostrar {countMacro('FINALIZADO')} tareas
-                        </button>
+                        <p className="text-[10px] text-[#000033]/45 max-w-[200px] px-3 leading-relaxed">
+                          Haz clic para desplegar las tareas de los últimos 30 días
+                        </p>
                       </div>
                     ) : (
                       <>
-                        {macro.id === 'FINALIZADO' && (
-                          <button
-                            onClick={() => setExpandedFinalizados(false)}
-                            className="w-full mb-3 py-1.5 bg-[#000033]/5 text-[#000033]/50 hover:bg-[#000033]/10 rounded-lg text-xs font-bold transition-all text-center"
-                          >
-                            Colapsar sección
-                          </button>
-                        )}
                         {subsDeMacro(macro.id).map((subDef, si) => {
                           const tickets = ticketsDeSub(subDef.sub);
                           return (
@@ -529,6 +531,16 @@ export function PrensaBacklogPage() {
                             </div>
                           );
                         })}
+                        {macro.id === 'FINALIZADO' && (
+                          <div className="sticky bottom-0 left-0 right-0 pt-6 pb-1 bg-gradient-to-t from-[#fafafa] via-[#fafafa]/90 to-transparent text-center z-[2]">
+                            <button
+                              onClick={(e) => { e.stopPropagation(); setExpandedFinalizados(false); }}
+                              className="inline-flex items-center gap-1 px-3 py-1 bg-white hover:bg-gray-50 border border-[#000033]/20 shadow-sm rounded-full text-[10px] font-bold text-[#000033]/70 hover:text-[#000033] transition-all"
+                            >
+                              Colapsar columna ↑
+                            </button>
+                          </div>
+                        )}
                       </>
                     )}
 
@@ -572,28 +584,20 @@ export function PrensaBacklogPage() {
 
                     <div className="flex-1 overflow-y-auto bg-[#000033]/[0.02] border-2 border-t-0 border-[#000033]/10 rounded-b-xl p-2 space-y-2 min-h-[400px]">
                       {subDef.macro === 'FINALIZADO' && !expandedFinalizados ? (
-                        <div className="flex flex-col items-center justify-center py-12 text-center h-full min-h-[300px]">
-                          <Archive className="w-8 h-8 text-[#000033]/20 mb-2" />
-                          <p className="text-[11px] font-medium text-[#000033]/40 mb-3 px-4">
-                            Tareas finalizadas (últimos 30 días)
+                        <div
+                          onClick={() => setExpandedFinalizados(true)}
+                          className="flex-1 flex flex-col items-center justify-center py-12 text-center bg-[#00ff99]/[0.02] hover:bg-[#00ff99]/5 border-2 border-dashed border-[#00ff99]/20 hover:border-[#00ff99]/40 rounded-xl cursor-pointer transition-all h-full min-h-[320px]"
+                        >
+                          <Archive className="w-8 h-8 text-[#000033]/30 mb-2" />
+                          <p className="text-xs font-bold text-[#000033] mb-1">
+                            Ver finalizadas ({tickets.length})
                           </p>
-                          <button
-                            onClick={() => setExpandedFinalizados(true)}
-                            className="px-3 py-1.5 bg-[#00ff99]/20 hover:bg-[#00ff99]/30 border-2 border-[#00ff99]/40 text-[#000033] text-xs font-bold rounded-lg transition-all"
-                          >
-                            Mostrar
-                          </button>
+                          <p className="text-[10px] text-[#000033]/45 px-2">
+                            Haz clic para desplegar
+                          </p>
                         </div>
                       ) : (
                         <>
-                          {subDef.macro === 'FINALIZADO' && (
-                            <button
-                              onClick={() => setExpandedFinalizados(false)}
-                              className="w-full mb-2 py-1 bg-[#000033]/5 text-[#000033]/50 hover:bg-[#000033]/10 rounded-lg text-[10px] font-bold transition-all text-center"
-                            >
-                              Colapsar
-                            </button>
-                          )}
                           {tickets.length === 0 ? (
                             <div className="py-6 text-center text-xs text-[#000033]/30 font-medium">
                               Sin tickets
@@ -609,6 +613,16 @@ export function PrensaBacklogPage() {
                                 onClick={() => setSelectedTicket(ticket)}
                               />
                             ))
+                          )}
+                          {subDef.macro === 'FINALIZADO' && (
+                            <div className="sticky bottom-0 left-0 right-0 pt-6 pb-1 bg-gradient-to-t from-[#fafafa] via-[#fafafa]/90 to-transparent text-center z-[2]">
+                              <button
+                                onClick={(e) => { e.stopPropagation(); setExpandedFinalizados(false); }}
+                                className="inline-flex items-center gap-1 px-3 py-1 bg-white hover:bg-gray-50 border border-[#000033]/20 shadow-sm rounded-full text-[10px] font-bold text-[#000033]/70 hover:text-[#000033] transition-all"
+                              >
+                                Colapsar columna ↑
+                              </button>
+                            </div>
                           )}
                         </>
                       )}
@@ -661,28 +675,18 @@ export function PrensaBacklogPage() {
                             </div>
                             <div className="flex-1 bg-[#000033]/[0.02] border-2 border-t-0 border-[#000033]/10 rounded-b-xl p-2 space-y-3">
                               {macro.id === 'FINALIZADO' && !expandedFinalizados ? (
-                                <div className="flex flex-col items-center justify-center py-6 text-center">
-                                  <Archive className="w-6 h-6 text-[#000033]/20 mb-1" />
-                                  <p className="text-[10px] font-medium text-[#000033]/40 mb-2">
-                                    Finalizadas (últimos 30 días)
+                                <div
+                                  onClick={() => setExpandedFinalizados(true)}
+                                  className="flex flex-col items-center justify-center py-8 text-center bg-[#00ff99]/[0.02] hover:bg-[#00ff99]/5 border-2 border-dashed border-[#00ff99]/20 hover:border-[#00ff99]/40 rounded-xl cursor-pointer transition-all m-1"
+                                >
+                                  <Archive className="w-6 h-6 text-[#000033]/30 mb-1" />
+                                  <p className="text-[10px] font-bold text-[#000033] mb-1">
+                                    Ver finalizadas ({countMacro('FINALIZADO', clienteTickets)})
                                   </p>
-                                  <button
-                                    onClick={() => setExpandedFinalizados(true)}
-                                    className="px-2 py-1 bg-[#00ff99]/20 hover:bg-[#00ff99]/30 border border-[#00ff99]/40 text-[#000033] text-[10px] font-bold rounded transition-all"
-                                  >
-                                    Mostrar {countMacro('FINALIZADO', clienteTickets)}
-                                  </button>
+                                  <p className="text-[9px] text-[#000033]/40">Haz clic para ver</p>
                                 </div>
                               ) : (
                                 <>
-                                  {macro.id === 'FINALIZADO' && (
-                                    <button
-                                      onClick={() => setExpandedFinalizados(false)}
-                                      className="w-full mb-2 py-1 bg-[#000033]/5 text-[#000033]/50 hover:bg-[#000033]/10 rounded text-[9px] font-bold transition-all text-center"
-                                    >
-                                      Colapsar
-                                    </button>
-                                  )}
                                   {subsDeMacro(macro.id).map((subDef, si) => {
                                     const tickets = ticketsDeSub(subDef.sub, clienteTickets);
                                     return (
@@ -717,6 +721,16 @@ export function PrensaBacklogPage() {
                                       </div>
                                     );
                                   })}
+                                  {macro.id === 'FINALIZADO' && (
+                                    <div className="sticky bottom-0 left-0 right-0 pt-6 pb-1 bg-gradient-to-t from-white via-white/90 to-transparent text-center z-[2]">
+                                      <button
+                                        onClick={(e) => { e.stopPropagation(); setExpandedFinalizados(false); }}
+                                        className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-white hover:bg-gray-50 border border-[#000033]/15 shadow-sm rounded-full text-[9px] font-bold text-[#000033]/70 hover:text-[#000033] transition-all"
+                                      >
+                                        Colapsar ↑
+                                      </button>
+                                    </div>
+                                  )}
                                 </>
                               )}
                             </div>
@@ -766,25 +780,17 @@ export function PrensaBacklogPage() {
                                 </div>
                                 <div className="flex-1 bg-[#000033]/[0.02] border-2 border-t-0 border-[#000033]/10 rounded-b-xl p-2 space-y-2">
                                   {subDef.macro === 'FINALIZADO' && !expandedFinalizados ? (
-                                    <div className="flex flex-col items-center justify-center py-6 text-center h-full min-h-[120px]">
-                                      <Archive className="w-5 h-5 text-[#000033]/20 mb-1" />
-                                      <button
-                                        onClick={() => setExpandedFinalizados(true)}
-                                        className="px-2 py-0.5 bg-[#00ff99]/20 hover:bg-[#00ff99]/30 border border-[#00ff99]/40 text-[#000033] text-[9px] font-bold rounded transition-all"
-                                      >
-                                        Mostrar
-                                      </button>
+                                    <div
+                                      onClick={() => setExpandedFinalizados(true)}
+                                      className="flex flex-col items-center justify-center py-6 text-center h-full min-h-[120px] bg-[#00ff99]/[0.02] hover:bg-[#00ff99]/5 border-2 border-dashed border-[#00ff99]/20 hover:border-[#00ff99]/40 rounded-xl cursor-pointer transition-all m-1"
+                                    >
+                                      <Archive className="w-5 h-5 text-[#000033]/30 mb-1" />
+                                      <span className="text-[10px] font-bold text-[#000033]">
+                                        Desplegar ({tickets.length})
+                                      </span>
                                     </div>
                                   ) : (
                                     <>
-                                      {subDef.macro === 'FINALIZADO' && (
-                                        <button
-                                          onClick={() => setExpandedFinalizados(false)}
-                                          className="w-full mb-1.5 py-0.5 bg-[#000033]/5 text-[#000033]/50 hover:bg-[#000033]/10 rounded text-[9px] font-bold transition-all text-center"
-                                        >
-                                          Colapsar
-                                        </button>
-                                      )}
                                       {tickets.length === 0 ? (
                                         <EmptySlot />
                                       ) : (
@@ -798,6 +804,16 @@ export function PrensaBacklogPage() {
                                             onClick={() => setSelectedTicket(ticket)}
                                           />
                                         ))
+                                      )}
+                                      {subDef.macro === 'FINALIZADO' && (
+                                        <div className="sticky bottom-0 left-0 right-0 pt-5 pb-0.5 bg-gradient-to-t from-white via-white/90 to-transparent text-center z-[2]">
+                                          <button
+                                            onClick={(e) => { e.stopPropagation(); setExpandedFinalizados(false); }}
+                                            className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-white hover:bg-gray-50 border border-[#000033]/15 shadow-sm rounded-full text-[9px] font-bold text-[#000033]/70 hover:text-[#000033] transition-all"
+                                          >
+                                            Colapsar ↑
+                                          </button>
+                                        </div>
                                       )}
                                     </>
                                   )}
