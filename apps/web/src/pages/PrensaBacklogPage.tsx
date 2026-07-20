@@ -452,11 +452,11 @@ export function PrensaBacklogPage() {
           
           {/* ── VIEW 1: Estado + Compacta (4 macro cols, sub-sections) ── */}
           {agruparPor === 'Estado' && densidad === 'Compacta' && (
-            <div className="flex gap-3 p-4 h-full min-w-max">
+            <div className="flex gap-3 p-4 h-full w-full">
               {MACROS.map(macro => (
                 <div 
                   key={macro.id} 
-                  className="flex flex-col w-[280px] flex-shrink-0"
+                  className="flex flex-col flex-1 min-w-[240px]"
                   onDragOver={e => e.preventDefault()}
                   onDrop={() => handleDrop(MACRO_DEFAULT_SUB[macro.id])}
                 >
@@ -643,11 +643,11 @@ export function PrensaBacklogPage() {
                       onToggle={() => toggleExpandedCliente(cliente.name)}
                     />
                     {isExpanded && (
-                      <div className="mt-3 ml-2 flex gap-3 overflow-x-auto pb-2">
+                      <div className="mt-3 ml-2 flex gap-3 w-full pb-2 overflow-x-auto">
                         {MACROS.map(macro => (
                           <div
                             key={macro.id}
-                            className="flex flex-col w-[260px] flex-shrink-0"
+                            className="flex flex-col flex-1 min-w-[200px]"
                             onDragOver={e => e.preventDefault()}
                             onDrop={() => handleDrop(MACRO_DEFAULT_SUB[macro.id])}
                           >
