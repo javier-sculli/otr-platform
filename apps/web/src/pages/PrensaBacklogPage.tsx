@@ -138,6 +138,7 @@ export function PrensaBacklogPage() {
   const [fechaDesde, setFechaDesde] = useState('');
   const [fechaHasta, setFechaHasta] = useState('');
   const [expandedFinalizados, setExpandedFinalizados] = useState(false);
+  const [mostrarTodos30Dias, setMostrarTodos30Dias] = useState(false);
   const [showHistorialModal, setShowHistorialModal] = useState(false);
 
   const { data: ticketsData, isLoading } = useQuery({
@@ -176,9 +177,14 @@ export function PrensaBacklogPage() {
   // Date ranges calculation (same as BacklogPage)
   const ahora = new Date();
   const inicioSemana = new Date(ahora);
-  inicioSemana.setDate(ahora.getDate() - ahora.getDay() + 1); // lunes
+  const currentDay = ahora.getDay();
+  const mondayDiff = ahora.getDate() - currentDay + (currentDay === 0 ? -6 : 1);
+  inicioSemana.setDate(mondayDiff);
+  inicioSemana.setHours(0, 0, 0, 0);
+
   const finSemana = new Date(inicioSemana);
   finSemana.setDate(inicioSemana.getDate() + 6);
+  finSemana.setHours(23, 59, 59, 999);
 
   const meses = [0, 1, 2].map(offset => ({
     inicio: new Date(ahora.getFullYear(), ahora.getMonth() - offset, 1),
@@ -230,15 +236,35 @@ export function PrensaBacklogPage() {
   // Effective subState of a ticket (fallback PENDIENTE if not set).
   const subOf = (t: Ticket): SubEstado => (t.subEstado && SUB_DEF[t.subEstado] ? t.subEstado : 'PENDIENTE');
 
+  // Helper to check if finalized this week
+  const isFinalizedThisWeek = (t: Ticket) => {
+    if (!t.updatedAt) return false;
+    const date = new Date(t.updatedAt);
+    return date >= inicioSemana && date <= finSemana;
+  };
+
+  const hasMoreFinalizados = (items = ticketsFiltrados) => {
+    const list = items.filter(t => {
+      const macro = SUB_DEF[subOf(t)]?.macro;
+      return macro === 'FINALIZADO';
+    });
+    const thisWeek = list.filter(isFinalizedThisWeek);
+    return list.length > thisWeek.length;
+  };
+
   const ticketsDeSub = (sub: SubEstado, items = ticketsFiltrados) => {
     const list = items.filter(t => subOf(t) === sub);
     const subDef = SUB_DEF[sub];
     if (subDef?.macro === 'FINALIZADO') {
-      return [...list].sort((a, b) => {
+      const sorted = [...list].sort((a, b) => {
         const timeA = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
         const timeB = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
         return timeB - timeA;
       });
+      if (!mostrarTodos30Dias) {
+        return sorted.filter(isFinalizedThisWeek);
+      }
+      return sorted;
     }
     return list;
   };
@@ -532,9 +558,21 @@ export function PrensaBacklogPage() {
                           );
                         })}
                         {macro.id === 'FINALIZADO' && (
-                          <div className="sticky bottom-0 left-0 right-0 pt-6 pb-1 bg-gradient-to-t from-[#fafafa] via-[#fafafa]/90 to-transparent text-center z-[2]">
+                          <div className="sticky bottom-0 left-0 right-0 pt-6 pb-1 bg-gradient-to-t from-[#fafafa] via-[#fafafa]/90 to-transparent flex flex-col items-center gap-1.5 z-[2]">
+                            {hasMoreFinalizados() && !mostrarTodos30Dias && (
+                              <button
+                                onClick={(e) => { e.stopPropagation(); setMostrarTodos30Dias(true); }}
+                                className="px-3 py-1.5 bg-[#00ff99]/20 hover:bg-[#00ff99]/30 border-2 border-[#00ff99]/40 text-[#000033] text-xs font-bold rounded-lg transition-all shadow-sm mb-1"
+                              >
+                                Ver finalizadas del mes
+                              </button>
+                            )}
                             <button
-                              onClick={(e) => { e.stopPropagation(); setExpandedFinalizados(false); }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setExpandedFinalizados(false);
+                                setMostrarTodos30Dias(false);
+                              }}
                               className="inline-flex items-center gap-1 px-3 py-1 bg-white hover:bg-gray-50 border border-[#000033]/20 shadow-sm rounded-full text-[10px] font-bold text-[#000033]/70 hover:text-[#000033] transition-all"
                             >
                               Colapsar columna ↑
@@ -615,9 +653,21 @@ export function PrensaBacklogPage() {
                             ))
                           )}
                           {subDef.macro === 'FINALIZADO' && (
-                            <div className="sticky bottom-0 left-0 right-0 pt-6 pb-1 bg-gradient-to-t from-[#fafafa] via-[#fafafa]/90 to-transparent text-center z-[2]">
+                            <div className="sticky bottom-0 left-0 right-0 pt-6 pb-1 bg-gradient-to-t from-[#fafafa] via-[#fafafa]/90 to-transparent flex flex-col items-center gap-1.5 z-[2]">
+                              {hasMoreFinalizados() && !mostrarTodos30Dias && (
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); setMostrarTodos30Dias(true); }}
+                                  className="px-3 py-1.5 bg-[#00ff99]/20 hover:bg-[#00ff99]/30 border-2 border-[#00ff99]/40 text-[#000033] text-xs font-bold rounded-lg transition-all shadow-sm mb-1"
+                                >
+                                  Ver finalizadas del mes
+                                </button>
+                              )}
                               <button
-                                onClick={(e) => { e.stopPropagation(); setExpandedFinalizados(false); }}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setExpandedFinalizados(false);
+                                  setMostrarTodos30Dias(false);
+                                }}
                                 className="inline-flex items-center gap-1 px-3 py-1 bg-white hover:bg-gray-50 border border-[#000033]/20 shadow-sm rounded-full text-[10px] font-bold text-[#000033]/70 hover:text-[#000033] transition-all"
                               >
                                 Colapsar columna ↑
@@ -722,9 +772,21 @@ export function PrensaBacklogPage() {
                                     );
                                   })}
                                   {macro.id === 'FINALIZADO' && (
-                                    <div className="sticky bottom-0 left-0 right-0 pt-6 pb-1 bg-gradient-to-t from-white via-white/90 to-transparent text-center z-[2]">
+                                    <div className="sticky bottom-0 left-0 right-0 pt-6 pb-1 bg-gradient-to-t from-white via-white/90 to-transparent flex flex-col items-center gap-1 z-[2]">
+                                      {hasMoreFinalizados(clienteTickets) && !mostrarTodos30Dias && (
+                                        <button
+                                          onClick={(e) => { e.stopPropagation(); setMostrarTodos30Dias(true); }}
+                                          className="px-2 py-1 bg-[#00ff99]/20 hover:bg-[#00ff99]/30 border border-[#00ff99]/40 text-[#000033] text-[10px] font-bold rounded transition-all shadow-sm mb-1"
+                                        >
+                                          Ver finalizadas del mes
+                                        </button>
+                                      )}
                                       <button
-                                        onClick={(e) => { e.stopPropagation(); setExpandedFinalizados(false); }}
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setExpandedFinalizados(false);
+                                          setMostrarTodos30Dias(false);
+                                        }}
                                         className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-white hover:bg-gray-50 border border-[#000033]/15 shadow-sm rounded-full text-[9px] font-bold text-[#000033]/70 hover:text-[#000033] transition-all"
                                       >
                                         Colapsar ↑
@@ -806,9 +868,21 @@ export function PrensaBacklogPage() {
                                         ))
                                       )}
                                       {subDef.macro === 'FINALIZADO' && (
-                                        <div className="sticky bottom-0 left-0 right-0 pt-5 pb-0.5 bg-gradient-to-t from-white via-white/90 to-transparent text-center z-[2]">
+                                        <div className="sticky bottom-0 left-0 right-0 pt-5 pb-0.5 bg-gradient-to-t from-white via-white/90 to-transparent flex flex-col items-center gap-1 z-[2]">
+                                          {hasMoreFinalizados(clienteTickets) && !mostrarTodos30Dias && (
+                                            <button
+                                              onClick={(e) => { e.stopPropagation(); setMostrarTodos30Dias(true); }}
+                                              className="px-2 py-0.5 bg-[#00ff99]/20 hover:bg-[#00ff99]/30 border border-[#00ff99]/40 text-[#000033] text-[9px] font-bold rounded transition-all shadow-sm mb-0.5"
+                                            >
+                                              Ver finalizadas del mes
+                                            </button>
+                                          )}
                                           <button
-                                            onClick={(e) => { e.stopPropagation(); setExpandedFinalizados(false); }}
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              setExpandedFinalizados(false);
+                                              setMostrarTodos30Dias(false);
+                                            }}
                                             className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-white hover:bg-gray-50 border border-[#000033]/15 shadow-sm rounded-full text-[9px] font-bold text-[#000033]/70 hover:text-[#000033] transition-all"
                                           >
                                             Colapsar ↑
