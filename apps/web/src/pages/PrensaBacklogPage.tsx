@@ -251,13 +251,21 @@ export function PrensaBacklogPage() {
     return date >= inicioSemana && date <= finSemana;
   };
 
+  const countThisWeekFinalizados = (items = ticketsFiltrados) => {
+    return items.filter(t => {
+      const isFinal = t.subEstado === 'LISTO' || t.subEstado === 'CANCELADO';
+      return isFinal && isFinalizedThisWeek(t);
+    }).length;
+  };
+
   const hasMoreFinalizados = (items = ticketsFiltrados) => {
-    const list = items.filter(t => {
+    const thisWeek = countThisWeekFinalizados(items);
+    if (thisWeek === 0) return false;
+    const total = items.filter(t => {
       const macro = SUB_DEF[subOf(t)]?.macro;
       return macro === 'FINALIZADO';
-    });
-    const thisWeek = list.filter(isFinalizedThisWeek);
-    return list.length > thisWeek.length;
+    }).length;
+    return total > thisWeek;
   };
 
   const ticketsDeSub = (sub: SubEstado, items = ticketsFiltrados) => {
@@ -269,7 +277,8 @@ export function PrensaBacklogPage() {
         const timeB = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
         return timeB - timeA;
       });
-      if (!mostrarTodos30Dias) {
+      const hasThisWeek = countThisWeekFinalizados(items) > 0;
+      if (hasThisWeek && !mostrarTodos30Dias) {
         return sorted.filter(isFinalizedThisWeek);
       }
       return sorted;
@@ -523,10 +532,16 @@ export function PrensaBacklogPage() {
                       >
                         <Archive className="w-8 h-8 text-[#000033]/30 mb-2" />
                         <p className="text-xs font-bold text-[#000033] mb-1">
-                          Ver finalizadas ({countMacro('FINALIZADO')})
+                          {countMacro('FINALIZADO') === 0
+                            ? 'Ver finalizadas (0)'
+                            : countThisWeekFinalizados() > 0
+                              ? `Ver finalizadas de esta semana (${countThisWeekFinalizados()})`
+                              : `Ver finalizadas del mes (${countMacro('FINALIZADO')})`}
                         </p>
                         <p className="text-[10px] text-[#000033]/45 max-w-[200px] px-3 leading-relaxed">
-                          Haz clic para desplegar las tareas de los últimos 30 días
+                          {countThisWeekFinalizados() > 0
+                            ? 'Haz clic para ver las tareas completadas esta semana'
+                            : 'Haz clic para ver las tareas completadas en los últimos 30 días'}
                         </p>
                       </div>
                     ) : (
@@ -637,7 +652,11 @@ export function PrensaBacklogPage() {
                         >
                           <Archive className="w-8 h-8 text-[#000033]/30 mb-2" />
                           <p className="text-xs font-bold text-[#000033] mb-1">
-                            Ver finalizadas ({tickets.length})
+                            {tickets.length === 0
+                              ? 'Ver finalizadas (0)'
+                              : countThisWeekFinalizados() > 0
+                                ? `Ver finalizadas de esta semana (${countThisWeekFinalizados()})`
+                                : `Ver finalizadas del mes (${tickets.length})`}
                           </p>
                           <p className="text-[10px] text-[#000033]/45 px-2">
                             Haz clic para desplegar
@@ -740,7 +759,11 @@ export function PrensaBacklogPage() {
                                 >
                                   <Archive className="w-6 h-6 text-[#000033]/30 mb-1" />
                                   <p className="text-[10px] font-bold text-[#000033] mb-1">
-                                    Ver finalizadas ({countMacro('FINALIZADO', clienteTickets)})
+                                    {countMacro('FINALIZADO', clienteTickets) === 0
+                                      ? 'Ver finalizadas (0)'
+                                      : countThisWeekFinalizados(clienteTickets) > 0
+                                        ? `Ver finalizadas esta semana (${countThisWeekFinalizados(clienteTickets)})`
+                                        : `Ver finalizadas del mes (${countMacro('FINALIZADO', clienteTickets)})`}
                                   </p>
                                   <p className="text-[9px] text-[#000033]/40">Haz clic para ver</p>
                                 </div>
@@ -857,7 +880,11 @@ export function PrensaBacklogPage() {
                                     >
                                       <Archive className="w-5 h-5 text-[#000033]/30 mb-1" />
                                       <span className="text-[10px] font-bold text-[#000033]">
-                                        Desplegar ({tickets.length})
+                                        {tickets.length === 0
+                                          ? 'Desplegar (0)'
+                                          : countThisWeekFinalizados(clienteTickets) > 0
+                                            ? `Desplegar esta semana (${countThisWeekFinalizados(clienteTickets)})`
+                                            : `Desplegar del mes (${tickets.length})`}
                                       </span>
                                     </div>
                                   ) : (
