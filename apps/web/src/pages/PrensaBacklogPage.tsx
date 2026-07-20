@@ -138,7 +138,6 @@ export function PrensaBacklogPage() {
   const [fechaDesde, setFechaDesde] = useState('');
   const [fechaHasta, setFechaHasta] = useState('');
   const [expandedFinalizados, setExpandedFinalizados] = useState(false);
-  const [mostrarTodos30Dias, setMostrarTodos30Dias] = useState(false);
   const [showHistorialModal, setShowHistorialModal] = useState(false);
 
   const { data: ticketsData, isLoading } = useQuery({
@@ -244,44 +243,15 @@ export function PrensaBacklogPage() {
   // Effective subState of a ticket (fallback PENDIENTE if not set).
   const subOf = (t: Ticket): SubEstado => (t.subEstado && SUB_DEF[t.subEstado] ? t.subEstado : 'PENDIENTE');
 
-  // Helper to check if finalized this week
-  const isFinalizedThisWeek = (t: Ticket) => {
-    if (!t.updatedAt) return false;
-    const date = new Date(t.updatedAt);
-    return date >= inicioSemana && date <= finSemana;
-  };
-
-  const countThisWeekFinalizados = (items = ticketsFiltrados) => {
-    return items.filter(t => {
-      const isFinal = t.subEstado === 'LISTO' || t.subEstado === 'CANCELADO';
-      return isFinal && isFinalizedThisWeek(t);
-    }).length;
-  };
-
-  const hasMoreFinalizados = (items = ticketsFiltrados) => {
-    const thisWeek = countThisWeekFinalizados(items);
-    if (thisWeek === 0) return false;
-    const total = items.filter(t => {
-      const macro = SUB_DEF[subOf(t)]?.macro;
-      return macro === 'FINALIZADO';
-    }).length;
-    return total > thisWeek;
-  };
-
   const ticketsDeSub = (sub: SubEstado, items = ticketsFiltrados) => {
     const list = items.filter(t => subOf(t) === sub);
     const subDef = SUB_DEF[sub];
     if (subDef?.macro === 'FINALIZADO') {
-      const sorted = [...list].sort((a, b) => {
+      return [...list].sort((a, b) => {
         const timeA = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
         const timeB = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
         return timeB - timeA;
       });
-      const hasThisWeek = countThisWeekFinalizados(items) > 0;
-      if (hasThisWeek && !mostrarTodos30Dias) {
-        return sorted.filter(isFinalizedThisWeek);
-      }
-      return sorted;
     }
     return list;
   };
@@ -532,20 +502,24 @@ export function PrensaBacklogPage() {
                       >
                         <Archive className="w-8 h-8 text-[#000033]/30 mb-2" />
                         <p className="text-xs font-bold text-[#000033] mb-1">
-                          {countMacro('FINALIZADO') === 0
-                            ? 'Ver finalizadas (0)'
-                            : countThisWeekFinalizados() > 0
-                              ? `Ver finalizadas de esta semana (${countThisWeekFinalizados()})`
-                              : `Ver finalizadas del mes (${countMacro('FINALIZADO')})`}
+                          Ver finalizadas ({countMacro('FINALIZADO')})
                         </p>
                         <p className="text-[10px] text-[#000033]/45 max-w-[200px] px-3 leading-relaxed">
-                          {countThisWeekFinalizados() > 0
-                            ? 'Haz clic para ver las tareas completadas esta semana'
-                            : 'Haz clic para ver las tareas completadas en los últimos 30 días'}
+                          Haz clic para desplegar las tareas de los últimos 30 días
                         </p>
                       </div>
                     ) : (
                       <>
+                        {macro.id === 'FINALIZADO' && (
+                          <div className="sticky top-0 left-0 right-0 pb-3 pt-1 bg-gradient-to-b from-[#fafafa] via-[#fafafa]/90 to-transparent text-center z-[2]">
+                            <button
+                              onClick={(e) => { e.stopPropagation(); setExpandedFinalizados(false); }}
+                              className="inline-flex items-center gap-1 px-3 py-1 bg-white hover:bg-gray-50 border border-[#000033]/20 shadow-sm rounded-full text-[10px] font-bold text-[#000033]/70 hover:text-[#000033] transition-all"
+                            >
+                              Colapsar columna ↑
+                            </button>
+                          </div>
+                        )}
                         {subsDeMacro(macro.id).map((subDef, si) => {
                           const tickets = ticketsDeSub(subDef.sub);
                           return (
@@ -581,28 +555,6 @@ export function PrensaBacklogPage() {
                             </div>
                           );
                         })}
-                        {macro.id === 'FINALIZADO' && (
-                          <div className="sticky bottom-0 left-0 right-0 pt-6 pb-1 bg-gradient-to-t from-[#fafafa] via-[#fafafa]/90 to-transparent flex flex-col items-center gap-1.5 z-[2]">
-                            {hasMoreFinalizados() && !mostrarTodos30Dias && (
-                              <button
-                                onClick={(e) => { e.stopPropagation(); setMostrarTodos30Dias(true); }}
-                                className="px-3 py-1.5 bg-[#00ff99]/20 hover:bg-[#00ff99]/30 border-2 border-[#00ff99]/40 text-[#000033] text-xs font-bold rounded-lg transition-all shadow-sm mb-1"
-                              >
-                                Ver finalizadas del mes
-                              </button>
-                            )}
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setExpandedFinalizados(false);
-                                setMostrarTodos30Dias(false);
-                              }}
-                              className="inline-flex items-center gap-1 px-3 py-1 bg-white hover:bg-gray-50 border border-[#000033]/20 shadow-sm rounded-full text-[10px] font-bold text-[#000033]/70 hover:text-[#000033] transition-all"
-                            >
-                              Colapsar columna ↑
-                            </button>
-                          </div>
-                        )}
                       </>
                     )}
 
@@ -652,18 +604,24 @@ export function PrensaBacklogPage() {
                         >
                           <Archive className="w-8 h-8 text-[#000033]/30 mb-2" />
                           <p className="text-xs font-bold text-[#000033] mb-1">
-                            {tickets.length === 0
-                              ? 'Ver finalizadas (0)'
-                              : countThisWeekFinalizados() > 0
-                                ? `Ver finalizadas de esta semana (${countThisWeekFinalizados()})`
-                                : `Ver finalizadas del mes (${tickets.length})`}
+                            Ver finalizadas ({tickets.length})
                           </p>
                           <p className="text-[10px] text-[#000033]/45 px-2">
-                            Haz clic para desplegar
+                            Haz clic para desplegar las tareas de los últimos 30 días
                           </p>
                         </div>
                       ) : (
                         <>
+                          {subDef.macro === 'FINALIZADO' && (
+                            <div className="sticky top-0 left-0 right-0 pb-3 pt-1 bg-gradient-to-b from-[#fafafa] via-[#fafafa]/90 to-transparent text-center z-[2]">
+                              <button
+                                onClick={(e) => { e.stopPropagation(); setExpandedFinalizados(false); }}
+                                className="inline-flex items-center gap-1 px-3 py-1 bg-white hover:bg-gray-50 border border-[#000033]/20 shadow-sm rounded-full text-[10px] font-bold text-[#000033]/70 hover:text-[#000033] transition-all"
+                              >
+                                Colapsar columna ↑
+                              </button>
+                            </div>
+                          )}
                           {tickets.length === 0 ? (
                             <div className="py-6 text-center text-xs text-[#000033]/30 font-medium">
                               Sin tickets
@@ -679,28 +637,6 @@ export function PrensaBacklogPage() {
                                 onClick={() => setSelectedTicket(ticket)}
                               />
                             ))
-                          )}
-                          {subDef.macro === 'FINALIZADO' && (
-                            <div className="sticky bottom-0 left-0 right-0 pt-6 pb-1 bg-gradient-to-t from-[#fafafa] via-[#fafafa]/90 to-transparent flex flex-col items-center gap-1.5 z-[2]">
-                              {hasMoreFinalizados() && !mostrarTodos30Dias && (
-                                <button
-                                  onClick={(e) => { e.stopPropagation(); setMostrarTodos30Dias(true); }}
-                                  className="px-3 py-1.5 bg-[#00ff99]/20 hover:bg-[#00ff99]/30 border-2 border-[#00ff99]/40 text-[#000033] text-xs font-bold rounded-lg transition-all shadow-sm mb-1"
-                                >
-                                  Ver finalizadas del mes
-                                </button>
-                              )}
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setExpandedFinalizados(false);
-                                  setMostrarTodos30Dias(false);
-                                }}
-                                className="inline-flex items-center gap-1 px-3 py-1 bg-white hover:bg-gray-50 border border-[#000033]/20 shadow-sm rounded-full text-[10px] font-bold text-[#000033]/70 hover:text-[#000033] transition-all"
-                              >
-                                Colapsar columna ↑
-                              </button>
-                            </div>
                           )}
                         </>
                       )}
@@ -746,12 +682,12 @@ export function PrensaBacklogPage() {
                             <div className={`${macro.color} border-2 ${macro.border} rounded-t-xl px-3 py-2 flex items-center justify-between`}>
                               <div className="flex items-center gap-1.5">
                                 <span className="text-xs font-bold text-[#000033]">{macro.label}</span>
-                                <span className="text-[10px] font-bold text-[#000033]/50 bg-white/60 px-1.5 py-0.5 rounded-full">
+                      <span className="text-[10px] font-bold text-[#000033]/50 bg-white/60 px-1.5 py-0.5 rounded-full">
                                   {countMacro(macro.id, clienteTickets)}
                                 </span>
                               </div>
                             </div>
-                            <div className="flex-1 bg-[#000033]/[0.02] border-2 border-t-0 border-[#000033]/10 rounded-b-xl p-2 space-y-3">
+                            <div className="flex-1 bg-[#000033]/[0.02] border-2 border-t-0 border-[#000033]/10 rounded-b-xl p-2 space-y-3 relative overflow-y-auto max-h-[400px]">
                               {macro.id === 'FINALIZADO' && !expandedFinalizados ? (
                                 <div
                                   onClick={() => setExpandedFinalizados(true)}
@@ -759,16 +695,22 @@ export function PrensaBacklogPage() {
                                 >
                                   <Archive className="w-6 h-6 text-[#000033]/30 mb-1" />
                                   <p className="text-[10px] font-bold text-[#000033] mb-1">
-                                    {countMacro('FINALIZADO', clienteTickets) === 0
-                                      ? 'Ver finalizadas (0)'
-                                      : countThisWeekFinalizados(clienteTickets) > 0
-                                        ? `Ver finalizadas esta semana (${countThisWeekFinalizados(clienteTickets)})`
-                                        : `Ver finalizadas del mes (${countMacro('FINALIZADO', clienteTickets)})`}
+                                    Ver finalizadas ({countMacro('FINALIZADO', clienteTickets)})
                                   </p>
                                   <p className="text-[9px] text-[#000033]/40">Haz clic para ver</p>
                                 </div>
                               ) : (
                                 <>
+                                  {macro.id === 'FINALIZADO' && (
+                                    <div className="sticky top-0 left-0 right-0 pb-2.5 pt-0.5 bg-gradient-to-b from-white via-white/90 to-transparent text-center z-[2]">
+                                      <button
+                                        onClick={(e) => { e.stopPropagation(); setExpandedFinalizados(false); }}
+                                        className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-white hover:bg-gray-50 border border-[#000033]/15 shadow-sm rounded-full text-[9px] font-bold text-[#000033]/70 hover:text-[#000033] transition-all"
+                                      >
+                                        Colapsar ↑
+                                      </button>
+                                    </div>
+                                  )}
                                   {subsDeMacro(macro.id).map((subDef, si) => {
                                     const tickets = ticketsDeSub(subDef.sub, clienteTickets);
                                     return (
@@ -803,28 +745,6 @@ export function PrensaBacklogPage() {
                                       </div>
                                     );
                                   })}
-                                  {macro.id === 'FINALIZADO' && (
-                                    <div className="sticky bottom-0 left-0 right-0 pt-6 pb-1 bg-gradient-to-t from-white via-white/90 to-transparent flex flex-col items-center gap-1 z-[2]">
-                                      {hasMoreFinalizados(clienteTickets) && !mostrarTodos30Dias && (
-                                        <button
-                                          onClick={(e) => { e.stopPropagation(); setMostrarTodos30Dias(true); }}
-                                          className="px-2 py-1 bg-[#00ff99]/20 hover:bg-[#00ff99]/30 border border-[#00ff99]/40 text-[#000033] text-[10px] font-bold rounded transition-all shadow-sm mb-1"
-                                        >
-                                          Ver finalizadas del mes
-                                        </button>
-                                      )}
-                                      <button
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          setExpandedFinalizados(false);
-                                          setMostrarTodos30Dias(false);
-                                        }}
-                                        className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-white hover:bg-gray-50 border border-[#000033]/15 shadow-sm rounded-full text-[9px] font-bold text-[#000033]/70 hover:text-[#000033] transition-all"
-                                      >
-                                        Colapsar ↑
-                                      </button>
-                                    </div>
-                                  )}
                                 </>
                               )}
                             </div>
@@ -872,7 +792,7 @@ export function PrensaBacklogPage() {
                                     {tickets.length}
                                   </span>
                                 </div>
-                                <div className="flex-1 bg-[#000033]/[0.02] border-2 border-t-0 border-[#000033]/10 rounded-b-xl p-2 space-y-2">
+                                <div className="flex-1 bg-[#000033]/[0.02] border-2 border-t-0 border-[#000033]/10 rounded-b-xl p-2 space-y-2 relative overflow-y-auto max-h-[300px]">
                                   {subDef.macro === 'FINALIZADO' && !expandedFinalizados ? (
                                     <div
                                       onClick={() => setExpandedFinalizados(true)}
@@ -880,15 +800,21 @@ export function PrensaBacklogPage() {
                                     >
                                       <Archive className="w-5 h-5 text-[#000033]/30 mb-1" />
                                       <span className="text-[10px] font-bold text-[#000033]">
-                                        {tickets.length === 0
-                                          ? 'Desplegar (0)'
-                                          : countThisWeekFinalizados(clienteTickets) > 0
-                                            ? `Desplegar esta semana (${countThisWeekFinalizados(clienteTickets)})`
-                                            : `Desplegar del mes (${tickets.length})`}
+                                        Desplegar ({tickets.length})
                                       </span>
                                     </div>
                                   ) : (
                                     <>
+                                      {subDef.macro === 'FINALIZADO' && (
+                                        <div className="sticky top-0 left-0 right-0 pb-2 pt-0.5 bg-gradient-to-b from-white via-white/90 to-transparent text-center z-[2]">
+                                          <button
+                                            onClick={(e) => { e.stopPropagation(); setExpandedFinalizados(false); }}
+                                            className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-white hover:bg-gray-50 border border-[#000033]/15 shadow-sm rounded-full text-[9px] font-bold text-[#000033]/70 hover:text-[#000033] transition-all"
+                                          >
+                                            Colapsar ↑
+                                          </button>
+                                        </div>
+                                      )}
                                       {tickets.length === 0 ? (
                                         <EmptySlot />
                                       ) : (
@@ -902,28 +828,6 @@ export function PrensaBacklogPage() {
                                             onClick={() => setSelectedTicket(ticket)}
                                           />
                                         ))
-                                      )}
-                                      {subDef.macro === 'FINALIZADO' && (
-                                        <div className="sticky bottom-0 left-0 right-0 pt-5 pb-0.5 bg-gradient-to-t from-white via-white/90 to-transparent flex flex-col items-center gap-1 z-[2]">
-                                          {hasMoreFinalizados(clienteTickets) && !mostrarTodos30Dias && (
-                                            <button
-                                              onClick={(e) => { e.stopPropagation(); setMostrarTodos30Dias(true); }}
-                                              className="px-2 py-0.5 bg-[#00ff99]/20 hover:bg-[#00ff99]/30 border border-[#00ff99]/40 text-[#000033] text-[9px] font-bold rounded transition-all shadow-sm mb-0.5"
-                                            >
-                                              Ver finalizadas del mes
-                                            </button>
-                                          )}
-                                          <button
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              setExpandedFinalizados(false);
-                                              setMostrarTodos30Dias(false);
-                                            }}
-                                            className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-white hover:bg-gray-50 border border-[#000033]/15 shadow-sm rounded-full text-[9px] font-bold text-[#000033]/70 hover:text-[#000033] transition-all"
-                                          >
-                                            Colapsar ↑
-                                          </button>
-                                        </div>
                                       )}
                                     </>
                                   )}
