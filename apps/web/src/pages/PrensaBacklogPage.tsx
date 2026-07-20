@@ -134,7 +134,7 @@ export function PrensaBacklogPage() {
   const [expandedClientes, setExpandedClientes] = useState<Set<string>>(new Set());
 
   // Date filters states (replicated from Contenido)
-  const [filtroFecha, setFiltroFecha] = useState<'semana' | 'mes0' | 'mes1' | 'mes2' | 'rango' | null>('mes0');
+  const [filtroFecha, setFiltroFecha] = useState<'hoy' | 'semana' | 'mes0' | 'mes1' | 'mes2' | 'rango' | null>('mes0');
   const [fechaDesde, setFechaDesde] = useState('');
   const [fechaHasta, setFechaHasta] = useState('');
   const [expandedFinalizados, setExpandedFinalizados] = useState(false);
@@ -176,6 +176,12 @@ export function PrensaBacklogPage() {
 
   // Date ranges calculation (same as BacklogPage)
   const ahora = new Date();
+
+  const inicioHoy = new Date(ahora);
+  inicioHoy.setHours(0, 0, 0, 0);
+  const finHoy = new Date(ahora);
+  finHoy.setHours(23, 59, 59, 999);
+
   const inicioSemana = new Date(ahora);
   const currentDay = ahora.getDay();
   const mondayDiff = ahora.getDate() - currentDay + (currentDay === 0 ? -6 : 1);
@@ -206,8 +212,10 @@ export function PrensaBacklogPage() {
     }
 
     // Date Filter (replicated from Contenido)
-    if (filtroFecha && t.dueDate) {
+    // Para tickets finalizados no aplicamos el filtro de fecha general del backlog
+    if (!isFinalized && filtroFecha && t.dueDate) {
       const due = new Date(t.dueDate);
+      if (filtroFecha === 'hoy') return due >= inicioHoy && due <= finHoy;
       if (filtroFecha === 'semana') return due >= inicioSemana && due <= finSemana;
       if (filtroFecha === 'mes0') return due >= meses[0].inicio && due <= meses[0].fin;
       if (filtroFecha === 'mes1') return due >= meses[1].inicio && due <= meses[1].fin;
@@ -391,6 +399,7 @@ export function PrensaBacklogPage() {
             <span className="text-xs font-bold text-[#000033]">Fecha:</span>
             <div className="flex items-center gap-1.5 flex-wrap">
               {([
+                { key: 'hoy',    label: 'Hoy' },
                 { key: 'semana', label: 'Esta semana' },
                 { key: 'mes0',   label: meses[0].label },
                 { key: 'mes1',   label: meses[1].label },
