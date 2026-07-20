@@ -108,8 +108,10 @@ function buildSystemPrompt(params: {
   otherCanalesContent?: Record<string, string>;
   lineamientos?: { canal: string; content: string; isHighlight?: boolean }[];
   referencias?: { title: string; brief: string; content: string }[];
+  pressReferenceContent?: string | null;
+  ticketTypeName?: string;
 }): string {
-  const { clientName, title, brief, tone, keywords, outputLength, currentContent, brandVoice, speaker, textAttachments, contextLinks, canal, otherCanalesContent, lineamientos, referencias } = params;
+  const { clientName, title, brief, tone, keywords, outputLength, currentContent, brandVoice, speaker, textAttachments, contextLinks, canal, otherCanalesContent, lineamientos, referencias, pressReferenceContent, ticketTypeName } = params;
 
   const lengthGuide = LENGTH_GUIDE[outputLength] ?? LENGTH_GUIDE['M'];
 
@@ -184,6 +186,11 @@ function buildSystemPrompt(params: {
     ? `\n## Tickets de referencia (mismo cliente)\nEstos tickets de referencia son del mismo cliente (pueden ser de otro vocero), y están acá para que no tengas que repetir contexto en esta tarea. Si una referencia es de otro vocero, tomá la información y el contexto pero NO copies su tono personal: el tono lo define el vocero de la pieza actual. Usalos como referencia relevante: si sentís que algo aplica, o hay un dato concreto que sirve, tomá la información que veas acorde al pedido del contenido actual. La pieza a redactar es solo la PIEZA ACTUAL — no rehagas ni mezcles estas referencias como si fueran el contenido a producir.\n${referenciasValidas.map((r, i) => `### Referencia ${i + 1}: ${r.title || '(sin título)'}\n${r.brief?.trim() ? `Brief: ${r.brief.trim()}\n` : ''}${r.content?.trim() ? `Contenido:\n${r.content.trim()}` : ''}`).join('\n\n')}`
     : '';
 
+  let pressReferenceBlock = '';
+  if (pressReferenceContent) {
+    pressReferenceBlock = `\n## Referencia de Prensa (${ticketTypeName})\n⚠️ REGLA CRÍTICA DE CONTEXTO: Usá la siguiente referencia/plantilla/ejemplo documentado por el equipo para estructurar, redactar y alinear la pieza actual de prensa de tipo "${ticketTypeName}":\n${pressReferenceContent}\n`;
+  }
+
   const voiceContext = speakerBlock + brandVoiceBlock;
 
   return `Sos un redactor profesional especializado en contenido para redes sociales y marketing de contenidos. Trabajás para el cliente ${clientName}.
@@ -193,7 +200,7 @@ Título: ${title || '(sin título)'}
 Brief: ${brief || '(sin brief)'}
 Tono de voz: ${tone || '(no especificado)'}
 Keywords: ${keywords || '(no especificadas)'}
-Longitud objetivo: ${lengthGuide}${canalContext}${voiceContext}${referenciasBlock}${lineamientosBlock}${linksBlock}${attachmentsBlock}${otherCanalesBlock}${contentBlock}
+Longitud objetivo: ${lengthGuide}${canalContext}${voiceContext}${referenciasBlock}${pressReferenceBlock}${lineamientosBlock}${linksBlock}${attachmentsBlock}${otherCanalesBlock}${contentBlock}
 
 ## Instrucciones de respuesta
 
@@ -263,6 +270,7 @@ export async function aiRoutes(fastify: FastifyInstance) {
         client: { include: { brandVoice: true } },
         speaker: true,
         references: { select: { title: true, objetivo: true, content: true } },
+        ticketType: true,
       },
     });
 
@@ -303,6 +311,31 @@ export async function aiRoutes(fastify: FastifyInstance) {
     const lineamientos = [...highlightsFiltrados, ...recientes.filter(p => p.postContent?.trim())]
       .map(p => ({ canal: p.canal, content: p.postContent!, isHighlight: p.isHighlight }));
 
+    const TICKET_TYPE_TO_REF_KEY: Record<string, string> = {
+      'Gestión-pitch': 'pitch',
+      'Columna de opinión': 'columna',
+      'Comunicado': 'comunicado',
+      'Cuestionario/Vocería': 'q&a',
+    };
+
+    let pressReferenceContent: string | null = null;
+    if (ticket.area === 'PRENSA' && ticket.ticketType?.name) {
+      const refKey = TICKET_TYPE_TO_REF_KEY[ticket.ticketType.name];
+      if (refKey) {
+        const pressRef = await prisma.pressReference.findUnique({
+          where: {
+            clientId_type: {
+              clientId: ticket.clientId,
+              type: refKey,
+            },
+          },
+        });
+        if (pressRef?.content) {
+          pressReferenceContent = pressRef.content;
+        }
+      }
+    }
+
     const systemPrompt = buildSystemPrompt({
       clientName: ticket.client.name,
       title: ticket.title,
@@ -323,6 +356,8 @@ export async function aiRoutes(fastify: FastifyInstance) {
         brief: r.objetivo ?? '',
         content: r.content ?? '',
       })),
+      pressReferenceContent,
+      ticketTypeName: ticket.ticketType?.name ?? '',
     });
 
     console.log('[ai/chat] ─────────────────────────────────────────────────');

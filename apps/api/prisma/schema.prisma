@@ -65,6 +65,7 @@ model Client {
   publications Publication[]
   speakers     Speaker[]
   pilares      Pilar[]
+  pressReferences PressReference[]
 
   @@index([ownerId])
   @@map("clients")
@@ -156,7 +157,7 @@ enum TicketTypeKind {
 
 model TicketType {
   id        String         @id @default(uuid())
-  name      String         @unique
+  name      String
   kind      TicketTypeKind @default(CONTENIDO)
   createdAt DateTime       @default(now()) @map("created_at")
   updatedAt DateTime       @updatedAt @map("updated_at")
@@ -164,6 +165,7 @@ model TicketType {
   // Relations
   tickets Ticket[]
 
+  @@unique([name, kind])
   @@map("ticket_types")
 }
 
@@ -209,6 +211,7 @@ enum SubEstado {
   EN_CURSO
   REVISION_INTERNA
   ENVIADO_CLIENTE
+  PENDIENTE_PUBLICACION
   LISTO
   CANCELADO
 }
@@ -371,4 +374,18 @@ model Notification {
 
   @@index([userId, read])
   @@map("notifications")
+}
+
+model PressReference {
+  id        String   @id @default(uuid())
+  clientId  String   @map("client_id")
+  type      String   // 'pitch', 'columna', 'comunicado', 'q&a'
+  content   String   @db.Text
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  client    Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@unique([clientId, type])
+  @@map("press_references")
 }

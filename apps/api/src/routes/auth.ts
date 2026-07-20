@@ -2,7 +2,7 @@ import { FastifyInstance } from 'fastify';
 import { prisma } from '../lib/prisma.js';
 import { comparePassword } from '../lib/auth.js';
 import { authenticate } from '../middleware/auth.js';
-import { buildGoogleAuthUrl, exchangeCodeForTokens, getGoogleUserInfo } from '../lib/google-oauth.js';
+import { buildGoogleAuthUrl, resolveGoogleUser } from '../lib/google-oauth.js';
 
 export async function authRoutes(fastify: FastifyInstance) {
   // Login con email/password
@@ -53,60 +53,39 @@ export async function authRoutes(fastify: FastifyInstance) {
     }
 
     try {
-      // Intercambiar code por tokens de Google
-      const tokens = await exchangeCodeForTokens(code);
-
-      // Obtener info del usuario de Google
-      const googleUser = await getGoogleUserInfo(tokens.access_token);
-
-      if (!googleUser.email_verified) {
-        return reply.redirect(`${frontendUrl}/login?error=email_not_verified`);
-      }
-
-      // Buscar usuario en DB por googleId o email
-      let user = await prisma.user.findFirst({
-        where: {
-          OR: [
-            { googleId: googleUser.sub },
-            { email: googleUser.email },
-          ],
-        },
-        include: { area: true },
-      });
-
-      if (!user) {
-        // Crear usuario nuevo con rol por defecto
-        user = await prisma.user.create({
-          data: {
-            email: googleUser.email,
-            name: googleUser.name,
-            googleId: googleUser.sub,
-            role: 'CONTENIDISTA', // Rol por defecto — un admin puede cambiarlo
-            password: null,
-          },
-          include: { area: true },
-        });
-      } else if (!user.googleId) {
-        // Usuario existente con email/password que ahora usa Google → vincular cuenta
-        user = await prisma.user.update({
-          where: { id: user.id },
-          data: { googleId: googleUser.sub },
-          include: { area: true },
-        });
-      }
-
-      // Generar JWT propio (mismo formato que el login normal)
-      const token = fastify.jwt.sign({
-        id: user.id,
-        email: user.email,
-        role: user.role,
-      });
+      const { token } = await resolveGoogleUser(fastify, code, process.env.GOOGLE_REDIRECT_URI!);
 
       // Redirigir al frontend con el token
       return reply.redirect(`${frontendUrl}/auth/callback?token=${token}`);
     } catch (err) {
+      if (err instanceof Error && err.message === 'email_not_verified') {
+        return reply.redirect(`${frontendUrl}/login?error=email_not_verified`);
+      }
       fastify.log.error(err, 'Google OAuth callback error');
       return reply.redirect(`${frontendUrl}/login?error=google_failed`);
+    }
+  });
+
+  // Variante JSON del callback de Google — usada por el MCP (apps/mcp), que
+  // maneja su propio redirect_uri y no puede recibir un redirect a la SPA.
+  fastify.post('/google/exchange', async (request, reply) => {
+    const { code, redirectUri } = request.body as { code?: string; redirectUri?: string };
+
+    if (!code || !redirectUri) {
+      return reply.status(400).send({ error: 'code y redirectUri son requeridos' });
+    }
+
+    try {
+      // Expiración explícita: el token de MCP debe expirar (lo exige el SDK de
+      // MCP), a diferencia del login web que hoy no expira.
+      const { token, user } = await resolveGoogleUser(fastify, code, redirectUri, { expiresIn: '90d' });
+      return { token, user };
+    } catch (err) {
+      if (err instanceof Error && err.message === 'email_not_verified') {
+        return reply.status(401).send({ error: 'email_not_verified' });
+      }
+      fastify.log.error(err, 'Google OAuth exchange error');
+      return reply.status(401).send({ error: 'google_exchange_failed' });
     }
   });
 

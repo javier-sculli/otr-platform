@@ -17,17 +17,26 @@ const PRENSA_TYPES = [
   'Brief',
   'Feedback',
   'Estrategia',
+  'Base de Medios',
 ];
 
 async function main() {
   console.log('🌱 Seeding tipos de Prensa...');
   for (const name of PRENSA_TYPES) {
     await prisma.ticketType.upsert({
-      where: { name },
+      where: { name_kind: { name, kind: 'PRENSA' } },
       update: { kind: 'PRENSA' },
       create: { name, kind: 'PRENSA' },
     });
   }
+
+  console.log('🌱 Seeding tipos de Tarea...');
+  await prisma.ticketType.upsert({
+    where: { name_kind: { name: 'Base de Medios', kind: 'TAREA' } },
+    update: { kind: 'TAREA' },
+    create: { name: 'Base de Medios', kind: 'TAREA' },
+  });
+
   console.log(`✅ ${PRENSA_TYPES.length} tipos de Prensa listos`);
 }
 

@@ -804,8 +804,8 @@ export function TicketDetallePage() {
           {/* Sidebar — 1/3 */}
           <div className="space-y-5">
 
-            {/* CTA principal — solo contenido */}
-            {!esNoContenido && (
+            {/* CTA principal — solo contenido y prensa */}
+            {!esTarea && (
               <div className="bg-white border-2 border-[#000033]/10 rounded-lg p-5">
                 <h3 className="text-xs font-bold text-[#000033] uppercase mb-3">Acciones</h3>
                 <button

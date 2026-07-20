@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Sparkles, Mic, Radio, Save, Check, AlertCircle, Linkedin, Instagram, Twitter, Video, Mail, BookOpen, Settings, User, Target, Plus, Edit3, Trash2 } from 'lucide-react';
+import { ArrowLeft, Sparkles, Mic, Radio, Save, Check, AlertCircle, Linkedin, Instagram, Twitter, Video, Mail, BookOpen, Settings, User, Target, Plus, Edit3, Trash2, FileText, Archive } from 'lucide-react';
 import { api } from '../lib/api';
 import { VocerosPage } from './VocerosPage';
 import { Toggle } from '../components/Toggle';
 
-type Tab = 'brand' | 'voceros' | 'canales' | 'gestion';
+type Tab = 'brand' | 'voceros' | 'canales' | 'gestion' | 'referencias';
 
 // ── Brand Kit sections (same as VozDeMarcaPage) ──────────────────────────────
 
@@ -375,6 +375,7 @@ interface Pilar { id: string; nombre: string; descripcion: string | null }
 
 function GestionTab({ clientId }: { clientId: string }) {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
 
   const { data: clientsData } = useQuery({ queryKey: ['clients'], queryFn: () => api.getClients() });
   const { data: usersData } = useQuery({ queryKey: ['users'], queryFn: () => api.getUsers() });
@@ -430,6 +431,24 @@ function GestionTab({ clientId }: { clientId: string }) {
   });
 
   const responsable = users.find((u: any) => u.id === client?.ownerId);
+
+  const archiveMutation = useMutation({
+    mutationFn: () => api.deleteClient(clientId, false),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['clients'] });
+      queryClient.invalidateQueries({ queryKey: ['clients-stats'] });
+      navigate('/clientes');
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: () => api.deleteClient(clientId, true),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['clients'] });
+      queryClient.invalidateQueries({ queryKey: ['clients-stats'] });
+      navigate('/clientes');
+    },
+  });
 
   if (isLoading) return <div className="flex items-center justify-center py-16 text-[#000033]/60 text-sm">Cargando...</div>;
 
@@ -641,6 +660,173 @@ function GestionTab({ clientId }: { clientId: string }) {
           </div>
         </div>
 
+        {/* Estado del cliente */}
+        <div className="bg-white border-2 border-[#000033]/10 rounded-xl p-6">
+          <div className="flex items-center gap-2 mb-5">
+            <Archive className="w-4 h-4 text-[#024fff]" />
+            <h2 className="text-xs font-bold text-[#000033] uppercase tracking-wider">Estado del cliente</h2>
+          </div>
+          <div className="space-y-4">
+            <div className="flex items-center justify-between p-4 bg-[#fafafa] rounded-lg">
+              <div>
+                <p className="text-sm font-bold text-[#000033]">Archivar cliente</p>
+                <p className="text-xs text-[#000033]/60 max-w-md">Oculta al cliente de los listados activos y del backlog de prensa, pero mantiene todos sus datos históricos para reportes.</p>
+              </div>
+              <button
+                onClick={() => {
+                  if (confirm('¿Estás seguro de que deseas archivar este cliente? Se ocultará de los listados activos.')) {
+                    archiveMutation.mutate();
+                  }
+                }}
+                disabled={archiveMutation.isPending}
+                className="px-4 py-2 border-2 border-[#000033]/10 hover:border-amber-400 hover:text-amber-600 rounded-lg transition-all font-bold text-xs bg-white text-[#000033]/60"
+              >
+                {archiveMutation.isPending ? 'Archivando...' : 'Archivar cliente'}
+              </button>
+            </div>
+
+            <div className="flex items-center justify-between p-4 bg-red-50/50 border border-red-100 rounded-lg">
+              <div>
+                <p className="text-sm font-bold text-red-700">Eliminar permanentemente</p>
+                <p className="text-xs text-red-600/70 max-w-md">Borra físicamente al cliente de la base de datos, eliminando en cascada todas sus tareas, voceros e información. Ideal para eliminar duplicados.</p>
+              </div>
+              <button
+                onClick={() => {
+                  if (confirm('¡CUIDADO! Esta acción es irreversible. Se eliminará físicamente este cliente y todos sus datos relacionados. ¿Deseas continuar?')) {
+                    deleteMutation.mutate();
+                  }
+                }}
+                disabled={deleteMutation.isPending}
+                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-all font-bold text-xs"
+              >
+                {deleteMutation.isPending ? 'Eliminando...' : 'Eliminar físicamente'}
+              </button>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  );
+}
+
+// ── Referencias Prensa Tab ───────────────────────────────────────────────────
+
+const REF_TYPES = [
+  { id: 'pitch', label: 'Pitch (Gestión-pitch)', desc: 'Instrucciones o estructura de referencia para contactar medios/periodistas.' },
+  { id: 'columna', label: 'Columna de opinión', desc: 'Plantilla de referencia, estilo de redacción y tono para columnas firmadas.' },
+  { id: 'comunicado', label: 'Comunicado', desc: 'Estructura estándar, boletín de prensa o formato de noticias oficiales.' },
+  { id: 'q&a', label: 'Cuestionario / Vocería (Q&A)', desc: 'Guía de preguntas frecuentes y respuestas pre-aprobadas para voceros.' },
+];
+
+function ReferenciasPrensaTab({ clientId }: { clientId: string }) {
+  const queryClient = useQueryClient();
+  const [content, setContent] = useState<Record<string, string>>({
+    pitch: '',
+    columna: '',
+    comunicado: '',
+    'q&a': '',
+  });
+  const [hasChanges, setHasChanges] = useState(false);
+
+  const { data: refsData, isLoading } = useQuery({
+    queryKey: ['press-references', clientId],
+    queryFn: () => api.getPressReferences(clientId),
+  });
+
+  useEffect(() => {
+    if (refsData?.data) {
+      const mapped: Record<string, string> = { pitch: '', columna: '', comunicado: '', 'q&a': '' };
+      refsData.data.forEach((r: any) => {
+        mapped[r.type] = r.content;
+      });
+      setContent(mapped);
+    }
+  }, [refsData]);
+
+  const saveMutation = useMutation({
+    mutationFn: async () => {
+      const promises = Object.entries(content).map(([type, text]) =>
+        api.savePressReference(clientId, type, text)
+      );
+      await Promise.all(promises);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['press-references', clientId] });
+      setHasChanges(false);
+    },
+  });
+
+  const handleChange = (type: string, value: string) => {
+    setContent(prev => ({ ...prev, [type]: value }));
+    setHasChanges(true);
+  };
+
+  const filledCount = Object.values(content).filter(v => v.trim().length > 0).length;
+
+  if (isLoading) {
+    return <div className="flex items-center justify-center py-16 text-[#000033]/60 text-sm">Cargando...</div>;
+  }
+
+  return (
+    <div className="min-h-screen bg-[#fafafa]">
+      {/* Subheader Referencias */}
+      <div className="bg-white border-b border-[#000033]/8 px-8 py-4 sticky top-[117px] z-[5]">
+        <div className="max-w-[900px] mx-auto flex items-center justify-between">
+          <div>
+            <p className="text-xs text-[#000033]/50">{filledCount}/{REF_TYPES.length} referencias guardadas</p>
+            <div className="mt-2 w-48 h-1 bg-[#000033]/10 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-[#024fff] rounded-full transition-all duration-500"
+                style={{ width: `${(filledCount / REF_TYPES.length) * 100}%` }}
+              />
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            {!hasChanges && saveMutation.isSuccess && (
+              <span className="text-xs text-[#000033]/40 flex items-center gap-1.5">
+                <Check className="w-3.5 h-3.5 text-[#00ff99]" /> Guardado
+              </span>
+            )}
+            {hasChanges && (
+              <span className="text-xs text-[#000033]/50 flex items-center gap-1.5">
+                <AlertCircle className="w-3.5 h-3.5" /> Sin guardar
+              </span>
+            )}
+            <button
+              onClick={() => saveMutation.mutate()}
+              disabled={!hasChanges || saveMutation.isPending}
+              className="flex items-center gap-2 px-4 py-2 bg-[#024fff] text-white text-sm font-bold rounded-lg hover:bg-[#024fff]/90 transition-all shadow-lg shadow-[#024fff]/20 disabled:opacity-30 disabled:cursor-not-allowed disabled:shadow-none"
+            >
+              <Save className="w-4 h-4" />
+              {saveMutation.isPending ? 'Guardando...' : 'Guardar referencias'}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Inputs */}
+      <div className="max-w-[900px] mx-auto px-8 py-6 space-y-4">
+        {REF_TYPES.map((ref, index) => (
+          <div key={ref.id} className="bg-white border-2 border-[#000033]/10 rounded-xl px-5 py-5">
+            <div className="flex items-start gap-2 mb-3 justify-between">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-[#000033]/30 w-5 text-right">
+                  {String(index + 1).padStart(2, '0')}
+                </span>
+                <span className="font-bold text-[#000033] text-sm">{ref.label}</span>
+              </div>
+            </div>
+            <p className="text-xs text-[#000033]/50 mb-3 ml-7">{ref.desc}</p>
+            <textarea
+              value={content[ref.id] ?? ''}
+              onChange={e => handleChange(ref.id, e.target.value)}
+              placeholder={`Ingresa el texto de referencia para ${ref.label} aquí...`}
+              rows={8}
+              className="w-full px-3 py-3 border-2 border-[#000033]/10 rounded-lg text-sm text-[#000033] placeholder-[#000033]/25 bg-[#fafafa] focus:outline-none focus:border-[#024fff] focus:bg-white resize-none transition-colors leading-relaxed"
+            />
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -736,6 +922,17 @@ export function ClienteDetallePage() {
               <Settings className="w-4 h-4" />
               Gestión
             </button>
+            <button
+              onClick={() => setTab('referencias')}
+              className={`flex items-center gap-2 px-4 py-3 text-sm font-bold transition-all border-b-2 ${
+                tab === 'referencias'
+                  ? 'text-[#024fff] border-[#024fff]'
+                  : 'text-[#000033]/60 border-transparent hover:text-[#000033]'
+              }`}
+            >
+              <FileText className="w-4 h-4" />
+              Referencias Prensa
+            </button>
           </div>
         </div>
       </div>
@@ -745,6 +942,7 @@ export function ClienteDetallePage() {
       {tab === 'voceros' && clientId && <VocerosPage clientId={clientId} />}
       {tab === 'canales' && clientId && <CanalesTab clientId={clientId} />}
       {tab === 'gestion' && clientId && <GestionTab clientId={clientId} />}
+      {tab === 'referencias' && clientId && <ReferenciasPrensaTab clientId={clientId} />}
     </div>
   );
 }

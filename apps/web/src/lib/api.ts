@@ -112,12 +112,14 @@ class ApiClient {
   }
 
   // Catalogs
-  async getClients() {
-    return this.request<{ data: any[] }>('/catalogs/clients');
+  async getClients(filters?: Record<string, string>) {
+    const params = new URLSearchParams(filters);
+    return this.request<{ data: any[] }>(`/catalogs/clients?${params}`);
   }
 
-  async getClientsStats() {
-    return this.request<{ data: any[] }>('/catalogs/clients/stats');
+  async getClientsStats(filters?: Record<string, string>) {
+    const params = new URLSearchParams(filters);
+    return this.request<{ data: any[] }>(`/catalogs/clients/stats?${params}`);
   }
 
   async createClient(data: { name: string; ownerId?: string; canales?: string[] }) {
@@ -146,8 +148,20 @@ class ApiClient {
     });
   }
 
-  async deleteClient(id: string) {
-    return this.request(`/catalogs/clients/${id}`, { method: 'DELETE' });
+  async deleteClient(id: string, hard = false) {
+    const url = `/catalogs/clients/${id}${hard ? '?hard=true' : ''}`;
+    return this.request(url, { method: 'DELETE' });
+  }
+
+  async getPressReferences(clientId: string) {
+    return this.request<{ data: any[] }>(`/catalogs/clients/${clientId}/press-references`);
+  }
+
+  async savePressReference(clientId: string, type: string, content: string) {
+    return this.request<{ data: any }>(`/catalogs/clients/${clientId}/press-references`, {
+      method: 'PUT',
+      body: JSON.stringify({ type, content }),
+    });
   }
 
   async getBrandVoice(clientId: string) {

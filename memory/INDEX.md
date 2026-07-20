@@ -17,6 +17,7 @@
 | Deshacer en redacción — pila de versiones por canal (en memoria) + botón ↶ en toolbar | [undo-redaccion.md](undo-redaccion.md) | ✅ Implementado, pendiente prueba manual de Javi | 2026-06-12 |
 | Backlog de Prensa (HU Fase 2) — tab `/prensa`, controles Agrupación/Densidad, tarjetas violeta | [prensa-backlog.md](prensa-backlog.md) | ✅ Completamente implementado y verificado | 2026-06-23 |
 | Sumario de Contenidos (HU Glosario) — Grilla interactiva, BD, backend y react-query | [glosario-contenidos.md](glosario-contenidos.md) | ✅ Implementado y verificado | 2026-06-23 |
+| Servidor MCP remoto (`apps/mcp`) — OAuth 2.1 + Google, tools de tickets/clientes, para Claude Desktop/Slack | [mcp-server.md](mcp-server.md) | ✅ Verificado en local, falta deploy a Railway | 2026-07-01 |
 
 ## Decisiones de producto activas
 

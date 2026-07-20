@@ -73,21 +73,21 @@ async function main() {
 
   // Create ticket types
   const typePost = await prisma.ticketType.upsert({
-    where: { name: 'Post RRSS' },
+    where: { name_kind: { name: 'Post RRSS', kind: 'CONTENIDO' } },
     update: {},
-    create: { name: 'Post RRSS' },
+    create: { name: 'Post RRSS', kind: 'CONTENIDO' },
   });
 
   const typeArticulo = await prisma.ticketType.upsert({
-    where: { name: 'Artículo Blog' },
+    where: { name_kind: { name: 'Artículo Blog', kind: 'CONTENIDO' } },
     update: {},
-    create: { name: 'Artículo Blog' },
+    create: { name: 'Artículo Blog', kind: 'CONTENIDO' },
   });
 
   const typeVideo = await prisma.ticketType.upsert({
-    where: { name: 'Video' },
+    where: { name_kind: { name: 'Video', kind: 'CONTENIDO' } },
     update: {},
-    create: { name: 'Video' },
+    create: { name: 'Video', kind: 'CONTENIDO' },
   });
 
   console.log('✅ Ticket types created');

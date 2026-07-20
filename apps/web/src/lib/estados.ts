@@ -6,7 +6,7 @@ export type GeneralStatus = MacroEstado;
 
 export type SubEstado =
   | 'PENDIENTE' | 'EN_CURSO' | 'REVISION_INTERNA'
-  | 'ENVIADO_CLIENTE' | 'LISTO' | 'CANCELADO';
+  | 'ENVIADO_CLIENTE' | 'PENDIENTE_PUBLICACION' | 'LISTO' | 'CANCELADO';
 
 export interface MacroDef {
   id: GeneralStatus;
@@ -32,12 +32,13 @@ export const MACROS: MacroDef[] = [
 
 // Subestados de Prensa en orden, con su macro y estilo de chip.
 export const PRENSA_SUBESTADOS: SubDef[] = [
-  { sub: 'PENDIENTE',        macro: 'BACKLOG',     label: 'Pendiente',              chip: 'bg-[#000033]/10 text-[#000033] border-[#000033]/25' },
-  { sub: 'EN_CURSO',         macro: 'EN_PROGRESO', label: 'Ongoing',                chip: 'bg-[#024fff]/10 text-[#024fff] border-[#024fff]/30' },
-  { sub: 'REVISION_INTERNA', macro: 'EN_REVISION', label: 'En revisión interna',    chip: 'bg-[#024fff]/15 text-[#024fff] border-[#024fff]/35' },
-  { sub: 'ENVIADO_CLIENTE',  macro: 'EN_REVISION', label: 'En revisión del cliente', chip: 'bg-[#024fff]/20 text-[#024fff] border-[#024fff]/40' },
-  { sub: 'LISTO',            macro: 'FINALIZADO',  label: 'Completado',             chip: 'bg-[#00ff99]/30 text-[#000033] border-[#00ff99]/50' },
-  { sub: 'CANCELADO',        macro: 'FINALIZADO',  label: 'Cancelado',              chip: 'bg-[#000033]/5 text-[#000033]/40 border-[#000033]/15' },
+  { sub: 'PENDIENTE',             macro: 'BACKLOG',     label: 'Pendiente',              chip: 'bg-[#000033]/10 text-[#000033] border-[#000033]/25' },
+  { sub: 'EN_CURSO',              macro: 'EN_PROGRESO', label: 'Ongoing',                chip: 'bg-[#024fff]/10 text-[#024fff] border-[#024fff]/30' },
+  { sub: 'REVISION_INTERNA',      macro: 'EN_REVISION', label: 'En revisión interna',    chip: 'bg-[#024fff]/15 text-[#024fff] border-[#024fff]/35' },
+  { sub: 'ENVIADO_CLIENTE',       macro: 'EN_REVISION', label: 'En revisión del cliente', chip: 'bg-[#024fff]/20 text-[#024fff] border-[#024fff]/40' },
+  { sub: 'PENDIENTE_PUBLICACION', macro: 'EN_REVISION', label: 'Pendiente de publicación', chip: 'bg-[#d97706]/10 text-[#d97706] border-[#d97706]/30' },
+  { sub: 'LISTO',                 macro: 'FINALIZADO',  label: 'Completado',             chip: 'bg-[#00ff99]/30 text-[#000033] border-[#00ff99]/50' },
+  { sub: 'CANCELADO',             macro: 'FINALIZADO',  label: 'Cancelado',              chip: 'bg-[#000033]/5 text-[#000033]/40 border-[#000033]/15' },
 ];
 
 // Subestado default al soltar una card en cada macro-columna.

@@ -7,18 +7,22 @@ export async function catalogsRoutes(fastify: FastifyInstance) {
   fastify.addHook('preHandler', authenticate);
 
   // Get all clients
-  fastify.get('/clients', async () => {
+  fastify.get('/clients', async (request) => {
+    const { includeArchived } = request.query as { includeArchived?: string };
+    const where = includeArchived === 'true' ? {} : { active: true };
     const clients = await prisma.client.findMany({
-      where: { active: true },
+      where,
       orderBy: { name: 'asc' },
     });
     return { data: clients };
   });
 
   // Get clients with ticket stats
-  fastify.get('/clients/stats', async () => {
+  fastify.get('/clients/stats', async (request) => {
+    const { includeArchived } = request.query as { includeArchived?: string };
+    const where = includeArchived === 'true' ? {} : { active: true };
     const clients = await prisma.client.findMany({
-      where: { active: true },
+      where,
       include: {
         owner: { select: { id: true, name: true } },
         brandVoice: { select: { content: true } },
@@ -107,10 +111,27 @@ export async function catalogsRoutes(fastify: FastifyInstance) {
     return { data: client };
   });
 
-  // Archive a client (soft delete)
+  // Archive a client (soft delete) or hard delete
   fastify.delete('/clients/:id', async (request, reply) => {
     const { id } = request.params as { id: string };
-    await prisma.client.update({ where: { id }, data: { active: false } });
+    const { hard } = request.query as { hard?: string };
+
+    if (hard === 'true') {
+      await prisma.$transaction([
+        prisma.postMetricSnapshot.deleteMany({ where: { publication: { clientId: id } } }),
+        prisma.publication.deleteMany({ where: { clientId: id } }),
+        prisma.ticketComment.deleteMany({ where: { ticket: { clientId: id } } }),
+        prisma.notification.deleteMany({ where: { ticket: { clientId: id } } }),
+        prisma.ticket.deleteMany({ where: { clientId: id } }),
+        prisma.speaker.deleteMany({ where: { clientId: id } }),
+        prisma.pilar.deleteMany({ where: { clientId: id } }),
+        prisma.brandVoice.deleteMany({ where: { clientId: id } }),
+        prisma.pressReference.deleteMany({ where: { clientId: id } }),
+        prisma.client.delete({ where: { id } }),
+      ]);
+    } else {
+      await prisma.client.update({ where: { id }, data: { active: false } });
+    }
     reply.code(204).send();
   });
 
@@ -131,6 +152,38 @@ export async function catalogsRoutes(fastify: FastifyInstance) {
       update: { content },
     });
     return { data: brandVoice.content };
+  });
+
+  // Get press references for a client
+  fastify.get('/clients/:id/press-references', async (request) => {
+    const { id } = request.params as { id: string };
+    const refs = await prisma.pressReference.findMany({
+      where: { clientId: id },
+    });
+    return { data: refs };
+  });
+
+  // Save/upsert press reference for a client
+  fastify.put('/clients/:id/press-references', async (request) => {
+    const { id } = request.params as { id: string };
+    const { type, content } = request.body as { type: string; content: string };
+    const ref = await prisma.pressReference.upsert({
+      where: {
+        clientId_type: {
+          clientId: id,
+          type,
+        },
+      },
+      create: {
+        clientId: id,
+        type,
+        content,
+      },
+      update: {
+        content,
+      },
+    });
+    return { data: ref };
   });
 
   // Get all users

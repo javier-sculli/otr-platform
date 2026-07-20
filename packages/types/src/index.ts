@@ -85,6 +85,7 @@ export enum SubEstado {
   EN_CURSO = 'EN_CURSO',
   REVISION_INTERNA = 'REVISION_INTERNA',
   ENVIADO_CLIENTE = 'ENVIADO_CLIENTE',
+  PENDIENTE_PUBLICACION = 'PENDIENTE_PUBLICACION',
   LISTO = 'LISTO',
   CANCELADO = 'CANCELADO',
 }
@@ -109,6 +110,7 @@ export const PRENSA_SUBESTADOS: SubEstadoDef[] = [
   { sub: SubEstado.EN_CURSO,          macro: MacroEstado.EN_PROGRESO, label: 'Ongoing' },
   { sub: SubEstado.REVISION_INTERNA,  macro: MacroEstado.EN_REVISION, label: 'En revisión interna' },
   { sub: SubEstado.ENVIADO_CLIENTE,   macro: MacroEstado.EN_REVISION, label: 'En revisión del cliente' },
+  { sub: SubEstado.PENDIENTE_PUBLICACION, macro: MacroEstado.EN_REVISION, label: 'Pendiente de publicación' },
   { sub: SubEstado.LISTO,             macro: MacroEstado.FINALIZADO,  label: 'Completado' },
   { sub: SubEstado.CANCELADO,         macro: MacroEstado.FINALIZADO,  label: 'Cancelado' },
 ];
