@@ -721,11 +721,11 @@ const REF_TYPES = [
 
 function ReferenciasPrensaTab({ clientId }: { clientId: string }) {
   const queryClient = useQueryClient();
-  const [content, setContent] = useState<Record<string, string>>({
-    pitch: '',
-    columna: '',
-    comunicado: '',
-    'q&a': '',
+  const [content, setContent] = useState<Record<string, string[]>>({
+    pitch: [''],
+    columna: [''],
+    comunicado: [''],
+    'q&a': [''],
   });
   const [hasChanges, setHasChanges] = useState(false);
 
@@ -736,9 +736,18 @@ function ReferenciasPrensaTab({ clientId }: { clientId: string }) {
 
   useEffect(() => {
     if (refsData?.data) {
-      const mapped: Record<string, string> = { pitch: '', columna: '', comunicado: '', 'q&a': '' };
+      const mapped: Record<string, string[]> = { pitch: [''], columna: [''], comunicado: [''], 'q&a': [''] };
       refsData.data.forEach((r: any) => {
-        mapped[r.type] = r.content;
+        try {
+          const parsed = JSON.parse(r.content);
+          if (Array.isArray(parsed)) {
+            mapped[r.type] = parsed.length > 0 ? parsed : [''];
+          } else {
+            mapped[r.type] = r.content ? [r.content] : [''];
+          }
+        } catch (e) {
+          mapped[r.type] = r.content ? [r.content] : [''];
+        }
       });
       setContent(mapped);
     }
@@ -746,9 +755,11 @@ function ReferenciasPrensaTab({ clientId }: { clientId: string }) {
 
   const saveMutation = useMutation({
     mutationFn: async () => {
-      const promises = Object.entries(content).map(([type, text]) =>
-        api.savePressReference(clientId, type, text)
-      );
+      const promises = Object.entries(content).map(([type, list]) => {
+        const cleaned = list.filter(v => v.trim().length > 0);
+        const textToSave = JSON.stringify(cleaned);
+        return api.savePressReference(clientId, type, textToSave);
+      });
       await Promise.all(promises);
     },
     onSuccess: () => {
@@ -757,12 +768,7 @@ function ReferenciasPrensaTab({ clientId }: { clientId: string }) {
     },
   });
 
-  const handleChange = (type: string, value: string) => {
-    setContent(prev => ({ ...prev, [type]: value }));
-    setHasChanges(true);
-  };
-
-  const filledCount = Object.values(content).filter(v => v.trim().length > 0).length;
+  const filledCount = Object.values(content).filter(list => list.some(v => v.trim().length > 0)).length;
 
   if (isLoading) {
     return <div className="flex items-center justify-center py-16 text-[#000033]/60 text-sm">Cargando...</div>;
@@ -806,27 +812,79 @@ function ReferenciasPrensaTab({ clientId }: { clientId: string }) {
       </div>
 
       {/* Inputs */}
-      <div className="max-w-[900px] mx-auto px-8 py-6 space-y-4">
-        {REF_TYPES.map((ref, index) => (
-          <div key={ref.id} className="bg-white border-2 border-[#000033]/10 rounded-xl px-5 py-5">
-            <div className="flex items-start gap-2 mb-3 justify-between">
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-bold text-[#000033]/30 w-5 text-right">
-                  {String(index + 1).padStart(2, '0')}
-                </span>
-                <span className="font-bold text-[#000033] text-sm">{ref.label}</span>
+      <div className="max-w-[900px] mx-auto px-8 py-6 space-y-6">
+        {REF_TYPES.map((ref, index) => {
+          const examples = content[ref.id] ?? [''];
+          return (
+            <div key={ref.id} className="bg-white border-2 border-[#000033]/10 rounded-xl px-5 py-5 space-y-4 shadow-sm">
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-[#000033]/30 w-5 text-right font-mono">
+                    {String(index + 1).padStart(2, '0')}
+                  </span>
+                  <span className="font-bold text-[#000033] text-sm">{ref.label}</span>
+                </div>
+                <button
+                  onClick={() => {
+                    setContent(prev => ({ ...prev, [ref.id]: [...(prev[ref.id] ?? []), ''] }));
+                    setHasChanges(true);
+                  }}
+                  className="flex items-center gap-1 px-3 py-1 bg-[#024fff]/10 hover:bg-[#024fff]/20 text-[#024fff] text-xs font-bold rounded-lg transition-all"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  Agregar ejemplo
+                </button>
+              </div>
+              <p className="text-xs text-[#000033]/50 ml-7 leading-relaxed">{ref.desc}</p>
+              
+              <div className="space-y-4 ml-7">
+                {examples.length === 0 ? (
+                  <div className="py-8 border-2 border-dashed border-[#000033]/10 rounded-xl text-center text-xs text-[#000033]/45 bg-[#fafafa]">
+                    No hay ejemplos cargados. Agrega uno usando el botón de arriba.
+                  </div>
+                ) : (
+                  examples.map((ex, exIdx) => (
+                    <div key={exIdx} className="space-y-1.5 relative group bg-white border border-[#000033]/5 rounded-xl p-3 shadow-sm hover:shadow-md transition-shadow">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-bold text-[#000033]/40 uppercase tracking-wider font-mono">
+                          Ejemplo {exIdx + 1}
+                        </span>
+                        <button
+                          onClick={() => {
+                            setContent(prev => {
+                              const list = [...(prev[ref.id] ?? [])];
+                              list.splice(exIdx, 1);
+                              return { ...prev, [ref.id]: list };
+                            });
+                            setHasChanges(true);
+                          }}
+                          className="text-red-500 hover:text-red-700 p-1.5 rounded-lg hover:bg-red-50 transition-all flex items-center justify-center"
+                          title="Eliminar ejemplo"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                      <textarea
+                        value={ex}
+                        onChange={e => {
+                          setContent(prev => {
+                            const list = [...(prev[ref.id] ?? [])];
+                            list[exIdx] = e.target.value;
+                            return { ...prev, [ref.id]: list };
+                          });
+                          setHasChanges(true);
+                        }}
+                        placeholder={`Ingresa el texto del Ejemplo ${exIdx + 1} para ${ref.label} aquí...`}
+                        rows={6}
+                        className="w-full px-3 py-3 border-2 border-[#000033]/10 rounded-lg text-sm text-[#000033] placeholder-[#000033]/20 bg-[#fafafa] focus:outline-none focus:border-[#024fff] focus:bg-white resize-none transition-all leading-relaxed"
+                      />
+                    </div>
+                  ))
+                )}
               </div>
             </div>
-            <p className="text-xs text-[#000033]/50 mb-3 ml-7">{ref.desc}</p>
-            <textarea
-              value={content[ref.id] ?? ''}
-              onChange={e => handleChange(ref.id, e.target.value)}
-              placeholder={`Ingresa el texto de referencia para ${ref.label} aquí...`}
-              rows={8}
-              className="w-full px-3 py-3 border-2 border-[#000033]/10 rounded-lg text-sm text-[#000033] placeholder-[#000033]/25 bg-[#fafafa] focus:outline-none focus:border-[#024fff] focus:bg-white resize-none transition-colors leading-relaxed"
-            />
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

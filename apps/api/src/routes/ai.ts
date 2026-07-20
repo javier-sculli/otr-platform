@@ -331,7 +331,19 @@ export async function aiRoutes(fastify: FastifyInstance) {
           },
         });
         if (pressRef?.content) {
-          pressReferenceContent = pressRef.content;
+          try {
+            const parsed = JSON.parse(pressRef.content);
+            if (Array.isArray(parsed)) {
+              pressReferenceContent = parsed
+                .filter(item => item && item.trim().length > 0)
+                .map((item, idx) => `[Ejemplo de referencia ${idx + 1}]\n${item}`)
+                .join('\n\n');
+            } else {
+              pressReferenceContent = pressRef.content;
+            }
+          } catch (e) {
+            pressReferenceContent = pressRef.content;
+          }
         }
       }
     }
