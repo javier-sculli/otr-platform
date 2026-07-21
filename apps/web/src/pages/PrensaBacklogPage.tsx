@@ -31,6 +31,7 @@ interface Ticket {
   client: { id: string; name: string };
   ticketType?: { id: string; name: string; kind?: string } | null;
   updatedAt: string;
+  createdAt: string;
 }
 
 interface Cliente { id: string; name: string }
@@ -1009,7 +1010,7 @@ function TicketCard({
       }`}
       style={{ borderLeftWidth: 3, borderLeftColor: '#7C3AED' }}
     >
-      <div className="flex items-center gap-1.5 mb-2.5">
+      <div className="flex items-center gap-1.5 mb-2.5 flex-wrap">
         <span className="text-[10px] font-bold text-[#024fff]/70 truncate max-w-[90px]">
           {ticket.client.name}
         </span>
@@ -1019,6 +1020,9 @@ function TicketCard({
             {ticket.ticketType.name}
           </span>
         )}
+        <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border flex-shrink-0 ${PRIORIDAD_STYLES[ticket.prioridad] ?? ''}`}>
+          {PRIORIDAD_LABEL[ticket.prioridad] ?? ticket.prioridad}
+        </span>
         <button
           type="button"
           className="ml-auto text-[#000033]/15 hover:text-[#000033]/50 opacity-0 group-hover:opacity-100 transition-opacity"
@@ -1047,7 +1051,7 @@ function TicketCard({
         </div>
       )}
 
-      <div className="flex items-center justify-between text-xs">
+      <div className="flex items-center justify-between text-xs mt-3">
         <div className="flex items-center gap-1.5">
           <div className="w-5 h-5 rounded-full bg-violet-50 flex items-center justify-center text-[9px] font-bold text-violet-600 flex-shrink-0">
             {ticket.owner.name.charAt(0).toUpperCase()}
@@ -1056,18 +1060,20 @@ function TicketCard({
             {ticket.owner.name.split(' ')[0]}
           </span>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-col items-end gap-0.5">
           {ticket.dueDate && (
-            <div className="flex items-center gap-1 text-[#000033]/35">
-              <Calendar className="w-3 h-3" />
-              <span className="text-[10px] font-medium">
+            <div className="flex items-center gap-1 text-[#024fff] font-bold text-[10px]">
+              <Calendar className="w-3 h-3 text-[#024fff]/80" />
+              <span>
                 {new Date(ticket.dueDate).toLocaleDateString('es-ES', { day: '2-digit', month: 'short' })}
               </span>
             </div>
           )}
-          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${PRIORIDAD_STYLES[ticket.prioridad] ?? ''}`}>
-            {PRIORIDAD_LABEL[ticket.prioridad] ?? ticket.prioridad}
-          </span>
+          {ticket.createdAt && (
+            <div className="text-[#000033]/30 text-[9px] font-medium leading-none">
+              Creación: {new Date(ticket.createdAt).toLocaleDateString('es-ES', { day: '2-digit', month: 'short' })}
+            </div>
+          )}
         </div>
       </div>
     </div>
