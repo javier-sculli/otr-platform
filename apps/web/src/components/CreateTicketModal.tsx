@@ -342,8 +342,8 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO' 
         const res = await createMutation.mutateAsync({
           ...payload,
           clientId: formData.clientId,
-          // Pieza puede llevar recursos (links a Drive) ya en la creación
-          ...(!noContenido && formData.links.length > 0 ? { links: formData.links } : {}),
+          // Puede llevar recursos (links a Drive) ya en la creación
+          ...(formData.links.length > 0 ? { links: formData.links } : {}),
         });
         const newId = res?.data?.id;
         handleClose();
@@ -369,7 +369,7 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO' 
 
   if (!isOpen) return null;
 
-  const showRecursos = !noContenido || isEditing;
+  const showRecursos = true;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
