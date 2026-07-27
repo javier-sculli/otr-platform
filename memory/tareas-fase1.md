@@ -36,6 +36,7 @@ Registrar **Tareas** (entregables no publicables: Deck, Estrategia, Reporte, Dis
 - **Badge de Tarea = pill navy sólido `bg-[#000033] text-white`** con ícono `ClipboardList` (dentro de la paleta). En `TicketCard` (BacklogPage) y en el header de `TicketDetallePage`.
 - **Filtro segmentado `Todos / Contenido / Tareas`** en la barra de filtros de `BacklogPage` (`filtroTipo`, default TODOS; incluido en "Limpiar filtros"). `TAREA` ⇒ `kind==='TAREA'`; `CONTENIDO` ⇒ `kind!=='TAREA'`.
 - `TicketDetallePage`: si `esTarea` (`ticketType?.kind==='TAREA'`) → "Brief"→"Descripción", oculta Copy + Notas audiovisual + ambos CTA "Redactar" (header + card Acciones del sidebar), "Entregable visual"→"Link del entregable".
+4. **Recursos en Tareas (2026-07-27)**: Se habilitó la sección de Recursos (links a Drive y adjuntos) también al crear/editar Tareas en `CreateTicketModal.tsx`, permitiendo adjuntar links de referencia directamente en la creación para agilizar la producción.
 
 ## Fase 2 (NO implementado, pendiente de validar)
 Rediseño de vistas del tablero: zoom consolidada/extendida, carriles por tipo/persona. Ver HU Fase 2.
