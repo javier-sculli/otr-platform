@@ -8,6 +8,7 @@ const ACTOR_ID = 'A3cAPGpwBEG8RJwse';
 
 interface ApifyPost {
   linkedinUrl?: string;
+  url?: string;
   content?: string;
   postedAt?: { date?: string; timestamp?: number };
   postImages?: { url?: string }[];
@@ -23,6 +24,16 @@ function getDayNumber(publishedAt: Date): number {
   return diffDays <= 5 ? diffDays : 99; // 99 = foto final, se pisa siempre
 }
 
+function normalizeUrl(url: string | null | undefined): string | null {
+  if (!url) return null;
+  let cleaned = url.trim();
+  if (!cleaned) return null;
+  if (!cleaned.startsWith('http://') && !cleaned.startsWith('https://')) {
+    cleaned = 'https://' + cleaned;
+  }
+  return cleaned;
+}
+
 export async function syncLinkedInMetrics(clientId?: string) {
   const apifyToken = process.env.APIFY_TOKEN;
   if (!apifyToken) {
@@ -32,37 +43,55 @@ export async function syncLinkedInMetrics(clientId?: string) {
 
   const apify = new ApifyClient({ token: apifyToken });
 
-  // Traer clientes con linkedinUrl configurado
-  const clients = await prisma.client.findMany({
+  // 1. Obtener clientes activos (filtrados por clientId si fue provisto)
+  const activeClients = await prisma.client.findMany({
     where: {
       active: true,
-      linkedinUrl: { not: null },
       ...(clientId ? { id: clientId } : {}),
     },
+    select: { id: true, name: true, linkedinUrl: true },
   });
 
-  if (clients.length === 0) {
-    console.log('[syncLinkedIn] No hay clientes con linkedinUrl configurado');
+  if (activeClients.length === 0) {
+    console.log('[syncLinkedIn] No se encontraron clientes activos' + (clientId ? ` para id: ${clientId}` : ''));
     return;
   }
 
-  // Cargar speakers con linkedinUrl por cliente
+  const clientIds = activeClients.map(c => c.id);
+
+  // 2. Obtener voceros de dichos clientes que tengan linkedinUrl configurado
   const speakers = await prisma.speaker.findMany({
     where: {
-      clientId: { in: clients.map(c => c.id) },
+      clientId: { in: clientIds },
       linkedinUrl: { not: null },
     },
     select: { id: true, clientId: true, nombre: true, linkedinUrl: true },
   });
 
-  // Targets: perfil del cliente + perfiles de voceros
+  // 3. Armar lista de objetivos (targets): URLs del cliente + URLs de voceros
   type SyncTarget = { url: string; clientId: string; speakerId: string | null; label: string };
-  const targets: SyncTarget[] = [
-    ...clients.map(c => ({ url: c.linkedinUrl!, clientId: c.id, speakerId: null, label: c.name })),
-    ...speakers.map(s => ({ url: s.linkedinUrl!, clientId: s.clientId, speakerId: s.id, label: s.nombre })),
-  ];
+  const targets: SyncTarget[] = [];
 
-  console.log(`[syncLinkedIn] Procesando ${targets.length} perfil(es) (${clients.length} clientes, ${speakers.length} voceros)...`);
+  for (const c of activeClients) {
+    const url = normalizeUrl(c.linkedinUrl);
+    if (url) {
+      targets.push({ url, clientId: c.id, speakerId: null, label: c.name });
+    }
+  }
+
+  for (const s of speakers) {
+    const url = normalizeUrl(s.linkedinUrl);
+    if (url) {
+      targets.push({ url, clientId: s.clientId, speakerId: s.id, label: s.nombre });
+    }
+  }
+
+  if (targets.length === 0) {
+    console.log('[syncLinkedIn] No hay URLs de LinkedIn configuradas para los clientes/voceros seleccionados');
+    return;
+  }
+
+  console.log(`[syncLinkedIn] Procesando ${targets.length} perfil(es) (${activeClients.length} clientes, ${speakers.length} voceros)...`);
 
   for (const target of targets) {
     console.log(`[syncLinkedIn] → ${target.label} (${target.url})`);
@@ -84,7 +113,8 @@ export async function syncLinkedInMetrics(clientId?: string) {
       console.log(`[syncLinkedIn]   ${posts.length} posts encontrados`);
 
       for (const post of posts) {
-        if (!post.linkedinUrl) continue;
+        const postUrl = post.linkedinUrl ?? post.url;
+        if (!postUrl) continue;
 
         const publishedAt = post.postedAt?.date
           ? new Date(post.postedAt.date)
@@ -99,11 +129,11 @@ export async function syncLinkedInMetrics(clientId?: string) {
 
         // Upsert publication por URL (evita duplicados)
         const publication = await prisma.publication.upsert({
-          where: { url: post.linkedinUrl },
+          where: { url: postUrl },
           create: {
             clientId: target.clientId,
             speakerId: target.speakerId,
-            url: post.linkedinUrl,
+            url: postUrl,
             publishedAt,
             canal: 'LinkedIn',
             postContent: post.content ?? null,
@@ -132,7 +162,7 @@ export async function syncLinkedInMetrics(clientId?: string) {
           update: { likes, comments, shares, takenAt: new Date() },
         });
 
-        console.log(`[syncLinkedIn]   ✓ día ${dayNumber === 99 ? 'final' : dayNumber} — ${likes}❤ ${comments}💬 ${shares}🔁 — ${post.linkedinUrl.slice(0, 60)}...`);
+        console.log(`[syncLinkedIn]   ✓ día ${dayNumber === 99 ? 'final' : dayNumber} — ${likes}❤ ${comments}💬 ${shares}🔁 — ${postUrl.slice(0, 60)}...`);
       }
     } catch (err) {
       console.error(`[syncLinkedIn] Error en ${target.label}:`, err);

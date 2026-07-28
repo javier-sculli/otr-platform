@@ -41,22 +41,24 @@ export async function syncTwitterMetrics(clientId?: string) {
 
   const apify = new ApifyClient({ token: apifyToken });
 
-  const clients = await prisma.client.findMany({
+  const activeClients = await prisma.client.findMany({
     where: {
       active: true,
-      twitterUrl: { not: null },
       ...(clientId ? { id: clientId } : {}),
     },
+    select: { id: true, name: true, twitterUrl: true },
   });
 
-  if (clients.length === 0) {
-    console.log('[syncTwitter] No hay clientes con twitterUrl configurado');
+  if (activeClients.length === 0) {
+    console.log('[syncTwitter] No se encontraron clientes activos' + (clientId ? ` para id: ${clientId}` : ''));
     return;
   }
 
+  const clientIds = activeClients.map(c => c.id);
+
   const speakers = await prisma.speaker.findMany({
     where: {
-      clientId: { in: clients.map(c => c.id) },
+      clientId: { in: clientIds },
       twitterUrl: { not: null },
     },
     select: { id: true, clientId: true, nombre: true, twitterUrl: true },
@@ -65,13 +67,18 @@ export async function syncTwitterMetrics(clientId?: string) {
   type SyncTarget = { handle: string; clientId: string; speakerId: string | null; label: string };
   const targets: SyncTarget[] = [];
 
-  for (const c of clients) {
-    const handle = extractTwitterHandle(c.twitterUrl!);
-    if (handle) targets.push({ handle, clientId: c.id, speakerId: null, label: c.name });
+  for (const c of activeClients) {
+    if (c.twitterUrl) {
+      const handle = extractTwitterHandle(c.twitterUrl);
+      if (handle) targets.push({ handle, clientId: c.id, speakerId: null, label: c.name });
+    }
   }
+
   for (const s of speakers) {
-    const handle = extractTwitterHandle(s.twitterUrl!);
-    if (handle) targets.push({ handle, clientId: s.clientId, speakerId: s.id, label: s.nombre });
+    if (s.twitterUrl) {
+      const handle = extractTwitterHandle(s.twitterUrl);
+      if (handle) targets.push({ handle, clientId: s.clientId, speakerId: s.id, label: s.nombre });
+    }
   }
 
   if (targets.length === 0) {
@@ -79,7 +86,7 @@ export async function syncTwitterMetrics(clientId?: string) {
     return;
   }
 
-  console.log(`[syncTwitter] Procesando ${targets.length} perfil(es) (${clients.length} clientes, ${speakers.length} voceros)...`);
+  console.log(`[syncTwitter] Procesando ${targets.length} perfil(es) (${activeClients.length} clientes, ${speakers.length} voceros)...`);
 
   for (const target of targets) {
     console.log(`[syncTwitter] → ${target.label} (@${target.handle})`);

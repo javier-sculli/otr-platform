@@ -38,22 +38,24 @@ export async function syncInstagramMetrics(clientId?: string) {
 
   const apify = new ApifyClient({ token: apifyToken });
 
-  const clients = await prisma.client.findMany({
+  const activeClients = await prisma.client.findMany({
     where: {
       active: true,
-      instagramUrl: { not: null },
       ...(clientId ? { id: clientId } : {}),
     },
+    select: { id: true, name: true, instagramUrl: true },
   });
 
-  if (clients.length === 0) {
-    console.log('[syncInstagram] No hay clientes con instagramUrl configurado');
+  if (activeClients.length === 0) {
+    console.log('[syncInstagram] No se encontraron clientes activos' + (clientId ? ` para id: ${clientId}` : ''));
     return;
   }
 
+  const clientIds = activeClients.map(c => c.id);
+
   const speakers = await prisma.speaker.findMany({
     where: {
-      clientId: { in: clients.map(c => c.id) },
+      clientId: { in: clientIds },
       instagramUrl: { not: null },
     },
     select: { id: true, clientId: true, nombre: true, instagramUrl: true },
@@ -62,13 +64,18 @@ export async function syncInstagramMetrics(clientId?: string) {
   type SyncTarget = { username: string; clientId: string; speakerId: string | null; label: string };
   const targets: SyncTarget[] = [];
 
-  for (const c of clients) {
-    const username = extractInstagramUsername(c.instagramUrl!);
-    if (username) targets.push({ username, clientId: c.id, speakerId: null, label: c.name });
+  for (const c of activeClients) {
+    if (c.instagramUrl) {
+      const username = extractInstagramUsername(c.instagramUrl);
+      if (username) targets.push({ username, clientId: c.id, speakerId: null, label: c.name });
+    }
   }
+
   for (const s of speakers) {
-    const username = extractInstagramUsername(s.instagramUrl!);
-    if (username) targets.push({ username, clientId: s.clientId, speakerId: s.id, label: s.nombre });
+    if (s.instagramUrl) {
+      const username = extractInstagramUsername(s.instagramUrl);
+      if (username) targets.push({ username, clientId: s.clientId, speakerId: s.id, label: s.nombre });
+    }
   }
 
   if (targets.length === 0) {
@@ -76,7 +83,7 @@ export async function syncInstagramMetrics(clientId?: string) {
     return;
   }
 
-  console.log(`[syncInstagram] Procesando ${targets.length} perfil(es) (${clients.length} clientes, ${speakers.length} voceros)...`);
+  console.log(`[syncInstagram] Procesando ${targets.length} perfil(es) (${activeClients.length} clientes, ${speakers.length} voceros)...`);
 
   for (const target of targets) {
     console.log(`[syncInstagram] → ${target.label} (@${target.username})`);
