@@ -224,6 +224,13 @@ function DialogNuevoVocero({
 }) {
   const [nombre, setNombre] = useState('');
   const [cargo, setCargo] = useState('');
+  const [linkedinUrl, setLinkedinUrl] = useState('');
+
+  const handleCreate = () => {
+    if (nombre.trim()) {
+      onCreate({ nombre: nombre.trim(), cargo: cargo.trim(), linkedinUrl: linkedinUrl.trim() });
+    }
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -248,7 +255,7 @@ function DialogNuevoVocero({
               placeholder="Juan Martínez"
               className="w-full px-4 py-3 border-2 border-[#000033]/10 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#024fff] text-[#000033]"
               autoFocus
-              onKeyDown={e => e.key === 'Enter' && nombre.trim() && onCreate({ nombre: nombre.trim(), cargo: cargo.trim(), linkedinUrl: '' })}
+              onKeyDown={e => e.key === 'Enter' && handleCreate()}
             />
           </div>
           <div>
@@ -261,6 +268,21 @@ function DialogNuevoVocero({
               onChange={e => setCargo(e.target.value)}
               placeholder="CEO & Co-founder"
               className="w-full px-4 py-3 border-2 border-[#000033]/10 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#024fff] text-[#000033]"
+              onKeyDown={e => e.key === 'Enter' && handleCreate()}
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-[#000033] mb-2 flex items-center gap-1.5">
+              <Linkedin className="w-3.5 h-3.5 text-[#0077B5]" />
+              URL de LinkedIn <span className="text-[#000033]/40 font-normal">(opcional)</span>
+            </label>
+            <input
+              type="url"
+              value={linkedinUrl}
+              onChange={e => setLinkedinUrl(e.target.value)}
+              placeholder="https://www.linkedin.com/in/perfil"
+              className="w-full px-4 py-3 border-2 border-[#000033]/10 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#024fff] text-[#000033]"
+              onKeyDown={e => e.key === 'Enter' && handleCreate()}
             />
           </div>
         </div>
@@ -270,7 +292,7 @@ function DialogNuevoVocero({
             Cancelar
           </button>
           <button
-            onClick={() => nombre.trim() && onCreate({ nombre: nombre.trim(), cargo: cargo.trim(), linkedinUrl: '' })}
+            onClick={handleCreate}
             disabled={!nombre.trim() || isLoading}
             className="px-5 py-2 bg-[#024fff] text-white rounded-lg hover:bg-[#024fff]/90 transition-all font-bold text-sm shadow-lg shadow-[#024fff]/20 disabled:opacity-50 disabled:cursor-not-allowed"
           >

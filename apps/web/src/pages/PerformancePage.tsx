@@ -53,6 +53,8 @@ export function PerformancePage() {
   const [syncNetwork, setSyncNetwork] = useState<'all' | 'linkedin' | 'instagram' | 'twitter'>('all');
   const [showSyncDropdown, setShowSyncDropdown] = useState(false);
   const syncDropdownRef = useRef<HTMLDivElement>(null);
+  const dropdownClientesRef = useRef<HTMLDivElement>(null);
+  const dropdownVocerosRef = useRef<HTMLDivElement>(null);
   const [clientesSeleccionados, setClientesSeleccionados] = useState<string[]>(() => user?.preferredClientIds ?? []);
   const [showDropdownClientes, setShowDropdownClientes] = useState(false);
   const [vocerosSeleccionados, setVocerosSeleccionados] = useState<string[]>([]);
@@ -96,11 +98,17 @@ export function PerformancePage() {
     },
   });
 
-  // Cerrar dropdown de sync al hacer click afuera
+  // Cerrar dropdowns al hacer click afuera
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (syncDropdownRef.current && !syncDropdownRef.current.contains(e.target as Node)) {
         setShowSyncDropdown(false);
+      }
+      if (dropdownClientesRef.current && !dropdownClientesRef.current.contains(e.target as Node)) {
+        setShowDropdownClientes(false);
+      }
+      if (dropdownVocerosRef.current && !dropdownVocerosRef.current.contains(e.target as Node)) {
+        setShowDropdownVoceros(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -135,8 +143,25 @@ export function PerformancePage() {
   const clients: any[] = clientsData?.data ?? [];
   const vocerosUnicos: any[] = speakersData?.data ?? [];
 
-  const toggleCliente = (id: string) =>
-    setClientesSeleccionados(prev => prev.includes(id) ? prev.filter(c => c !== id) : [...prev, id]);
+  // Voceros disponibles filtrados por los clientes seleccionados
+  const vocerosDisponibles = clientesSeleccionados.length > 0
+    ? vocerosUnicos.filter((v: any) => clientesSeleccionados.includes(v.clientId))
+    : vocerosUnicos;
+
+  const toggleCliente = (id: string) => {
+    setClientesSeleccionados(prev => {
+      const next = prev.includes(id) ? prev.filter(c => c !== id) : [...prev, id];
+      if (next.length > 0) {
+        setVocerosSeleccionados(vPrev =>
+          vPrev.filter(vId => {
+            const spk = vocerosUnicos.find((s: any) => s.id === vId);
+            return spk && next.includes(spk.clientId);
+          })
+        );
+      }
+      return next;
+    });
+  };
 
   const toggleVocero = (id: string) =>
     setVocerosSeleccionados(prev => prev.includes(id) ? prev.filter(v => v !== id) : [...prev, id]);
@@ -299,7 +324,7 @@ export function PerformancePage() {
               ) : (
                 <span className="text-xs text-[#000033]/40">Todos los clientes</span>
               )}
-              <div className="relative">
+              <div className="relative" ref={dropdownClientesRef}>
                 <button onClick={() => setShowDropdownClientes(prev => !prev)}
                   className="px-3 py-1.5 border-2 border-dashed border-[#000033]/20 text-[#000033]/60 text-xs font-bold rounded-lg hover:border-[#024fff]/40 hover:text-[#024fff] flex items-center gap-1.5">
                   + Agregar<ChevronDown className="w-3 h-3" />
@@ -308,7 +333,11 @@ export function PerformancePage() {
                   <div className="absolute top-full left-0 mt-1 bg-white border-2 border-[#000033]/20 rounded-lg shadow-lg z-10 min-w-[160px]">
                     {clients.map((c: any) => (
                       <button key={c.id} onClick={() => { toggleCliente(c.id); setShowDropdownClientes(false); }}
-                        className="block w-full px-3 py-2 text-left text-xs font-bold text-[#000033] hover:bg-[#024fff]/10 hover:text-[#024fff]">
+                        className={`block w-full px-3 py-2 text-left text-xs font-bold ${
+                          clientesSeleccionados.includes(c.id)
+                            ? 'text-[#024fff] bg-[#024fff]/10'
+                            : 'text-[#000033] hover:bg-[#024fff]/10 hover:text-[#024fff]'
+                        }`}>
                         {c.name}
                       </button>
                     ))}
@@ -334,20 +363,31 @@ export function PerformancePage() {
                     </button>
                   ))
               ) : (
-                <span className="text-xs text-[#000033]/40">Todos los voceros</span>
+                <span className="text-xs text-[#000033]/40">
+                  {clientesSeleccionados.length > 0 && vocerosDisponibles.length === 0
+                    ? 'Sin voceros para el cliente'
+                    : 'Todos los voceros'}
+                </span>
               )}
-              {vocerosUnicos.length > 0 && (
-                <div className="relative">
+              {vocerosDisponibles.length > 0 && (
+                <div className="relative" ref={dropdownVocerosRef}>
                   <button onClick={() => setShowDropdownVoceros(prev => !prev)}
                     className="px-3 py-1.5 border-2 border-dashed border-[#000033]/20 text-[#000033]/60 text-xs font-bold rounded-lg hover:border-[#024fff]/40 hover:text-[#024fff] flex items-center gap-1.5">
                     + Agregar<ChevronDown className="w-3 h-3" />
                   </button>
                   {showDropdownVoceros && (
-                    <div className="absolute top-full left-0 mt-1 bg-white border-2 border-[#000033]/20 rounded-lg shadow-lg z-10 min-w-[160px]">
-                      {vocerosUnicos.map((v: any) => (
+                    <div className="absolute top-full left-0 mt-1 bg-white border-2 border-[#000033]/20 rounded-lg shadow-lg z-10 min-w-[180px]">
+                      {vocerosDisponibles.map((v: any) => (
                         <button key={v.id} onClick={() => { toggleVocero(v.id); setShowDropdownVoceros(false); }}
-                          className="block w-full px-3 py-2 text-left text-xs font-bold text-[#000033] hover:bg-[#024fff]/10 hover:text-[#024fff]">
+                          className={`block w-full px-3 py-2 text-left text-xs font-bold ${
+                            vocerosSeleccionados.includes(v.id)
+                              ? 'text-[#024fff] bg-[#024fff]/10'
+                              : 'text-[#000033] hover:bg-[#024fff]/10 hover:text-[#024fff]'
+                          }`}>
                           {v.nombre}
+                          {clientesSeleccionados.length === 0 && v.client?.name && (
+                            <span className="text-[10px] text-[#000033]/40 font-normal ml-1.5">({v.client.name})</span>
+                          )}
                         </button>
                       ))}
                     </div>

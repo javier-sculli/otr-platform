@@ -79,7 +79,16 @@ Sistema de gestión de producción de contenido para On The Rocks (OTR), una age
 - Tareas de desarrollo Fase 1: 5 ítems con prefijo `F1 ·` en la base de Tareas de Desarrollo.
 - Doc de procesos de la contenidista: `BAJADAS INFO ROCKY` (flujos por formato, publicable vs no publicable, ticket de "otros pedidos").
 
+## Bitácora del Proyecto (`docs/BITACORA.md`) — REGLA OBLIGATORIA DE PROCESO
+
+> ⚠️ **OBLIGATORIO PARA CLAUDE / AGENTES DE IA:**
+> El archivo [`docs/BITACORA.md`](file:///Users/javiersculli/dev/OTR/docs/BITACORA.md) es la fuente de verdad del progreso del proyecto, backlog de épicas y registro de cambios (changelog).
+>
+> 1. **Consultar siempre la Bitácora:** Al iniciar cualquier interacción o tarea, leer [`docs/BITACORA.md`](file:///Users/javiersculli/dev/OTR/docs/BITACORA.md).
+> 2. **Actualizar la Bitácora en cada avance:** Con cada bug resuelto, feature implementado o cambio acordado, es **REQUISITO OBLIGATORIO** actualizar el archivo [`docs/BITACORA.md`](file:///Users/javiersculli/dev/OTR/docs/BITACORA.md), marcando las tareas como completadas (`[x]`) y agregando una entrada formal en la sección *Historial de Cambios y Avances*.
+
 ## Proceso de documentación
+- **Bitácora del proyecto** (`docs/BITACORA.md`): Registro continuo de épicas, tareas y changelog de desarrollo.
 - **Historia de usuario** (Notion → Historias de usuario): todo el detalle — contexto, problema, decisiones tomadas, criterios de aceptación, módulos afectados, prioridad
   - URL directa: https://www.notion.so/Historias-de-Usuario-311617fc369280539087d9efd37755c5
   - **Siempre buscar las US en esta URL antes de implementar cualquier feature**

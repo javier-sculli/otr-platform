@@ -365,6 +365,14 @@ class ApiClient {
       body: JSON.stringify({ ids, data }),
     });
   }
+
+  // Reports
+  async getCumplimientoClientes(year?: number, month?: number) {
+    const params = new URLSearchParams();
+    if (year) params.append('year', year.toString());
+    if (month) params.append('month', month.toString());
+    return this.request<{ data: any }>(`/reports/cumplimiento-clientes?${params}`);
+  }
 }
 
 export const api = new ApiClient();

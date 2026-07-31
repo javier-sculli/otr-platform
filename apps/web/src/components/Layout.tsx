@@ -1,11 +1,11 @@
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Lightbulb, LogOut, User, Building2, TrendingUp, Bell, Check, Newspaper, Calendar } from 'lucide-react';
+import { Lightbulb, LogOut, User, Building2, TrendingUp, Bell, Check, Newspaper, Calendar, BarChart3 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState, useRef, useEffect } from 'react';
 import { api } from '../lib/api';
 
-const navItems = [
+const baseNavItems = [
   { path: '/clientes', label: 'Clientes', icon: Building2 },
   { path: '/backlog', label: 'Backlog', icon: Lightbulb },
   { path: '/prensa', label: 'Prensa', icon: Newspaper },
@@ -72,6 +72,16 @@ export function Layout({ children }: LayoutProps) {
       : [...preferredIds, id];
     updatePreferredClients(next);
   };
+
+  const isDirector =
+    user?.role === 'DIRECCION' ||
+    ['javier', 'javi', 'joaco', 'manu', 'manuela'].some((n) =>
+      user?.email?.toLowerCase().includes(n)
+    );
+
+  const navItems = isDirector
+    ? [...baseNavItems, { path: '/reportes', label: 'Reportes', icon: BarChart3 }]
+    : baseNavItems;
 
   return (
     <div className="min-h-screen bg-[#fafafa]">

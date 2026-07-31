@@ -134,8 +134,9 @@ export function PrensaBacklogPage() {
   const [densidad, setDensidad] = useState<'Compacta' | 'Expandida'>('Compacta');
   const [expandedClientes, setExpandedClientes] = useState<Set<string>>(new Set());
 
-  // Date filters states (replicated from Contenido)
-  const [filtroFecha, setFiltroFecha] = useState<'hoy' | 'semana' | 'mes0' | 'mes1' | 'mes2' | 'rango' | null>('mes0');
+  // Date filters states
+  const [mesesSeleccionados, setMesesSeleccionados] = useState<string[]>(['mes_0']);
+  const [filtroQuick, setFiltroQuick] = useState<'hoy' | 'semana' | 'rango' | null>(null);
   const [fechaDesde, setFechaDesde] = useState('');
   const [fechaHasta, setFechaHasta] = useState('');
   const [expandedFinalizados, setExpandedFinalizados] = useState(false);
@@ -174,7 +175,7 @@ export function PrensaBacklogPage() {
   const allTickets: Ticket[] = ticketsData?.data ?? [];
   const clientes: Cliente[] = clientesData?.data ?? [];
 
-  // Date ranges calculation (same as BacklogPage)
+  // Date ranges calculation
   const ahora = new Date();
 
   const inicioHoy = new Date(ahora);
@@ -192,12 +193,23 @@ export function PrensaBacklogPage() {
   finSemana.setDate(inicioSemana.getDate() + 6);
   finSemana.setHours(23, 59, 59, 999);
 
-  const meses = [0, 1, 2].map(offset => ({
-    inicio: new Date(ahora.getFullYear(), ahora.getMonth() - offset, 1),
-    fin: new Date(ahora.getFullYear(), ahora.getMonth() - offset + 1, 0),
-    label: new Date(ahora.getFullYear(), ahora.getMonth() - offset, 1)
-      .toLocaleDateString('es-ES', { month: 'long' }),
-  }));
+  // Lista de meses cronológica: 2 (hace 2 meses), 1 (anterior), 0 (actual), -1 (próximo mes, ej. Agosto)
+  const listaMeses = [2, 1, 0, -1].map(offset => {
+    const d = new Date(ahora.getFullYear(), ahora.getMonth() - offset, 1);
+    const key = `mes_${offset}`;
+    const labelRaw = d.toLocaleDateString('es-ES', { month: 'long' });
+    const label = labelRaw.charAt(0).toUpperCase() + labelRaw.slice(1);
+    const inicio = new Date(d.getFullYear(), d.getMonth(), 1, 0, 0, 0, 0);
+    const fin = new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59, 999);
+    return { key, label, inicio, fin, offset };
+  });
+
+  const toggleMes = (key: string) => {
+    setMesesSeleccionados(prev =>
+      prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]
+    );
+    if (filtroQuick === 'rango') setFiltroQuick(null);
+  };
 
   const limite30Dias = new Date();
   limite30Dias.setDate(limite30Dias.getDate() - 30);
@@ -211,20 +223,25 @@ export function PrensaBacklogPage() {
       if (new Date(t.updatedAt) < limite30Dias) return false;
     }
 
-    // Date Filter (replicated from Contenido)
+    // Date Filter
     // Para tickets finalizados no aplicamos el filtro de fecha general del backlog
-    if (!isFinalized && filtroFecha && t.dueDate) {
-      const due = new Date(t.dueDate);
-      if (filtroFecha === 'hoy') return due >= inicioHoy && due <= finHoy;
-      if (filtroFecha === 'semana') return due >= inicioSemana && due <= finSemana;
-      if (filtroFecha === 'mes0') return due >= meses[0].inicio && due <= meses[0].fin;
-      if (filtroFecha === 'mes1') return due >= meses[1].inicio && due <= meses[1].fin;
-      if (filtroFecha === 'mes2') return due >= meses[2].inicio && due <= meses[2].fin;
-      if (filtroFecha === 'rango') {
+    const dateToUse = t.dueDate || (t as any).plannedDate;
+    if (!isFinalized && dateToUse) {
+      const due = new Date(dateToUse);
+      if (mesesSeleccionados.length > 0) {
+        const matchesAnyMonth = mesesSeleccionados.some(key => {
+          const m = listaMeses.find(item => item.key === key);
+          return m && due >= m.inicio && due <= m.fin;
+        });
+        if (!matchesAnyMonth) return false;
+      }
+      if (filtroQuick === 'hoy' && !(due >= inicioHoy && due <= finHoy)) return false;
+      if (filtroQuick === 'semana' && !(due >= inicioSemana && due <= finSemana)) return false;
+      if (filtroQuick === 'rango') {
         if (fechaDesde && due < new Date(fechaDesde)) return false;
         if (fechaHasta) {
           const hasta = new Date(fechaHasta);
-          hasta.setHours(23, 59, 59);
+          hasta.setHours(23, 59, 59, 999);
           if (due > hasta) return false;
         }
       }
@@ -374,31 +391,64 @@ export function PrensaBacklogPage() {
 
           <div className="w-px h-6 bg-[#000033]/20" />
 
-          {/* Date Filter (replicated from Contenido) */}
+          {/* Date Filter */}
           <div className="flex items-center gap-2">
             <span className="text-xs font-bold text-[#000033]">Fecha:</span>
             <div className="flex items-center gap-1.5 flex-wrap">
-              {([
-                { key: 'hoy',    label: 'Hoy' },
-                { key: 'semana', label: 'Esta semana' },
-                { key: 'mes0',   label: meses[0].label },
-                { key: 'mes1',   label: meses[1].label },
-                { key: 'mes2',   label: meses[2].label },
-                { key: 'rango',  label: 'Rango' },
-              ] as const).map(({ key, label }) => (
-                <button
-                  key={key}
-                  onClick={() => setFiltroFecha(prev => prev === key ? null : key)}
-                  className={`px-3 py-1.5 text-xs font-bold rounded-lg border-2 transition-all capitalize ${
-                    filtroFecha === key
-                      ? 'bg-[#024fff]/10 text-[#024fff] border-[#024fff]/20'
-                      : 'border-[#000033]/10 text-[#000033]/60 hover:border-[#024fff]/40 hover:text-[#024fff]'
-                  }`}
-                >
-                  {label}
-                </button>
-              ))}
-              {filtroFecha === 'rango' && (
+              <button
+                type="button"
+                onClick={() => setFiltroQuick(prev => prev === 'hoy' ? null : 'hoy')}
+                className={`px-3 py-1.5 text-xs font-bold rounded-lg border-2 transition-all capitalize ${
+                  filtroQuick === 'hoy'
+                    ? 'bg-[#024fff]/10 text-[#024fff] border-[#024fff]/20'
+                    : 'border-[#000033]/10 text-[#000033]/60 hover:border-[#024fff]/40 hover:text-[#024fff]'
+                }`}
+              >
+                Hoy
+              </button>
+              <button
+                type="button"
+                onClick={() => setFiltroQuick(prev => prev === 'semana' ? null : 'semana')}
+                className={`px-3 py-1.5 text-xs font-bold rounded-lg border-2 transition-all capitalize ${
+                  filtroQuick === 'semana'
+                    ? 'bg-[#024fff]/10 text-[#024fff] border-[#024fff]/20'
+                    : 'border-[#000033]/10 text-[#000033]/60 hover:border-[#024fff]/40 hover:text-[#024fff]'
+                }`}
+              >
+                Esta semana
+              </button>
+
+              {listaMeses.map(m => {
+                const selected = mesesSeleccionados.includes(m.key);
+                return (
+                  <button
+                    key={m.key}
+                    type="button"
+                    onClick={() => toggleMes(m.key)}
+                    className={`px-3 py-1.5 text-xs font-bold rounded-lg border-2 transition-all capitalize ${
+                      selected
+                        ? 'bg-[#024fff]/10 text-[#024fff] border-[#024fff]/20 font-extrabold shadow-xs'
+                        : 'border-[#000033]/10 text-[#000033]/60 hover:border-[#024fff]/40 hover:text-[#024fff]'
+                    }`}
+                  >
+                    {m.label}
+                  </button>
+                );
+              })}
+
+              <button
+                type="button"
+                onClick={() => setFiltroQuick(prev => prev === 'rango' ? null : 'rango')}
+                className={`px-3 py-1.5 text-xs font-bold rounded-lg border-2 transition-all capitalize ${
+                  filtroQuick === 'rango'
+                    ? 'bg-[#024fff]/10 text-[#024fff] border-[#024fff]/20'
+                    : 'border-[#000033]/10 text-[#000033]/60 hover:border-[#024fff]/40 hover:text-[#024fff]'
+                }`}
+              >
+                Rango
+              </button>
+
+              {filtroQuick === 'rango' && (
                 <div className="flex items-center gap-1.5 ml-1">
                   <input type="date" value={fechaDesde} onChange={e => setFechaDesde(e.target.value)}
                     className="px-2 py-1.5 border-2 border-[#024fff]/20 rounded-lg text-xs text-[#000033] bg-white focus:outline-none focus:border-[#024fff]/50" />
@@ -455,11 +505,11 @@ export function PrensaBacklogPage() {
             </div>
           </div>
 
-          {(clientesSeleccionados.length > 0 || busqueda || filtroFecha !== null) && (
+          {(clientesSeleccionados.length > 0 || busqueda || mesesSeleccionados.length > 0 || filtroQuick !== null) && (
             <>
               <div className="flex-1" />
               <button
-                onClick={() => { setClientesSeleccionados([]); setBusqueda(''); setFiltroFecha(null); setFechaDesde(''); setFechaHasta(''); }}
+                onClick={() => { setClientesSeleccionados([]); setBusqueda(''); setMesesSeleccionados([]); setFiltroQuick(null); setFechaDesde(''); setFechaHasta(''); }}
                 className="text-xs font-bold text-[#000033]/60 hover:text-[#024fff] underline"
               >
                 Limpiar filtros

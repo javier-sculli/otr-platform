@@ -9,6 +9,7 @@ import { aiRoutes } from './routes/ai.js';
 import { metricsRoutes } from './routes/metrics.js';
 import { commentsRoutes } from './routes/comments.js';
 import { notificationsRoutes } from './routes/notifications.js';
+import { reportsRoutes } from './routes/reports.js';
 import { startCronJobs } from './jobs/cron.js';
 
 const fastify = Fastify({
@@ -40,6 +41,7 @@ await fastify.register(aiRoutes, { prefix: '/ai' });
 await fastify.register(metricsRoutes, { prefix: '/metrics' });
 await fastify.register(commentsRoutes, { prefix: '/tickets' });
 await fastify.register(notificationsRoutes, { prefix: '/notifications' });
+await fastify.register(reportsRoutes, { prefix: '/reports' });
 
 // Start server
 try {

@@ -12,6 +12,7 @@ import { TicketDetallePage } from './pages/TicketDetallePage';
 import { PerformancePage } from './pages/PerformancePage';
 import { PublicationDetailPage } from './pages/PublicationDetailPage';
 import { SumarioPage } from './pages/SumarioPage';
+import { ReportesPage } from './pages/ReportesPage';
 import { Layout } from './components/Layout';
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
@@ -111,6 +112,14 @@ function AppRoutes() {
         element={
           <PrivateRoute>
             <PublicationDetailPage />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/reportes"
+        element={
+          <PrivateRoute>
+            <ReportesPage />
           </PrivateRoute>
         }
       />

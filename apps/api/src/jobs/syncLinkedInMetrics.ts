@@ -31,7 +31,14 @@ function normalizeUrl(url: string | null | undefined): string | null {
   if (!cleaned.startsWith('http://') && !cleaned.startsWith('https://')) {
     cleaned = 'https://' + cleaned;
   }
-  return cleaned;
+  try {
+    const parsed = new URL(cleaned);
+    parsed.search = '';
+    parsed.hash = '';
+    return parsed.toString();
+  } catch {
+    return cleaned;
+  }
 }
 
 export async function syncLinkedInMetrics(clientId?: string) {
@@ -100,7 +107,6 @@ export async function syncLinkedInMetrics(clientId?: string) {
       const run = await apify.actor(ACTOR_ID).call({
         targetUrls: [target.url],
         maxPosts: 50,
-        postedLimit: 'month',
         includeQuotePosts: false,
         includeReposts: false,
         scrapeReactions: false,

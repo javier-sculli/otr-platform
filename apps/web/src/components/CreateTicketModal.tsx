@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import {
   X, FileText, CheckSquare, Package, Building2, AlignLeft, Calendar, User,
-  Flag, Share2, Link2, Plus, ExternalLink, Sparkles, Check, Copy,
+  Flag, Share2, Link2, Plus, ExternalLink, Check, Copy,
   Image as ImageIcon, Paperclip, File, Layers, Newspaper,
 } from 'lucide-react';
 import { api } from '../lib/api';
@@ -293,7 +293,7 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO' 
     navigate(`/content/${id}`, { state: { attachedFiles: files.length > 0 ? files : undefined } });
   };
 
-  const submitTicket = async ({ redactar }: { redactar: boolean }) => {
+  const submitTicket = async ({ action }: { action: 'SAVE' | 'REDACTAR' | 'VER_TICKET' }) => {
     setError(null);
 
     if (!formData.title || !formData.clientId || !formData.ownerId) {
@@ -337,7 +337,8 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO' 
         });
         const id = ticket!.id;
         handleClose();
-        if (redactar) goRedactar(id, files);
+        if (action === 'REDACTAR') goRedactar(id, files);
+        else if (action === 'VER_TICKET') navigate(`/piezas/${id}`);
       } else {
         const res = await createMutation.mutateAsync({
           ...payload,
@@ -347,7 +348,8 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO' 
         });
         const newId = res?.data?.id;
         handleClose();
-        if (redactar && newId) goRedactar(newId, files);
+        if (action === 'REDACTAR' && newId) goRedactar(newId, files);
+        else if (action === 'VER_TICKET' && newId) navigate(`/piezas/${newId}`);
       }
     } catch {
       // onError de la mutación ya seteó el mensaje
@@ -356,8 +358,7 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO' 
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    // En creación de Pieza, el botón primario es "Crear y redactar"
-    submitTicket({ redactar: !isEditing && !noContenido });
+    submitTicket({ action: 'SAVE' });
   };
 
   const handleClose = () => {
@@ -837,56 +838,33 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO' 
         </form>
 
         {/* Footer */}
-        <div className="border-t border-[#000033]/10 px-5 py-3 flex items-center justify-between flex-shrink-0">
+        <div className="border-t border-[#000033]/10 px-5 py-3 flex items-center justify-between flex-shrink-0 bg-[#fafafa]">
           <button
             type="button"
-            onClick={() => { if (isEditing) { handleClose(); navigate(`/piezas/${ticket!.id}`); } }}
-            disabled={!isEditing}
-            className="flex items-center gap-1.5 text-xs font-bold text-[#000033]/50 hover:text-[#000033] transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:text-[#000033]/50"
+            onClick={handleClose}
+            className="px-3 py-1.5 text-xs font-bold text-[#000033]/50 hover:text-[#000033] transition-all"
           >
-            <ExternalLink className="w-3.5 h-3.5" />
-            Ver completo
+            Cancelar
           </button>
 
           <div className="flex items-center gap-2">
+            {/* Guardar/Crear y Ver Ticket Completo — Destacado con peso visual y azul */}
             <button
               type="button"
-              onClick={handleClose}
-              className="px-3 py-1.5 text-xs font-bold text-[#000033]/50 hover:text-[#000033] transition-all"
+              onClick={() => submitTicket({ action: 'VER_TICKET' })}
+              disabled={isPending}
+              className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold text-[#024fff] bg-white border border-[#024fff]/30 rounded-lg hover:bg-[#024fff]/5 transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Cancelar
+              <ExternalLink className="w-3.5 h-3.5" />
+              {isEditing ? 'Guardar y ver ticket' : 'Crear y ver ticket'}
             </button>
 
-            {/* Crear sin redactar — solo Pieza en creación */}
-            {!isEditing && !noContenido && (
-              <button
-                type="button"
-                onClick={() => submitTicket({ redactar: false })}
-                disabled={isPending}
-                className="px-3 py-1.5 text-xs font-bold text-[#000033]/60 border border-[#000033]/15 rounded-lg hover:bg-[#000033]/5 hover:text-[#000033] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Crear
-              </button>
-            )}
-
-            {/* Redactar — solo Pieza en edición (guarda y va al workspace) */}
-            {isEditing && !noContenido && (
-              <button
-                type="button"
-                onClick={() => submitTicket({ redactar: true })}
-                disabled={isPending}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-[#024fff] border border-[#024fff]/30 rounded-lg hover:bg-[#024fff]/10 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <Sparkles className="w-3.5 h-3.5" />
-                Redactar
-              </button>
-            )}
-
+            {/* Botón Primario Principal */}
             <button
               type="submit"
               form="ticket-form"
               disabled={isPending}
-              className={`flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-bold text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
+              className={`flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-bold text-white transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed ${
                 esTarea ? 'bg-[#00b87f] hover:bg-[#00a070]' : 'bg-[#024fff] hover:bg-[#024fff]/90'
               }`}
             >
@@ -894,10 +872,10 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO' 
                 isEditing
                   ? <><Check className="w-3.5 h-3.5" />Guardar</>
                   : esPrensa
-                    ? <><Check className="w-3.5 h-3.5" />Crear</>
+                    ? <><Check className="w-3.5 h-3.5" />Crear ticket prensa</>
                     : esTarea
                       ? <><Check className="w-3.5 h-3.5" />Crear tarea</>
-                      : <><Sparkles className="w-3.5 h-3.5" />Crear y redactar</>
+                      : <><Check className="w-3.5 h-3.5" />Crear</>
               )}
             </button>
           </div>
