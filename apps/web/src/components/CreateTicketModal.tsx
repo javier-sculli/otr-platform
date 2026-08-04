@@ -929,7 +929,7 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO' 
           </button>
 
           <div className="flex items-center gap-2">
-            {/* Guardar/Crear y Ver Ticket Completo — Destacado con peso visual y azul */}
+            {/* Ir al ticket — Lleva directo al detalle del ticket */}
             <button
               type="button"
               onClick={() => submitTicket({ action: 'VER_TICKET' })}
@@ -937,10 +937,10 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO' 
               className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold text-[#024fff] bg-white border border-[#024fff]/30 rounded-lg hover:bg-[#024fff]/5 transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <ExternalLink className="w-3.5 h-3.5" />
-              {isEditing ? 'Guardar y ver ticket' : 'Crear y ver ticket'}
+              Ir al ticket
             </button>
 
-            {/* Botón Primario Principal */}
+            {/* Guardar — Guarda el ticket y te mantiene en el backlog */}
             <button
               type="submit"
               form="ticket-form"
@@ -950,13 +950,7 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO' 
               }`}
             >
               {isPending ? 'Guardando...' : (
-                isEditing
-                  ? <><Check className="w-3.5 h-3.5" />Guardar</>
-                  : esPrensa
-                    ? <><Check className="w-3.5 h-3.5" />Crear ticket prensa</>
-                    : esTarea
-                      ? <><Check className="w-3.5 h-3.5" />Crear tarea</>
-                      : <><Check className="w-3.5 h-3.5" />Crear</>
+                <><Check className="w-3.5 h-3.5" />Guardar</>
               )}
             </button>
           </div>

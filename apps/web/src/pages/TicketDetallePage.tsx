@@ -25,10 +25,14 @@ import {
   ClipboardList,
   Newspaper,
   Package,
+  ArrowRight,
+  ChevronDown,
+  Archive,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { ensureAbsoluteUrl } from '../lib/utils';
 import { RichNotesEditor } from '../components/RichNotesEditor';
+import { TransitionToDesignModal } from '../components/TransitionToDesignModal';
 
 type AttachedFile = {
   id: string;
@@ -40,7 +44,7 @@ type AttachedFile = {
 };
 import { api } from '../lib/api';
 import { TicketsReferencia } from '../components/TicketsReferencia';
-import { SUB_DEF, TIPO_GESTION_PITCH, type SubEstado } from '../lib/estados';
+import { SUB_DEF, type SubEstado } from '../lib/estados';
 
 const STATUS_OPTIONS = [
   { value: 'PENDIENTE',           label: 'Pendiente' },
@@ -52,9 +56,39 @@ const STATUS_OPTIONS = [
   { value: 'ESPERANDO_FEEDBACK',  label: 'Esperando feedback' },
   { value: 'LISTO_PARA_PUBLICAR', label: 'Listo para publicar' },
   { value: 'PUBLICADO',           label: 'Publicado' },
-  { value: 'CANCELADO',           label: 'Stand-by / Cancelados' },
-  { value: 'LISTO',               label: 'Listo' },
+  { value: 'LISTO',               label: 'Listo (archivado)' },
+  { value: 'CANCELADO',           label: 'Stand-by / Cancelado' },
 ];
+
+function getNextStatusInfo(status: string, esPrensa?: boolean, subEstado?: string | null) {
+  if (esPrensa) {
+    const current = subEstado ?? 'PENDIENTE';
+    switch (current) {
+      case 'PENDIENTE':        return { next: 'EN_CURSO', label: 'Ongoing', isPrensa: true };
+      case 'EN_CURSO':         return { next: 'REVISION_INTERNA', label: 'Revisión Interna', isPrensa: true };
+      case 'REVISION_INTERNA': return { next: 'ENVIADO_CLIENTE', label: 'Enviado Cliente', isPrensa: true };
+      case 'ENVIADO_CLIENTE':  return { next: 'LISTO', label: 'Completado', isPrensa: true };
+      case 'LISTO':            return { next: 'PENDIENTE', label: 'Reabrir', isPrensa: true };
+      case 'CANCELADO':        return { next: 'PENDIENTE', label: 'Reabrir', isPrensa: true };
+      default:                 return { next: 'EN_CURSO', label: 'Ongoing', isPrensa: true };
+    }
+  }
+
+  switch (status) {
+    case 'PENDIENTE':           return { next: 'REDACCION', label: 'Redacción' };
+    case 'REDACCION':           return { next: 'DISENO', label: 'Diseño' };
+    case 'DISENO':              return { next: 'EDICION', label: 'Edición' };
+    case 'EDICION':             return { next: 'REVISION_INTERNA', label: 'Revisión Interna' };
+    case 'REVISION_INTERNA':    return { next: 'CLIENTE', label: 'Cliente' };
+    case 'CLIENTE':             return { next: 'ESPERANDO_FEEDBACK', label: 'Esperando feedback' };
+    case 'ESPERANDO_FEEDBACK':  return { next: 'LISTO_PARA_PUBLICAR', label: 'Listo para publicar' };
+    case 'LISTO_PARA_PUBLICAR': return { next: 'PUBLICADO', label: 'Publicado' };
+    case 'PUBLICADO':           return { next: 'LISTO', label: 'Completado' };
+    case 'LISTO':               return { next: 'PENDIENTE', label: 'Reabrir' };
+    case 'CANCELADO':           return { next: 'PENDIENTE', label: 'Reabrir' };
+    default:                    return { next: 'REDACCION', label: 'Redacción' };
+  }
+}
 
 function getStatusStyle(status: string, esPrensa?: boolean, subEstado?: string | null) {
   if (esPrensa && subEstado) {
@@ -180,14 +214,37 @@ export function TicketDetallePage() {
 
   const [editandoTitulo, setEditandoTitulo] = useState(false);
   const [tituloTemp, setTituloTemp] = useState('');
+  const [showStatusDropdown, setShowStatusDropdown] = useState(false);
+  const [isDesignModalOpen, setIsDesignModalOpen] = useState(false);
+
+  const handleSelectStatus = (targetStatus: string, isSubEstado?: boolean) => {
+    setShowStatusDropdown(false);
+    if (isSubEstado) {
+      updateMutation.mutate({ subEstado: targetStatus });
+      return;
+    }
+    if (targetStatus === 'DISENO') {
+      setIsDesignModalOpen(true);
+      return;
+    }
+    if (targetStatus === 'LISTO' || targetStatus === 'CANCELADO') {
+      const label = targetStatus === 'LISTO' ? 'Listo (archivado)' : 'Stand-by / Cancelado';
+      if (!window.confirm(`¿Mover a "${label}"?\n\nEl ticket desaparecerá del kanban.`)) return;
+    }
+    updateMutation.mutate({ status: targetStatus });
+  };
+
+  const handleNextStatusClick = () => {
+    if (!ticket) return;
+    const info = getNextStatusInfo(ticket.status, esPrensa, ticket.subEstado);
+    handleSelectStatus(info.next, info.isPrensa);
+  };
 
   const [newLinkInput, setNewLinkInput] = useState('');
   const [newEntregableInput, setNewEntregableInput] = useState('');
   const [editandoEntregable, setEditandoEntregable] = useState(false);
   const [notasAudiovisual, setNotasAudiovisual] = useState('');
   const [briefTemp, setBriefTemp] = useState('');
-  const [medioTemp, setMedioTemp] = useState('');
-  const [periodistaTemp, setPeriodistaTemp] = useState('');
   const [copyCopied, setCopyCopied] = useState(false);
   const [activeCopyTab, setActiveCopyTab] = useState<string>('');
   const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>(() => {
@@ -230,13 +287,11 @@ export function TicketDetallePage() {
     if ((ticket as any)?.notasAudiovisual !== undefined) {
       setNotasAudiovisual((ticket as any).notasAudiovisual ?? '');
     }
-    if (ticket?.medio !== undefined) setMedioTemp(ticket.medio ?? '');
-    if (ticket?.periodista !== undefined) setPeriodistaTemp(ticket.periodista ?? '');
     if (ticket && !activeCopyTab) {
       const canales = (ticket as any).canales;
       setActiveCopyTab(canales?.length > 0 ? canales[0] : '');
     }
-  }, [ticket?.title, (ticket as any)?.notasAudiovisual, ticket?.medio, ticket?.periodista, ticket]);
+  }, [ticket?.title, (ticket as any)?.notasAudiovisual, ticket]);
 
   useEffect(() => {
     if (ticketId) {
@@ -342,14 +397,71 @@ export function TicketDetallePage() {
               )}
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-3">
+              {/* Botón Principal: Pasar a [próximo estado] + Dropdown Opcional */}
+              {(() => {
+                const nextInfo = getNextStatusInfo(ticket.status, esPrensa, ticket.subEstado);
+                return (
+                  <div className="relative inline-flex items-center rounded-lg shadow-sm">
+                    <button
+                      onClick={handleNextStatusClick}
+                      className="flex items-center gap-1.5 px-3.5 py-2 bg-[#024fff] text-white font-bold text-xs rounded-l-lg hover:bg-[#024fff]/90 transition-all"
+                    >
+                      <ArrowRight className="w-3.5 h-3.5" />
+                      <span>Pasar a {nextInfo.label}</span>
+                    </button>
+                    <button
+                      onClick={() => setShowStatusDropdown(!showStatusDropdown)}
+                      className="px-2 py-2 bg-[#024fff] border-l border-white/25 text-white rounded-r-lg hover:bg-[#024fff]/90 transition-all"
+                      title="Cambiar a otro estado..."
+                    >
+                      <ChevronDown className="w-3.5 h-3.5" />
+                    </button>
+
+                    {/* Popover desplegable de estados */}
+                    {showStatusDropdown && (
+                      <div className="absolute right-0 top-full mt-1.5 w-56 bg-white border-2 border-[#000033]/15 rounded-xl shadow-xl z-50 py-1 overflow-hidden">
+                        <div className="px-3 py-1.5 border-b border-[#000033]/10 text-[10px] font-bold text-[#000033]/40 uppercase tracking-wider">
+                          Cambiar estado a:
+                        </div>
+                        <div className="max-h-64 overflow-y-auto">
+                          {(esPrensa ? [
+                            { value: 'PENDIENTE', label: 'Pendiente' },
+                            { value: 'EN_CURSO', label: 'Ongoing' },
+                            { value: 'REVISION_INTERNA', label: 'Revisión Interna' },
+                            { value: 'ENVIADO_CLIENTE', label: 'Enviado Cliente' },
+                            { value: 'LISTO', label: 'Completado' },
+                            { value: 'CANCELADO', label: 'Cancelado' },
+                          ] : STATUS_OPTIONS).map(opt => {
+                            const isCurrent = esPrensa ? (ticket.subEstado ?? 'PENDIENTE') === opt.value : ticket.status === opt.value;
+                            return (
+                              <button
+                                key={opt.value}
+                                onClick={() => handleSelectStatus(opt.value, esPrensa)}
+                                className={`w-full text-left px-3 py-2 text-xs font-medium flex items-center justify-between hover:bg-[#024fff]/5 transition-all ${
+                                  isCurrent ? 'text-[#024fff] font-bold bg-[#024fff]/5' : 'text-[#000033]/80'
+                                }`}
+                              >
+                                <span>{opt.label}</span>
+                                {isCurrent && <Check className="w-3.5 h-3.5 text-[#024fff]" />}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+
+              {/* Botón Redactar contenido */}
               {!esNoContenido && (
                 <button
                   onClick={() => navigate(`/content/${ticket.id}`, { state: { attachedFiles: attachedFiles.length > 0 ? attachedFiles : undefined } })}
-                  className="flex items-center gap-1.5 px-4 py-2 bg-[#024fff] text-white rounded-lg text-xs font-bold hover:bg-[#024fff]/90 transition-all shadow-lg shadow-[#024fff]/20"
+                  className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-[#024fff] to-[#0040e0] text-white rounded-lg text-xs font-bold hover:opacity-95 transition-all shadow-md shadow-[#024fff]/20"
                 >
-                  <Sparkles className="w-3.5 h-3.5" />
-                  Redactar
+                  <Sparkles className="w-4 h-4 text-white" />
+                  <span>Redactar</span>
                 </button>
               )}
             </div>
@@ -717,7 +829,12 @@ export function TicketDetallePage() {
               )}
             </div>
 
-            {/* Comentarios */}
+          </div>
+
+          {/* Sidebar — 1/3 */}
+          <div className="space-y-5">
+
+            {/* Comentarios — Ubicado arriba en la columna derecha */}
             <div className="bg-white border-2 border-[#000033]/10 rounded-lg p-5">
               <h2 className="text-xs font-bold text-[#000033] uppercase flex items-center gap-2 mb-4">
                 <MessageSquare className="w-3.5 h-3.5 text-[#024fff]" />
@@ -730,12 +847,12 @@ export function TicketDetallePage() {
               </h2>
 
               {/* Lista de comentarios */}
-              <div className="space-y-3 mb-4">
+              <div className="space-y-3 mb-4 max-h-[380px] overflow-y-auto pr-1">
                 {(commentsData?.data ?? []).length === 0 ? (
                   <p className="text-xs text-[#000033]/30 italic">Sin comentarios aún. Usá @nombre para mencionar a alguien.</p>
                 ) : (
                   (commentsData!.data).map((c: any) => (
-                    <div key={c.id} className="flex gap-3 group">
+                    <div key={c.id} className="flex gap-2.5 group">
                       <div className="w-6 h-6 rounded-full bg-[#024fff]/10 border border-[#024fff]/20 flex items-center justify-center flex-shrink-0 text-[10px] font-bold text-[#024fff] mt-0.5">
                         {c.user.name.charAt(0).toUpperCase()}
                       </div>
@@ -812,211 +929,6 @@ export function TicketDetallePage() {
               </div>
             </div>
 
-          </div>
-
-          {/* Sidebar — 1/3 */}
-          <div className="space-y-5">
-
-            {/* CTA principal — solo contenido y prensa */}
-            {!esTarea && (
-              <div className="bg-white border-2 border-[#000033]/10 rounded-lg p-5">
-                <h3 className="text-xs font-bold text-[#000033] uppercase mb-3">Acciones</h3>
-                <button
-                  onClick={() => navigate(`/content/${ticket.id}`, { state: { attachedFiles: attachedFiles.length > 0 ? attachedFiles : undefined } })}
-                  className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-[#024fff] text-white rounded-lg text-xs font-bold hover:bg-[#024fff]/90 transition-all shadow-lg shadow-[#024fff]/20"
-                >
-                  <Sparkles className="w-3.5 h-3.5" />
-                  Redactar contenido
-                </button>
-              </div>
-            )}
-
-            {/* Detalles editables */}
-            <div className="bg-white border-2 border-[#000033]/10 rounded-lg p-5">
-              <h3 className="text-xs font-bold text-[#000033] uppercase mb-3">Detalles</h3>
-              <div className="space-y-3">
-                {esPrensa ? (
-                  <div>
-                    <label className="text-xs font-bold text-[#000033]/60 uppercase block mb-1">
-                      Estado (Prensa)
-                    </label>
-                    <select
-                      value={ticket.subEstado ?? 'PENDIENTE'}
-                      onChange={e => updateMutation.mutate({ subEstado: e.target.value })}
-                      className="w-full px-3 py-2 border-2 border-[#000033]/10 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#024fff] text-[#000033] bg-white hover:border-[#024fff]/30 transition-all"
-                    >
-                      <option value="PENDIENTE">Pendiente</option>
-                      <option value="EN_CURSO">Ongoing</option>
-                      <option value="REVISION_INTERNA">En revisión interna</option>
-                      <option value="ENVIADO_CLIENTE">En revisión del cliente</option>
-                      <option value="LISTO">Completado</option>
-                      <option value="CANCELADO">Cancelado</option>
-                    </select>
-                  </div>
-                ) : null}
-
-                {esPrensa && ticket.subEstado === 'REVISION_INTERNA' && (
-                  <div>
-                    <label className="text-xs font-bold text-[#000033]/60 uppercase block mb-1">
-                      Asignado a (revisión interna)
-                    </label>
-                    <select
-                      value={ticket.reviewerId ?? ''}
-                      onChange={e => updateMutation.mutate({ reviewerId: e.target.value || null })}
-                      className="w-full px-3 py-2 border-2 border-[#000033]/10 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#024fff] text-[#000033] bg-white hover:border-[#024fff]/30 transition-all"
-                    >
-                      <option value="">Sin asignar</option>
-                      {allUsers.map(u => (
-                        <option key={u.id} value={u.id}>{u.name}</option>
-                      ))}
-                    </select>
-                  </div>
-                )}
-
-                {!esPrensa && (
-                  <div>
-                    <label className="text-xs font-bold text-[#000033]/60 uppercase block mb-1">
-                      Estado
-                    </label>
-                    <select
-                      value={ticket.status}
-                      onChange={e => {
-                        const next = e.target.value;
-                        if (next === 'LISTO' || next === 'CANCELADO') {
-                          const label = next === 'LISTO' ? 'Listo (archivado)' : 'Stand-by / Cancelado';
-                          if (!window.confirm(`¿Mover a "${label}"?\n\nEl ticket desaparecerá del kanban. Para recuperarlo tenés que buscarlo manualmente.`)) return;
-                        }
-                        updateMutation.mutate({ status: next });
-                      }}
-                      className="w-full px-3 py-2 border-2 border-[#000033]/10 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#024fff] text-[#000033] bg-white hover:border-[#024fff]/30 transition-all"
-                    >
-                      <optgroup label="Activo">
-                        <option value="PENDIENTE">Pendiente</option>
-                        <option value="REDACCION">Redacción</option>
-                        <option value="DISENO">Diseño</option>
-                        <option value="EDICION">Edición</option>
-                        <option value="REVISION_INTERNA">Revisión Interna</option>
-                        <option value="CLIENTE">Cliente</option>
-                        <option value="ESPERANDO_FEEDBACK">Esperando feedback</option>
-                        <option value="LISTO_PARA_PUBLICAR">Listo para publicar</option>
-                        <option value="PUBLICADO">Publicado</option>
-                      </optgroup>
-                      <optgroup label="⚠️ Archiva del kanban">
-                        <option value="CANCELADO">Stand-by / Cancelados</option>
-                        <option value="LISTO">Listo (archivado)</option>
-                      </optgroup>
-                    </select>
-                  </div>
-                )}
-
-                {esPrensa && (
-                  <>
-                    <div>
-                      <label className="text-xs font-bold text-[#000033]/60 uppercase block mb-1">
-                        Medio
-                      </label>
-                      <input
-                        type="text"
-                        value={medioTemp}
-                        onChange={e => setMedioTemp(e.target.value)}
-                        onBlur={() => {
-                          if (medioTemp !== (ticket.medio ?? '')) {
-                            updateMutation.mutate({ medio: medioTemp || null });
-                          }
-                        }}
-                        placeholder="Ej: La Nación, Infobae..."
-                        className="w-full px-3 py-2 border-2 border-[#000033]/10 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#024fff] text-[#000033] bg-white hover:border-[#024fff]/30 transition-all"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="text-xs font-bold text-[#000033]/60 uppercase block mb-1">
-                        Periodista
-                      </label>
-                      <input
-                        type="text"
-                        value={periodistaTemp}
-                        onChange={e => setPeriodistaTemp(e.target.value)}
-                        onBlur={() => {
-                          if (periodistaTemp !== (ticket.periodista ?? '')) {
-                            updateMutation.mutate({ periodista: periodistaTemp || null });
-                          }
-                        }}
-                        placeholder="Nombre del periodista..."
-                        className="w-full px-3 py-2 border-2 border-[#000033]/10 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#024fff] text-[#000033] bg-white hover:border-[#024fff]/30 transition-all"
-                      />
-                    </div>
-
-                    {ticket.ticketType?.name === TIPO_GESTION_PITCH && (
-                      <div>
-                        <label className="text-xs font-bold text-[#000033]/60 uppercase block mb-1">
-                          Estado de respuesta
-                        </label>
-                        <select
-                          value={ticket.estadoRespuesta ?? ''}
-                          onChange={e => updateMutation.mutate({ estadoRespuesta: e.target.value || null })}
-                          className="w-full px-3 py-2 border-2 border-[#000033]/10 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#024fff] text-[#000033] bg-white hover:border-[#024fff]/30 transition-all"
-                        >
-                          <option value="">Seleccionar...</option>
-                          <option value="ENVIADO">Enviado</option>
-                          <option value="RESPONDIDO">Respondido</option>
-                          <option value="SIN_RESPUESTA">Sin respuesta</option>
-                        </select>
-                      </div>
-                    )}
-                  </>
-                )}
-
-                <div>
-                  <label className="text-xs font-bold text-[#000033]/60 uppercase block mb-1">
-                    Owner
-                  </label>
-                  <div className="flex items-center gap-2 px-3 py-2 border-2 border-[#000033]/10 rounded-lg bg-[#fafafa]">
-                    <div className="w-5 h-5 rounded-full bg-[#024fff]/10 flex items-center justify-center flex-shrink-0">
-                      <span className="text-xs font-bold text-[#024fff] leading-none">
-                        {ticket.owner?.name?.charAt(0).toUpperCase()}
-                      </span>
-                    </div>
-                    <span className="text-xs font-medium text-[#000033]/60">{ticket.owner?.name}</span>
-                  </div>
-                </div>
-
-                {ticket.canales?.length > 0 && (
-                  <div>
-                    <label className="text-xs font-bold text-[#000033]/60 uppercase block mb-1">
-                      Canal
-                    </label>
-                    <div className="px-3 py-2 border-2 border-[#000033]/10 rounded-lg bg-[#fafafa] text-xs text-[#000033]/60">
-                      {ticket.canales.join(', ')}
-                    </div>
-                  </div>
-                )}
-
-
-                {ticket.ticketType && (
-                  <div>
-                    <label className="text-xs font-bold text-[#000033]/60 uppercase block mb-1">
-                      Tipo
-                    </label>
-                    <div className="px-3 py-2 border-2 border-[#000033]/10 rounded-lg bg-[#fafafa] text-xs text-[#000033]/60">
-                      {ticket.ticketType.name}
-                    </div>
-                  </div>
-                )}
-
-                {ticket.prioridad && (
-                  <div>
-                    <label className="text-xs font-bold text-[#000033]/60 uppercase block mb-1">
-                      Prioridad
-                    </label>
-                    <div className="px-3 py-2 border-2 border-[#000033]/10 rounded-lg bg-[#fafafa] text-xs text-[#000033]/60 capitalize">
-                      {ticket.prioridad.charAt(0) + ticket.prioridad.slice(1).toLowerCase()}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-
             {/* Historial */}
             <div className="bg-white border-2 border-[#000033]/10 rounded-lg p-5">
               <h3 className="text-xs font-bold text-[#000033] uppercase mb-3">Historial</h3>
@@ -1040,22 +952,52 @@ export function TicketDetallePage() {
               </div>
             </div>
 
-            {/* Eliminar tarjeta */}
-            <button
-              onClick={() => {
-                if (window.confirm('¿Eliminar esta tarjeta? Esta acción no se puede deshacer.')) {
-                  deleteMutation.mutate();
-                }
-              }}
-              disabled={deleteMutation.isPending}
-              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 border-2 border-red-200 text-red-600 rounded-lg text-xs font-bold hover:bg-red-50 hover:border-red-300 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-              {deleteMutation.isPending ? 'Eliminando...' : 'Eliminar tarjeta'}
-            </button>
+            {/* Acciones de pie: Archivar y Eliminar */}
+            <div className="grid grid-cols-2 gap-3 pt-1">
+              <button
+                onClick={() => {
+                  if (window.confirm('¿Archivar esta tarjeta?\n\nEl ticket pasará a estado Listo y se archivará del kanban.')) {
+                    updateMutation.mutate({ status: 'LISTO' });
+                  }
+                }}
+                disabled={updateMutation.isPending || ticket.status === 'LISTO'}
+                className="flex items-center justify-center gap-1.5 px-3 py-2.5 bg-white border-2 border-[#000033]/15 text-[#000033]/70 hover:bg-[#000033]/5 hover:border-[#000033]/30 hover:text-[#000033] rounded-lg text-xs font-bold transition-all shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <Archive className="w-3.5 h-3.5" />
+                <span>{ticket.status === 'LISTO' ? 'Archivado' : 'Archivar'}</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  if (window.confirm('¿Eliminar esta tarjeta? Esta acción no se puede deshacer.')) {
+                    deleteMutation.mutate();
+                  }
+                }}
+                disabled={deleteMutation.isPending}
+                className="flex items-center justify-center gap-1.5 px-3 py-2.5 bg-white border-2 border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300 rounded-lg text-xs font-bold transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>{deleteMutation.isPending ? 'Eliminando...' : 'Eliminar'}</span>
+              </button>
+            </div>
           </div>
         </div>
       </div>
+
+      {/* Modal de transicion a diseno */}
+      <TransitionToDesignModal
+        isOpen={isDesignModalOpen}
+        onClose={() => setIsDesignModalOpen(false)}
+        ticket={ticket}
+        onConfirm={async (data) => {
+          await updateMutation.mutateAsync({
+            status: 'DISENO',
+            notasGrafica: data.notasGrafica || null,
+            links: data.links,
+          });
+          setIsDesignModalOpen(false);
+        }}
+      />
     </div>
   );
 }
