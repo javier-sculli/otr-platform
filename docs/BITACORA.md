@@ -51,9 +51,12 @@
 - [ ] **[UI-03] Distinción "Guardar Rápido" vs "Guardar e ir al Ticket"**
   - *Detalle:* Ofrecer dos acciones claras al guardar un ticket: guardado rápido sin salir o guardar y redirigir al detalle del ticket.
   - *Estado:* 🟡 Planificado
-- [ ] **[UI-04] Caja Flexible de Instrucciones para Diseño / Audiovisual**
-  - *Detalle:* Implementar campo flexible de texto enriquecido/markdown (links, fotos, negrita, cursiva) sin campos obligatorios que traben el flujo. (Ajuste fino tras reunión de St con equipo de diseño).
-  - *Estado:* ⏳ En espera de reunión de alineación (Lunes)
+- [x] **[UI-04] Caja Flexible de Instrucciones para Diseño / Audiovisual & Referencias**
+  - *Detalle:* Apartado de "Notas de Gráfica / Diseño" con especificaciones por formato, hipervínculos a referencias externas y soporte para previsualización de imágenes.
+  - *Estado:* 🟢 Completado (2026-08-04)
+- [x] **[UI-05] Selector Desplegable Multi-Formato y Popup de Transición a Diseño**
+  - *Detalle:* Selector desplegable con checkboxes para multi-formato (simple para 1 clic, expandible para múltiples). Popup modal `TransitionToDesignModal` al arrastrar o cambiar tarjetas al estado "Diseño".
+  - *Estado:* 🟢 Completado (2026-08-04)
 
 ### 💜 Épica 5: IA, Brand Kit & Procesamiento de Contenido
 - [ ] **[IA-01] Limpieza de Texto Plano para Documentos de Estrategia**
@@ -80,6 +83,15 @@
 ---
 
 ## 📜 Historial de Cambios y Avances (Changelog de Bitácora)
+
+### [2026-08-04] — Fase 1: Editor de Notas de Diseño Rico (Notion Paste) + Multi-Formato por Ticket
+- **Desarrollador:** Javier Sculli
+- **Resumen de Avances:**
+  1. **Consolidación de Input Único:** Se eliminó la tarjeta duplicada residual en `TicketDetallePage.tsx`, dejando un **único apartado oficial de "Notas de diseño"**.
+  2. **Editor de Texto Enriquecido (`RichNotesEditor.tsx`):** Creación del editor enriquecido que permite pegar texto formateado directamente desde **Notion, Google Docs, Word o ChatGPT** manteniendo intactas negritas, listas de viñetas, títulos y saltos de línea.
+  3. **Selector Desplegable Multi-Formato:** Selector desplegable con checkboxes en `CreateTicketModal.tsx` para elegir 1 formato con 1 clic o agrupar múltiples variantes en 1 mismo ticket.
+  4. **Popup de Pase a Diseño (`TransitionToDesignModal.tsx`):** Al mover tarjetas a la etapa `Diseño`, aparece el modal emergente con el nuevo `RichNotesEditor` para cargar o revisar notas.
+- **Verificación:** Compilación TypeScript completa (`pnpm --filter web build`) aprobada exitosamente con 0 errores.
 
 ### [2026-07-31] — Orden Cronológico Estricto en Botones de Filtro de Mes (Backlog Contenido y Prensa)
 - **Desarrollador:** Javier Sculli

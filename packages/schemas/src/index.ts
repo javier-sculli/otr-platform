@@ -80,6 +80,9 @@ export const createTicketSchema = z.object({
   estadoAprobacionCliente: estadoAprobacionClienteSchema.default('BORRADOR'),
   publishedAt: z.string().optional().nullable(),
   links: z.array(z.string()).default([]),
+  tiposContenido: z.array(z.string()).default([]),
+  notasGrafica: z.string().optional().nullable(),
+  referenciasGraficas: z.array(z.any()).default([]),
 });
 
 export const updateTicketSchema = z.object({
@@ -103,6 +106,9 @@ export const updateTicketSchema = z.object({
   publishedAt: z.string().optional().nullable(),
   links: z.array(z.string()).optional(),
   referenceIds: z.array(z.string().uuid()).max(3).optional(),
+  tiposContenido: z.array(z.string()).optional(),
+  notasGrafica: z.string().optional().nullable(),
+  referenciasGraficas: z.array(z.any()).optional(),
 });
 
 // Publication schemas

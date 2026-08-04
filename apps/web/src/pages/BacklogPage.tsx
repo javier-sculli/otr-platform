@@ -4,10 +4,11 @@ import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import {
   Plus, Calendar, MoreVertical, LayoutGrid,
-  ChevronDown, X, Search, ClipboardList,
+  ChevronDown, X, Search, ClipboardList, Package,
 } from 'lucide-react';
 import { api } from '../lib/api';
 import { CreateTicketModal } from '../components/CreateTicketModal';
+import { TransitionToDesignModal } from '../components/TransitionToDesignModal';
 import { CalendarioBacklog } from '../components/CalendarioBacklog';
 
 interface Ticket {
@@ -78,6 +79,7 @@ export function BacklogPage() {
   const [vista, setVista] = useState<'kanban' | 'calendario'>('kanban');
   const [showModalNueva, setShowModalNueva] = useState(false);
   const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
+  const [designModalTicket, setDesignModalTicket] = useState<Ticket | null>(null);
   const [draggedId, setDraggedId] = useState<string | null>(null);
 
   const { data: ticketsData, isLoading } = useQuery({
@@ -209,7 +211,11 @@ export function BacklogPage() {
     if (draggedId) {
       const ticket = allTickets.find(t => t.id === draggedId);
       if (ticket && ticket.status !== status) {
-        updateStatusMutation.mutate({ id: draggedId, status });
+        if (status === 'DISENO') {
+          setDesignModalTicket(ticket);
+        } else {
+          updateStatusMutation.mutate({ id: draggedId, status });
+        }
       }
     }
     setDraggedId(null);
@@ -565,6 +571,22 @@ export function BacklogPage() {
         ticket={selectedTicket}
         onClose={() => { setShowModalNueva(false); setSelectedTicket(null); }}
       />
+
+      <TransitionToDesignModal
+        isOpen={!!designModalTicket}
+        onClose={() => setDesignModalTicket(null)}
+        ticket={designModalTicket as any}
+        onConfirm={async ({ notasGrafica, links }) => {
+          if (designModalTicket) {
+            await api.updateTicket(designModalTicket.id, {
+              status: 'DISENO',
+              notasGrafica,
+              links,
+            });
+            queryClient.invalidateQueries({ queryKey: ['tickets'] });
+          }
+        }}
+      />
     </div>
   );
 }
@@ -614,13 +636,22 @@ function TicketCard({
         {ticket.title}
       </p>
 
-      {(ticket.canales?.length > 0 || ticket.ticketType) && (
+      {(ticket as any).tiposContenido?.length > 0 ? (
+        <div className="flex items-center gap-1 flex-wrap mb-2 pb-2 border-b border-[#000033]/10">
+          {(ticket as any).tiposContenido.map((fmt: string, idx: number) => (
+            <span key={idx} className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-[#024fff]/10 text-[#024fff] text-[10px] font-bold rounded border border-[#024fff]/20">
+              <Package className="w-2.5 h-2.5" />
+              {fmt}
+            </span>
+          ))}
+        </div>
+      ) : (ticket.canales?.length > 0 || ticket.ticketType) ? (
         <div className="flex items-center gap-1.5 text-xs text-[#000033]/60 mb-2 pb-2 border-b border-[#000033]/10">
           {!esTarea && ticket.canales?.length > 0 && <span className="font-medium">{ticket.canales.join(', ')}</span>}
           {!esTarea && ticket.canales?.length > 0 && ticket.ticketType && <span>•</span>}
           {ticket.ticketType && <span className="font-medium">{ticket.ticketType.name}</span>}
         </div>
-      )}
+      ) : null}
 
       <div className="flex items-center justify-between text-xs">
         <div className="flex items-center gap-1">

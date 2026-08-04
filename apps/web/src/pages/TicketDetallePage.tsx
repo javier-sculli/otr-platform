@@ -24,9 +24,11 @@ import {
   Trash2,
   ClipboardList,
   Newspaper,
+  Package,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { ensureAbsoluteUrl } from '../lib/utils';
+import { RichNotesEditor } from '../components/RichNotesEditor';
 
 type AttachedFile = {
   id: string;
@@ -358,6 +360,12 @@ export function TicketDetallePage() {
             <span className="px-2.5 py-1 bg-[#024fff]/10 border-2 border-[#024fff]/20 text-[#024fff] text-xs font-bold rounded-lg">
               {ticket.client?.name}
             </span>
+            {(ticket as any).tiposContenido?.map((fmt: string, idx: number) => (
+              <span key={idx} className="inline-flex items-center gap-1 px-2.5 py-1 bg-[#024fff]/10 border border-[#024fff]/30 text-[#024fff] text-xs font-bold rounded-lg">
+                <Package className="w-3 h-3" />
+                {fmt}
+              </span>
+            ))}
             {esTarea && (
               <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-[#000033] text-white text-xs font-bold rounded-lg">
                 <ClipboardList className="w-3 h-3" />
@@ -608,23 +616,27 @@ export function TicketDetallePage() {
                 );
               })()}
             </div>
+            </>)}
 
-            {/* Notas para audiovisual */}
+            {/* Notas de diseño */}
             <div className="bg-white border-2 border-[#000033]/10 rounded-lg p-5">
               <h2 className="text-xs font-bold text-[#000033] uppercase flex items-center gap-2 mb-3">
                 <ImageIcon className="w-3.5 h-3.5 text-[#024fff]" />
-                Notas para audiovisual
+                Notas de diseño
               </h2>
-              <textarea
+              <RichNotesEditor
                 value={notasAudiovisual}
-                onChange={e => setNotasAudiovisual(e.target.value)}
-                onBlur={() => updateMutation.mutate({ notasAudiovisual: notasAudiovisual || null })}
-                placeholder={`Instrucciones para el equipo de diseño/video:\n• Qué mostrar visualmente\n• Formato requerido (carrusel, reel, video, etc.)\n• Referencias visuales`}
-                className="w-full px-3 py-2 border-2 border-dashed border-[#000033]/10 rounded-lg text-xs focus:outline-none focus:border-[#024fff]/40 focus:border-solid text-[#000033] hover:border-[#024fff]/30 transition-all resize-none placeholder-[#000033]/30"
-                rows={4}
+                onChange={setNotasAudiovisual}
+                onBlur={() => {
+                  const currentNotas = (ticket as any).notasGrafica ?? (ticket as any).notasAudiovisual ?? '';
+                  if (notasAudiovisual !== currentNotas) {
+                    updateMutation.mutate({ notasGrafica: notasAudiovisual || null, notasAudiovisual: notasAudiovisual || null });
+                  }
+                }}
+                placeholder="Notas de diseño (podés pegar libremente textos con formato, imágenes o links desde Notion)..."
+                minHeight="320px"
               />
             </div>
-            </>)}
 
             {/* Entregable visual */}
             <div className="bg-white border-2 border-[#000033]/10 rounded-lg p-5">

@@ -176,6 +176,9 @@ export interface Ticket {
   publishedAt?: Date;
   estadoAprobacionCliente?: EstadoAprobacionCliente;
   links: string[];
+  tiposContenido?: string[];
+  notasGrafica?: string;
+  referenciasGraficas?: any[];
   createdAt: Date;
   updatedAt: Date;
   // Relations

@@ -13,6 +13,7 @@ import { reportsRoutes } from './routes/reports.js';
 import { startCronJobs } from './jobs/cron.js';
 
 const fastify = Fastify({
+  bodyLimit: 50 * 1024 * 1024, // 50MB limit for rich notes with pasted images
   logger: {
     level: config.nodeEnv === 'development' ? 'info' : 'warn',
   },

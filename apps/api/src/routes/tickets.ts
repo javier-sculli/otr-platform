@@ -129,6 +129,9 @@ export async function ticketsRoutes(fastify: FastifyInstance) {
         content: data.copy !== undefined ? data.copy : data.content,
         linkEntregable: data.linkPublicacionReal !== undefined ? data.linkPublicacionReal : data.linkEntregable,
         links: data.links || [],
+        tiposContenido: data.tiposContenido || [],
+        notasGrafica: data.notasGrafica !== undefined ? data.notasGrafica : (data.notasAudiovisual !== undefined ? data.notasAudiovisual : null),
+        referenciasGraficas: data.referenciasGraficas || null,
       },
       include: {
         client: true,
@@ -181,6 +184,9 @@ export async function ticketsRoutes(fastify: FastifyInstance) {
     if (data.keywords !== undefined) updateData.keywords = data.keywords;
     if (data.copyFinal !== undefined) updateData.copyFinal = data.copyFinal;
     if (data.notasAudiovisual !== undefined) updateData.notasAudiovisual = data.notasAudiovisual;
+    if (data.notasGrafica !== undefined) updateData.notasGrafica = data.notasGrafica;
+    if (data.tiposContenido !== undefined) updateData.tiposContenido = data.tiposContenido;
+    if (data.referenciasGraficas !== undefined) updateData.referenciasGraficas = data.referenciasGraficas;
     // Tickets de referencia (N:N) — máx 3, excluye self, dedup
     if (data.referenceIds !== undefined) {
       const ids = [...new Set(data.referenceIds as string[])]

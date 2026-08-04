@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import {
   X, FileText, CheckSquare, Package, Building2, AlignLeft, Calendar, User,
-  Flag, Share2, Link2, Plus, ExternalLink, Check, Copy,
+  Flag, Share2, Link2, Plus, ExternalLink, Check, Copy, ChevronDown,
   Image as ImageIcon, Paperclip, File, Layers, Newspaper,
 } from 'lucide-react';
 import { api } from '../lib/api';
@@ -31,6 +31,8 @@ interface TicketData {
   linkEntregable?: string | null;
   copyFinal?: string | null;
   notasAudiovisual?: string | null;
+  notasGrafica?: string | null;
+  tiposContenido?: string[];
   client: { id: string; name: string };
   owner: { id: string; name: string };
   area?: string;
@@ -70,6 +72,8 @@ function buildFormData(ticket?: TicketData | null) {
       clientId: '',
       ownerId: '',
       ticketTypeId: '',
+      tiposContenido: [] as string[],
+      notasGrafica: '',
       pilarId: '',
       speakerId: '',
       prioridad: 'MEDIA',
@@ -85,6 +89,9 @@ function buildFormData(ticket?: TicketData | null) {
       estadoRespuesta: '',
     };
   }
+  const initialTipos = (ticket as any).tiposContenido?.length > 0
+    ? (ticket as any).tiposContenido
+    : (ticket.ticketType?.name ? [ticket.ticketType.name] : []);
   return {
     title: ticket.title,
     brief: ticket.objetivo ?? '',
@@ -92,6 +99,8 @@ function buildFormData(ticket?: TicketData | null) {
     clientId: ticket.client.id,
     ownerId: ticket.owner.id,
     ticketTypeId: ticket.ticketType?.id ?? '',
+    tiposContenido: initialTipos,
+    notasGrafica: (ticket as any).notasGrafica ?? (ticket as any).notasAudiovisual ?? '',
     pilarId: (ticket as any).pilar?.id ?? '',
     speakerId: (ticket as any).speaker?.id ?? '',
     prioridad: ticket.prioridad,
@@ -129,6 +138,18 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO' 
   const [activeCopyTab, setActiveCopyTab] = useState(() => formData.canales[0] ?? 'Contenido');
   const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isTiposOpen, setIsTiposOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setIsTiposOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   // Re-populate when ticket changes (e.g. opening different card)
   useEffect(() => {
@@ -312,6 +333,9 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO' 
       canales: noContenido ? [] : formData.canales,
       dueDate: formData.dueDate || null,
       ticketTypeId: formData.ticketTypeId || null,
+      tiposContenido: formData.tiposContenido,
+      notasGrafica: formData.notasGrafica || null,
+      notasAudiovisual: formData.notasGrafica || formData.notasAudiovisual || null,
       pilarId: noContenido ? null : (formData.pilarId || null),
       speakerId: noContenido ? null : (formData.speakerId || null),
     };
@@ -335,7 +359,8 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO' 
           linkEntregable: formData.linkEntregable ? ensureAbsoluteUrl(formData.linkEntregable) : null,
           content: noContenido ? undefined : (formData.content || null),
           contentPerCanal: noContenido ? undefined : formData.contentPerCanal,
-          notasAudiovisual: noContenido ? undefined : (formData.notasAudiovisual || null),
+          notasAudiovisual: noContenido ? undefined : (formData.notasGrafica || formData.notasAudiovisual || null),
+          notasGrafica: formData.notasGrafica || null,
         });
         const id = ticket!.id;
         handleClose();
@@ -447,21 +472,75 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO' 
 
           {/* Tipo + Cliente */}
           <div className="grid grid-cols-2 gap-3">
-            <div>
+            <div className="relative" ref={dropdownRef}>
               <label className={labelCls}>
                 <Package className="w-3 h-3" />
-                {esPrensa ? 'Tipo de prensa' : esTarea ? 'Tipo de entregable' : 'Tipo de contenido'}
+                {esPrensa ? 'Tipo de prensa' : esTarea ? 'Tipo de entregable' : 'Tipo de contenido (formatos)'}
               </label>
-              <select
-                value={formData.ticketTypeId}
-                onChange={e => handleChange('ticketTypeId', e.target.value)}
-                className={fieldCls}
+              <button
+                type="button"
+                onClick={() => setIsTiposOpen(!isTiposOpen)}
+                className={`${fieldCls} flex items-center justify-between text-left cursor-pointer`}
               >
-                <option value="">Seleccionar</option>
-                {tiposFiltrados.map((t: any) => (
-                  <option key={t.id} value={t.id}>{t.name}</option>
-                ))}
-              </select>
+                <span className="truncate font-medium">
+                  {formData.tiposContenido.length === 0
+                    ? 'Seleccionar tipo…'
+                    : formData.tiposContenido.length === 1
+                    ? formData.tiposContenido[0]
+                    : `${formData.tiposContenido[0]} (+${formData.tiposContenido.length - 1} formatos)`}
+                </span>
+                <ChevronDown className="w-4 h-4 opacity-50 flex-shrink-0 ml-1" />
+              </button>
+
+              {isTiposOpen && (
+                <div className="absolute z-30 left-0 right-0 mt-1 bg-white border border-[#000033]/15 rounded-xl shadow-xl py-1 max-h-64 overflow-y-auto">
+                  <div className="px-3 py-1.5 border-b border-[#000033]/10 text-[10px] font-bold uppercase tracking-wider text-[#000033]/40 flex items-center justify-between bg-[#fafafa]">
+                    <span>Elegí 1 o más formatos</span>
+                    <button
+                      type="button"
+                      onClick={() => setIsTiposOpen(false)}
+                      className="text-[#024fff] hover:underline text-xs font-bold"
+                    >
+                      Listo ✓
+                    </button>
+                  </div>
+                  {tiposFiltrados.map((t: any) => {
+                    const isChecked = formData.tiposContenido.includes(t.name);
+                    return (
+                      <div
+                        key={t.id}
+                        className={`flex items-center justify-between px-3 py-2 hover:bg-[#024fff]/5 cursor-pointer text-xs transition-colors ${
+                          isChecked ? 'bg-[#024fff]/[0.03]' : ''
+                        }`}
+                        onClick={() => {
+                          setFormData(prev => {
+                            const exists = prev.tiposContenido.includes(t.name);
+                            const next = exists
+                              ? prev.tiposContenido.filter((name: string) => name !== t.name)
+                              : [...prev.tiposContenido, t.name];
+                            return {
+                              ...prev,
+                              ticketTypeId: next.length > 0 ? (tiposFiltrados.find((tf: any) => tf.name === next[0])?.id ?? prev.ticketTypeId) : '',
+                              tiposContenido: next,
+                            };
+                          });
+                        }}
+                      >
+                        <div className="flex items-center gap-2 font-medium text-[#000033]">
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            readOnly
+                            className="w-3.5 h-3.5 rounded border-[#000033]/20 text-[#024fff] focus:ring-[#024fff] cursor-pointer"
+                          />
+                          <span>{t.name}</span>
+                        </div>
+                        {isChecked && <Check className="w-3.5 h-3.5 text-[#024fff]" />}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
 
             <div>

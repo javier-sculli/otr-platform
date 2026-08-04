@@ -9,6 +9,7 @@ import {
 import * as pdfjsLib from 'pdfjs-dist';
 import { api } from '../lib/api';
 import { TicketsReferencia } from '../components/TicketsReferencia';
+import { RichNotesEditor } from '../components/RichNotesEditor';
 import { ensureAbsoluteUrl } from '../lib/utils';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
@@ -979,13 +980,12 @@ export function ContentPage() {
             </div>
 
             <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-bold text-[#000033]/60 uppercase tracking-wide">Notas para audiovisual</label>
-              <textarea
-                autoFocus
+              <label className="text-xs font-bold text-[#000033]/60 uppercase tracking-wide">Notas de diseño</label>
+              <RichNotesEditor
                 value={notasAudiovisual}
-                onChange={e => setNotasAudiovisual(e.target.value)}
-                placeholder="Indicá referencias visuales, formato, resolución, música, etc."
-                className="w-full h-48 resize-none border-2 border-[#000033]/10 rounded-xl px-3 py-2.5 text-sm text-[#000033] outline-none focus:border-[#024fff]/40 focus:ring-2 focus:ring-[#024fff]/10 transition-all placeholder:text-[#000033]/30"
+                onChange={setNotasAudiovisual}
+                placeholder="Especificaciones visuales por formato, referencias, formato requerido (podés pegar texto con formato desde Notion, Word o ChatGPT)..."
+                minHeight="140px"
               />
             </div>
 

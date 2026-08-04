@@ -14,3 +14,17 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
+
+.resizable-img-container {
+  resize: both;
+  overflow: hidden;
+  display: inline-block;
+  max-width: 100%;
+  transition: border-color 0.2s ease;
+}
+
+.resizable-img-container:hover {
+  border-color: #024fff !important;
+  box-shadow: 0 0 0 2px rgba(2, 79, 255, 0.2);
+}
+
