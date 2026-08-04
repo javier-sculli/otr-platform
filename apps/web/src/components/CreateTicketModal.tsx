@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { api } from '../lib/api';
 import { TIPO_GESTION_PITCH } from '../lib/estados';
+import { ensureAbsoluteUrl } from '../lib/utils';
 
 type AttachedFile = {
   id: string;
@@ -235,7 +236,8 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO' 
   };
 
   const addLink = () => {
-    const url = newLinkInput.trim();
+    const rawUrl = newLinkInput.trim();
+    const url = ensureAbsoluteUrl(rawUrl);
     if (url && !formData.links.includes(url)) {
       setFormData(prev => ({ ...prev, links: [...prev.links, url] }));
     }
@@ -329,8 +331,8 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO' 
       if (isEditing) {
         await updateMutation.mutateAsync({
           ...payload,
-          links: formData.links,
-          linkEntregable: formData.linkEntregable || null,
+          links: formData.links.map(ensureAbsoluteUrl),
+          linkEntregable: formData.linkEntregable ? ensureAbsoluteUrl(formData.linkEntregable) : null,
           content: noContenido ? undefined : (formData.content || null),
           contentPerCanal: noContenido ? undefined : formData.contentPerCanal,
           notasAudiovisual: noContenido ? undefined : (formData.notasAudiovisual || null),
@@ -344,7 +346,7 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO' 
           ...payload,
           clientId: formData.clientId,
           // Puede llevar recursos (links a Drive) ya en la creación
-          ...(formData.links.length > 0 ? { links: formData.links } : {}),
+          ...(formData.links.length > 0 ? { links: formData.links.map(ensureAbsoluteUrl) } : {}),
         });
         const newId = res?.data?.id;
         handleClose();
@@ -710,7 +712,7 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO' 
                   {formData.links.map((link, i) => (
                     <div key={i} className="flex items-center gap-2 px-3 py-1.5 border border-[#024fff]/20 rounded-lg group hover:border-[#024fff]/40 transition-all">
                       <Link2 className="w-3.5 h-3.5 text-[#024fff] flex-shrink-0" />
-                      <a href={link} target="_blank" rel="noopener noreferrer" className="text-xs text-[#024fff] truncate flex-1 hover:underline">{link}</a>
+                      <a href={ensureAbsoluteUrl(link)} target="_blank" rel="noopener noreferrer" className="text-xs text-[#024fff] truncate flex-1 hover:underline">{link}</a>
                       <ExternalLink className="w-2.5 h-2.5 text-[#024fff]/40 flex-shrink-0" />
                       <button
                         type="button"

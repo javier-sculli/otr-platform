@@ -151,6 +151,13 @@
   2. **Feedback Visual de Arrastre:** Se incorporó un estado semi-transparente en la fila en movimiento (`opacity-40 border-dashed border-[#024fff]`) y una línea de inserción azul en el destino.
 - **Verificación:** Compilación TypeScript (`pnpm --filter web build`) aprobada exitosamente.
 
+### [2026-08-04] — Normalización y Formateo Absoluto de URLs/Links en Tickets
+- **Desarrollador:** Javier Sculli
+- **Resumen de Avances:**
+  1. **Helper `ensureAbsoluteUrl`:** Se implementó una función centralizada en `apps/web/src/lib/utils.ts` que valida si una URL contiene un esquema (`http://`, `https://`, `mailto:`, `tel:`). En caso contrario (ej. `infobae.com` o `www.infobae.com`), le antepone `https://` automáticamente.
+  2. **Normalización en Creación, Edición y Render:** Se aplicó la normalización en los flujos de tickets (`CreateTicketModal`, `TicketDetallePage`, `ContentPage`, `PublicationDetailPage`), asegurando que los enlaces `<a href="...">` abran correctamente la URL externa en una nueva pestaña sin resolverse como rutas relativas de OTR (`/backlog/infobae.com`).
+- **Verificación:** Typecheck (`pnpm --filter web typecheck`) y build de producción (`pnpm --filter web build`) aprobados exitosamente.
+
 ### [2026-07-31] — Badges Coloreados para Plataforma y Pilar en Sumario
 - **Desarrollador:** Javier Sculli
 - **Resumen de Avances:**

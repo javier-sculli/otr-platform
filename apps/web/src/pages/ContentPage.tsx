@@ -9,6 +9,7 @@ import {
 import * as pdfjsLib from 'pdfjs-dist';
 import { api } from '../lib/api';
 import { TicketsReferencia } from '../components/TicketsReferencia';
+import { ensureAbsoluteUrl } from '../lib/utils';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
   'pdfjs-dist/build/pdf.worker.mjs',
@@ -491,7 +492,7 @@ export function ContentPage() {
                   className="flex items-center gap-1 flex-shrink-0"
                   onSubmit={e => {
                     e.preventDefault();
-                    const url = entregableInput.trim() || null;
+                    const url = ensureAbsoluteUrl(entregableInput.trim()) || null;
                     setLinkEntregable(url);
                     setHasChanges(true);
                     setEditingEntregable(false);
@@ -511,7 +512,7 @@ export function ContentPage() {
               ) : linkEntregable ? (
                 <div className="flex items-center gap-1 flex-shrink-0">
                   <a
-                    href={linkEntregable}
+                    href={ensureAbsoluteUrl(linkEntregable)}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex items-center gap-1.5 px-2 py-1 border border-[#00ff99]/40 rounded-md bg-[#00ff99]/10 hover:bg-[#00ff99]/20 text-xs font-bold text-[#000033] transition-all"
@@ -793,7 +794,7 @@ export function ContentPage() {
                     className="flex items-center gap-1 px-2 py-0.5 bg-white border border-[#024fff]/20 rounded text-xs font-medium text-[#024fff] group"
                   >
                     <Link2 className="w-2.5 h-2.5 flex-shrink-0" />
-                    <a href={link} target="_blank" rel="noopener noreferrer" className="max-w-[160px] truncate hover:underline">
+                    <a href={ensureAbsoluteUrl(link)} target="_blank" rel="noopener noreferrer" className="max-w-[160px] truncate hover:underline">
                       {link.split('/').pop() || link}
                     </a>
                     <ExternalLink className="w-2 h-2 opacity-40 flex-shrink-0" />
@@ -831,7 +832,7 @@ export function ContentPage() {
                     className="flex items-center gap-1"
                     onSubmit={e => {
                       e.preventDefault();
-                      const url = newLinkInput.trim();
+                      const url = ensureAbsoluteUrl(newLinkInput.trim());
                       if (url && !contextLinks.includes(url)) {
                         setContextLinks(prev => [...prev, url]);
                         setHasChanges(true);
@@ -846,7 +847,7 @@ export function ContentPage() {
                       value={newLinkInput}
                       onChange={e => setNewLinkInput(e.target.value)}
                       onBlur={() => {
-                        const url = newLinkInput.trim();
+                        const url = ensureAbsoluteUrl(newLinkInput.trim());
                         if (url && !contextLinks.includes(url)) {
                           setContextLinks(prev => [...prev, url]);
                           setHasChanges(true);

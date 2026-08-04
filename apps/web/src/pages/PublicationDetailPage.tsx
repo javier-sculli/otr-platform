@@ -6,6 +6,7 @@ import {
   Star, Plus, MessageSquare, Heart, Share2, Tag, ExternalLink,
 } from 'lucide-react';
 import { api } from '../lib/api';
+import { ensureAbsoluteUrl } from '../lib/utils';
 
 export function PublicationDetailPage() {
   const { publicationId } = useParams<{ publicationId: string }>();
@@ -143,7 +144,7 @@ export function PublicationDetailPage() {
 
           <div className="bg-[#024fff]/5 border-2 border-[#024fff]/20 rounded-xl p-4 mb-5 flex items-center justify-between">
             <p className="text-sm text-[#000033] font-medium">Link del post publicado</p>
-            <a href={pub.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-xs text-[#024fff] font-medium hover:underline">
+            <a href={ensureAbsoluteUrl(pub.url)} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-xs text-[#024fff] font-medium hover:underline">
               Ver en LinkedIn <ExternalLink className="w-3.5 h-3.5" />
             </a>
           </div>

@@ -26,6 +26,7 @@ import {
   Newspaper,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { ensureAbsoluteUrl } from '../lib/utils';
 
 type AttachedFile = {
   id: string;
@@ -437,7 +438,7 @@ export function TicketDetallePage() {
                   <div key={i} className="flex items-center gap-2 px-3 py-2 border border-[#024fff]/20 rounded-lg group hover:border-[#024fff]/40 transition-all">
                     <Link2 className="w-3.5 h-3.5 text-[#024fff] flex-shrink-0" />
                     <a
-                      href={link}
+                      href={ensureAbsoluteUrl(link)}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-xs text-[#024fff] truncate flex-1 hover:underline"
@@ -484,7 +485,7 @@ export function TicketDetallePage() {
                   onKeyDown={e => {
                     if (e.key === 'Enter') {
                       e.preventDefault();
-                      const url = newLinkInput.trim();
+                      const url = ensureAbsoluteUrl(newLinkInput.trim());
                       if (url) {
                         const current = ticket.links ?? [];
                         if (!current.includes(url)) {
@@ -500,7 +501,7 @@ export function TicketDetallePage() {
                 <button
                   type="button"
                   onClick={() => {
-                    const url = newLinkInput.trim();
+                    const url = ensureAbsoluteUrl(newLinkInput.trim());
                     if (url) {
                       const current = ticket.links ?? [];
                       if (!current.includes(url)) {
@@ -635,7 +636,7 @@ export function TicketDetallePage() {
                 <div className="flex items-center gap-2 px-3 py-2 border border-[#00ff99]/30 rounded-lg group hover:border-[#00ff99]/50 transition-all">
                   <ImageIcon className="w-3.5 h-3.5 text-[#00ff99] flex-shrink-0" />
                   <a
-                    href={ticket.linkEntregable}
+                    href={ensureAbsoluteUrl(ticket.linkEntregable)}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-xs text-[#000033] truncate flex-1 hover:underline"
@@ -666,7 +667,7 @@ export function TicketDetallePage() {
                     onKeyDown={e => {
                       if (e.key === 'Enter') {
                         e.preventDefault();
-                        const url = newEntregableInput.trim();
+                        const url = ensureAbsoluteUrl(newEntregableInput.trim());
                         if (url) { updateMutation.mutate({ linkEntregable: url }); }
                         setNewEntregableInput('');
                         setEditandoEntregable(false);
@@ -682,7 +683,7 @@ export function TicketDetallePage() {
                   <button
                     type="button"
                     onClick={() => {
-                      const url = newEntregableInput.trim();
+                      const url = ensureAbsoluteUrl(newEntregableInput.trim());
                       if (url) { updateMutation.mutate({ linkEntregable: url }); }
                       setNewEntregableInput('');
                       setEditandoEntregable(false);
