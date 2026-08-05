@@ -22,9 +22,12 @@ class ApiClient {
   private async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
     const token = this.getToken();
     const headers: HeadersInit = {
-      'Content-Type': 'application/json',
       ...options.headers,
     };
+
+    if (options.body) {
+      (headers as any)['Content-Type'] = 'application/json';
+    }
 
     if (token) {
       (headers as any)['Authorization'] = `Bearer ${token}`;
