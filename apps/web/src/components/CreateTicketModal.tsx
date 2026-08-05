@@ -153,8 +153,11 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO' 
 
   // Re-populate when ticket changes (e.g. opening different card)
   useEffect(() => {
-    setFormData(buildFormData(ticket));
+    const newFormData = buildFormData(ticket);
+    setFormData(newFormData);
     setTipoTicket(initTipo(ticket));
+    const initialCanales = newFormData.canales.length > 0 ? newFormData.canales : ['LinkedIn'];
+    setActiveCopyTab(initialCanales[0]);
     setError(null);
     if (ticket?.id) {
       const saved = sessionStorage.getItem(`ticket-files-${ticket.id}`);
@@ -822,58 +825,67 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO' 
           )}
 
           {/* COPY — solo Pieza en edición */}
-          {isEditing && !noContenido && (
-            <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <label className={`${labelCls} mb-0`}>
-                  <FileText className="w-3 h-3" />
-                  Copy
-                </label>
-                {(formData.contentPerCanal[activeCopyTab] ?? formData.content).trim() && (
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      await navigator.clipboard.writeText(formData.contentPerCanal[activeCopyTab] ?? formData.content);
-                      setCopyCopied(true);
-                      setTimeout(() => setCopyCopied(false), 2000);
-                    }}
-                    className="flex items-center gap-1 px-2.5 py-1 bg-[#00ff99]/20 border-2 border-[#00ff99]/40 text-[#000033] rounded-lg hover:bg-[#00ff99]/30 transition-all text-xs font-bold"
-                  >
-                    {copyCopied ? <><Check className="w-3 h-3" />Copiado</> : <><Copy className="w-3 h-3" />Copiar</>}
-                  </button>
-                )}
-              </div>
-              {formData.canales.length > 1 && (
-                <div className="flex items-center gap-1 mb-2">
-                  {formData.canales.map((canal: string) => (
+          {isEditing && !noContenido && (() => {
+            const canales = formData.canales.length > 0 ? formData.canales : ['LinkedIn'];
+            const currentTab = activeCopyTab && canales.includes(activeCopyTab) ? activeCopyTab : canales[0];
+            const currentCopy = formData.contentPerCanal[currentTab] ?? (canales.length === 1 || currentTab === canales[0] ? formData.content : '');
+
+            return (
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className={`${labelCls} mb-0`}>
+                    <FileText className="w-3 h-3" />
+                    Copy ({currentTab})
+                  </label>
+                  {currentCopy.trim() && (
                     <button
-                      key={canal}
                       type="button"
-                      onClick={() => setActiveCopyTab(canal)}
-                      className={`px-3 py-1 text-xs font-bold rounded-t-md border-b-2 transition-all ${
-                        activeCopyTab === canal
-                          ? 'text-[#024fff] border-[#024fff] bg-[#024fff]/5'
-                          : 'text-[#000033]/40 border-transparent hover:text-[#000033]/70'
-                      }`}
+                      onClick={async () => {
+                        await navigator.clipboard.writeText(currentCopy);
+                        setCopyCopied(true);
+                        setTimeout(() => setCopyCopied(false), 2000);
+                      }}
+                      className="flex items-center gap-1 px-2.5 py-1 bg-[#00ff99]/20 border-2 border-[#00ff99]/40 text-[#000033] rounded-lg hover:bg-[#00ff99]/30 transition-all text-xs font-bold"
                     >
-                      {canal}
+                      {copyCopied ? <><Check className="w-3 h-3" />Copiado</> : <><Copy className="w-3 h-3" />Copiar</>}
                     </button>
-                  ))}
+                  )}
                 </div>
-              )}
-              <textarea
-                value={formData.contentPerCanal[activeCopyTab] ?? (activeCopyTab === formData.canales[0] ? formData.content : '')}
-                onChange={e => setFormData(prev => ({
-                  ...prev,
-                  contentPerCanal: { ...prev.contentPerCanal, [activeCopyTab]: e.target.value },
-                  content: activeCopyTab === prev.canales[0] ? e.target.value : prev.content,
-                }))}
-                placeholder={`Copy para ${activeCopyTab}...`}
-                className={`${fieldCls} resize-none font-mono`}
-                rows={6}
-              />
-            </div>
-          )}
+                {canales.length > 1 && (
+                  <div className="flex items-center gap-1 mb-2 overflow-x-auto">
+                    {canales.map((canal: string) => (
+                      <button
+                        key={canal}
+                        type="button"
+                        onClick={() => setActiveCopyTab(canal)}
+                        className={`px-3 py-1 text-xs font-bold rounded-t-md border-b-2 transition-all ${
+                          currentTab === canal
+                            ? 'text-[#024fff] border-[#024fff] bg-[#024fff]/5'
+                            : 'text-[#000033]/40 border-transparent hover:text-[#000033]/70'
+                        }`}
+                      >
+                        {canal}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <textarea
+                  value={currentCopy}
+                  onChange={e => {
+                    const val = e.target.value;
+                    setFormData(prev => ({
+                      ...prev,
+                      contentPerCanal: { ...prev.contentPerCanal, [currentTab]: val },
+                      content: currentTab === (prev.canales[0] ?? 'LinkedIn') ? val : prev.content,
+                    }));
+                  }}
+                  placeholder={`Copy para ${currentTab}...`}
+                  className={`${fieldCls} resize-none font-mono`}
+                  rows={6}
+                />
+              </div>
+            );
+          })()}
 
           {/* ENTREGABLE VISUAL — solo Pieza en edición */}
           {isEditing && !noContenido && (
