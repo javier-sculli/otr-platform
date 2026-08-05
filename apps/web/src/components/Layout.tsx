@@ -30,7 +30,7 @@ export function Layout({ children }: LayoutProps) {
   const { data: notifData } = useQuery({
     queryKey: ['notifications'],
     queryFn: () => api.getNotifications(),
-    refetchInterval: 30000,
+    refetchInterval: 10000,
   });
 
   const { data: clientsData } = useQuery({
