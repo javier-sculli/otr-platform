@@ -81,44 +81,58 @@ export function Layout({ children }: LayoutProps) {
   });
 
   const prevNotifIdsRef = useRef<string[]>([]);
+  const isInitialNotifFetch = useRef(true);
 
   // Notificaciones de escritorio de Chrome/Browser
   useEffect(() => {
     if (typeof window === 'undefined' || !('Notification' in window)) return;
     if (notifications.length === 0) return;
 
-    // Detectar notificaciones nuevas no leídas
+    if (isInitialNotifFetch.current) {
+      // En la primera carga, guardamos las IDs existentes para detectar solo las verdaderamente NUEVAS que lleguen luego
+      prevNotifIdsRef.current = notifications.map(n => n.id);
+      isInitialNotifFetch.current = false;
+      return;
+    }
+
+    // Detectar notificaciones nuevas no leídas que hayan llegado en el ultimo ciclo de polling
     const newUnread = notifications.filter(
       n => !n.read && !prevNotifIdsRef.current.includes(n.id)
     );
 
-    if (newUnread.length > 0 && prevNotifIdsRef.current.length > 0) {
-      if (Notification.permission === 'granted') {
-        newUnread.forEach(n => {
-          try {
-            const desktopNotif = new Notification(n.fromName ? `${n.fromName} (Sistema de Contenido)` : 'Sistema de Contenido', {
-              body: n.message,
-              icon: '/favicon.ico',
-              tag: n.id,
-            });
-            desktopNotif.onclick = () => {
-              window.focus();
-              markReadMutation.mutate(n.id);
-              if (n.ticketId) navigate(`/piezas/${n.ticketId}`);
-            };
-          } catch (e) {
-            console.error('Error mostrando notificacion nativa:', e);
-          }
-        });
-      }
+    if (newUnread.length > 0 && Notification.permission === 'granted') {
+      newUnread.forEach(n => {
+        try {
+          const desktopNotif = new Notification(n.fromName ? `${n.fromName} (Sistema de Contenido)` : 'Sistema de Contenido', {
+            body: n.message,
+            icon: '/favicon.ico',
+            tag: n.id,
+          });
+          desktopNotif.onclick = () => {
+            window.focus();
+            markReadMutation.mutate(n.id);
+            if (n.ticketId) navigate(`/piezas/${n.ticketId}`);
+          };
+        } catch (e) {
+          console.error('Error mostrando notificacion nativa:', e);
+        }
+      });
     }
 
     prevNotifIdsRef.current = notifications.map(n => n.id);
   }, [notifications, navigate]);
 
-  const requestDesktopPermission = () => {
+  const requestDesktopPermission = async () => {
     if (typeof window !== 'undefined' && 'Notification' in window) {
-      Notification.requestPermission();
+      const res = await Notification.requestPermission();
+      if (res === 'granted') {
+        try {
+          new Notification('Sistema de Contenido', {
+            body: '¡Notificaciones de escritorio activadas correctamente!',
+            icon: '/favicon.ico'
+          });
+        } catch (e) {}
+      }
     }
   };
 
