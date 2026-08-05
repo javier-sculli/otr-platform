@@ -45,12 +45,39 @@ export function Layout({ children }: LayoutProps) {
 
   const markReadMutation = useMutation({
     mutationFn: (id: string) => api.markNotificationRead(id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['notifications'] }),
+    onMutate: async (id: string) => {
+      await queryClient.cancelQueries({ queryKey: ['notifications'] });
+      const previous = queryClient.getQueryData(['notifications']);
+      queryClient.setQueryData(['notifications'], (old: any) => {
+        if (!old) return old;
+        const updatedData = old.data?.map((n: any) => n.id === id ? { ...n, read: true } : n);
+        const unreadCount = updatedData?.filter((n: any) => !n.read).length ?? 0;
+        return { ...old, data: updatedData, unreadCount };
+      });
+      return { previous };
+    },
+    onError: (_err, _id, context) => {
+      if (context?.previous) queryClient.setQueryData(['notifications'], context.previous);
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ['notifications'] }),
   });
 
   const markAllMutation = useMutation({
     mutationFn: () => api.markAllNotificationsRead(),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['notifications'] }),
+    onMutate: async () => {
+      await queryClient.cancelQueries({ queryKey: ['notifications'] });
+      const previous = queryClient.getQueryData(['notifications']);
+      queryClient.setQueryData(['notifications'], (old: any) => {
+        if (!old) return old;
+        const updatedData = old.data?.map((n: any) => ({ ...n, read: true }));
+        return { ...old, data: updatedData, unreadCount: 0 };
+      });
+      return { previous };
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.previous) queryClient.setQueryData(['notifications'], context.previous);
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ['notifications'] }),
   });
 
   const prevNotifIdsRef = useRef<string[]>([]);
@@ -76,6 +103,7 @@ export function Layout({ children }: LayoutProps) {
             });
             desktopNotif.onclick = () => {
               window.focus();
+              markReadMutation.mutate(n.id);
               if (n.ticketId) navigate(`/piezas/${n.ticketId}`);
             };
           } catch (e) {
