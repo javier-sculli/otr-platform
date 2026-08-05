@@ -308,38 +308,15 @@ export function Layout({ children }: LayoutProps) {
                     </div>
 
                     {/* Banner para activar notificaciones de escritorio en Chrome */}
-                    {typeof window !== 'undefined' && 'Notification' in window && (
+                    {typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'default' && (
                       <div className="px-4 py-2 bg-[#024fff]/5 border-b border-[#024fff]/10 flex items-center justify-between">
-                        {Notification.permission === 'granted' ? (
-                          <>
-                            <span className="text-[11px] text-[#000033]/70">Notificaciones de Chrome activas</span>
-                            <button
-                              onClick={() => {
-                                try {
-                                  new Notification('Sistema de Contenido', {
-                                    body: '🔔 ¡Prueba de aviso flotante en Chrome exitosa!',
-                                    icon: '/favicon.ico'
-                                  });
-                                } catch (e) {
-                                  alert('Chrome o macOS bloquearon el aviso. Revisa los permisos en tu navegador.');
-                                }
-                              }}
-                              className="text-[10px] text-[#024fff] font-bold hover:underline"
-                            >
-                              Probar aviso
-                            </button>
-                          </>
-                        ) : (
-                          <>
-                            <span className="text-[11px] text-[#000033]/70">¿Activar avisos de escritorio en Chrome?</span>
-                            <button
-                              onClick={requestDesktopPermission}
-                              className="px-2 py-1 bg-[#024fff] text-white text-[10px] font-bold rounded hover:bg-[#024fff]/90 transition-all"
-                            >
-                              Activar
-                            </button>
-                          </>
-                        )}
+                        <span className="text-[11px] text-[#000033]/70">¿Activar avisos de escritorio en Chrome?</span>
+                        <button
+                          onClick={requestDesktopPermission}
+                          className="px-2 py-1 bg-[#024fff] text-white text-[10px] font-bold rounded hover:bg-[#024fff]/90 transition-all"
+                        >
+                          Activar
+                        </button>
                       </div>
                     )}
 
