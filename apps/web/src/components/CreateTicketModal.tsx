@@ -330,7 +330,7 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO' 
       status: formData.status,
       prioridad: formData.prioridad,
       objetivo: formData.brief || null,
-      canales: noContenido ? [] : formData.canales,
+      canales: noContenido ? [] : (formData.canales.length > 0 ? formData.canales : ['LinkedIn']),
       dueDate: formData.dueDate || null,
       ticketTypeId: formData.ticketTypeId || null,
       tiposContenido: formData.tiposContenido,

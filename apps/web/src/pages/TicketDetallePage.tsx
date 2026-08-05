@@ -672,17 +672,12 @@ export function TicketDetallePage() {
                   Copy
                 </h2>
                 {(() => {
+                  const canales: string[] = (ticket as any).canales?.length > 0 ? (ticket as any).canales : ['LinkedIn'];
                   const perCanal = (ticket as any).contentPerCanal as Record<string, string> | null;
-                  const rawCanales: string[] = (ticket as any).canales?.length > 0 ? (ticket as any).canales : [];
-                  const perCanalKeys = perCanal ? Object.keys(perCanal).filter(k => !!perCanal[k]?.trim()) : [];
-                  const allCanalTabs = Array.from(new Set([...rawCanales, ...perCanalKeys])).filter(Boolean);
-                  const canales = allCanalTabs.length > 0 ? allCanalTabs : ['LinkedIn'];
+                  const currentTab = activeCopyTab && canales.includes(activeCopyTab) ? activeCopyTab : canales[0];
+                  const activeContent = perCanal?.[currentTab] ?? (canales.length === 1 ? ticket.content ?? '' : '');
 
-                  const currentTab = activeCopyTab || canales[0];
-                  const fallbackCopy = (ticket.content?.trim()) || (perCanal ? Object.values(perCanal).find(v => !!v?.trim()) : '') || '';
-                  const activeContent = (perCanal?.[currentTab]?.trim()) || fallbackCopy;
-
-                  return activeContent ? (
+                  return activeContent?.trim() ? (
                     <button
                       onClick={async () => {
                         await navigator.clipboard.writeText(activeContent);
@@ -697,16 +692,11 @@ export function TicketDetallePage() {
                 })()}
               </div>
               {(() => {
+                const canales: string[] = (ticket as any).canales?.length > 0 ? (ticket as any).canales : ['LinkedIn'];
                 const perCanal = (ticket as any).contentPerCanal as Record<string, string> | null;
-                const rawCanales: string[] = (ticket as any).canales?.length > 0 ? (ticket as any).canales : [];
-                const perCanalKeys = perCanal ? Object.keys(perCanal).filter(k => !!perCanal[k]?.trim()) : [];
-                const allCanalTabs = Array.from(new Set([...rawCanales, ...perCanalKeys])).filter(Boolean);
-                const canales = allCanalTabs.length > 0 ? allCanalTabs : ['LinkedIn'];
-
-                const currentTab = activeCopyTab || canales[0];
-                const fallbackCopy = (ticket.content?.trim()) || (perCanal ? Object.values(perCanal).find(v => !!v?.trim()) : '') || '';
-                const activeContent = (perCanal?.[currentTab]?.trim()) || fallbackCopy;
-                const hasAnyContent = Boolean(activeContent?.trim());
+                const currentTab = activeCopyTab && canales.includes(activeCopyTab) ? activeCopyTab : canales[0];
+                const activeContent = perCanal?.[currentTab] ?? (canales.length === 1 ? ticket.content ?? '' : '');
+                const hasContent = Boolean(activeContent?.trim());
 
                 return (
                   <>
@@ -727,13 +717,13 @@ export function TicketDetallePage() {
                         ))}
                       </div>
                     )}
-                    {hasAnyContent ? (
+                    {hasContent ? (
                       <pre className="text-xs text-[#000033]/80 whitespace-pre-wrap font-mono bg-[#fafafa] border border-[#000033]/10 rounded-lg px-3 py-2 max-h-48 overflow-y-auto">
                         {activeContent}
                       </pre>
                     ) : (
-                      <p className="text-xs text-[#000033]/40 italic">
-                        Aún no hay copy redactado.{' '}
+                      <p className="text-xs text-[#000033]/40 italic py-2">
+                        Sin contenido redactado para {currentTab} aún.{' '}
                         <button onClick={() => navigate(`/content/${ticket.id}`)} className="text-[#024fff] underline hover:no-underline">
                           Ir al workspace
                         </button>

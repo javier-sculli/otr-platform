@@ -193,9 +193,19 @@ export function ContentPage() {
       setLinkEntregable(t.linkEntregable ?? null);
 
       if (!contentLoaded) {
-        // Sin red elegida → tab virtual "Contenido" (no referencia ninguna red)
-        const canalList: string[] = t.canales?.length > 0 ? t.canales : ['Contenido'];
-        const perCanal: Record<string, string> = t.contentPerCanal && typeof t.contentPerCanal === 'object' ? t.contentPerCanal as Record<string, string> : {};
+        const canalList: string[] = t.canales?.length > 0 ? t.canales : ['LinkedIn'];
+        const perCanal: Record<string, string> = t.contentPerCanal && typeof t.contentPerCanal === 'object' ? { ...t.contentPerCanal as Record<string, string> } : {};
+
+        // Si existen claves legacy como 'Contenido' o 'General', migrarlas al primer canal real
+        if (perCanal['Contenido'] || perCanal['General']) {
+          const genericText = perCanal['Contenido'] || perCanal['General'];
+          if (genericText && !perCanal[canalList[0]]) {
+            perCanal[canalList[0]] = genericText;
+          }
+          delete perCanal['Contenido'];
+          delete perCanal['General'];
+        }
+
         if (Object.keys(perCanal).length === 0 && t.content) {
           perCanal[canalList[0]] = t.content;
         }
