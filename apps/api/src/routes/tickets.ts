@@ -107,7 +107,7 @@ export async function ticketsRoutes(fastify: FastifyInstance) {
         title: data.title,
         description: data.referencias !== undefined ? data.referencias : data.description,
         objetivo: data.objetivo,
-        canales: data.canales || (data.canal ? [data.canal] : []),
+        canales: (data.canales && data.canales.length > 0) ? data.canales : (data.canal ? [data.canal] : (data.area === 'PRENSA' ? [] : ['LinkedIn'])),
         prioridad: data.prioridad || 'MEDIA',
         clientId: data.clientId,
         ownerId: data.ownerId,
