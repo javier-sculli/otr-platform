@@ -126,7 +126,7 @@ export function Layout({ children }: LayoutProps) {
 
   return (
     <div className="min-h-screen bg-[#fafafa]">
-      <nav className="bg-white border-b-2 border-[#000033]/10 sticky top-0 z-10 shadow-sm">
+      <nav className="bg-white border-b-2 border-[#000033]/10 sticky top-0 z-40 shadow-sm">
         <div className="max-w-[1600px] mx-auto px-8">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center gap-8">
