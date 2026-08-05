@@ -10,6 +10,7 @@ export async function notificationsRoutes(fastify: FastifyInstance) {
     const user = (request as any).user;
     const notifications = await prisma.notification.findMany({
       where: { userId: user.id },
+      include: { ticket: { select: { id: true, title: true } } },
       orderBy: { createdAt: 'desc' },
       take: 50,
     });

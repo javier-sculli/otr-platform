@@ -38,24 +38,25 @@ export async function commentsRoutes(fastify: FastifyInstance) {
         select: { id: true, name: true },
       });
       mentionedIds = mentionedUsers.map(u => u.id).filter(id => id !== user.id);
-
-      // Crear notificaciones para cada mencionado
-      if (mentionedIds.length > 0) {
-        await prisma.notification.createMany({
-          data: mentionedIds.map(uid => ({
-            userId: uid,
-            ticketId,
-            fromName: user.name,
-            message: `${user.name} te mencionó en "${ticket.title}"`,
-          })),
-        });
-      }
     }
 
     const comment = await prisma.ticketComment.create({
       data: { ticketId, userId: user.id, content, mentions: mentionedIds },
       include: { user: { select: { id: true, name: true } } },
     });
+
+    if (mentionedIds.length > 0) {
+      await prisma.notification.createMany({
+        data: mentionedIds.map(uid => ({
+          userId: uid,
+          ticketId,
+          commentId: comment.id,
+          type: 'MENTION',
+          fromName: user.name,
+          message: `${user.name} te mencionó en "${ticket.title}"`,
+        })),
+      });
+    }
 
     return reply.status(201).send({ data: comment });
   });

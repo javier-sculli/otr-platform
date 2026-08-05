@@ -908,6 +908,11 @@ export function TicketDetallePage() {
                     value={commentText}
                     onChange={handleCommentInput}
                     onKeyDown={e => {
+                      if (mentionQuery !== null && mentionSuggestions.length > 0 && (e.key === 'Enter' || e.key === 'Tab')) {
+                        e.preventDefault();
+                        insertMention(mentionSuggestions[0].name);
+                        return;
+                      }
                       if (e.key === 'Enter' && !e.shiftKey) {
                         e.preventDefault();
                         handleCommentSubmit();

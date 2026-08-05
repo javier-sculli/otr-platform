@@ -53,6 +53,47 @@ export function Layout({ children }: LayoutProps) {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['notifications'] }),
   });
 
+  const prevNotifIdsRef = useRef<string[]>([]);
+
+  // Notificaciones de escritorio de Chrome/Browser
+  useEffect(() => {
+    if (typeof window === 'undefined' || !('Notification' in window)) return;
+    if (notifications.length === 0) return;
+
+    // Detectar notificaciones nuevas no leídas
+    const newUnread = notifications.filter(
+      n => !n.read && !prevNotifIdsRef.current.includes(n.id)
+    );
+
+    if (newUnread.length > 0 && prevNotifIdsRef.current.length > 0) {
+      if (Notification.permission === 'granted') {
+        newUnread.forEach(n => {
+          try {
+            const desktopNotif = new Notification(n.fromName ? `${n.fromName} (Sistema de Contenido)` : 'Sistema de Contenido', {
+              body: n.message,
+              icon: '/favicon.ico',
+              tag: n.id,
+            });
+            desktopNotif.onclick = () => {
+              window.focus();
+              if (n.ticketId) navigate(`/piezas/${n.ticketId}`);
+            };
+          } catch (e) {
+            console.error('Error mostrando notificacion nativa:', e);
+          }
+        });
+      }
+    }
+
+    prevNotifIdsRef.current = notifications.map(n => n.id);
+  }, [notifications, navigate]);
+
+  const requestDesktopPermission = () => {
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      Notification.requestPermission();
+    }
+  };
+
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (panelRef.current && !panelRef.current.contains(e.target as Node)) {
@@ -211,42 +252,70 @@ export function Layout({ children }: LayoutProps) {
                 </button>
 
                 {showNotifications && (
-                  <div className="absolute right-0 top-full mt-2 w-80 bg-white border-2 border-[#000033]/10 rounded-xl shadow-xl z-50 overflow-hidden">
-                    <div className="flex items-center justify-between px-4 py-3 border-b border-[#000033]/10">
+                  <div className="absolute right-0 top-full mt-2 w-84 sm:w-96 bg-white border-2 border-[#000033]/10 rounded-xl shadow-xl z-50 overflow-hidden">
+                    <div className="flex items-center justify-between px-4 py-3 border-b border-[#000033]/10 bg-[#fafafa]">
                       <span className="text-xs font-bold text-[#000033] uppercase tracking-wide">Notificaciones</span>
                       {unreadCount > 0 && (
                         <button
                           onClick={() => markAllMutation.mutate()}
                           className="text-xs text-[#024fff] font-bold hover:underline"
                         >
-                          Marcar todas leídas
+                          Marcar leídas
                         </button>
                       )}
                     </div>
 
-                    <div className="max-h-80 overflow-y-auto">
+                    {/* Banner para activar notificaciones de escritorio si aún no fueron solicitadas */}
+                    {typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'default' && (
+                      <div className="px-4 py-2 bg-[#024fff]/5 border-b border-[#024fff]/10 flex items-center justify-between">
+                        <span className="text-[11px] text-[#000033]/70">¿Activar notificaciones de escritorio en Chrome?</span>
+                        <button
+                          onClick={requestDesktopPermission}
+                          className="px-2 py-1 bg-[#024fff] text-white text-[10px] font-bold rounded hover:bg-[#024fff]/90 transition-all"
+                        >
+                          Activar
+                        </button>
+                      </div>
+                    )}
+
+                    <div className="max-h-80 overflow-y-auto divide-y divide-[#000033]/5">
                       {notifications.length === 0 ? (
-                        <p className="px-4 py-6 text-xs text-[#000033]/40 text-center">Sin notificaciones</p>
+                        <div className="px-4 py-8 text-center">
+                          <Bell className="w-6 h-6 text-[#000033]/20 mx-auto mb-2" />
+                          <p className="text-xs text-[#000033]/40">Sin notificaciones aún</p>
+                        </div>
                       ) : (
-                        notifications.map(n => (
-                          <div
-                            key={n.id}
-                            onClick={() => {
-                              if (!n.read) markReadMutation.mutate(n.id);
-                              if (n.ticketId) navigate(`/piezas/${n.ticketId}`);
-                              setShowNotifications(false);
-                            }}
-                            className={`flex items-start gap-3 px-4 py-3 border-b border-[#000033]/5 cursor-pointer hover:bg-[#000033]/5 transition-all ${!n.read ? 'bg-[#024fff]/5' : ''}`}
-                          >
-                            <div className={`w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0 ${!n.read ? 'bg-[#024fff]' : 'bg-transparent'}`} />
-                            <div className="min-w-0">
-                              <p className="text-xs text-[#000033] leading-relaxed">{n.message}</p>
-                              <p className="text-[10px] text-[#000033]/40 mt-0.5">
-                                {new Date(n.createdAt).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
-                              </p>
+                        notifications.map(n => {
+                          const typeLabel = n.type === 'MENTION' ? '@mención' : n.type === 'ASSIGNED' ? 'Asignación' : 'Estado';
+                          const typeBadgeBg = n.type === 'MENTION' ? 'bg-[#024fff]/10 text-[#024fff]' : n.type === 'ASSIGNED' ? 'bg-purple-100 text-purple-700' : 'bg-emerald-100 text-emerald-700';
+
+                          return (
+                            <div
+                              key={n.id}
+                              onClick={() => {
+                                if (!n.read) markReadMutation.mutate(n.id);
+                                if (n.ticketId) navigate(`/piezas/${n.ticketId}`);
+                                setShowNotifications(false);
+                              }}
+                              className={`flex items-start gap-3 px-4 py-3 cursor-pointer hover:bg-[#024fff]/5 transition-all ${
+                                !n.read ? 'bg-[#024fff]/[0.03]' : ''
+                              }`}
+                            >
+                              <div className={`w-2 h-2 rounded-full mt-1.5 flex-shrink-0 ${!n.read ? 'bg-[#024fff]' : 'bg-transparent'}`} />
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-center gap-1.5 mb-1">
+                                  <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase ${typeBadgeBg}`}>
+                                    {typeLabel}
+                                  </span>
+                                  <span className="text-[10px] text-[#000033]/40 ml-auto">
+                                    {new Date(n.createdAt).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                                  </span>
+                                </div>
+                                <p className="text-xs text-[#000033] leading-relaxed font-medium">{n.message}</p>
+                              </div>
                             </div>
-                          </div>
-                        ))
+                          );
+                        })
                       )}
                     </div>
                   </div>

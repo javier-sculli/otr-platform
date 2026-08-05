@@ -195,6 +195,9 @@ export async function ticketsRoutes(fastify: FastifyInstance) {
       updateData.references = { set: ids.map((rid) => ({ id: rid })) };
     }
 
+    const currentUser = (request as any).user;
+    const existingTicket = await prisma.ticket.findUnique({ where: { id }, select: { ownerId: true, reviewerId: true, status: true, subEstado: true, title: true } });
+
     const ticket = await prisma.ticket.update({
       where: { id },
       data: updateData,
@@ -216,6 +219,50 @@ export async function ticketsRoutes(fastify: FastifyInstance) {
         },
       },
     });
+
+    // Notificaciones no invasivas
+    if (existingTicket && currentUser) {
+      // 1. Notificación si cambia ownerId (Asignación)
+      if (data.ownerId && data.ownerId !== existingTicket.ownerId && data.ownerId !== currentUser.id) {
+        await prisma.notification.create({
+          data: {
+            userId: data.ownerId,
+            ticketId: ticket.id,
+            type: 'ASSIGNED',
+            fromName: currentUser.name,
+            message: `${currentUser.name} te asignó el ticket "${ticket.title}"`,
+          },
+        }).catch(() => {});
+      }
+
+      // 2. Notificación si cambia reviewerId (Revisión)
+      if (data.reviewerId && data.reviewerId !== existingTicket.reviewerId && data.reviewerId !== currentUser.id) {
+        await prisma.notification.create({
+          data: {
+            userId: data.reviewerId,
+            ticketId: ticket.id,
+            type: 'ASSIGNED',
+            fromName: currentUser.name,
+            message: `${currentUser.name} te asignó la revisión de "${ticket.title}"`,
+          },
+        }).catch(() => {});
+      }
+
+      // 3. Notificación al Owner si otra persona cambia el estado
+      const statusChanged = (data.status && data.status !== existingTicket.status) || (data.subEstado && data.subEstado !== existingTicket.subEstado);
+      if (statusChanged && existingTicket.ownerId !== currentUser.id) {
+        const newStatusLabel = data.status || data.subEstado;
+        await prisma.notification.create({
+          data: {
+            userId: existingTicket.ownerId,
+            ticketId: ticket.id,
+            type: 'STATUS_CHANGE',
+            fromName: currentUser.name,
+            message: `${currentUser.name} movió "${ticket.title}" a ${newStatusLabel}`,
+          },
+        }).catch(() => {});
+      }
+    }
 
     return { data: ticket };
   });
