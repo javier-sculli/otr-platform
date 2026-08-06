@@ -911,6 +911,7 @@ export function PrensaBacklogPage() {
         area="PRENSA"
         ticket={selectedTicket as any}
         onClose={() => { setShowModalNueva(false); setSelectedTicket(null); }}
+        defaultClientId={clientesSeleccionados.length === 1 ? clientesSeleccionados[0] : undefined}
       />
 
       <HistorialPrensaModal

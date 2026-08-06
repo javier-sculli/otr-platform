@@ -570,6 +570,7 @@ export function BacklogPage() {
         isOpen={showModalNueva || !!selectedTicket}
         ticket={selectedTicket}
         onClose={() => { setShowModalNueva(false); setSelectedTicket(null); }}
+        defaultClientId={clientesSeleccionados.length === 1 ? clientesSeleccionados[0] : undefined}
       />
 
       <TransitionToDesignModal

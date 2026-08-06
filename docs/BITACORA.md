@@ -57,6 +57,9 @@
 - [x] **[UI-05] Selector Desplegable Multi-Formato y Popup de Transición a Diseño**
   - *Detalle:* Selector desplegable con checkboxes para multi-formato (simple para 1 clic, expandible para múltiples). Popup modal `TransitionToDesignModal` al arrastrar o cambiar tarjetas al estado "Diseño".
   - *Estado:* 🟢 Completado (2026-08-04)
+- [x] **[UI-06] Auto-selección de Cliente Activo al Crear Tarea / Ticket**
+  - *Detalle:* Si existe un filtro de cliente activo seleccionado en el tablero (Backlog o Prensa), al presionar "Nueva" el modal `CreateTicketModal` pre-selecciona automáticamente dicho cliente.
+  - *Estado:* 🟢 Completado (2026-08-06)
 
 ### 💜 Épica 5: IA, Brand Kit & Procesamiento de Contenido
 - [ ] **[IA-01] Limpieza de Texto Plano para Documentos de Estrategia**
@@ -83,6 +86,13 @@
 ---
 
 ## 📜 Historial de Cambios y Avances (Changelog de Bitácora)
+
+### [2026-08-06] — Auto-selección de Cliente Activo al Crear Tareas/Tickets
+- **Desarrollador:** Javier Sculli
+- **Resumen de Avances:**
+  1. **Prop `defaultClientId` en Modal:** Se añadió soporte para `defaultClientId` en `CreateTicketModalProps` e inicialización dinámica en `buildFormData` y `useEffect`.
+  2. **Integración con Filtros de Backlog y Prensa:** `BacklogPage.tsx` y `PrensaBacklogPage.tsx` pasan automáticamente el cliente activo filtrado (`clientesSeleccionados`) al presionar "Nueva".
+- **Verificación:** Compilación TypeScript (`pnpm --filter web build`) exitosa (0 errores).
 
 ### [2026-08-04] — Fase 1: Editor de Notas de Diseño Rico (Notion Paste) + Multi-Formato por Ticket
 - **Desarrollador:** Javier Sculli

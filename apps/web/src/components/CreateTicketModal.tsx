@@ -49,6 +49,7 @@ interface CreateTicketModalProps {
   ticket?: TicketData | null;
   /** Área en la que se crea el ticket. 'PRENSA' fuerza tipos y campos de Prensa. */
   area?: 'CONTENIDO' | 'PRENSA';
+  defaultClientId?: string;
 }
 
 const REDES = ['LinkedIn', 'Instagram', 'Twitter'];
@@ -63,13 +64,13 @@ const PRIORIDADES = [
 const labelCls = 'flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide text-[#000033]/40 mb-1.5';
 const fieldCls = 'w-full px-3 py-2 border border-[#000033]/12 rounded-lg text-sm text-[#000033] bg-white focus:outline-none focus:ring-2 focus:ring-[#024fff]/25 focus:border-[#024fff]/40 hover:border-[#000033]/20 transition-all placeholder:text-[#000033]/35';
 
-function buildFormData(ticket?: TicketData | null) {
+function buildFormData(ticket?: TicketData | null, defaultClientId?: string) {
   if (!ticket) {
     return {
       title: '',
       brief: '',
       canales: [] as string[],
-      clientId: '',
+      clientId: defaultClientId ?? '',
       ownerId: '',
       ticketTypeId: '',
       tiposContenido: [] as string[],
@@ -117,12 +118,12 @@ function buildFormData(ticket?: TicketData | null) {
   };
 }
 
-export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO' }: CreateTicketModalProps) {
+export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO', defaultClientId }: CreateTicketModalProps) {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const isEditing = !!ticket;
   const [error, setError] = useState<string | null>(null);
-  const [formData, setFormData] = useState(() => buildFormData(ticket));
+  const [formData, setFormData] = useState(() => buildFormData(ticket, defaultClientId));
   const initTipo = (t?: TicketData | null): 'CONTENIDO' | 'TAREA' | 'PRENSA' => {
     if (t?.ticketType?.kind === 'PRENSA' || (!t && area === 'PRENSA')) return 'PRENSA';
     if (t?.ticketType?.kind === 'TAREA') return 'TAREA';
@@ -151,21 +152,23 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO' 
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Re-populate when ticket changes (e.g. opening different card)
+  // Re-populate when ticket, isOpen or defaultClientId changes
   useEffect(() => {
-    const newFormData = buildFormData(ticket);
-    setFormData(newFormData);
-    setTipoTicket(initTipo(ticket));
-    const initialCanales = newFormData.canales.length > 0 ? newFormData.canales : ['LinkedIn'];
-    setActiveCopyTab(initialCanales[0]);
-    setError(null);
-    if (ticket?.id) {
-      const saved = sessionStorage.getItem(`ticket-files-${ticket.id}`);
-      setAttachedFiles(saved ? JSON.parse(saved) : []);
-    } else {
-      setAttachedFiles([]);
+    if (isOpen) {
+      const newFormData = buildFormData(ticket, defaultClientId);
+      setFormData(newFormData);
+      setTipoTicket(initTipo(ticket));
+      const initialCanales = newFormData.canales.length > 0 ? newFormData.canales : ['LinkedIn'];
+      setActiveCopyTab(initialCanales[0]);
+      setError(null);
+      if (ticket?.id) {
+        const saved = sessionStorage.getItem(`ticket-files-${ticket.id}`);
+        setAttachedFiles(saved ? JSON.parse(saved) : []);
+      } else {
+        setAttachedFiles([]);
+      }
     }
-  }, [ticket?.id]);
+  }, [ticket?.id, isOpen, defaultClientId]);
 
   useEffect(() => {
     if (ticket?.id) {
