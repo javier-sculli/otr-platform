@@ -85,7 +85,13 @@
 
 ---
 
-## 📜 Historial de Cambios y Avances (Changelog de Bitácora)
+### [2026-08-06] — Rediseño de Notas de Diseño (Lienzo Sábana Blanca Notion + Control de Imágenes Flotante)
+- **Desarrollador:** Javier Sculli
+- **Resumen de Avances:**
+  1. **Estética de Lienzo Sábana Blanca Notion:** Rediseño del contenedor en `RichNotesEditor.tsx` reemplazando marcos grises por una hoja limpia y libre con tipografía e interlineado relajado.
+  2. **Barra Flotante Contextual de Imágenes:** Al hacer clic en cualquier imagen del editor, aparece una mini-barra flotante para alinear (Izquierda, Centro, Derecha), redimensionar rápidamente por porcentaje (25%, 50%, 75%, 100%) o eliminar.
+  3. **Pegado Rico Transparente:** Parser de HTML para pegado desde Notion, ChatGPT, Google Docs o Figma manteniendo títulos, negritas, listas y links impecables.
+- **Verificación:** Compilación TypeScript (`pnpm --filter web build`) exitosa (0 errores).
 
 ### [2026-08-06] — Auto-selección de Cliente Activo al Crear Tareas/Tickets
 - **Desarrollador:** Javier Sculli
