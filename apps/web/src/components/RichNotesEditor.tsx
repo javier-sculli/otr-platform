@@ -21,6 +21,47 @@ interface SelectedImageState {
   left: number;
 }
 
+export async function convertImageUrlToBase64(url: string): Promise<string> {
+  if (!url || url.startsWith('data:image/')) return url;
+
+  try {
+    const res = await fetch(url, { referrerPolicy: 'no-referrer' });
+    if (res.ok) {
+      const blob = await res.blob();
+      return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result as string);
+        reader.onerror = () => resolve(url);
+        reader.readAsDataURL(blob);
+      });
+    }
+  } catch (e) {
+    // Fetch failed or blocked by CORS
+  }
+
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.referrerPolicy = 'no-referrer';
+    img.onload = () => {
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = img.naturalWidth || img.width || 300;
+        canvas.height = img.naturalHeight || img.height || 150;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, 0, 0);
+          resolve(canvas.toDataURL('image/png'));
+          return;
+        }
+      } catch (e) {}
+      resolve(url);
+    };
+    img.onerror = () => resolve(url);
+    img.src = url;
+  });
+}
+
 export function cleanJunkHtmlBlocks(html: string): string {
   if (!html) return '';
   try {
@@ -70,6 +111,8 @@ export function cleanJunkHtmlBlocks(html: string): string {
             el.removeAttribute('class');
           }
         }
+      } else {
+        el.setAttribute('referrerpolicy', 'no-referrer');
       }
     });
 
@@ -94,15 +137,43 @@ export function RichNotesEditor({
 
   const [selectedImgState, setSelectedImgState] = useState<SelectedImageState | null>(null);
 
-  // Sincronizar HTML externo si cambia desde afuera (limpiando cajas grises residuales)
+  // Sincronizar HTML externo si cambia desde afuera y convertir imágenes externas a Base64 en segundo plano
   useEffect(() => {
     if (editorRef.current && !isUpdatingRef.current) {
       const cleanedValue = cleanJunkHtmlBlocks(value || '');
       if (editorRef.current.innerHTML !== cleanedValue) {
         editorRef.current.innerHTML = cleanedValue;
       }
+
+      // Convertir imágenes externas a Base64 si aún no están convertidas
+      const externalImgs = Array.from(editorRef.current.querySelectorAll('img')).filter(
+        img => img.src && !img.src.startsWith('data:image/')
+      );
+      if (externalImgs.length > 0) {
+        (async () => {
+          let updated = false;
+          for (const img of externalImgs) {
+            const src = img.getAttribute('src');
+            if (src && !src.startsWith('data:image/')) {
+              const base64 = await convertImageUrlToBase64(src);
+              if (base64 && base64 !== src) {
+                img.setAttribute('src', base64);
+                updated = true;
+              }
+            }
+          }
+          if (updated && editorRef.current) {
+            isUpdatingRef.current = true;
+            const html = editorRef.current.innerHTML;
+            onChange(html === '<br>' ? '' : html);
+            setTimeout(() => {
+              isUpdatingRef.current = false;
+            }, 0);
+          }
+        })();
+      }
     }
-  }, [value]);
+  }, [value, onChange]);
 
   const handleInput = useCallback(() => {
     if (editorRef.current) {
@@ -172,7 +243,7 @@ export function RichNotesEditor({
   };
 
   const insertImage = (src: string) => {
-    const imgHtml = `<img src="${src}" draggable="true" style="width: 75%; max-width: 100%; height: auto; border-radius: 12px; margin: 12px 0; display: block; border: 2px solid transparent;" class="rich-editor-img transition-all cursor-pointer hover:shadow-md" />&nbsp;`;
+    const imgHtml = `<img src="${src}" referrerpolicy="no-referrer" draggable="true" style="width: 75%; max-width: 100%; height: auto; border-radius: 12px; margin: 12px 0; display: block; border: 2px solid transparent;" class="rich-editor-img transition-all cursor-pointer hover:shadow-md" />&nbsp;`;
     document.execCommand('insertHTML', false, imgHtml);
     handleInput();
   };
@@ -188,11 +259,13 @@ export function RichNotesEditor({
     reader.readAsDataURL(file);
   };
 
-  const handlePaste = (e: React.ClipboardEvent<HTMLDivElement>) => {
-    // 1. Capturas o archivos de imágenes en el portapapeles
+  const handlePaste = async (e: React.ClipboardEvent<HTMLDivElement>) => {
+    const html = e.clipboardData.getData('text/html');
     const items = Array.from(e.clipboardData.items || []);
     const imageItem = items.find(item => item.type.startsWith('image/'));
-    if (imageItem) {
+
+    // 1. Capturas o archivos de imágenes directas en el portapapeles (solo si no hay HTML de Notion/Docs)
+    if (!html && imageItem) {
       e.preventDefault();
       const file = imageItem.getAsFile();
       if (file) handleImageFile(file);
@@ -200,7 +273,6 @@ export function RichNotesEditor({
     }
 
     // 2. Contenido HTML (de Notion, Google Docs, Figma, ChatGPT, etc.)
-    const html = e.clipboardData.getData('text/html');
     if (html) {
       e.preventDefault();
       const parser = new DOMParser();
@@ -210,8 +282,10 @@ export function RichNotesEditor({
       doc.querySelectorAll('script, style, iframe, meta, input').forEach(el => el.remove());
 
       // Formatear imágenes pegadas para que sean interactivas y tengan buen estilo Notion
-      doc.querySelectorAll('img').forEach(img => {
+      const imgs = Array.from(doc.querySelectorAll('img'));
+      imgs.forEach(img => {
         img.setAttribute('draggable', 'true');
+        img.setAttribute('referrerpolicy', 'no-referrer');
         img.style.maxWidth = '100%';
         if (!img.style.width) img.style.width = '80%';
         img.style.height = 'auto';
@@ -231,6 +305,25 @@ export function RichNotesEditor({
       const cleanHTML = doc.body.innerHTML;
       document.execCommand('insertHTML', false, cleanHTML);
       handleInput();
+
+      // Convertir imágenes externas (Notion AWS S3, etc.) a Base64 en segundo plano para persistencia permanente
+      if (editorRef.current) {
+        const editorImgs = Array.from(editorRef.current.querySelectorAll('img'));
+        let updated = false;
+        for (const img of editorImgs) {
+          const src = img.getAttribute('src');
+          if (src && !src.startsWith('data:image/')) {
+            const base64 = await convertImageUrlToBase64(src);
+            if (base64 && base64 !== src) {
+              img.setAttribute('src', base64);
+              updated = true;
+            }
+          }
+        }
+        if (updated) {
+          handleInput();
+        }
+      }
       return;
     }
 
@@ -239,14 +332,27 @@ export function RichNotesEditor({
     if (text) {
       e.preventDefault();
       const trimmed = text.trim();
-      if (/^https?:\/\/[^\s]+$/i.test(trimmed)) {
+      if (/^https?:\/\/[^\s]+\.(png|jpg|jpeg|gif|webp|svg)(\?.*)?$/i.test(trimmed)) {
+        insertImage(trimmed);
+        if (editorRef.current) {
+          const lastImg = editorRef.current.querySelector(`img[src="${trimmed}"]`) as HTMLImageElement;
+          if (lastImg) {
+            const base64 = await convertImageUrlToBase64(trimmed);
+            if (base64 && base64 !== trimmed) {
+              lastImg.setAttribute('src', base64);
+              handleInput();
+            }
+          }
+        }
+      } else if (/^https?:\/\/[^\s]+$/i.test(trimmed)) {
         const linkHtml = `<a href="${trimmed}" target="_blank" rel="noopener noreferrer" class="text-[#024fff] underline font-medium">${trimmed}</a>`;
         document.execCommand('insertHTML', false, linkHtml);
+        handleInput();
       } else {
         const htmlText = text.replace(/\n/g, '<br>');
         document.execCommand('insertHTML', false, htmlText);
+        handleInput();
       }
-      handleInput();
     }
   };
 
