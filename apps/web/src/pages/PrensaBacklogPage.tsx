@@ -138,10 +138,6 @@ export function PrensaBacklogPage() {
 
   const effectiveClientIds = useMemo(() => {
     if (clientesSeleccionados.length > 0) {
-      if (preferredIds.length > 0) {
-        const intersection = clientesSeleccionados.filter(id => preferredIds.includes(id));
-        return intersection.length > 0 ? intersection : preferredIds;
-      }
       return clientesSeleccionados;
     }
     return preferredIds;
@@ -328,24 +324,9 @@ export function PrensaBacklogPage() {
     ticketsFiltrados.filter(t => t.client.id === clientId);
 
   const toggleCliente = (id: string) => {
-    setClientesSeleccionados(prev => {
-      const base = prev.length > 0 && (preferredIds.length === 0 || prev.some(p => preferredIds.includes(p)))
-        ? prev
-        : (effectiveClientIds.length > 0 ? effectiveClientIds : []);
-      if (base.includes(id)) {
-        const next = base.filter((c: string) => c !== id);
-        if (preferredIds.length > 0 && next.length === preferredIds.length && preferredIds.every((p: string) => next.includes(p))) {
-          return [];
-        }
-        return next;
-      } else {
-        const next = [...base, id];
-        if (preferredIds.length > 0 && next.length === preferredIds.length && preferredIds.every((p: string) => next.includes(p))) {
-          return [];
-        }
-        return next;
-      }
-    });
+    setClientesSeleccionados(prev =>
+      prev.includes(id) ? prev.filter(c => c !== id) : [...prev, id]
+    );
   };
 
   const toggleExpandedCliente = (nombre: string) =>
@@ -524,8 +505,8 @@ export function PrensaBacklogPage() {
           <div className="flex items-center gap-2">
             <span className="text-xs font-bold text-[#000033]">Cliente:</span>
             <div className="flex items-center gap-2 flex-wrap">
-              {effectiveClientIds.length > 0 ? (
-                clientes.filter(c => effectiveClientIds.includes(c.id)).map(c => (
+              {clientesSeleccionados.length > 0 ? (
+                clientes.filter(c => clientesSeleccionados.includes(c.id)).map(c => (
                   <button
                     key={c.id}
                     onClick={() => toggleCliente(c.id)}
@@ -536,20 +517,22 @@ export function PrensaBacklogPage() {
                   </button>
                 ))
               ) : (
-                <span className="text-xs text-[#000033]/40">Todos los clientes</span>
+                <span className="text-xs text-[#000033]/40">
+                  {preferredIds.length > 0 ? 'Todos mis clientes' : 'Todos los clientes'}
+                </span>
               )}
               <div className="relative">
                 <button
                   onClick={() => setShowDropdownClientes(p => !p)}
                   className="px-3 py-1.5 border-2 border-dashed border-[#000033]/20 text-[#000033]/60 text-xs font-bold rounded-lg hover:border-[#024fff]/40 hover:text-[#024fff] flex items-center gap-1.5"
                 >
-                  + Agregar
+                  + Seleccionar
                   <ChevronDown className="w-3 h-3" />
                 </button>
                 {showDropdownClientes && (
                   <div className="absolute top-full left-0 mt-1 bg-white border-2 border-[#000033]/20 rounded-lg shadow-lg z-10 min-w-[160px]">
                     {clientesDisponibles.map(c => {
-                      const isSelected = effectiveClientIds.includes(c.id);
+                      const isSelected = clientesSeleccionados.includes(c.id);
                       return (
                         <button
                           key={c.id}
