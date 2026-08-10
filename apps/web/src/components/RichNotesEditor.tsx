@@ -23,43 +23,37 @@ interface SelectedImageState {
 
 export async function convertImageUrlToBase64(url: string): Promise<string> {
   if (!url || url.startsWith('data:image/')) return url;
+  if (!url.startsWith('http://') && !url.startsWith('https://') && !url.startsWith('//')) return url;
+
+  const targetUrl = url.startsWith('//') ? `https:${url}` : url;
 
   try {
-    const res = await fetch(url, { referrerPolicy: 'no-referrer' });
+    const res = await fetch(targetUrl, {
+      method: 'GET',
+      referrerPolicy: 'no-referrer',
+    });
     if (res.ok) {
       const blob = await res.blob();
-      return new Promise((resolve) => {
-        const reader = new FileReader();
-        reader.onloadend = () => resolve(reader.result as string);
-        reader.onerror = () => resolve(url);
-        reader.readAsDataURL(blob);
-      });
+      if (blob && blob.size > 0) {
+        return new Promise((resolve) => {
+          const reader = new FileReader();
+          reader.onloadend = () => {
+            if (typeof reader.result === 'string' && reader.result.startsWith('data:image/')) {
+              resolve(reader.result);
+            } else {
+              resolve(targetUrl);
+            }
+          };
+          reader.onerror = () => resolve(targetUrl);
+          reader.readAsDataURL(blob);
+        });
+      }
     }
   } catch (e) {
     // Fetch failed or blocked by CORS
   }
 
-  return new Promise((resolve) => {
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    img.referrerPolicy = 'no-referrer';
-    img.onload = () => {
-      try {
-        const canvas = document.createElement('canvas');
-        canvas.width = img.naturalWidth || img.width || 300;
-        canvas.height = img.naturalHeight || img.height || 150;
-        const ctx = canvas.getContext('2d');
-        if (ctx) {
-          ctx.drawImage(img, 0, 0);
-          resolve(canvas.toDataURL('image/png'));
-          return;
-        }
-      } catch (e) {}
-      resolve(url);
-    };
-    img.onerror = () => resolve(url);
-    img.src = url;
-  });
+  return targetUrl;
 }
 
 export function cleanJunkHtmlBlocks(html: string): string {
@@ -113,6 +107,10 @@ export function cleanJunkHtmlBlocks(html: string): string {
         }
       } else {
         el.setAttribute('referrerpolicy', 'no-referrer');
+        const alt = el.getAttribute('alt') || '';
+        if (/^captura de pantalla|untitled|image|screenshot/i.test(alt) || alt.endsWith('.png') || alt.endsWith('.jpg')) {
+          el.removeAttribute('alt');
+        }
       }
     });
 
@@ -264,12 +262,14 @@ export function RichNotesEditor({
     const items = Array.from(e.clipboardData.items || []);
     const imageItem = items.find(item => item.type.startsWith('image/'));
 
-    // 1. Capturas o archivos de imágenes directas en el portapapeles (solo si no hay HTML de Notion/Docs)
-    if (!html && imageItem) {
+    // 1. Si hay un archivo directo de imagen en el portapapeles y el HTML no contiene texto real (o es solo un wrapper de imagen)
+    if (imageItem && (!html || !html.includes('<p>') && !html.includes('<span>'))) {
       e.preventDefault();
       const file = imageItem.getAsFile();
-      if (file) handleImageFile(file);
-      return;
+      if (file) {
+        handleImageFile(file);
+        return;
+      }
     }
 
     // 2. Contenido HTML (de Notion, Google Docs, Figma, ChatGPT, etc.)
@@ -284,6 +284,18 @@ export function RichNotesEditor({
       // Formatear imágenes pegadas para que sean interactivas y tengan buen estilo Notion
       const imgs = Array.from(doc.querySelectorAll('img'));
       imgs.forEach(img => {
+        // Extraer src real si Notion usa data-src o enlace padre
+        const realSrc = img.getAttribute('src') || img.getAttribute('data-src') || img.getAttribute('data-original-src') || img.closest('a')?.getAttribute('href');
+        if (realSrc) {
+          img.setAttribute('src', realSrc);
+        }
+
+        // Eliminar textos alt feos tipo "Captura de pantalla..." para que el navegador no muestre cajas con texto feo si tarda la carga
+        const alt = img.getAttribute('alt') || '';
+        if (/^captura de pantalla|untitled|image|screenshot/i.test(alt) || alt.endsWith('.png') || alt.endsWith('.jpg')) {
+          img.removeAttribute('alt');
+        }
+
         img.setAttribute('draggable', 'true');
         img.setAttribute('referrerpolicy', 'no-referrer');
         img.style.maxWidth = '100%';
