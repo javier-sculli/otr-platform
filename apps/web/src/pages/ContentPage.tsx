@@ -12,6 +12,7 @@ import { api } from '../lib/api';
 import { TicketsReferencia } from '../components/TicketsReferencia';
 import { RichNotesEditor } from '../components/RichNotesEditor';
 import { ensureAbsoluteUrl } from '../lib/utils';
+import { getNextStatusForTicket } from '../lib/workflow';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
   'pdfjs-dist/build/pdf.worker.mjs',
@@ -38,17 +39,6 @@ const STATUS_LABELS: Record<string, string> = {
   EDICION: 'Edición', REVISION_INTERNA: 'Revisión Interna', CLIENTE: 'Cliente',
   ESPERANDO_FEEDBACK: 'Esperando feedback', LISTO_PARA_PUBLICAR: 'Listo para publicar',
   PUBLICADO: 'Publicado', CANCELADO: 'Stand-by / Cancelados', LISTO: 'Listo',
-};
-
-const NEXT_STATUS: Record<string, string> = {
-  PENDIENTE: 'REDACCION',
-  REDACCION: 'DISENO',
-  DISENO: 'EDICION',
-  EDICION: 'REVISION_INTERNA',
-  REVISION_INTERNA: 'CLIENTE',
-  CLIENTE: 'ESPERANDO_FEEDBACK',
-  ESPERANDO_FEEDBACK: 'LISTO_PARA_PUBLICAR',
-  LISTO_PARA_PUBLICAR: 'PUBLICADO',
 };
 
 const QUICK_ACTIONS = ['Redactar', 'Reforzar tono', 'Más conciso', 'Regenerar hook'];
@@ -288,7 +278,7 @@ export function ContentPage() {
   });
 
   const ticket = ticketData?.data as any;
-  const nextStatus = ticket?.status ? NEXT_STATUS[ticket.status] : undefined;
+  const nextStatus = getNextStatusForTicket(ticket);
 
   const advanceMutation = useMutation({
     mutationFn: () => api.updateTicket(ticketId!, {
