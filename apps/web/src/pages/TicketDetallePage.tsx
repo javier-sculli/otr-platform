@@ -602,6 +602,20 @@ export function TicketDetallePage() {
                   type="url"
                   value={newLinkInput}
                   onChange={e => setNewLinkInput(e.target.value)}
+                  onPaste={e => {
+                    const pasted = e.clipboardData.getData('text');
+                    if (pasted) {
+                      e.preventDefault();
+                      const url = ensureAbsoluteUrl(pasted.trim());
+                      if (url) {
+                        const current = ticket.links ?? [];
+                        if (!current.includes(url)) {
+                          updateMutation.mutate({ links: [...current, url] });
+                        }
+                        setNewLinkInput('');
+                      }
+                    }
+                  }}
                   onKeyDown={e => {
                     if (e.key === 'Enter') {
                       e.preventDefault();
@@ -615,7 +629,19 @@ export function TicketDetallePage() {
                       }
                     }
                   }}
-                  placeholder="Pegar link y Enter..."
+                  onBlur={() => {
+                    if (newLinkInput.trim()) {
+                      const url = ensureAbsoluteUrl(newLinkInput.trim());
+                      if (url) {
+                        const current = ticket.links ?? [];
+                        if (!current.includes(url)) {
+                          updateMutation.mutate({ links: [...current, url] });
+                        }
+                        setNewLinkInput('');
+                      }
+                    }
+                  }}
+                  placeholder="Pegar link..."
                   className="flex-1 px-3 py-1.5 border-2 border-dashed border-[#000033]/10 rounded-lg text-xs focus:outline-none focus:border-[#024fff]/40 focus:border-solid text-[#000033] hover:border-[#024fff]/30 transition-all placeholder-[#000033]/30"
                 />
                 <button

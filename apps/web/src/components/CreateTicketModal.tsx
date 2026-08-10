@@ -253,22 +253,110 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
 
   const isPending = createMutation.isPending || updateMutation.isPending;
 
-  const handleChange = (field: string, value: string) => {
-    setFormData(prev => ({
-      ...prev,
+  const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'error' | null>(null);
+  const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const formDataRef = useRef(formData);
+  formDataRef.current = formData;
+
+  const performAutoSave = async (overrideData?: Partial<typeof formData>) => {
+    if (!isEditing || !ticket?.id) return;
+    const current = { ...formDataRef.current, ...overrideData };
+    if (!current.title || !current.clientId || !current.ownerId) return;
+
+    const payload: any = {
+      title: current.title,
+      ownerId: current.ownerId,
+      status: current.status,
+      prioridad: current.prioridad,
+      objetivo: current.brief || null,
+      canales: noContenido ? [] : (current.canales.length > 0 ? current.canales : ['LinkedIn']),
+      dueDate: current.dueDate || null,
+      ticketTypeId: current.ticketTypeId || null,
+      tiposContenido: current.tiposContenido,
+      notasGrafica: current.notasGrafica || null,
+      notasAudiovisual: current.notasGrafica || current.notasAudiovisual || null,
+      pilarId: noContenido ? null : (current.pilarId || null),
+      speakerId: noContenido ? null : (current.speakerId || null),
+      links: current.links.map(ensureAbsoluteUrl),
+      linkEntregable: current.linkEntregable ? ensureAbsoluteUrl(current.linkEntregable) : null,
+      content: noContenido ? undefined : (current.content || null),
+      contentPerCanal: noContenido ? undefined : current.contentPerCanal,
+    };
+
+    if (esPrensa) {
+      payload.area = 'PRENSA';
+      payload.subEstado = (ticket as any)?.subEstado ?? 'PENDIENTE';
+      payload.medio = current.medio || null;
+      payload.periodista = current.periodista || null;
+      payload.estadoRespuesta = current.estadoRespuesta || null;
+    }
+
+    setSaveStatus('saving');
+    try {
+      await api.updateTicket(ticket.id, payload);
+      queryClient.invalidateQueries({ queryKey: ['tickets'] });
+      setSaveStatus('saved');
+    } catch (err: any) {
+      setSaveStatus('error');
+    }
+  };
+
+  const triggerDebouncedAutoSave = (overrideData?: Partial<typeof formData>) => {
+    if (!isEditing || !ticket?.id) return;
+    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    setSaveStatus('saving');
+    saveTimeoutRef.current = setTimeout(() => {
+      performAutoSave(overrideData);
+    }, 500);
+  };
+
+  const triggerImmediateAutoSave = (overrideData?: Partial<typeof formData>) => {
+    if (!isEditing || !ticket?.id) return;
+    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    performAutoSave(overrideData);
+  };
+
+  const handleChange = (field: string, value: string, immediate = false) => {
+    const updated = {
+      ...formDataRef.current,
       [field]: value,
       ...(field === 'clientId' ? { pilarId: '', speakerId: '' } : {}),
-    }));
+    };
+    setFormData(updated);
     setError(null);
+    if (isEditing) {
+      if (immediate || ['prioridad', 'ownerId', 'dueDate', 'estadoRespuesta', 'speakerId', 'pilarId', 'ticketTypeId'].includes(field)) {
+        triggerImmediateAutoSave(updated);
+      } else {
+        triggerDebouncedAutoSave(updated);
+      }
+    }
+  };
+
+  const processAndAddLink = (rawText: string) => {
+    const url = ensureAbsoluteUrl(rawText.trim());
+    if (url && !formDataRef.current.links.includes(url)) {
+      const updatedLinks = [...formDataRef.current.links, url];
+      setFormData(prev => ({ ...prev, links: updatedLinks }));
+      setNewLinkInput('');
+      if (isEditing) {
+        triggerImmediateAutoSave({ links: updatedLinks });
+      }
+    } else {
+      setNewLinkInput('');
+    }
   };
 
   const addLink = () => {
-    const rawUrl = newLinkInput.trim();
-    const url = ensureAbsoluteUrl(rawUrl);
-    if (url && !formData.links.includes(url)) {
-      setFormData(prev => ({ ...prev, links: [...prev.links, url] }));
+    processAndAddLink(newLinkInput);
+  };
+
+  const removeLink = (index: number) => {
+    const updatedLinks = formData.links.filter((_, j) => j !== index);
+    setFormData(prev => ({ ...prev, links: updatedLinks }));
+    if (isEditing) {
+      triggerImmediateAutoSave({ links: updatedLinks });
     }
-    setNewLinkInput('');
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -306,12 +394,9 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
       const newCanales = prev.canales.includes(red)
         ? prev.canales.filter((r: string) => r !== red)
         : [...prev.canales, red];
-      if (isEditing && ticket) {
-        api.updateTicket(ticket.id, { canales: newCanales })
-          .then(() => queryClient.invalidateQueries({ queryKey: ['tickets'] }))
-          .catch(() => {});
-      }
-      return { ...prev, canales: newCanales };
+      const updated = { ...prev, canales: newCanales };
+      if (isEditing) triggerImmediateAutoSave(updated);
+      return updated;
     });
   };
 
@@ -348,7 +433,6 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
 
     if (esPrensa) {
       payload.area = 'PRENSA';
-      // subEstado se conserva al editar; nuevo arranca en Pendiente (macro Backlog).
       payload.subEstado = (ticket as any)?.subEstado ?? 'PENDIENTE';
       payload.medio = formData.medio || null;
       payload.periodista = formData.periodista || null;
@@ -376,7 +460,6 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
         const res = await createMutation.mutateAsync({
           ...payload,
           clientId: formData.clientId,
-          // Puede llevar recursos (links a Drive) ya en la creación
           ...(formData.links.length > 0 ? { links: formData.links.map(ensureAbsoluteUrl) } : {}),
         });
         const newId = res?.data?.id;
@@ -389,12 +472,26 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
     }
   };
 
+  const handleVerTicket = async () => {
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+      await performAutoSave();
+    }
+    const id = ticket?.id;
+    handleClose();
+    if (id) navigate(`/piezas/${id}`);
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    submitTicket({ action: 'SAVE' });
+    if (!isEditing) {
+      submitTicket({ action: 'SAVE' });
+    }
   };
 
   const handleClose = () => {
+    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    setSaveStatus(null);
     setFormData(buildFormData(null));
     setError(null);
     if (!isEditing) setAttachedFiles([]);
@@ -414,12 +511,21 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
         <div className="px-5 pt-4 pb-3 flex-shrink-0">
           <div className="flex items-center justify-between">
             <h2 className="text-base font-bold text-[#000033]">{isEditing ? 'Editar' : 'Nuevo'}</h2>
-            <button
-              onClick={handleClose}
-              className="w-7 h-7 rounded-lg hover:bg-[#000033]/5 flex items-center justify-center transition-all text-[#000033]/40 hover:text-[#000033]"
-            >
-              <X className="w-4 h-4" />
-            </button>
+            <div className="flex items-center gap-3">
+              {isEditing && (
+                <span className="text-xs font-medium transition-all">
+                  {saveStatus === 'saving' && <span className="text-[#024fff] flex items-center gap-1.5 font-bold"><span className="w-2 h-2 rounded-full bg-[#024fff] animate-pulse" />Guardando…</span>}
+                  {saveStatus === 'saved' && <span className="text-emerald-600 font-bold flex items-center gap-1"><Check className="w-3.5 h-3.5" />Guardado</span>}
+                  {saveStatus === 'error' && <span className="text-red-500 font-bold">Error al guardar</span>}
+                </span>
+              )}
+              <button
+                onClick={handleClose}
+                className="w-7 h-7 rounded-lg hover:bg-[#000033]/5 flex items-center justify-center transition-all text-[#000033]/40 hover:text-[#000033]"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
           </div>
 
           {/* Tipo de ticket — Prensa muestra chip estático; resto, toggle Pieza/Tarea */}
@@ -770,6 +876,13 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
                   type="url"
                   value={newLinkInput}
                   onChange={e => setNewLinkInput(e.target.value)}
+                  onPaste={e => {
+                    const pasted = e.clipboardData.getData('text');
+                    if (pasted) {
+                      e.preventDefault();
+                      processAndAddLink(pasted);
+                    }
+                  }}
                   onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addLink(); } }}
                   onBlur={addLink}
                   placeholder="https://drive.google.com/..."
@@ -801,7 +914,7 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
                       <ExternalLink className="w-2.5 h-2.5 text-[#024fff]/40 flex-shrink-0" />
                       <button
                         type="button"
-                        onClick={() => setFormData(prev => ({ ...prev, links: prev.links.filter((_, j) => j !== i) }))}
+                        onClick={() => removeLink(i)}
                         className="opacity-0 group-hover:opacity-100 transition-opacity text-[#000033]/30 hover:text-red-400 flex-shrink-0"
                       >
                         <X className="w-3 h-3" />
@@ -876,12 +989,17 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
                   value={currentCopy}
                   onChange={e => {
                     const val = e.target.value;
-                    setFormData(prev => ({
-                      ...prev,
-                      contentPerCanal: { ...prev.contentPerCanal, [currentTab]: val },
-                      content: currentTab === (prev.canales[0] ?? 'LinkedIn') ? val : prev.content,
-                    }));
+                    const nextContentPerCanal = { ...formData.contentPerCanal, [currentTab]: val };
+                    const nextContent = currentTab === (formData.canales[0] ?? 'LinkedIn') ? val : formData.content;
+                    const updated = {
+                      ...formData,
+                      contentPerCanal: nextContentPerCanal,
+                      content: nextContent,
+                    };
+                    setFormData(updated);
+                    if (isEditing) triggerDebouncedAutoSave(updated);
                   }}
+                  onBlur={() => { if (isEditing) triggerImmediateAutoSave(); }}
                   placeholder={`Copy para ${currentTab}...`}
                   className={`${fieldCls} resize-none font-mono`}
                   rows={6}
@@ -900,7 +1018,8 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
               <input
                 type="url"
                 value={formData.linkEntregable}
-                onChange={e => setFormData(prev => ({ ...prev, linkEntregable: e.target.value }))}
+                onChange={e => handleChange('linkEntregable', e.target.value)}
+                onBlur={() => { if (isEditing) triggerImmediateAutoSave(); }}
                 placeholder="https://drive.google.com/..."
                 className={fieldCls}
               />
@@ -940,34 +1059,33 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
             onClick={handleClose}
             className="px-3 py-1.5 text-xs font-bold text-[#000033]/50 hover:text-[#000033] transition-all"
           >
-            Cancelar
+            {isEditing ? 'Cerrar' : 'Cancelar'}
           </button>
 
           <div className="flex items-center gap-2">
-            {/* Ir al ticket — Lleva directo al detalle del ticket */}
-            <button
-              type="button"
-              onClick={() => submitTicket({ action: 'VER_TICKET' })}
-              disabled={isPending}
-              className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold text-[#024fff] bg-white border border-[#024fff]/30 rounded-lg hover:bg-[#024fff]/5 transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <ExternalLink className="w-3.5 h-3.5" />
-              Ir al ticket
-            </button>
-
-            {/* Guardar — Guarda el ticket y te mantiene en el backlog */}
-            <button
-              type="submit"
-              form="ticket-form"
-              disabled={isPending}
-              className={`flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-bold text-white transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed ${
-                esTarea ? 'bg-[#00b87f] hover:bg-[#00a070]' : 'bg-[#024fff] hover:bg-[#024fff]/90'
-              }`}
-            >
-              {isPending ? 'Guardando...' : (
-                <><Check className="w-3.5 h-3.5" />Guardar</>
-              )}
-            </button>
+            {isEditing ? (
+              <button
+                type="button"
+                onClick={handleVerTicket}
+                disabled={isPending}
+                className="px-4 py-2 text-xs font-bold text-white bg-[#024fff] rounded-lg hover:bg-[#024fff]/90 transition-all shadow-md active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Ver Ticket
+              </button>
+            ) : (
+              <button
+                type="submit"
+                form="ticket-form"
+                disabled={isPending}
+                className={`flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-bold text-white transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed ${
+                  esTarea ? 'bg-[#00b87f] hover:bg-[#00a070]' : 'bg-[#024fff] hover:bg-[#024fff]/90'
+                }`}
+              >
+                {isPending ? 'Creando...' : (
+                  <><Check className="w-3.5 h-3.5" />Crear ticket</>
+                )}
+              </button>
+            )}
           </div>
         </div>
       </div>
