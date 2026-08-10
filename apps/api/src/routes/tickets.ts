@@ -187,6 +187,7 @@ export async function ticketsRoutes(fastify: FastifyInstance) {
     if (data.notasGrafica !== undefined) updateData.notasGrafica = data.notasGrafica;
     if (data.tiposContenido !== undefined) updateData.tiposContenido = data.tiposContenido;
     if (data.referenciasGraficas !== undefined) updateData.referenciasGraficas = data.referenciasGraficas;
+    if (data.versionsPerCanal !== undefined) updateData.versionsPerCanal = data.versionsPerCanal;
     // Tickets de referencia (N:N) — máx 3, excluye self, dedup
     if (data.referenceIds !== undefined) {
       const ids = [...new Set(data.referenceIds as string[])]

@@ -270,6 +270,7 @@ model Ticket {
   tiposContenido   String[]      @default([]) @map("tipos_contenido")
   referenciasGraficas Json?      @map("referencias_graficas")
   chatHistory     Json?          @map("chat_history")
+  versionsPerCanal Json?         @default("{}") @map("versions_per_canal")
   createdAt       DateTime       @default(now()) @map("created_at")
   updatedAt    DateTime       @updatedAt @map("updated_at")
 

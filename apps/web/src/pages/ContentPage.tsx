@@ -5,6 +5,7 @@ import {
   ArrowLeft, ArrowRight, Sparkles, Bold, Italic, Underline, List, ListOrdered,
   Link2, Image as ImageIcon, Type, Eye, Send, GripVertical, Check, AlertCircle,
   Paperclip, X, FileText, File, ExternalLink, Mic, MicOff, Trash2, Star, BookOpen, Undo2,
+  History, Copy, RotateCcw,
 } from 'lucide-react';
 import * as pdfjsLib from 'pdfjs-dist';
 import { api } from '../lib/api';
@@ -74,8 +75,33 @@ export function ContentPage() {
   const [canales, setCanales] = useState<string[]>([]);
   const [activeCanal, setActiveCanal] = useState<string>('');
   const [contentPerCanal, setContentPerCanal] = useState<Record<string, string>>({});
-  // Versiones previas por canal (solo en memoria): snapshot antes de cada generación de IA
+  // Versiones previas por canal: snapshot antes de cada generación de IA
   const [versionsPerCanal, setVersionsPerCanal] = useState<Record<string, string[]>>({});
+  const versionsPerCanalRef = useRef<Record<string, string[]>>({});
+
+  const updateVersions = (newVersions: Record<string, string[]>) => {
+    versionsPerCanalRef.current = newVersions;
+    setVersionsPerCanal(newVersions);
+  };
+
+  const getVersionsForCanal = (canal: string): string[] => {
+    if (!canal) return [];
+    if (Array.isArray(versionsPerCanal[canal]) && versionsPerCanal[canal].length > 0) {
+      return versionsPerCanal[canal];
+    }
+    const foundKey = Object.keys(versionsPerCanal).find(k => k.toLowerCase() === canal.toLowerCase());
+    if (foundKey && Array.isArray(versionsPerCanal[foundKey])) {
+      return versionsPerCanal[foundKey];
+    }
+    const keys = Object.keys(versionsPerCanal);
+    if (keys.length === 1 && Array.isArray(versionsPerCanal[keys[0]])) {
+      return versionsPerCanal[keys[0]];
+    }
+    return [];
+  };
+  const [showHistory, setShowHistory] = useState(false);
+  const [historyWidth, setHistoryWidth] = useState(420);
+  const [copiedVersionIndex, setCopiedVersionIndex] = useState<number | null>(null);
 
   const [aiPrompt, setAiPrompt] = useState('');
   const [chatWidth, setChatWidth] = useState(480);
@@ -105,6 +131,7 @@ export function ContentPage() {
 
   const chatEndRef = useRef<HTMLDivElement>(null);
   const resizingRef = useRef(false);
+  const resizingHistoryRef = useRef(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const toggleRecording = () => {
@@ -216,6 +243,18 @@ export function ContentPage() {
         const initialContent = perCanal[initialCanal] ?? '';
         setContentText(initialContent);
         setCharCount(initialContent.length);
+        if (t.versionsPerCanal && typeof t.versionsPerCanal === 'object') {
+          const rawVersions = { ...t.versionsPerCanal as Record<string, string[]> };
+          if (rawVersions['Contenido'] || rawVersions['General']) {
+            const genericVersions = rawVersions['Contenido'] || rawVersions['General'];
+            if (genericVersions?.length > 0 && (!rawVersions[canalList[0]] || rawVersions[canalList[0]].length === 0)) {
+              rawVersions[canalList[0]] = genericVersions;
+            }
+            delete rawVersions['Contenido'];
+            delete rawVersions['General'];
+          }
+          updateVersions(rawVersions);
+        }
         setContentLoaded(true);
       }
 
@@ -237,6 +276,7 @@ export function ContentPage() {
       keywords,
       content: contentText,
       contentPerCanal,
+      versionsPerCanal: versionsPerCanalRef.current,
       links: contextLinks,
       linkEntregable: linkEntregable || null,
     }),
@@ -257,6 +297,7 @@ export function ContentPage() {
       keywords,
       content: contentText,
       contentPerCanal,
+      versionsPerCanal: versionsPerCanalRef.current,
       links: contextLinks,
       linkEntregable: linkEntregable || null,
       notasAudiovisual: notasAudiovisual || null,
@@ -367,10 +408,14 @@ export function ContentPage() {
         });
 
         if (result.newContent !== null) {
-          setVersionsPerCanal(prev => ({
-            ...prev,
-            [activeCanal]: [...(prev[activeCanal] ?? []), contentText],
-          }));
+          const currentVersions = versionsPerCanalRef.current;
+          const canalVersions = currentVersions[activeCanal] ?? [];
+          const updatedVersions = {
+            ...currentVersions,
+            [activeCanal]: [...canalVersions, contentText],
+          };
+          updateVersions(updatedVersions);
+
           const updated = { ...contentPerCanal, [activeCanal]: result.newContent };
           setContentText(result.newContent);
           setCharCount(result.newContent.length);
@@ -382,6 +427,7 @@ export function ContentPage() {
             keywords,
             content: result.newContent,
             contentPerCanal: updated,
+            versionsPerCanal: updatedVersions,
             links: contextLinks,
             linkEntregable: linkEntregable || null,
           }).then(() => {
@@ -409,10 +455,16 @@ export function ContentPage() {
   };
 
   const handleUndo = () => {
-    const stack = versionsPerCanal[activeCanal];
+    const currentVersions = versionsPerCanalRef.current;
+    const stack = currentVersions[activeCanal];
     if (!stack?.length || isAiLoading) return;
     const previous = stack[stack.length - 1];
-    setVersionsPerCanal(prev => ({ ...prev, [activeCanal]: stack.slice(0, -1) }));
+    const updatedVersions = {
+      ...currentVersions,
+      [activeCanal]: stack.slice(0, -1),
+    };
+    updateVersions(updatedVersions);
+
     const updated = { ...contentPerCanal, [activeCanal]: previous };
     setContentText(previous);
     setCharCount(previous.length);
@@ -424,12 +476,57 @@ export function ContentPage() {
       keywords,
       content: previous,
       contentPerCanal: updated,
+      versionsPerCanal: updatedVersions,
       links: contextLinks,
       linkEntregable: linkEntregable || null,
     }).then(() => {
       queryClient.invalidateQueries({ queryKey: ['ticket', ticketId] });
       queryClient.invalidateQueries({ queryKey: ['tickets'] });
     }).catch(() => {});
+  };
+
+  const handleSelectVersion = (versionText: string) => {
+    if (isAiLoading) return;
+    const currentVersions = versionsPerCanalRef.current;
+    let updatedVersions = currentVersions;
+
+    if (contentText && contentText !== versionText) {
+      const stack = currentVersions[activeCanal] || [];
+      if (stack[stack.length - 1] !== contentText) {
+        updatedVersions = {
+          ...currentVersions,
+          [activeCanal]: [...stack, contentText],
+        };
+        updateVersions(updatedVersions);
+      }
+    }
+
+    const updated = { ...contentPerCanal, [activeCanal]: versionText };
+    setContentText(versionText);
+    setCharCount(versionText.length);
+    setContentPerCanal(updated);
+    setHasChanges(false);
+    api.updateTicket(ticketId!, {
+      title,
+      objetivo: brief,
+      keywords,
+      content: versionText,
+      contentPerCanal: updated,
+      versionsPerCanal: updatedVersions,
+      links: contextLinks,
+      linkEntregable: linkEntregable || null,
+    }).then(() => {
+      queryClient.invalidateQueries({ queryKey: ['ticket', ticketId] });
+      queryClient.invalidateQueries({ queryKey: ['tickets'] });
+    }).catch(() => {});
+  };
+
+  const handleCopyVersion = (text: string, index: number) => {
+    navigator.clipboard.writeText(text);
+    setCopiedVersionIndex(index);
+    setTimeout(() => {
+      setCopiedVersionIndex(null);
+    }, 2000);
   };
 
   const handleSendMessage = () => {
@@ -441,12 +538,18 @@ export function ContentPage() {
 
   useEffect(() => {
     const onMouseMove = (e: MouseEvent) => {
-      if (!resizingRef.current) return;
-      const newWidth = e.clientX;
-      if (newWidth >= 220 && newWidth <= 480) setChatWidth(newWidth);
+      if (resizingRef.current) {
+        const newWidth = e.clientX;
+        if (newWidth >= 220 && newWidth <= 600) setChatWidth(newWidth);
+      }
+      if (resizingHistoryRef.current) {
+        const newWidth = window.innerWidth - e.clientX;
+        if (newWidth >= 280 && newWidth <= 800) setHistoryWidth(newWidth);
+      }
     };
     const onMouseUp = () => {
       resizingRef.current = false;
+      resizingHistoryRef.current = false;
       setIsResizing(false);
     };
     document.addEventListener('mousemove', onMouseMove);
@@ -919,12 +1022,29 @@ export function ContentPage() {
               <div className="flex items-center gap-2">
                 <button
                   onClick={handleUndo}
-                  disabled={!versionsPerCanal[activeCanal]?.length || isAiLoading}
+                  disabled={!getVersionsForCanal(activeCanal).length || isAiLoading}
                   title="Volver a la versión anterior del contenido"
                   className="flex items-center gap-1 p-1.5 rounded transition-all text-[#000033]/60 hover:bg-[#000033]/5 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent"
                 >
                   <Undo2 className="w-3.5 h-3.5" />
                   <span className="text-xs font-bold">Deshacer</span>
+                </button>
+                <button
+                  onClick={() => setShowHistory(prev => !prev)}
+                  className={`flex items-center gap-1.5 px-2 py-1 rounded transition-all text-xs font-bold ${
+                    showHistory
+                      ? 'bg-[#024fff]/10 text-[#024fff]'
+                      : 'text-[#000033]/60 hover:bg-[#000033]/5'
+                  }`}
+                  title="Ver historial completo de versiones de este copy"
+                >
+                  <History className="w-3.5 h-3.5" />
+                  <span>Ver historial</span>
+                  {getVersionsForCanal(activeCanal).length > 0 && (
+                    <span className="px-1.5 py-0.2 text-[10px] bg-[#024fff]/15 text-[#024fff] rounded-full font-extrabold">
+                      {getVersionsForCanal(activeCanal).length}
+                    </span>
+                  )}
                 </button>
                 <span className="text-xs text-[#000033]/60">{charCount} caracteres</span>
               </div>
@@ -959,15 +1079,125 @@ export function ContentPage() {
             </div>
           )}
 
-          {/* Editor Area */}
-          <div className="flex-1 overflow-y-auto px-8 py-4 min-h-0">
-            <textarea
-              value={contentText}
-              onChange={handleContentChange}
-              onBlur={() => { if (hasChanges) saveMutation.mutate(); }}
-              className="w-full h-full resize-none border-none outline-none text-[#000033] text-sm leading-relaxed bg-transparent"
-              placeholder="Empieza a escribir o pedile a la IA que genere contenido..."
-            />
+          {/* Editor Area with Optional History Sidebar */}
+          <div className="flex-1 flex min-h-0 overflow-hidden">
+            <div className="flex-1 overflow-y-auto px-8 py-4 min-h-0">
+              <textarea
+                value={contentText}
+                onChange={handleContentChange}
+                onBlur={() => { if (hasChanges) saveMutation.mutate(); }}
+                className="w-full h-full resize-none border-none outline-none text-[#000033] text-sm leading-relaxed bg-transparent"
+                placeholder="Empieza a escribir o pedile a la IA que genere contenido..."
+              />
+            </div>
+
+            {showHistory && (
+              <>
+                {/* Resize Handle for History Sidebar */}
+                <div
+                  onMouseDown={e => {
+                    e.preventDefault();
+                    resizingHistoryRef.current = true;
+                    setIsResizing(true);
+                  }}
+                  className="w-1.5 h-full cursor-col-resize hover:bg-[#024fff]/30 bg-[#000033]/5 transition-colors relative flex-shrink-0 group z-10"
+                >
+                  <div className="absolute top-1/2 -translate-y-1/2 -left-1 w-3.5 h-12 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-white border border-[#000033]/10 rounded shadow-sm">
+                    <GripVertical className="w-3 h-3 text-[#000033]/50" />
+                  </div>
+                </div>
+
+                <div
+                  style={{ width: historyWidth }}
+                  className="bg-[#fafafa] flex flex-col min-h-0 flex-shrink-0 relative border-l border-[#000033]/10"
+                >
+                {/* Sidebar Header */}
+                <div className="p-3 border-b border-[#000033]/10 flex items-center justify-between bg-white flex-shrink-0">
+                  <div className="flex items-center gap-2">
+                    <History className="w-4 h-4 text-[#024fff]" />
+                    <h3 className="text-xs font-bold text-[#000033]">Historial de Versiones</h3>
+                    {activeCanal && (
+                      <span className="px-1.5 py-0.5 text-[10px] font-bold bg-[#024fff]/10 text-[#024fff] rounded">
+                        {activeCanal}
+                      </span>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => setShowHistory(false)}
+                    className="p-1 hover:bg-[#000033]/5 rounded transition-all text-[#000033]/40 hover:text-[#000033]"
+                    title="Cerrar historial"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
+                {/* Sidebar Content */}
+                <div className="flex-1 overflow-y-auto p-3 flex flex-col gap-3 min-h-0">
+                  {getVersionsForCanal(activeCanal).length === 0 ? (
+                    <div className="p-6 text-center text-[#000033]/40 text-xs flex flex-col items-center gap-2 my-auto">
+                      <History className="w-8 h-8 opacity-20" />
+                      <p className="font-medium">No hay versiones anteriores de este contenido.</p>
+                    </div>
+                  ) : (
+                    getVersionsForCanal(activeCanal).map((verText, idx) => {
+                      const verNum = idx + 1;
+                      const isCopied = copiedVersionIndex === idx;
+
+                      return (
+                        <div
+                          key={idx}
+                          className="bg-white rounded-lg border border-[#000033]/10 p-3 shadow-sm hover:border-[#024fff]/30 transition-all flex flex-col gap-2"
+                        >
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="font-bold text-[#000033]/80 text-[11px] uppercase tracking-wider">
+                              Versión {verNum}
+                            </span>
+                            <span className="text-[10px] text-[#000033]/40">
+                              {verText.length} caracteres
+                            </span>
+                          </div>
+
+                          {/* Version Text Box - Selectable */}
+                          <div className="p-3 bg-[#000033]/[0.02] border border-[#000033]/5 rounded text-xs text-[#000033]/90 font-mono leading-relaxed min-h-[120px] max-h-[360px] overflow-y-auto whitespace-pre-wrap select-text">
+                            {verText || <span className="italic text-[#000033]/30">(vacío)</span>}
+                          </div>
+
+                          {/* Actions */}
+                          <div className="flex items-center justify-end gap-1.5 pt-1 border-t border-[#000033]/5">
+                            <button
+                              onClick={() => handleCopyVersion(verText, idx)}
+                              className="flex items-center gap-1 px-2 py-1 rounded text-xs text-[#000033]/70 hover:bg-[#000033]/5 hover:text-[#000033] transition-all font-medium"
+                              title="Copiar texto de esta versión"
+                            >
+                              {isCopied ? (
+                                <>
+                                  <Check className="w-3 h-3 text-emerald-600" />
+                                  <span className="text-emerald-600 font-bold text-[11px]">¡Copiado!</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Copy className="w-3 h-3 text-[#000033]/50" />
+                                  <span className="text-[11px]">Copiar</span>
+                                </>
+                              )}
+                            </button>
+                            <button
+                              onClick={() => handleSelectVersion(verText)}
+                              className="flex items-center gap-1 px-2.5 py-1 bg-[#024fff]/10 hover:bg-[#024fff]/20 text-[#024fff] rounded text-xs font-bold transition-all"
+                              title="Copia esta versión en el brief/editor actual"
+                            >
+                              <RotateCcw className="w-3 h-3" />
+                              <span className="text-[11px]">Usar esta versión</span>
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    }).slice().reverse()
+                  )}
+                </div>
+              </div>
+            </>
+          )}
           </div>
         </div>
       </div>
