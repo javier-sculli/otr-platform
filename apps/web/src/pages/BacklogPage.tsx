@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
@@ -78,7 +78,7 @@ export function BacklogPage() {
     if (savedFilters && Array.isArray(savedFilters.clientesSeleccionados)) {
       return savedFilters.clientesSeleccionados;
     }
-    return preferredIds;
+    return [];
   });
   const [showDropdownClientes, setShowDropdownClientes] = useState(false);
   const [vocerosSeleccionados, setVocerosSeleccionados] = useState<string[]>(() => savedFilters?.vocerosSeleccionados ?? []);
@@ -95,6 +95,17 @@ export function BacklogPage() {
   const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
   const [designModalTicket, setDesignModalTicket] = useState<Ticket | null>(null);
   const [draggedId, setDraggedId] = useState<string | null>(null);
+
+  const effectiveClientIds = useMemo(() => {
+    if (clientesSeleccionados.length > 0) {
+      if (preferredIds.length > 0) {
+        const intersection = clientesSeleccionados.filter(id => preferredIds.includes(id));
+        return intersection.length > 0 ? intersection : preferredIds;
+      }
+      return clientesSeleccionados;
+    }
+    return preferredIds;
+  }, [clientesSeleccionados, preferredIds]);
 
   useEffect(() => {
     sessionStorage.setItem('backlog_filters', JSON.stringify({
@@ -144,8 +155,8 @@ export function BacklogPage() {
     onSettled: () => queryClient.invalidateQueries({ queryKey: ['tickets'] }),
   });
 
-  const ticketsParaVoceros = clientesSeleccionados.length > 0
-    ? allTickets.filter(t => clientesSeleccionados.includes(t.client.id))
+  const ticketsParaVoceros = effectiveClientIds.length > 0
+    ? allTickets.filter(t => effectiveClientIds.includes(t.client.id))
     : allTickets;
 
   const vocerosUnicos = Array.from(
@@ -183,7 +194,7 @@ export function BacklogPage() {
   const ticketsFiltrados = allTickets.filter(t => {
     // Prensa tiene su propia tab (/prensa) — no se mezcla en el backlog de Contenido.
     if (t.area === 'PRENSA') return false;
-    if (clientesSeleccionados.length > 0 && !clientesSeleccionados.includes(t.client.id)) return false;
+    if (effectiveClientIds.length > 0 && !effectiveClientIds.includes(t.client.id)) return false;
     if (filtroTipo === 'TAREA' && t.ticketType?.kind !== 'TAREA') return false;
     if (filtroTipo === 'CONTENIDO' && t.ticketType?.kind === 'TAREA') return false;
     if (vocerosSeleccionados.length > 0 && (!t.speaker || !vocerosSeleccionados.includes(t.speaker.id))) return false;
@@ -221,9 +232,24 @@ export function BacklogPage() {
     ticketsFiltrados.filter(t => t.status === colId);
 
   const toggleCliente = (id: string) => {
-    setClientesSeleccionados(prev =>
-      prev.includes(id) ? prev.filter(c => c !== id) : [...prev, id]
-    );
+    setClientesSeleccionados(prev => {
+      const base = prev.length > 0 && (preferredIds.length === 0 || prev.some(p => preferredIds.includes(p)))
+        ? prev
+        : (effectiveClientIds.length > 0 ? effectiveClientIds : []);
+      if (base.includes(id)) {
+        const next = base.filter((c: string) => c !== id);
+        if (preferredIds.length > 0 && next.length === preferredIds.length && preferredIds.every((p: string) => next.includes(p))) {
+          return [];
+        }
+        return next;
+      } else {
+        const next = [...base, id];
+        if (preferredIds.length > 0 && next.length === preferredIds.length && preferredIds.every((p: string) => next.includes(p))) {
+          return [];
+        }
+        return next;
+      }
+    });
     setVocerosSeleccionados([]);
   };
 
@@ -347,9 +373,9 @@ export function BacklogPage() {
           <div className="flex items-center gap-2">
             <span className="text-xs font-bold text-[#000033]">Cliente:</span>
             <div className="flex items-center gap-2 flex-wrap">
-              {clientesSeleccionados.length > 0 ? (
+              {effectiveClientIds.length > 0 ? (
                 clientes
-                  .filter(c => clientesSeleccionados.includes(c.id))
+                  .filter(c => effectiveClientIds.includes(c.id))
                   .map(c => (
                     <button
                       key={c.id}
@@ -374,15 +400,20 @@ export function BacklogPage() {
                 </button>
                 {showDropdownClientes && (
                   <div className="absolute top-full left-0 mt-1 bg-white border-2 border-[#000033]/20 rounded-lg shadow-lg z-10 min-w-[160px]">
-                    {clientesDisponibles.map(c => (
-                      <button
-                        key={c.id}
-                        onClick={() => { toggleCliente(c.id); setShowDropdownClientes(false); }}
-                        className="block w-full px-3 py-2 text-left text-xs font-bold text-[#000033] hover:bg-[#024fff]/10 hover:text-[#024fff]"
-                      >
-                        {c.name}
-                      </button>
-                    ))}
+                    {clientesDisponibles.map(c => {
+                      const isSelected = effectiveClientIds.includes(c.id);
+                      return (
+                        <button
+                          key={c.id}
+                          onClick={() => { toggleCliente(c.id); setShowDropdownClientes(false); }}
+                          className={`block w-full px-3 py-2 text-left text-xs font-bold transition-colors ${
+                            isSelected ? 'bg-[#024fff]/10 text-[#024fff]' : 'text-[#000033] hover:bg-[#000033]/5'
+                          }`}
+                        >
+                          {isSelected ? `✓ ${c.name}` : c.name}
+                        </button>
+                      );
+                    })}
                   </div>
                 )}
               </div>
