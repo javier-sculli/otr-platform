@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
@@ -57,30 +57,58 @@ const PRIORIDAD_LABEL: Record<string, string> = {
   ALTA: 'Alta', MEDIA: 'Med', BAJA: 'Baja',
 };
 
+const loadSavedBacklogFilters = () => {
+  try {
+    const saved = sessionStorage.getItem('backlog_filters');
+    if (saved) return JSON.parse(saved);
+  } catch (e) {}
+  return null;
+};
+
 export function BacklogPage() {
   const queryClient = useQueryClient();
   const [searchParams] = useSearchParams();
   const { user } = useAuth();
+  const savedFilters = useRef(loadSavedBacklogFilters()).current;
+  const preferredIds = user?.preferredClientIds ?? [];
+
   const [clientesSeleccionados, setClientesSeleccionados] = useState<string[]>(() => {
     const clientId = searchParams.get('clientId');
     if (clientId) return [clientId];
-    return user?.preferredClientIds ?? [];
+    if (savedFilters && Array.isArray(savedFilters.clientesSeleccionados)) {
+      return savedFilters.clientesSeleccionados;
+    }
+    return preferredIds;
   });
   const [showDropdownClientes, setShowDropdownClientes] = useState(false);
-  const [vocerosSeleccionados, setVocerosSeleccionados] = useState<string[]>([]);
+  const [vocerosSeleccionados, setVocerosSeleccionados] = useState<string[]>(() => savedFilters?.vocerosSeleccionados ?? []);
   const [showDropdownVoceros, setShowDropdownVoceros] = useState(false);
-  const [mesesSeleccionados, setMesesSeleccionados] = useState<string[]>(['mes_0']);
-  const [filtroQuick, setFiltroQuick] = useState<'semana' | 'rango' | null>(null);
-  const [filtroTipo, setFiltroTipo] = useState<'TODOS' | 'CONTENIDO' | 'TAREA'>('TODOS');
-  const [busqueda, setBusqueda] = useState('');
+  const [mesesSeleccionados, setMesesSeleccionados] = useState<string[]>(() => savedFilters?.mesesSeleccionados ?? ['mes_0']);
+  const [filtroQuick, setFiltroQuick] = useState<'semana' | 'rango' | null>(() => savedFilters?.filtroQuick ?? null);
+  const [filtroTipo, setFiltroTipo] = useState<'TODOS' | 'CONTENIDO' | 'TAREA'>(() => savedFilters?.filtroTipo ?? 'TODOS');
+  const [busqueda, setBusqueda] = useState(() => savedFilters?.busqueda ?? '');
   const [showBusqueda, setShowBusqueda] = useState(false);
-  const [fechaDesde, setFechaDesde] = useState('');
-  const [fechaHasta, setFechaHasta] = useState('');
-  const [vista, setVista] = useState<'kanban' | 'calendario'>('kanban');
+  const [fechaDesde, setFechaDesde] = useState(() => savedFilters?.fechaDesde ?? '');
+  const [fechaHasta, setFechaHasta] = useState(() => savedFilters?.fechaHasta ?? '');
+  const [vista, setVista] = useState<'kanban' | 'calendario'>(() => savedFilters?.vista ?? 'kanban');
   const [showModalNueva, setShowModalNueva] = useState(false);
   const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
   const [designModalTicket, setDesignModalTicket] = useState<Ticket | null>(null);
   const [draggedId, setDraggedId] = useState<string | null>(null);
+
+  useEffect(() => {
+    sessionStorage.setItem('backlog_filters', JSON.stringify({
+      clientesSeleccionados,
+      vocerosSeleccionados,
+      mesesSeleccionados,
+      filtroQuick,
+      filtroTipo,
+      busqueda,
+      fechaDesde,
+      fechaHasta,
+      vista,
+    }));
+  }, [clientesSeleccionados, vocerosSeleccionados, mesesSeleccionados, filtroQuick, filtroTipo, busqueda, fechaDesde, fechaHasta, vista]);
 
   const { data: ticketsData, isLoading } = useQuery({
     queryKey: ['tickets'],
@@ -91,6 +119,12 @@ export function BacklogPage() {
     queryKey: ['clients'],
     queryFn: () => api.getClients(),
   });
+
+  const allTickets: Ticket[] = ticketsData?.data ?? [];
+  const clientes: Cliente[] = clientesData?.data ?? [];
+  const clientesDisponibles = preferredIds.length > 0
+    ? clientes.filter(c => preferredIds.includes(c.id))
+    : clientes;
 
   const updateStatusMutation = useMutation({
     mutationFn: ({ id, status }: { id: string; status: string }) =>
@@ -109,9 +143,6 @@ export function BacklogPage() {
     },
     onSettled: () => queryClient.invalidateQueries({ queryKey: ['tickets'] }),
   });
-
-  const allTickets: Ticket[] = ticketsData?.data ?? [];
-  const clientes: Cliente[] = clientesData?.data ?? [];
 
   const ticketsParaVoceros = clientesSeleccionados.length > 0
     ? allTickets.filter(t => clientesSeleccionados.includes(t.client.id))
@@ -343,7 +374,7 @@ export function BacklogPage() {
                 </button>
                 {showDropdownClientes && (
                   <div className="absolute top-full left-0 mt-1 bg-white border-2 border-[#000033]/20 rounded-lg shadow-lg z-10 min-w-[160px]">
-                    {clientes.map(c => (
+                    {clientesDisponibles.map(c => (
                       <button
                         key={c.id}
                         onClick={() => { toggleCliente(c.id); setShowDropdownClientes(false); }}

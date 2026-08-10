@@ -7,6 +7,7 @@ import {
   Image as ImageIcon, Paperclip, File, Layers, Newspaper,
 } from 'lucide-react';
 import { api } from '../lib/api';
+import { useAuth } from '../contexts/AuthContext';
 import { TIPO_GESTION_PITCH } from '../lib/estados';
 import { ensureAbsoluteUrl } from '../lib/utils';
 
@@ -119,9 +120,11 @@ function buildFormData(ticket?: TicketData | null, defaultClientId?: string) {
 }
 
 export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO', defaultClientId }: CreateTicketModalProps) {
+  const { user } = useAuth();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const isEditing = !!ticket;
+  const preferredIds = user?.preferredClientIds ?? [];
   const [error, setError] = useState<string | null>(null);
   const [formData, setFormData] = useState(() => buildFormData(ticket, defaultClientId));
   const initTipo = (t?: TicketData | null): 'CONTENIDO' | 'TAREA' | 'PRENSA' => {
@@ -181,6 +184,10 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
     queryFn: () => api.getClients(),
     enabled: isOpen,
   });
+
+  const availableClients = (clients?.data ?? []).filter((c: any) =>
+    preferredIds.length === 0 || preferredIds.includes(c.id) || (isEditing && ticket?.client?.id === c.id)
+  );
 
   const { data: users } = useQuery({
     queryKey: ['users'],
@@ -667,7 +674,7 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
                 className={`${fieldCls} disabled:opacity-60 disabled:cursor-not-allowed`}
               >
                 <option value="">Seleccionar</option>
-                {clients?.data.map((c: any) => (
+                {availableClients.map((c: any) => (
                   <option key={c.id} value={c.id}>{c.name}</option>
                 ))}
               </select>

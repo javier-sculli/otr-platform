@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
@@ -111,36 +111,62 @@ function Seg<T extends string>({ label, opts, value, onChange }: {
   );
 }
 
+const loadSavedPrensaFilters = () => {
+  try {
+    const saved = sessionStorage.getItem('prensa_filters');
+    if (saved) return JSON.parse(saved);
+  } catch (e) {}
+  return null;
+};
+
 export function PrensaBacklogPage() {
   const queryClient = useQueryClient();
   const [searchParams] = useSearchParams();
   const { user } = useAuth();
-  
+  const savedFilters = useRef(loadSavedPrensaFilters()).current;
+  const preferredIds = user?.preferredClientIds ?? [];
+
   // existing filter states
   const [clientesSeleccionados, setClientesSeleccionados] = useState<string[]>(() => {
     const clientId = searchParams.get('clientId');
     if (clientId) return [clientId];
-    return user?.preferredClientIds ?? [];
+    if (savedFilters && Array.isArray(savedFilters.clientesSeleccionados)) {
+      return savedFilters.clientesSeleccionados;
+    }
+    return preferredIds;
   });
   const [showDropdownClientes, setShowDropdownClientes] = useState(false);
-  const [busqueda, setBusqueda] = useState('');
+  const [busqueda, setBusqueda] = useState(() => savedFilters?.busqueda ?? '');
   const [showBusqueda, setShowBusqueda] = useState(false);
   const [showModalNueva, setShowModalNueva] = useState(false);
   const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
   const [draggedId, setDraggedId] = useState<string | null>(null);
 
   // new layout states
-  const [agruparPor, setAgruparPor] = useState<'Estado' | 'Cliente'>('Estado');
-  const [densidad, setDensidad] = useState<'Compacta' | 'Expandida'>('Compacta');
+  const [agruparPor, setAgruparPor] = useState<'Estado' | 'Cliente'>(() => savedFilters?.agruparPor ?? 'Estado');
+  const [densidad, setDensidad] = useState<'Compacta' | 'Expandida'>(() => savedFilters?.densidad ?? 'Compacta');
   const [expandedClientes, setExpandedClientes] = useState<Set<string>>(new Set());
 
   // Date filters states
-  const [mesesSeleccionados, setMesesSeleccionados] = useState<string[]>(['mes_0']);
-  const [filtroQuick, setFiltroQuick] = useState<'hoy' | 'semana' | 'rango' | null>(null);
-  const [fechaDesde, setFechaDesde] = useState('');
-  const [fechaHasta, setFechaHasta] = useState('');
+  const [mesesSeleccionados, setMesesSeleccionados] = useState<string[]>(() => savedFilters?.mesesSeleccionados ?? ['mes_0']);
+  const [filtroQuick, setFiltroQuick] = useState<'hoy' | 'semana' | 'rango' | null>(() => savedFilters?.filtroQuick ?? null);
+  const [fechaDesde, setFechaDesde] = useState(() => savedFilters?.fechaDesde ?? '');
+  const [fechaHasta, setFechaHasta] = useState(() => savedFilters?.fechaHasta ?? '');
   const [expandedFinalizados, setExpandedFinalizados] = useState(false);
   const [showHistorialModal, setShowHistorialModal] = useState(false);
+
+  useEffect(() => {
+    sessionStorage.setItem('prensa_filters', JSON.stringify({
+      clientesSeleccionados,
+      busqueda,
+      agruparPor,
+      densidad,
+      mesesSeleccionados,
+      filtroQuick,
+      fechaDesde,
+      fechaHasta,
+    }));
+  }, [clientesSeleccionados, busqueda, agruparPor, densidad, mesesSeleccionados, filtroQuick, fechaDesde, fechaHasta]);
 
   const { data: ticketsData, isLoading } = useQuery({
     queryKey: ['tickets', 'PRENSA'],
@@ -151,6 +177,12 @@ export function PrensaBacklogPage() {
     queryKey: ['clients'],
     queryFn: () => api.getClients(),
   });
+
+  const allTickets: Ticket[] = ticketsData?.data ?? [];
+  const clientes: Cliente[] = clientesData?.data ?? [];
+  const clientesDisponibles = preferredIds.length > 0
+    ? clientes.filter(c => preferredIds.includes(c.id))
+    : clientes;
 
   const updateSubEstadoMutation = useMutation({
     mutationFn: ({ id, subEstado }: { id: string; subEstado: SubEstado }) =>
@@ -171,9 +203,6 @@ export function PrensaBacklogPage() {
     },
     onSettled: () => queryClient.invalidateQueries({ queryKey: ['tickets'] }),
   });
-
-  const allTickets: Ticket[] = ticketsData?.data ?? [];
-  const clientes: Cliente[] = clientesData?.data ?? [];
 
   // Date ranges calculation
   const ahora = new Date();
@@ -490,7 +519,7 @@ export function PrensaBacklogPage() {
                 </button>
                 {showDropdownClientes && (
                   <div className="absolute top-full left-0 mt-1 bg-white border-2 border-[#000033]/20 rounded-lg shadow-lg z-10 min-w-[160px]">
-                    {clientes.map(c => (
+                    {clientesDisponibles.map(c => (
                       <button
                         key={c.id}
                         onClick={() => { toggleCliente(c.id); setShowDropdownClientes(false); }}
