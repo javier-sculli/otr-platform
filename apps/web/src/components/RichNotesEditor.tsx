@@ -21,11 +21,39 @@ interface SelectedImageState {
   left: number;
 }
 
-export async function convertImageUrlToBase64(url: string): Promise<string> {
-  if (!url || url.startsWith('data:image/')) return url;
-  if (!url.startsWith('http://') && !url.startsWith('https://') && !url.startsWith('//')) return url;
+export function fixNotionImageUrl(src: string): string {
+  if (!src) return '';
 
-  const targetUrl = url.startsWith('//') ? `https:${url}` : url;
+  // Si la URL es relativa de proxy de Notion tipo /image/https%3A%2F%2F... o contiene /image/http
+  if (src.startsWith('/image/') || src.includes('/image/http')) {
+    const parts = src.split('/image/');
+    if (parts.length > 1) {
+      const encoded = parts[1].split('?')[0];
+      try {
+        const decoded = decodeURIComponent(encoded);
+        if (decoded.startsWith('http://') || decoded.startsWith('https://')) {
+          const queryIndex = src.indexOf('?');
+          const queryString = queryIndex !== -1 ? src.substring(queryIndex) : '';
+          return decoded.includes('?') ? decoded : `${decoded}${queryString}`;
+        }
+      } catch (e) {}
+    }
+  }
+
+  // Si es URL relativa tipo /secure.notion-static.com/...
+  if (src.startsWith('/') && !src.startsWith('//')) {
+    return `https://www.notion.so${src}`;
+  }
+
+  return src;
+}
+
+export async function convertImageUrlToBase64(url: string): Promise<string> {
+  const fixedUrl = fixNotionImageUrl(url);
+  if (!fixedUrl || fixedUrl.startsWith('data:image/')) return fixedUrl;
+  if (!fixedUrl.startsWith('http://') && !fixedUrl.startsWith('https://') && !fixedUrl.startsWith('//')) return fixedUrl;
+
+  const targetUrl = fixedUrl.startsWith('//') ? `https:${fixedUrl}` : fixedUrl;
 
   try {
     const res = await fetch(targetUrl, {
@@ -74,7 +102,15 @@ export function cleanJunkHtmlBlocks(html: string): string {
       }
     });
 
-    // 3. Eliminar estilos de fondo inline y clases grises residuales
+    // 3. Eliminar figcaption de capturas de pantalla de Notion
+    doc.querySelectorAll('figcaption, figcaption span, .image-caption').forEach(el => {
+      const text = el.textContent?.trim() || '';
+      if (/^captura de pantalla|untitled|image|screenshot/i.test(text) || text.endsWith('.png') || text.endsWith('.jpg')) {
+        el.remove();
+      }
+    });
+
+    // 4. Eliminar estilos de fondo inline y reparar imágenes de Notion
     doc.querySelectorAll('*').forEach(el => {
       if (el.tagName !== 'IMG') {
         const styleAttr = el.getAttribute('style');
@@ -106,6 +142,11 @@ export function cleanJunkHtmlBlocks(html: string): string {
           }
         }
       } else {
+        const rawSrc = el.getAttribute('src') || el.getAttribute('data-src') || el.getAttribute('data-original-src') || el.closest('a')?.getAttribute('href') || '';
+        const fixedSrc = fixNotionImageUrl(rawSrc);
+        if (fixedSrc && fixedSrc !== el.getAttribute('src')) {
+          el.setAttribute('src', fixedSrc);
+        }
         el.setAttribute('referrerpolicy', 'no-referrer');
         const alt = el.getAttribute('alt') || '';
         if (/^captura de pantalla|untitled|image|screenshot/i.test(alt) || alt.endsWith('.png') || alt.endsWith('.jpg')) {
@@ -284,10 +325,11 @@ export function RichNotesEditor({
       // Formatear imágenes pegadas para que sean interactivas y tengan buen estilo Notion
       const imgs = Array.from(doc.querySelectorAll('img'));
       imgs.forEach(img => {
-        // Extraer src real si Notion usa data-src o enlace padre
-        const realSrc = img.getAttribute('src') || img.getAttribute('data-src') || img.getAttribute('data-original-src') || img.closest('a')?.getAttribute('href');
-        if (realSrc) {
-          img.setAttribute('src', realSrc);
+        // Extraer src real y reparar proxy de Notion (/image/https%3A%2F%2F...)
+        const rawSrc = img.getAttribute('src') || img.getAttribute('data-src') || img.getAttribute('data-original-src') || img.closest('a')?.getAttribute('href') || '';
+        const fixedSrc = fixNotionImageUrl(rawSrc);
+        if (fixedSrc) {
+          img.setAttribute('src', fixedSrc);
         }
 
         // Eliminar textos alt feos tipo "Captura de pantalla..." para que el navegador no muestre cajas con texto feo si tarda la carga
@@ -305,6 +347,14 @@ export function RichNotesEditor({
         img.style.margin = '12px 0';
         img.style.display = 'block';
         img.classList.add('transition-all', 'cursor-pointer', 'hover:shadow-md');
+      });
+
+      // Eliminar figcaption o subtítulos de capturas de pantalla de Notion
+      doc.querySelectorAll('figcaption, figcaption span, .image-caption').forEach(el => {
+        const text = el.textContent?.trim() || '';
+        if (/^captura de pantalla|untitled|image|screenshot/i.test(text) || text.endsWith('.png') || text.endsWith('.jpg')) {
+          el.remove();
+        }
       });
 
       // Formatear enlaces pegados
