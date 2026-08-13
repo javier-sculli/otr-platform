@@ -44,51 +44,7 @@ type AttachedFile = {
 };
 import { api } from '../lib/api';
 import { TicketsReferencia } from '../components/TicketsReferencia';
-import { SUB_DEF, type SubEstado } from '../lib/estados';
-
-const STATUS_OPTIONS = [
-  { value: 'PENDIENTE',           label: 'Pendiente' },
-  { value: 'REDACCION',           label: 'Redacción' },
-  { value: 'DISENO',              label: 'Diseño' },
-  { value: 'EDICION',             label: 'Edición' },
-  { value: 'REVISION_INTERNA',    label: 'Revisión Interna' },
-  { value: 'CLIENTE',             label: 'Cliente' },
-  { value: 'ESPERANDO_FEEDBACK',  label: 'Esperando feedback' },
-  { value: 'LISTO_PARA_PUBLICAR', label: 'Listo para publicar' },
-  { value: 'PUBLICADO',           label: 'Publicado' },
-  { value: 'LISTO',               label: 'Listo (archivado)' },
-  { value: 'CANCELADO',           label: 'Stand-by / Cancelado' },
-];
-
-function getNextStatusInfo(status: string, esPrensa?: boolean, subEstado?: string | null) {
-  if (esPrensa) {
-    const current = subEstado ?? 'PENDIENTE';
-    switch (current) {
-      case 'PENDIENTE':        return { next: 'EN_CURSO', label: 'Ongoing', isPrensa: true };
-      case 'EN_CURSO':         return { next: 'REVISION_INTERNA', label: 'Revisión Interna', isPrensa: true };
-      case 'REVISION_INTERNA': return { next: 'ENVIADO_CLIENTE', label: 'Enviado Cliente', isPrensa: true };
-      case 'ENVIADO_CLIENTE':  return { next: 'LISTO', label: 'Completado', isPrensa: true };
-      case 'LISTO':            return { next: 'PENDIENTE', label: 'Reabrir', isPrensa: true };
-      case 'CANCELADO':        return { next: 'PENDIENTE', label: 'Reabrir', isPrensa: true };
-      default:                 return { next: 'EN_CURSO', label: 'Ongoing', isPrensa: true };
-    }
-  }
-
-  switch (status) {
-    case 'PENDIENTE':           return { next: 'REDACCION', label: 'Redacción' };
-    case 'REDACCION':           return { next: 'DISENO', label: 'Diseño' };
-    case 'DISENO':              return { next: 'EDICION', label: 'Edición' };
-    case 'EDICION':             return { next: 'REVISION_INTERNA', label: 'Revisión Interna' };
-    case 'REVISION_INTERNA':    return { next: 'CLIENTE', label: 'Cliente' };
-    case 'CLIENTE':             return { next: 'ESPERANDO_FEEDBACK', label: 'Esperando feedback' };
-    case 'ESPERANDO_FEEDBACK':  return { next: 'LISTO_PARA_PUBLICAR', label: 'Listo para publicar' };
-    case 'LISTO_PARA_PUBLICAR': return { next: 'PUBLICADO', label: 'Publicado' };
-    case 'PUBLICADO':           return { next: 'LISTO', label: 'Completado' };
-    case 'LISTO':               return { next: 'PENDIENTE', label: 'Reabrir' };
-    case 'CANCELADO':           return { next: 'PENDIENTE', label: 'Reabrir' };
-    default:                    return { next: 'REDACCION', label: 'Redacción' };
-  }
-}
+import { SUB_DEF, STATUS_OPTIONS, getNextStatusInfo, type SubEstado } from '../lib/estados';
 
 function getStatusStyle(status: string, esPrensa?: boolean, subEstado?: string | null) {
   if (esPrensa && subEstado) {

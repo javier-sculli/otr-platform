@@ -83,6 +83,14 @@
   - *Detalle:* Reunión del lunes con diseñadoras, editor y contenidistas para definir el formato mínimo de bajadas.
   - *Estado:* 🟡 Programado (Lunes)
 
+### [2026-08-13] — Botón "Pasar a [próximo estado]" + Dropdown en Modal Popup de Ticket
+- **Desarrollador:** Javier Sculli
+- **Resumen de Avances:**
+  1. **Reutilización de Lógica de Estados (`lib/estados.ts`):** Se centralizó la lógica de transiciones de estado (`getNextStatusInfo`, `STATUS_OPTIONS`, `PRENSA_STATUS_OPTIONS`) en `lib/estados.ts`.
+  2. **Botón Dividido en Modal (`CreateTicketModal.tsx`):** Al abrir/editar un ticket existente desde el popup modal, se incorporó en el footer el botón primario `Pasar a [próximo estado]` junto con el dropdown desplegable para cambiar a cualquier otro estado directamente sin necesidad de navegar a la página del ticket.
+  3. **Auto-actualización Instantánea:** Al cambiar de estado desde el modal popup, se actualiza el estado local y se sincroniza con el backend e invalidan las queries del kanban de forma transparente.
+- **Verificación:** Compilación TypeScript (`pnpm --filter web build`) aprobada exitosamente con 0 errores.
+
 ### [2026-08-13] — Tipos de Entregable "News" y "Blog" en Tarjetas de Tareas
 - **Desarrollador:** Javier Sculli
 - **Resumen de Avances:**

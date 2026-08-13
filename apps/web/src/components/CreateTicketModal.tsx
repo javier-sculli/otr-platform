@@ -4,11 +4,11 @@ import { useNavigate } from 'react-router-dom';
 import {
   X, FileText, CheckSquare, Package, Building2, AlignLeft, Calendar, User,
   Flag, Share2, Link2, Plus, ExternalLink, Check, Copy, ChevronDown,
-  Image as ImageIcon, Paperclip, File, Layers, Newspaper,
+  Image as ImageIcon, Paperclip, File, Layers, Newspaper, ArrowRight,
 } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
-import { TIPO_GESTION_PITCH } from '../lib/estados';
+import { TIPO_GESTION_PITCH, STATUS_OPTIONS, PRENSA_STATUS_OPTIONS, getNextStatusInfo } from '../lib/estados';
 import { ensureAbsoluteUrl, copyHtmlToClipboard } from '../lib/utils';
 import { RichNotesEditor } from './RichNotesEditor';
 
@@ -146,15 +146,44 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
   const [isTiposOpen, setIsTiposOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
+  const [showStatusDropdown, setShowStatusDropdown] = useState(false);
+  const statusDropdownRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
         setIsTiposOpen(false);
       }
+      if (statusDropdownRef.current && !statusDropdownRef.current.contains(e.target as Node)) {
+        setShowStatusDropdown(false);
+      }
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  const handleSelectStatusModal = async (targetStatus: string) => {
+    setShowStatusDropdown(false);
+    if (!ticket?.id) return;
+
+    if (esPrensa) {
+      setFormData(prev => ({ ...prev, subEstado: targetStatus }));
+      await updateMutation.mutateAsync({ subEstado: targetStatus });
+    } else {
+      if (targetStatus === 'LISTO' || targetStatus === 'CANCELADO') {
+        const label = targetStatus === 'LISTO' ? 'Listo (archivado)' : 'Stand-by / Cancelado';
+        if (!window.confirm(`¿Mover a "${label}"?\n\nEl ticket desaparecerá del kanban.`)) return;
+      }
+      setFormData(prev => ({ ...prev, status: targetStatus }));
+      await updateMutation.mutateAsync({ status: targetStatus });
+    }
+  };
+
+  const handleNextStatusClickModal = () => {
+    const currentSub = (ticket as any)?.subEstado ?? formData.estadoRespuesta;
+    const info = getNextStatusInfo(formData.status, esPrensa, currentSub);
+    handleSelectStatusModal(info.next);
+  };
 
   // Re-populate when ticket, isOpen or defaultClientId changes
   useEffect(() => {
@@ -1070,14 +1099,74 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
 
           <div className="flex items-center gap-2">
             {isEditing ? (
-              <button
-                type="button"
-                onClick={handleVerTicket}
-                disabled={isPending}
-                className="px-4 py-2 text-xs font-bold text-white bg-[#024fff] rounded-lg hover:bg-[#024fff]/90 transition-all shadow-md active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Ver Ticket
-              </button>
+              <>
+                {/* Botón cambiar estado: Próximo estado + Dropdown */}
+                {(() => {
+                  const currentSub = (ticket as any)?.subEstado ?? null;
+                  const nextInfo = getNextStatusInfo(formData.status, esPrensa, currentSub);
+                  return (
+                    <div className="relative inline-flex items-center rounded-lg shadow-sm" ref={statusDropdownRef}>
+                      <button
+                        type="button"
+                        onClick={handleNextStatusClickModal}
+                        disabled={isPending}
+                        className="flex items-center gap-1.5 px-3 py-2 bg-[#024fff] text-white font-bold text-xs rounded-l-lg hover:bg-[#024fff]/90 transition-all active:scale-95 disabled:opacity-50"
+                      >
+                        <ArrowRight className="w-3.5 h-3.5" />
+                        <span>Pasar a {nextInfo.label}</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setShowStatusDropdown(!showStatusDropdown)}
+                        disabled={isPending}
+                        className="px-2 py-2 bg-[#024fff] border-l border-white/25 text-white rounded-r-lg hover:bg-[#024fff]/90 transition-all disabled:opacity-50"
+                        title="Cambiar a otro estado..."
+                      >
+                        <ChevronDown className="w-3.5 h-3.5" />
+                      </button>
+
+                      {/* Popover desplegable hacia arriba */}
+                      {showStatusDropdown && (
+                        <div className="absolute right-0 bottom-full mb-2 w-56 bg-white border-2 border-[#000033]/15 rounded-xl shadow-xl z-50 py-1 overflow-hidden">
+                          <div className="px-3 py-1.5 border-b border-[#000033]/10 text-[10px] font-bold text-[#000033]/40 uppercase tracking-wider">
+                            Cambiar estado a:
+                          </div>
+                          <div className="max-h-64 overflow-y-auto">
+                            {(esPrensa ? PRENSA_STATUS_OPTIONS : STATUS_OPTIONS).map(opt => {
+                              const isCurrent = esPrensa
+                                ? (currentSub ?? 'PENDIENTE') === opt.value
+                                : formData.status === opt.value;
+                              return (
+                                <button
+                                  key={opt.value}
+                                  type="button"
+                                  onClick={() => handleSelectStatusModal(opt.value)}
+                                  className={`w-full text-left px-3 py-2 text-xs font-medium flex items-center justify-between hover:bg-[#024fff]/5 transition-all ${
+                                    isCurrent ? 'text-[#024fff] font-bold bg-[#024fff]/5' : 'text-[#000033]/80'
+                                  }`}
+                                >
+                                  <span>{opt.label}</span>
+                                  {isCurrent && <Check className="w-3.5 h-3.5 text-[#024fff]" />}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
+
+                <button
+                  type="button"
+                  onClick={handleVerTicket}
+                  disabled={isPending}
+                  className="px-4 py-2 text-xs font-bold text-[#024fff] border-2 border-[#024fff]/30 bg-[#024fff]/5 rounded-lg hover:bg-[#024fff]/10 transition-all shadow-sm active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  Ver Ticket
+                </button>
+              </>
             ) : (
               <button
                 type="submit"
