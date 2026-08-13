@@ -198,6 +198,16 @@
   3. **Fecha Vacía por Defecto:** Todas las piezas duplicadas nacen con la fecha de publicación vacía (`plannedDate: null`), manteniéndose visibles en la tabla para ser agendadas cuando corresponda.
 - **Verificación:** Compilación TypeScript (`pnpm --filter web build`) aprobada exitosamente.
 
+### [2026-08-13] — Separación de "Imagen" y "Placa con diseño" como Tipos de Contenido Distintos
+- **Desarrollador:** Antigravity (Pair Programming con Javier Sculli)
+- **Resumen de Avances:**
+  1. **Tipos de Contenido Independientes:** Se separaron formalmente los formatos **"Imagen"** (foto / imagen estática sin diseño gráfico) y **"Placa con diseño"** (gráfica / placa de diseño) en el motor de workflow (`apps/web/src/lib/workflow.ts`).
+  2. **Reglas de Workflow Diferenciadas:**
+     - **Imagen:** `requiresDesign` evalúa a `false`, permitiendo saltear las etapas de Diseño y Edición (`REDACCION -> REVISION_INTERNA`).
+     - **Placa con diseño:** `requiresDesign` evalúa a `true`, asegurando el paso secuencial por la etapa de Diseño Gráfico (`REDACCION -> DISENO -> REVISION_INTERNA`).
+  3. **Seeds de la Base de Datos:** Se actualizaron los datos semilla (`apps/api/prisma/seed.ts`) para incluir explícitamente `Imagen` y `Placa con diseño` entre los `TicketType` de tipo `CONTENIDO`.
+- **Verificación:** Typecheck y compilación validados correctamente.
+
 ### [2026-07-31] — Fix: Asignación de Fecha al Período Activo en Copias (Caso Andén / Mili)
 - **Desarrollador:** Javier Sculli
 - **Resumen de Avances:**

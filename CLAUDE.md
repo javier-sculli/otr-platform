@@ -58,7 +58,7 @@ Sistema de gestión de producción de contenido para On The Rocks (OTR), una age
 
 ## Contenido vs Tareas — feature en curso (nomenclatura + fases)
 **Nomenclatura (decisión):**
-- **Contenido** = piezas publicables en redes (carrusel, imagen, story, reel, texto, hilo, repost, álbum, blog, **newsletter**). El newsletter ES Contenido, no Tarea.
+- **Contenido** = piezas publicables en redes (carrusel, imagen estática, placa con diseño, story, reel, texto, hilo, repost, álbum, blog, **newsletter**). La **Imagen** (foto estática sin diseño) y la **Placa con diseño** (gráfica) son tipos distintos: Imagen saltea la etapa de Diseño; Placa con diseño pasa por la etapa de Diseño.
 - **Tareas** = otros entregables no-contenido / no publicables (deck, estrategia, reporte, diseño puntual, otro). Antes lo llamábamos "tarea genérica".
 - En el modelo actual, **una Tarea = un `Ticket` con un `TicketType` no-contenido** que cierra en `ENTREGADO`. Reusa la infraestructura existente; NO es un modelo nuevo.
 

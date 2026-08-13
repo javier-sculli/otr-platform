@@ -9,7 +9,7 @@
 
 // Formatos explícitos que NO pasan por diseño ni audiovisual (saltean Diseño y Edición)
 const NO_DISENO_FORMATS = [
-  'imagen', 'imagen / gráfica', 'imagen / grafica',
+  'imagen', 'imagen estática', 'imagen estatica',
   'álbum de fotos', 'album de fotos', 'álbum', 'album',
   'hilo', 'texto solo', 'texto', 'repost',
   'blog', 'news', 'newsletter', 'deck', 'estrategia', 'reporte', 'otro',
@@ -43,8 +43,12 @@ export function requiresDesign(tiposContenido?: string[]): boolean {
 
   return tiposContenido.some(t => {
     const lower = t.toLowerCase().trim();
-    // Excluir explícitamente los formatos de la Regla 3 que no van a diseño
-    if (NO_DISENO_FORMATS.some(nd => lower === nd || (lower.startsWith('imagen') && !lower.includes('placa')))) {
+    // Si contiene "placa", "diseño" o "diseno", requiere diseño gráfico
+    if (lower.includes('placa') || lower.includes('diseño') || lower.includes('diseno')) {
+      return true;
+    }
+    // Excluir explícitamente los formatos de la Regla 3 que no van a diseño (ej: imagen pura / foto)
+    if (NO_DISENO_FORMATS.some(nd => lower === nd || (lower.startsWith('imagen') && !lower.includes('placa') && !lower.includes('diseño') && !lower.includes('diseno')))) {
       return false;
     }
     return FORMATOS_DISENO.some(d => lower.includes(d));

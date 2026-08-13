@@ -72,23 +72,31 @@ async function main() {
   console.log('✅ Clients created');
 
   // Create ticket types
-  const typePost = await prisma.ticketType.upsert({
-    where: { name_kind: { name: 'Post RRSS', kind: 'CONTENIDO' } },
-    update: {},
-    create: { name: 'Post RRSS', kind: 'CONTENIDO' },
-  });
+  const defaultContenidoTypes = [
+    'Carrusel',
+    'Imagen',
+    'Placa con diseño',
+    'Story',
+    'Reel',
+    'Video',
+    'Artículo Blog',
+    'Hilo',
+    'Texto',
+    'Repost',
+    'Newsletter',
+  ];
 
-  const typeArticulo = await prisma.ticketType.upsert({
-    where: { name_kind: { name: 'Artículo Blog', kind: 'CONTENIDO' } },
-    update: {},
-    create: { name: 'Artículo Blog', kind: 'CONTENIDO' },
-  });
+  for (const name of defaultContenidoTypes) {
+    await prisma.ticketType.upsert({
+      where: { name_kind: { name, kind: 'CONTENIDO' } },
+      update: {},
+      create: { name, kind: 'CONTENIDO' },
+    });
+  }
 
-  const typeVideo = await prisma.ticketType.upsert({
-    where: { name_kind: { name: 'Video', kind: 'CONTENIDO' } },
-    update: {},
-    create: { name: 'Video', kind: 'CONTENIDO' },
-  });
+  const typePost = await prisma.ticketType.findFirst({ where: { name: 'Carrusel', kind: 'CONTENIDO' } });
+  const typeArticulo = await prisma.ticketType.findFirst({ where: { name: 'Artículo Blog', kind: 'CONTENIDO' } });
+  const typeVideo = await prisma.ticketType.findFirst({ where: { name: 'Video', kind: 'CONTENIDO' } });
 
   console.log('✅ Ticket types created');
 
@@ -102,7 +110,7 @@ async function main() {
       clientId: clientA.id,
       ownerId: userAdmin.id,
       areaId: areaContenido.id,
-      ticketTypeId: typePost.id,
+      ticketTypeId: typePost?.id,
       status: 'CONTENIDO',
       prioridad: 'ALTA',
       dueDate: new Date('2026-03-12'),
@@ -119,7 +127,7 @@ async function main() {
       clientId: clientB.id,
       ownerId: userContenidista.id,
       areaId: areaContenido.id,
-      ticketTypeId: typePost.id,
+      ticketTypeId: typePost?.id,
       status: 'BACKLOG',
       prioridad: 'MEDIA',
       dueDate: new Date('2026-03-15'),
@@ -134,7 +142,7 @@ async function main() {
       clientId: clientA.id,
       ownerId: userContenidista.id,
       areaId: areaContenido.id,
-      ticketTypeId: typePost.id,
+      ticketTypeId: typePost?.id,
       status: 'APROBADO',
       prioridad: 'MEDIA',
       dueDate: new Date('2026-03-08'),
@@ -150,7 +158,7 @@ async function main() {
       clientId: clientB.id,
       ownerId: userAdmin.id,
       areaId: areaContenido.id,
-      ticketTypeId: typeVideo.id,
+      ticketTypeId: typeVideo?.id,
       status: 'DISENO',
       prioridad: 'ALTA',
       dueDate: new Date('2026-03-18'),
@@ -165,7 +173,7 @@ async function main() {
       clientId: clientB.id,
       ownerId: userContenidista.id,
       areaId: areaContenido.id,
-      ticketTypeId: typeArticulo.id,
+      ticketTypeId: typeArticulo?.id,
       status: 'BRIEF',
       prioridad: 'BAJA',
       dueDate: new Date('2026-03-20'),
