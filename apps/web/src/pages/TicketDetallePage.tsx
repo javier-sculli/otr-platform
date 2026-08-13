@@ -44,6 +44,7 @@ type AttachedFile = {
 };
 import { api } from '../lib/api';
 import { TicketsReferencia } from '../components/TicketsReferencia';
+import { ResponsablesSelect } from '../components/ResponsablesSelect';
 import { SUB_DEF, STATUS_OPTIONS, getNextStatusInfo, type SubEstado } from '../lib/estados';
 
 function getStatusStyle(status: string, esPrensa?: boolean, subEstado?: string | null) {
@@ -466,9 +467,19 @@ export function TicketDetallePage() {
               </div>
             )}
             <div className="h-3.5 w-px bg-[#000033]/20" />
-            <div className="flex items-center gap-1 text-xs text-[#000033]/60">
-              <User className="w-3.5 h-3.5" />
-              <span>{ticket.owner?.name}</span>
+            <div className="flex items-center gap-1.5 text-xs text-[#000033]/60 flex-wrap">
+              <User className="w-3.5 h-3.5 text-[#000033]/40" />
+              {(Array.isArray((ticket as any).assignees)
+                ? (ticket as any).assignees
+                : ticket.owner ? [ticket.owner] : []
+              ).map((u: any) => (
+                <span key={u.id} className="inline-flex items-center gap-1 px-2 py-0.5 bg-[#024fff]/10 text-[#024fff] border border-[#024fff]/20 text-xs font-bold rounded-md">
+                  <span className="w-3.5 h-3.5 rounded-full bg-[#024fff]/20 flex items-center justify-center text-[9px] font-extrabold text-[#024fff]">
+                    {u.name ? u.name.charAt(0).toUpperCase() : '?'}
+                  </span>
+                  {u.name}
+                </span>
+              ))}
             </div>
             {ticket.dueDate && (
               <div className="flex items-center gap-1 text-xs text-[#000033]/60">
@@ -939,6 +950,25 @@ export function TicketDetallePage() {
                   </button>
                 </div>
               </div>
+            </div>
+
+            {/* Responsables */}
+            <div className="bg-white border-2 border-[#000033]/10 rounded-lg p-5">
+              <h3 className="text-xs font-bold text-[#000033] uppercase flex items-center gap-2 mb-3">
+                <User className="w-3.5 h-3.5 text-[#024fff]" />
+                Responsables
+              </h3>
+              <ResponsablesSelect
+                users={allUsers}
+                selectedIds={Array.isArray((ticket as any).assigneeIds) ? (ticket as any).assigneeIds : (ticket.owner?.id ? [ticket.owner.id] : [])}
+                onChange={(ids) => {
+                  updateMutation.mutate({
+                    assigneeIds: ids,
+                    ownerId: ids[0] ?? ticket.ownerId,
+                  });
+                }}
+                placeholder="Asignar responsables"
+              />
             </div>
 
             {/* Historial */}

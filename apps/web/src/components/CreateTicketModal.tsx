@@ -11,6 +11,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { TIPO_GESTION_PITCH, STATUS_OPTIONS, PRENSA_STATUS_OPTIONS, getNextStatusInfo } from '../lib/estados';
 import { ensureAbsoluteUrl, copyHtmlToClipboard } from '../lib/utils';
 import { RichNotesEditor } from './RichNotesEditor';
+import { ResponsablesSelect } from './ResponsablesSelect';
 
 type AttachedFile = {
   id: string;
@@ -37,6 +38,8 @@ interface TicketData {
   tiposContenido?: string[];
   client: { id: string; name: string };
   owner: { id: string; name: string };
+  assigneeIds?: string[];
+  assignees?: { id: string; name: string }[];
   area?: string;
   subEstado?: string | null;
   medio?: string | null;
@@ -74,6 +77,7 @@ function buildFormData(ticket?: TicketData | null, defaultClientId?: string) {
       canales: [] as string[],
       clientId: defaultClientId ?? '',
       ownerId: '',
+      assigneeIds: [] as string[],
       ticketTypeId: '',
       tiposContenido: [] as string[],
       notasGrafica: '',
@@ -95,12 +99,16 @@ function buildFormData(ticket?: TicketData | null, defaultClientId?: string) {
   const initialTipos = (ticket as any).tiposContenido?.length > 0
     ? (ticket as any).tiposContenido
     : (ticket.ticketType?.name ? [ticket.ticketType.name] : []);
+  const initialAssignees = Array.isArray((ticket as any).assigneeIds)
+    ? (ticket as any).assigneeIds
+    : (ticket.owner?.id ? [ticket.owner.id] : []);
   return {
     title: ticket.title,
     brief: ticket.objetivo ?? '',
     canales: (ticket as any).canales?.length > 0 ? (ticket as any).canales : [],
     clientId: ticket.client.id,
     ownerId: ticket.owner.id,
+    assigneeIds: initialAssignees,
     ticketTypeId: ticket.ticketType?.id ?? '',
     tiposContenido: initialTipos,
     notasGrafica: (ticket as any).notasGrafica ?? (ticket as any).notasAudiovisual ?? '',
@@ -298,11 +306,13 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
   const performAutoSave = async (overrideData?: Partial<typeof formData>) => {
     if (!isEditing || !ticket?.id) return;
     const current = { ...formDataRef.current, ...overrideData };
-    if (!current.title || !current.clientId || !current.ownerId) return;
+    const primaryOwner = current.ownerId || current.assigneeIds?.[0];
+    if (!current.title || !current.clientId || !primaryOwner) return;
 
     const payload: any = {
       title: current.title,
-      ownerId: current.ownerId,
+      ownerId: primaryOwner,
+      assigneeIds: current.assigneeIds || [],
       status: current.status,
       prioridad: current.prioridad,
       objetivo: current.brief || null,
@@ -332,6 +342,7 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
     try {
       await api.updateTicket(ticket.id, payload);
       queryClient.invalidateQueries({ queryKey: ['tickets'] });
+      queryClient.invalidateQueries({ queryKey: ['ticket', ticket.id] });
       setSaveStatus('saved');
     } catch (err: any) {
       setSaveStatus('error');
@@ -447,14 +458,16 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
   const submitTicket = async ({ action }: { action: 'SAVE' | 'REDACTAR' | 'VER_TICKET' }) => {
     setError(null);
 
-    if (!formData.title || !formData.clientId || !formData.ownerId) {
+    const primaryOwner = formData.ownerId || formData.assigneeIds?.[0];
+    if (!formData.title || !formData.clientId || !primaryOwner) {
       setError('Completá los campos requeridos: nombre, cliente y responsable');
       return;
     }
 
     const payload: any = {
       title: formData.title,
-      ownerId: formData.ownerId,
+      ownerId: primaryOwner,
+      assigneeIds: formData.assigneeIds || [],
       status: formData.status,
       prioridad: formData.prioridad,
       objetivo: formData.brief || null,
@@ -802,18 +815,24 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
             <div>
               <label className={labelCls}>
                 <User className="w-3 h-3" />
-                {noContenido ? 'Responsable' : 'Owner'}
+                {noContenido ? 'Responsables' : 'Owners / Responsables'}
               </label>
-              <select
-                value={formData.ownerId}
-                onChange={e => handleChange('ownerId', e.target.value)}
-                className={fieldCls}
-              >
-                <option value="">Asignar</option>
-                {users?.data.map((u: any) => (
-                  <option key={u.id} value={u.id}>{u.name}</option>
-                ))}
-              </select>
+              <ResponsablesSelect
+                users={users?.data ?? []}
+                selectedIds={formData.assigneeIds}
+                onChange={ids => {
+                  setFormData(prev => ({
+                    ...prev,
+                    assigneeIds: ids,
+                    ownerId: ids[0] ?? prev.ownerId,
+                  }));
+                  performAutoSave({
+                    assigneeIds: ids,
+                    ownerId: ids[0] ?? formDataRef.current.ownerId,
+                  });
+                }}
+                placeholder={noContenido ? 'Asignar responsables' : 'Asignar owners'}
+              />
             </div>
           </div>
 

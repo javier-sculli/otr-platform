@@ -23,6 +23,8 @@ interface Ticket {
   links: string[];
   linkEntregable?: string | null;
   owner: { id: string; name: string };
+  assigneeIds?: string[];
+  assignees?: { id: string; name: string }[];
   client: { id: string; name: string };
   ticketType?: { id: string; name: string; kind?: string } | null;
   speaker?: { id: string; nombre: string } | null;
@@ -707,15 +709,22 @@ function TicketCard({
       ) : null}
 
       <div className="flex items-center justify-between text-xs">
-        <div className="flex items-center gap-1">
-          <div className="w-4 h-4 rounded-full bg-[#024fff]/10 flex items-center justify-center flex-shrink-0">
-            <span className="text-xs font-bold text-[#024fff] leading-none">
-              {ticket.owner.name.charAt(0).toUpperCase()}
-            </span>
-          </div>
-          <span className="font-bold text-[#000033] truncate max-w-[70px]">
-            {ticket.owner.name.split(' ')[0]}
-          </span>
+        <div className="flex items-center gap-1 flex-wrap">
+          {(ticket.assignees && ticket.assignees.length > 0
+            ? ticket.assignees
+            : ticket.owner ? [ticket.owner] : []
+          ).map((u: any) => (
+            <div key={u.id} className="flex items-center gap-1 bg-[#024fff]/10 px-1.5 py-0.5 rounded border border-[#024fff]/20" title={u.name}>
+              <div className="w-3.5 h-3.5 rounded-full bg-[#024fff]/20 flex items-center justify-center flex-shrink-0">
+                <span className="text-[8px] font-extrabold text-[#024fff] leading-none">
+                  {u.name ? u.name.charAt(0).toUpperCase() : '?'}
+                </span>
+              </div>
+              <span className="font-bold text-[#024fff] text-[10px] truncate max-w-[65px]">
+                {u.name ? u.name.split(' ')[0] : ''}
+              </span>
+            </div>
+          ))}
         </div>
         <div className="flex items-center gap-1.5">
           {ticket.dueDate && (

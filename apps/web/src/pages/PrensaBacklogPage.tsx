@@ -1149,13 +1149,22 @@ function TicketCard({
       )}
 
       <div className="flex items-center justify-between text-xs mt-3">
-        <div className="flex items-center gap-1.5">
-          <div className="w-5 h-5 rounded-full bg-violet-50 flex items-center justify-center text-[9px] font-bold text-violet-600 flex-shrink-0">
-            {ticket.owner.name.charAt(0).toUpperCase()}
-          </div>
-          <span className="text-[11px] font-medium text-[#000033]/50 truncate max-w-[70px]">
-            {ticket.owner.name.split(' ')[0]}
-          </span>
+        <div className="flex items-center gap-1 flex-wrap">
+          {((ticket as any).assignees && (ticket as any).assignees.length > 0
+            ? (ticket as any).assignees
+            : ticket.owner ? [ticket.owner] : []
+          ).map((u: any) => (
+            <div key={u.id} className="flex items-center gap-1 bg-violet-50 px-1.5 py-0.5 rounded border border-violet-200" title={u.name}>
+              <div className="w-3.5 h-3.5 rounded-full bg-violet-100 flex items-center justify-center flex-shrink-0">
+                <span className="text-[8px] font-extrabold text-violet-700 leading-none">
+                  {u.name ? u.name.charAt(0).toUpperCase() : '?'}
+                </span>
+              </div>
+              <span className="font-bold text-violet-700 text-[10px] truncate max-w-[65px]">
+                {u.name ? u.name.split(' ')[0] : ''}
+              </span>
+            </div>
+          ))}
         </div>
         <div className="flex flex-col items-end gap-0.5">
           {ticket.dueDate && (

@@ -198,6 +198,15 @@
   3. **Fecha Vacía por Defecto:** Todas las piezas duplicadas nacen con la fecha de publicación vacía (`plannedDate: null`), manteniéndose visibles en la tabla para ser agendadas cuando corresponda.
 - **Verificación:** Compilación TypeScript (`pnpm --filter web build`) aprobada exitosamente.
 
+### [2026-08-13] — Múltiples Responsables por Tarea / Ticket con Formato Notion
+- **Desarrollador:** Antigravity (Pair Programming con Javier Sculli)
+- **Resumen de Avances:**
+  1. **Modelo de Datos y Schemas:** Se agregó el campo `assigneeIds String[] @default([])` en el modelo `Ticket` de Prisma (`schema.prisma`) y se actualizaron los tipos e interfaces compartidas (`@otr/types` y `@otr/schemas`) manteniendo compatibilidad con `ownerId`.
+  2. **API Backend (`apps/api/src/routes/tickets.ts`):** Se incorporó el helper `attachAssignees` para guardar, actualizar y devolver el arreglo `assignees: User[]` enriquecido en las respuestas `GET`, `POST` y `PATCH`.
+  3. **Componente Selector Estilo Notion (`ResponsablesSelect.tsx`):** Se implementó un selector multi-responsable de estética Notion con etiquetas/badges contiguas (avatar con iniciales, nombre y botón `x` de remoción) más popover desplegable con buscador.
+  4. **Integración en Pantallas y Tableros:** Se actualizaron `CreateTicketModal.tsx`, `TicketDetallePage.tsx`, `BacklogPage.tsx` (cards kanban), `PrensaBacklogPage.tsx` y `CalendarioBacklog.tsx` para seleccionar y visualizar múltiples responsables.
+- **Verificación:** Typecheck de TypeScript verificado exitosamente en todo el monorepo (`pnpm typecheck` exited 0) y migración aplicada en PostgreSQL.
+
 ### [2026-08-13] — Separación de "Imagen" y "Placa con diseño" como Tipos de Contenido Distintos
 - **Desarrollador:** Antigravity (Pair Programming con Javier Sculli)
 - **Resumen de Avances:**

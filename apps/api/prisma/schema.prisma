@@ -239,6 +239,7 @@ model Ticket {
   canales      String[]       @default([])
   clientId     String         @map("client_id")
   ownerId      String         @map("owner_id")
+  assigneeIds  String[]       @default([]) @map("assignee_ids")
   ticketTypeId String?        @map("ticket_type_id")
   pilarId      String?        @map("pilar_id")
   speakerId    String?        @map("speaker_id")

@@ -14,6 +14,36 @@ const SUBESTADO_TO_MACRO: Record<string, string> = {
   CANCELADO: 'FINALIZADO',
 };
 
+async function attachAssignees(tickets: any[]) {
+  if (!tickets || tickets.length === 0) return tickets;
+  const allUserIds = new Set<string>();
+  tickets.forEach(t => {
+    if (Array.isArray(t.assigneeIds) && t.assigneeIds.length > 0) {
+      t.assigneeIds.forEach((id: string) => id && allUserIds.add(id));
+    }
+    if (t.ownerId) {
+      allUserIds.add(t.ownerId);
+    }
+  });
+
+  const usersMap = new Map<string, any>();
+  if (allUserIds.size > 0) {
+    const users = await prisma.user.findMany({
+      where: { id: { in: Array.from(allUserIds) } },
+      select: { id: true, name: true, email: true, role: true },
+    });
+    users.forEach(u => usersMap.set(u.id, u));
+  }
+
+  return tickets.map(t => {
+    const rawIds: string[] = (Array.isArray(t.assigneeIds) && t.assigneeIds.length > 0)
+      ? t.assigneeIds
+      : (t.ownerId ? [t.ownerId] : []);
+    const assignees = rawIds.map(id => usersMap.get(id) || (id === t.ownerId ? t.owner : null)).filter(Boolean);
+    return { ...t, assigneeIds: rawIds, assignees };
+  });
+}
+
 export async function ticketsRoutes(fastify: FastifyInstance) {
   // All routes require authentication
   fastify.addHook('preHandler', authenticate);
@@ -63,7 +93,8 @@ export async function ticketsRoutes(fastify: FastifyInstance) {
       orderBy,
     });
 
-    return { data: tickets };
+    const data = await attachAssignees(tickets);
+    return { data };
   });
 
   // Get single ticket
@@ -95,12 +126,18 @@ export async function ticketsRoutes(fastify: FastifyInstance) {
       throw new Error('Ticket not found');
     }
 
-    return { data: ticket };
+    const [enriched] = await attachAssignees([ticket]);
+    return { data: enriched };
   });
 
   // Create ticket
   fastify.post('/', async (request) => {
     const data = request.body as any;
+
+    const initialAssigneeIds = (Array.isArray(data.assigneeIds) && data.assigneeIds.length > 0)
+      ? data.assigneeIds
+      : (data.ownerId ? [data.ownerId] : []);
+    const primaryOwnerId = data.ownerId || initialAssigneeIds[0];
 
     const ticket = await prisma.ticket.create({
       data: {
@@ -110,7 +147,8 @@ export async function ticketsRoutes(fastify: FastifyInstance) {
         canales: (data.canales && data.canales.length > 0) ? data.canales : (data.canal ? [data.canal] : (data.area === 'PRENSA' ? [] : ['LinkedIn'])),
         prioridad: data.prioridad || 'MEDIA',
         clientId: data.clientId,
-        ownerId: data.ownerId,
+        ownerId: primaryOwnerId,
+        assigneeIds: initialAssigneeIds,
         ticketTypeId: data.ticketTypeId || null,
         pilarId: data.pilarId || null,
         speakerId: data.speakerId || null,
@@ -140,7 +178,8 @@ export async function ticketsRoutes(fastify: FastifyInstance) {
       },
     });
 
-    return { data: ticket };
+    const [enriched] = await attachAssignees([ticket]);
+    return { data: enriched };
   });
 
   // Update ticket
@@ -158,6 +197,13 @@ export async function ticketsRoutes(fastify: FastifyInstance) {
     if (data.contentPerCanal !== undefined) updateData.contentPerCanal = data.contentPerCanal;
     if (data.prioridad !== undefined) updateData.prioridad = data.prioridad;
     if (data.ownerId !== undefined) updateData.ownerId = data.ownerId;
+    if (data.assigneeIds !== undefined) {
+      const arr = Array.isArray(data.assigneeIds) ? data.assigneeIds : [];
+      updateData.assigneeIds = arr;
+      if (arr.length > 0) {
+        updateData.ownerId = arr[0];
+      }
+    }
     if (data.ticketTypeId !== undefined) updateData.ticketTypeId = data.ticketTypeId;
     if (data.pilarId !== undefined) updateData.pilarId = data.pilarId || null;
     if (data.speakerId !== undefined) updateData.speakerId = data.speakerId || null;
@@ -197,7 +243,7 @@ export async function ticketsRoutes(fastify: FastifyInstance) {
     }
 
     const currentUser = (request as any).user;
-    const existingTicket = await prisma.ticket.findUnique({ where: { id }, select: { ownerId: true, reviewerId: true, status: true, subEstado: true, title: true } });
+    const existingTicket = await prisma.ticket.findUnique({ where: { id }, select: { ownerId: true, assigneeIds: true, reviewerId: true, status: true, subEstado: true, title: true } });
 
     const ticket = await prisma.ticket.update({
       where: { id },
@@ -223,7 +269,7 @@ export async function ticketsRoutes(fastify: FastifyInstance) {
 
     // Notificaciones no invasivas
     if (existingTicket && currentUser) {
-      // 1. Notificación si cambia ownerId (Asignación)
+      // 1. Notificación si cambia ownerId o hay nuevos assigneeIds (Asignación)
       if (data.ownerId && data.ownerId !== existingTicket.ownerId && data.ownerId !== currentUser.id) {
         await prisma.notification.create({
           data: {
@@ -234,6 +280,23 @@ export async function ticketsRoutes(fastify: FastifyInstance) {
             message: `${currentUser.name} te asignó el ticket "${ticket.title}"`,
           },
         }).catch(() => {});
+      }
+
+      if (Array.isArray(data.assigneeIds)) {
+        const oldAssignees = new Set(existingTicket.assigneeIds || [existingTicket.ownerId]);
+        for (const aid of data.assigneeIds) {
+          if (!oldAssignees.has(aid) && aid !== currentUser.id) {
+            await prisma.notification.create({
+              data: {
+                userId: aid,
+                ticketId: ticket.id,
+                type: 'ASSIGNED',
+                fromName: currentUser.name,
+                message: `${currentUser.name} te agregó como responsable de "${ticket.title}"`,
+              },
+            }).catch(() => {});
+          }
+        }
       }
 
       // 2. Notificación si cambia reviewerId (Revisión)
@@ -265,7 +328,8 @@ export async function ticketsRoutes(fastify: FastifyInstance) {
       }
     }
 
-    return { data: ticket };
+    const [enriched] = await attachAssignees([ticket]);
+    return { data: enriched };
   });
 
   // Delete ticket

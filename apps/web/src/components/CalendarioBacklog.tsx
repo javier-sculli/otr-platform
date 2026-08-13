@@ -11,6 +11,8 @@ interface Ticket {
   links: string[];
   linkEntregable?: string | null;
   owner: { id: string; name: string };
+  assigneeIds?: string[];
+  assignees?: { id: string; name: string }[];
   client: { id: string; name: string };
 }
 
@@ -213,8 +215,18 @@ export function CalendarioBacklog({ tickets, onTicketClick }: CalendarioBacklogP
                                   {ticket.title}
                                 </p>
                               </div>
-                              <div className="flex items-center gap-1.5 text-xs text-[#000033]/60">
+                              <div className="flex items-center justify-between gap-1 text-[11px] text-[#000033]/60">
                                 <span className="font-medium truncate">{ticket.canales?.[0] ?? ticket.client.name}</span>
+                                <div className="flex items-center gap-0.5 flex-shrink-0">
+                                  {(ticket.assignees && ticket.assignees.length > 0
+                                    ? ticket.assignees
+                                    : ticket.owner ? [ticket.owner] : []
+                                  ).map((u: any) => (
+                                    <span key={u.id} className="w-3.5 h-3.5 rounded-full bg-[#024fff]/20 text-[#024fff] font-extrabold text-[8px] flex items-center justify-center" title={u.name}>
+                                      {u.name ? u.name.charAt(0).toUpperCase() : '?'}
+                                    </span>
+                                  ))}
+                                </div>
                               </div>
                               {label && (
                                 <div className={`text-xs font-bold ${text} mt-1`}>{label}</div>

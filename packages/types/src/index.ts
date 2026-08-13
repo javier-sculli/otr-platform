@@ -159,6 +159,7 @@ export interface Ticket {
   description?: string;
   clientId: string;
   ownerId: string;
+  assigneeIds?: string[];
   areaId: string;
   ticketTypeId: string;
   status: TicketStatus;
@@ -184,6 +185,7 @@ export interface Ticket {
   // Relations
   client?: Client;
   owner?: User;
+  assignees?: User[];
   reviewer?: User;
   ticketType?: TicketType;
   publication?: Publication;
