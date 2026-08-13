@@ -11,6 +11,7 @@ interface RichNotesEditorProps {
   onBlur?: () => void;
   placeholder?: string;
   minHeight?: string;
+  maxHeight?: string;
 }
 
 interface SelectedImageState {
@@ -171,6 +172,7 @@ export function RichNotesEditor({
   onBlur,
   placeholder = 'Escribí o pegá libremente notas de diseño, especificaciones, referencias, links e imágenes desde Notion, ChatGPT o Google Docs...',
   minHeight = '340px',
+  maxHeight = '650px',
 }: RichNotesEditorProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<HTMLDivElement>(null);
@@ -821,8 +823,8 @@ export function RichNotesEditor({
         onMouseMove={handleMouseMove}
         onDragOver={(e) => e.preventDefault()}
         data-placeholder={placeholder}
-        style={{ minHeight }}
-        className="p-6 sm:p-8 text-sm text-[#000033] leading-relaxed outline-none overflow-y-auto max-h-[650px] prose prose-sm max-w-none focus:outline-none empty:before:content-[attr(data-placeholder)] empty:before:text-[#000033]/35 empty:before:pointer-events-none"
+        style={{ minHeight, maxHeight }}
+        className="p-6 sm:p-8 text-sm text-[#000033] leading-relaxed outline-none overflow-y-auto prose prose-sm max-w-none focus:outline-none empty:before:content-[attr(data-placeholder)] empty:before:text-[#000033]/35 empty:before:pointer-events-none"
       />
     </div>
   );

@@ -1512,10 +1512,10 @@ export function SumarioTab({ clientId }: { clientId: string }) {
 
       {/* MODAL / DIALOG PARA EDITAR EL COPY */}
       {copyEditingRowId && (
-        <div className="fixed inset-0 bg-[#000033]/30 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl border-2 border-[#000033]/15 shadow-2xl w-full max-w-[600px] overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 bg-[#000033]/30 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-xl border-2 border-[#000033]/15 shadow-2xl w-full max-w-[600px] max-h-[90vh] overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-200">
             {/* Header */}
-            <div className="px-6 py-4 border-b border-[#000033]/8 flex items-center justify-between bg-[#fafafa]">
+            <div className="px-6 py-4 border-b border-[#000033]/8 flex items-center justify-between bg-[#fafafa] flex-shrink-0">
               <div className="flex items-center gap-3">
                 <div className="flex items-center gap-2">
                   <FileText className="w-4 h-4 text-[#024fff]" />
@@ -1543,7 +1543,7 @@ export function SumarioTab({ clientId }: { clientId: string }) {
             </div>
             
             {/* Body */}
-            <div className="p-6">
+            <div className="p-6 flex-1 min-h-0 overflow-y-auto">
               <label className="text-[10px] font-bold uppercase tracking-wide text-[#000033]/40 block mb-2">
                 Texto de la publicación / Descripción de tarea
               </label>
@@ -1552,12 +1552,13 @@ export function SumarioTab({ clientId }: { clientId: string }) {
                 onChange={handleAutoSaveCopy}
                 onBlur={handleCloseCopyModal}
                 placeholder="Escribí o formateá el texto completo acá..."
-                minHeight="220px"
+                minHeight="160px"
+                maxHeight="320px"
               />
             </div>
 
             {/* Footer */}
-            <div className="px-6 py-3 bg-[#fafafa] border-t border-[#000033]/8 flex justify-between items-center">
+            <div className="px-6 py-3 bg-[#fafafa] border-t border-[#000033]/8 flex justify-between items-center flex-shrink-0">
               <span className="text-xs text-[#000033]/40 italic">Se guarda automáticamente al escribir</span>
               <button
                 type="button"

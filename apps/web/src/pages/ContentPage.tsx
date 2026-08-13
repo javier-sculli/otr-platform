@@ -1194,9 +1194,10 @@ export function ContentPage() {
 
       {/* Modal: Siguiente paso */}
       {showSiguienteModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#000033]/40 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl border-2 border-[#000033]/10 w-full max-w-2xl mx-4 p-10 flex flex-col gap-7">
-            <div className="flex items-center justify-between">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#000033]/40 backdrop-blur-sm overflow-y-auto">
+          <div className="bg-white rounded-2xl shadow-2xl border-2 border-[#000033]/10 w-full max-w-2xl mx-auto p-6 sm:p-8 flex flex-col gap-5 max-h-[90vh] overflow-hidden relative">
+            {/* Header */}
+            <div className="flex items-center justify-between flex-shrink-0 pb-3 border-b border-[#000033]/10">
               <div>
                 <h2 className="text-base font-bold text-[#000033]">Avanzar a {STATUS_LABELS[nextStatus!]}</h2>
                 <p className="text-xs text-[#000033]/50 mt-0.5">Dejá notas para el equipo de diseño antes de continuar</p>
@@ -1209,17 +1210,20 @@ export function ContentPage() {
               </button>
             </div>
 
-            <div className="flex flex-col gap-1.5">
+            {/* Scrollable Body */}
+            <div className="flex flex-col gap-2 flex-1 min-h-0 overflow-y-auto py-1">
               <label className="text-xs font-bold text-[#000033]/60 uppercase tracking-wide">Notas de diseño</label>
               <RichNotesEditor
                 value={notasAudiovisual}
                 onChange={setNotasAudiovisual}
                 placeholder="Especificaciones visuales por formato, referencias, formato requerido (podés pegar texto con formato desde Notion, Word o ChatGPT)..."
-                minHeight="140px"
+                minHeight="160px"
+                maxHeight="280px"
               />
             </div>
 
-            <div className="flex items-center justify-end gap-2">
+            {/* Fixed Footer */}
+            <div className="flex items-center justify-end gap-2 flex-shrink-0 pt-4 border-t border-[#000033]/10">
               <button
                 onClick={() => setShowSiguienteModal(false)}
                 className="px-4 py-2 text-sm font-medium text-[#000033]/60 hover:text-[#000033] hover:bg-[#000033]/5 rounded-lg transition-all"

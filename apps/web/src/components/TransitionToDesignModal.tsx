@@ -68,12 +68,12 @@ export function TransitionToDesignModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto">
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
 
-      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col">
+      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
         {/* Header */}
-        <div className="px-5 py-4 border-b border-[#000033]/10 flex items-center justify-between bg-[#fafafa]">
+        <div className="px-5 py-4 border-b border-[#000033]/10 flex items-center justify-between bg-[#fafafa] flex-shrink-0">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-xl bg-[#024fff]/10 text-[#024fff] flex items-center justify-center">
               <ImageIcon className="w-4 h-4" />
@@ -94,7 +94,7 @@ export function TransitionToDesignModal({
         </div>
 
         {/* Content */}
-        <form onSubmit={handleSubmit} className="p-5 space-y-4 max-h-[75vh] overflow-y-auto">
+        <form onSubmit={handleSubmit} className="p-5 flex-1 min-h-0 overflow-y-auto flex flex-col gap-4">
           <div>
             <label className={labelCls}>
               <ImageIcon className="w-3 h-3 text-[#024fff]" />
@@ -104,7 +104,8 @@ export function TransitionToDesignModal({
               value={notasGrafica}
               onChange={setNotasGrafica}
               placeholder="Especificaciones visuales por formato, paleta, textos clave o guías (podés pegar texto con formato desde Notion, Word o ChatGPT)..."
-              minHeight="220px"
+              minHeight="140px"
+              maxHeight="250px"
             />
           </div>
 
@@ -160,7 +161,7 @@ export function TransitionToDesignModal({
           </div>
 
           {/* Actions */}
-          <div className="flex items-center justify-end gap-2 pt-3 border-t border-[#000033]/10">
+          <div className="flex items-center justify-end gap-2 pt-3 border-t border-[#000033]/10 flex-shrink-0 mt-auto bg-white">
             <button
               type="button"
               onClick={onClose}
