@@ -86,6 +86,10 @@ export async function convertImageUrlToBase64(url: string): Promise<string> {
 
 export function cleanJunkHtmlBlocks(html: string): string {
   if (!html) return '';
+  // Si es texto plano con saltos de línea sin etiquetas HTML, convertir \n a <br>
+  if (!/<[a-z][\s\S]*>/i.test(html) && html.includes('\n')) {
+    html = html.replace(/\n/g, '<br>');
+  }
   try {
     const parser = new DOMParser();
     const doc = parser.parseFromString(html, 'text/html');

@@ -271,8 +271,26 @@ export async function aiRoutes(fastify: FastifyInstance) {
   }>('/:ticketId/chat', async (request, reply) => {
     const { ticketId } = request.params;
     const { instruction, currentContent, brief, tone, keywords, outputLength, model, attachments, history, canal, otherCanalesContent } = request.body;
+
+    if (!instruction || typeof instruction !== 'string' || !instruction.trim()) {
+      return reply.status(400).send({ error: 'La instrucción no puede estar vacía.' });
+    }
+
+    const cleanInstruction = instruction.trim();
     const allowedModels = ['gpt-4o', 'claude-sonnet-4-6'];
     const selectedModel = model && allowedModels.includes(model) ? model : 'claude-sonnet-4-6';
+
+    const cleanHistory = (history ?? []).filter(m => {
+      if (!m || typeof m.content !== 'string') return false;
+      const trimmed = m.content.trim();
+      if (!trimmed) return false;
+      if (trimmed.startsWith('Error:')) return false;
+      if (m.role !== 'user' && m.role !== 'assistant') return false;
+      return true;
+    }).map(m => ({
+      role: m.role as 'user' | 'assistant',
+      content: m.content.trim(),
+    }));
 
     const ticket = await prisma.ticket.findUnique({
       where: { id: ticketId },
@@ -386,15 +404,15 @@ export async function aiRoutes(fastify: FastifyInstance) {
 
     console.log('[ai/chat] ─────────────────────────────────────────────────');
     console.log(`[ai/chat] ticket=${ticketId} model=${selectedModel} client="${ticket.client.name}"`);
-    console.log(`[ai/chat] history_turns=${(history ?? []).length} attachments=${(attachments ?? []).length} links=${(ticket.links ?? []).length}`);
+    console.log(`[ai/chat] history_turns=${cleanHistory.length} attachments=${(attachments ?? []).length} links=${(ticket.links ?? []).length}`);
     console.log('[ai/chat] SYSTEM PROMPT:\n' + systemPrompt);
-    if ((history ?? []).length > 0) {
+    if (cleanHistory.length > 0) {
       console.log('[ai/chat] HISTORY:');
-      (history ?? []).forEach((m, i) =>
+      cleanHistory.forEach((m, i) =>
         console.log(`  [${i}] ${m.role}: ${m.content.slice(0, 200)}${m.content.length > 200 ? '…' : ''}`)
       );
     }
-    console.log(`[ai/chat] USER: ${instruction}`);
+    console.log(`[ai/chat] USER: ${cleanInstruction}`);
     console.log('[ai/chat] ─────────────────────────────────────────────────');
 
     let raw = '';
@@ -411,22 +429,17 @@ export async function aiRoutes(fastify: FastifyInstance) {
         | { type: 'text'; text: string }
         | { type: 'image_url'; image_url: { url: string } };
 
-      const userContent: OpenAIContentPart[] = [{ type: 'text', text: instruction }];
+      const userContent: OpenAIContentPart[] = [{ type: 'text', text: cleanInstruction }];
       for (const img of imageAttachments) {
         userContent.push({ type: 'image_url', image_url: { url: img.content } });
       }
-
-      const historyMessages = (history ?? []).map(m => ({
-        role: m.role as 'user' | 'assistant',
-        content: m.content,
-      }));
 
       const completion = await openai.chat.completions.create({
         model: selectedModel,
         temperature: 0.7,
         messages: [
           { role: 'system', content: systemPrompt },
-          ...historyMessages,
+          ...cleanHistory.map(m => ({ role: m.role, content: m.content })),
           { role: 'user', content: userContent },
         ],
       });
@@ -443,7 +456,7 @@ export async function aiRoutes(fastify: FastifyInstance) {
         | { type: 'text'; text: string }
         | { type: 'image'; source: { type: 'base64'; media_type: ClaudeMediaType; data: string } };
 
-      const userContent: ClaudeContentPart[] = [{ type: 'text', text: instruction }];
+      const userContent: ClaudeContentPart[] = [{ type: 'text', text: cleanInstruction }];
       for (const img of imageAttachments) {
         const [header, data] = img.content.split(',');
         const rawMediaType = header.replace('data:', '').replace(';base64', '');
@@ -454,10 +467,38 @@ export async function aiRoutes(fastify: FastifyInstance) {
         userContent.push({ type: 'image', source: { type: 'base64', media_type, data } });
       }
 
-      const messages: Anthropic.MessageParam[] = [
-        ...(history ?? []).map(m => ({ role: m.role as 'user' | 'assistant', content: m.content })),
-        { role: 'user', content: userContent },
-      ];
+      const messages: Anthropic.MessageParam[] = [];
+      for (const m of cleanHistory) {
+        if (messages.length === 0) {
+          if (m.role === 'user') {
+            messages.push({ role: 'user', content: m.content });
+          }
+        } else {
+          const last = messages[messages.length - 1];
+          if (last.role === m.role) {
+            if (typeof last.content === 'string') {
+              last.content = `${last.content}\n\n${m.content}`;
+            }
+          } else {
+            messages.push({ role: m.role, content: m.content });
+          }
+        }
+      }
+
+      if (messages.length > 0 && messages[messages.length - 1].role === 'user') {
+        const lastUser = messages.pop()!;
+        const lastText = typeof lastUser.content === 'string' ? lastUser.content : '';
+        if (lastText) {
+          const textPart = userContent.find(b => b.type === 'text') as { type: 'text'; text: string } | undefined;
+          if (textPart) {
+            textPart.text = `${lastText}\n\n${textPart.text}`;
+          } else {
+            userContent.unshift({ type: 'text', text: lastText });
+          }
+        }
+      }
+
+      messages.push({ role: 'user', content: userContent });
 
       const MAX_ITERATIONS = 5;
       for (let i = 0; i < MAX_ITERATIONS; i++) {

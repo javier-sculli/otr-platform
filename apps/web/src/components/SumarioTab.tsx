@@ -18,6 +18,7 @@ import {
   Briefcase,
   GripVertical
 } from 'lucide-react';
+import { RichNotesEditor } from './RichNotesEditor';
 import { api } from '../lib/api';
 
 interface SumarioRow {

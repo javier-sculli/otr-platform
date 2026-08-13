@@ -30,7 +30,7 @@ import {
   Archive,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { ensureAbsoluteUrl } from '../lib/utils';
+import { ensureAbsoluteUrl, copyHtmlToClipboard } from '../lib/utils';
 import { RichNotesEditor } from '../components/RichNotesEditor';
 import { TransitionToDesignModal } from '../components/TransitionToDesignModal';
 
@@ -247,6 +247,8 @@ export function TicketDetallePage() {
   const [briefTemp, setBriefTemp] = useState('');
   const [copyCopied, setCopyCopied] = useState(false);
   const [activeCopyTab, setActiveCopyTab] = useState<string>('');
+  const [copyPerCanal, setCopyPerCanal] = useState<Record<string, string>>({});
+  const [contentSingle, setContentSingle] = useState<string>('');
   const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>(() => {
     if (!ticketId) return [];
     const saved = sessionStorage.getItem(`ticket-files-${ticketId}`);
@@ -287,9 +289,17 @@ export function TicketDetallePage() {
     if ((ticket as any)?.notasAudiovisual !== undefined) {
       setNotasAudiovisual((ticket as any).notasAudiovisual ?? '');
     }
-    if (ticket && !activeCopyTab) {
-      const canales = (ticket as any).canales;
-      setActiveCopyTab(canales?.length > 0 ? canales[0] : '');
+    if (ticket) {
+      const perCanal = (ticket as any).contentPerCanal && typeof (ticket as any).contentPerCanal === 'object'
+        ? { ...(ticket as any).contentPerCanal as Record<string, string> }
+        : {};
+      setCopyPerCanal(perCanal);
+      setContentSingle(ticket.content ?? '');
+
+      if (!activeCopyTab) {
+        const canales = (ticket as any).canales;
+        setActiveCopyTab(canales?.length > 0 ? canales[0] : 'LinkedIn');
+      }
     }
   }, [ticket?.title, (ticket as any)?.notasAudiovisual, ticket]);
 
@@ -689,77 +699,87 @@ export function TicketDetallePage() {
               </div>
             )}
 
-            {!esNoContenido && (<>
-            {/* Copy final */}
-            <div className="bg-white border-2 border-[#00ff99]/20 rounded-lg p-5">
-              <div className="flex items-center justify-between mb-3">
-                <h2 className="text-xs font-bold text-[#000033] uppercase flex items-center gap-2">
-                  <FileText className="w-3.5 h-3.5 text-[#00ff99]" />
-                  Copy
-                </h2>
+            {!esNoContenido && (
+              /* Copy final */
+              <div className="bg-white border-2 border-[#00ff99]/20 rounded-lg p-5">
+                <div className="flex items-center justify-between mb-3">
+                  <h2 className="text-xs font-bold text-[#000033] uppercase flex items-center gap-2">
+                    <FileText className="w-3.5 h-3.5 text-[#00ff99]" />
+                    Copy
+                  </h2>
+                  {(() => {
+                    const canales: string[] = (ticket as any).canales?.length > 0 ? (ticket as any).canales : ['LinkedIn'];
+                    const currentTab = activeCopyTab && canales.includes(activeCopyTab) ? activeCopyTab : canales[0];
+                    const activeContent = copyPerCanal[currentTab] ?? (canales.length === 1 || currentTab === canales[0] ? contentSingle : '');
+
+                    return activeContent?.trim() ? (
+                      <button
+                        onClick={async () => {
+                          await copyHtmlToClipboard(activeContent);
+                          setCopyCopied(true);
+                          setTimeout(() => setCopyCopied(false), 2000);
+                        }}
+                        className="flex items-center gap-1 px-2.5 py-1 bg-[#00ff99]/20 border-2 border-[#00ff99]/40 text-[#000033] rounded-lg hover:bg-[#00ff99]/30 transition-all text-xs font-bold"
+                      >
+                        {copyCopied ? <><Check className="w-3 h-3" />Copiado</> : <><Copy className="w-3 h-3" />Copiar</>}
+                      </button>
+                    ) : null;
+                  })()}
+                </div>
                 {(() => {
                   const canales: string[] = (ticket as any).canales?.length > 0 ? (ticket as any).canales : ['LinkedIn'];
-                  const perCanal = (ticket as any).contentPerCanal as Record<string, string> | null;
                   const currentTab = activeCopyTab && canales.includes(activeCopyTab) ? activeCopyTab : canales[0];
-                  const activeContent = perCanal?.[currentTab] ?? (canales.length === 1 ? ticket.content ?? '' : '');
+                  const activeContent = copyPerCanal[currentTab] ?? (canales.length === 1 || currentTab === canales[0] ? contentSingle : '');
 
-                  return activeContent?.trim() ? (
-                    <button
-                      onClick={async () => {
-                        await navigator.clipboard.writeText(activeContent);
-                        setCopyCopied(true);
-                        setTimeout(() => setCopyCopied(false), 2000);
-                      }}
-                      className="flex items-center gap-1 px-2.5 py-1 bg-[#00ff99]/20 border-2 border-[#00ff99]/40 text-[#000033] rounded-lg hover:bg-[#00ff99]/30 transition-all text-xs font-bold"
-                    >
-                      {copyCopied ? <><Check className="w-3 h-3" />Copiado</> : <><Copy className="w-3 h-3" />Copiar</>}
-                    </button>
-                  ) : null;
+                  const handleCopyChange = (val: string) => {
+                    const nextPerCanal = { ...copyPerCanal, [currentTab]: val };
+                    setCopyPerCanal(nextPerCanal);
+                    if (currentTab === (canales[0] ?? 'LinkedIn')) {
+                      setContentSingle(val);
+                    }
+                  };
+
+                  const handleCopySave = () => {
+                    const nextPerCanal = { ...copyPerCanal };
+                    const mainContent = currentTab === (canales[0] ?? 'LinkedIn') ? (copyPerCanal[currentTab] ?? contentSingle) : contentSingle;
+                    updateMutation.mutate({
+                      contentPerCanal: nextPerCanal,
+                      content: mainContent || null,
+                    });
+                  };
+
+                  return (
+                    <>
+                      {canales.length > 1 && (
+                        <div className="flex items-center gap-1 mb-3 overflow-x-auto">
+                          {canales.map(canal => (
+                            <button
+                              key={canal}
+                              type="button"
+                              onClick={() => setActiveCopyTab(canal)}
+                              className={`px-3 py-1 text-xs font-bold rounded-t-md border-b-2 transition-all ${
+                                currentTab === canal
+                                  ? 'text-[#024fff] border-[#024fff] bg-[#024fff]/5'
+                                  : 'text-[#000033]/40 border-transparent hover:text-[#000033]/70'
+                              }`}
+                            >
+                              {canal}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                      <RichNotesEditor
+                        value={activeContent}
+                        onChange={handleCopyChange}
+                        onBlur={handleCopySave}
+                        placeholder={`Escribí o formateá el copy para ${currentTab} (negrita, cursiva, listas, links)...`}
+                        minHeight="220px"
+                      />
+                    </>
+                  );
                 })()}
               </div>
-              {(() => {
-                const canales: string[] = (ticket as any).canales?.length > 0 ? (ticket as any).canales : ['LinkedIn'];
-                const perCanal = (ticket as any).contentPerCanal as Record<string, string> | null;
-                const currentTab = activeCopyTab && canales.includes(activeCopyTab) ? activeCopyTab : canales[0];
-                const activeContent = perCanal?.[currentTab] ?? (canales.length === 1 ? ticket.content ?? '' : '');
-                const hasContent = Boolean(activeContent?.trim());
-
-                return (
-                  <>
-                    {canales.length > 1 && (
-                      <div className="flex items-center gap-1 mb-2 overflow-x-auto">
-                        {canales.map(canal => (
-                          <button
-                            key={canal}
-                            onClick={() => setActiveCopyTab(canal)}
-                            className={`px-3 py-1 text-xs font-bold rounded-t-md border-b-2 transition-all ${
-                              currentTab === canal
-                                ? 'text-[#024fff] border-[#024fff] bg-[#024fff]/5'
-                                : 'text-[#000033]/40 border-transparent hover:text-[#000033]/70'
-                            }`}
-                          >
-                            {canal}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                    {hasContent ? (
-                      <pre className="text-xs text-[#000033]/80 whitespace-pre-wrap font-mono bg-[#fafafa] border border-[#000033]/10 rounded-lg px-3 py-2 max-h-48 overflow-y-auto">
-                        {activeContent}
-                      </pre>
-                    ) : (
-                      <p className="text-xs text-[#000033]/40 italic py-2">
-                        Sin contenido redactado para {currentTab} aún.{' '}
-                        <button onClick={() => navigate(`/content/${ticket.id}`)} className="text-[#024fff] underline hover:no-underline">
-                          Ir al workspace
-                        </button>
-                      </p>
-                    )}
-                  </>
-                );
-              })()}
-            </div>
-            </>)}
+            )}
 
             {/* Notas de diseño */}
             <div className="bg-white border-2 border-[#000033]/10 rounded-lg p-5">

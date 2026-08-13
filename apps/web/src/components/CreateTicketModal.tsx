@@ -9,7 +9,8 @@ import {
 import { api } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 import { TIPO_GESTION_PITCH } from '../lib/estados';
-import { ensureAbsoluteUrl } from '../lib/utils';
+import { ensureAbsoluteUrl, copyHtmlToClipboard } from '../lib/utils';
+import { RichNotesEditor } from './RichNotesEditor';
 
 type AttachedFile = {
   id: string;
@@ -964,7 +965,7 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
                     <button
                       type="button"
                       onClick={async () => {
-                        await navigator.clipboard.writeText(currentCopy);
+                        await copyHtmlToClipboard(currentCopy);
                         setCopyCopied(true);
                         setTimeout(() => setCopyCopied(false), 2000);
                       }}
@@ -992,10 +993,9 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
                     ))}
                   </div>
                 )}
-                <textarea
+                <RichNotesEditor
                   value={currentCopy}
-                  onChange={e => {
-                    const val = e.target.value;
+                  onChange={val => {
                     const nextContentPerCanal = { ...formData.contentPerCanal, [currentTab]: val };
                     const nextContent = currentTab === (formData.canales[0] ?? 'LinkedIn') ? val : formData.content;
                     const updated = {
@@ -1008,8 +1008,7 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
                   }}
                   onBlur={() => { if (isEditing) triggerImmediateAutoSave(); }}
                   placeholder={`Copy para ${currentTab}...`}
-                  className={`${fieldCls} resize-none font-mono`}
-                  rows={6}
+                  minHeight="180px"
                 />
               </div>
             );

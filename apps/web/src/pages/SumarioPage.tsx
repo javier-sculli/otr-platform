@@ -3,21 +3,33 @@ import { useQuery } from '@tanstack/react-query';
 import { api } from '../lib/api';
 import { SumarioTab } from '../components/SumarioTab';
 import { ChevronDown, Building2 } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
 
 export function SumarioPage() {
+  const { user } = useAuth();
   const { data: clientsData, isLoading } = useQuery({
     queryKey: ['clients'],
     queryFn: () => api.getClients(),
   });
 
   const clients = clientsData?.data ?? [];
+  const preferredIds = user?.preferredClientIds ?? [];
+
+  const filteredClients = preferredIds.length > 0
+    ? clients.filter((c: any) => preferredIds.includes(c.id))
+    : clients;
+
   const [selectedClientId, setSelectedClientId] = useState<string>('');
 
   useEffect(() => {
-    if (clients.length > 0 && !selectedClientId) {
-      setSelectedClientId(clients[0].id);
+    if (filteredClients.length > 0) {
+      if (!selectedClientId || !filteredClients.some((c: any) => c.id === selectedClientId)) {
+        setSelectedClientId(filteredClients[0].id);
+      }
+    } else {
+      setSelectedClientId('');
     }
-  }, [clients, selectedClientId]);
+  }, [filteredClients, selectedClientId]);
 
   if (isLoading) {
     return (
@@ -30,7 +42,7 @@ export function SumarioPage() {
   return (
     <div className="min-h-screen bg-[#fafafa]">
       {/* Selector de Cliente - Barra Sticky debajo del nav principal */}
-      <div className="bg-white border-b border-[#000033]/10 px-8 py-3.5 sticky top-[64px] z-[6] shadow-sm">
+      <div className="bg-[#fafafa] border-b border-[#000033]/10 px-8 py-3.5 sticky top-[64px] z-[6] shadow-sm">
         <div className="max-w-[1200px] mx-auto flex items-center gap-3">
           <Building2 className="w-4 h-4 text-[#024fff]" />
           <span className="text-xs font-bold text-[#000033] uppercase tracking-wide">Cliente:</span>
@@ -41,7 +53,7 @@ export function SumarioPage() {
               onChange={(e) => setSelectedClientId(e.target.value)}
               className="appearance-none w-full pl-3 pr-8 py-1.5 bg-white border border-[#000033]/15 text-sm font-bold text-[#000033] rounded-lg focus:outline-none focus:border-[#024fff] cursor-pointer"
             >
-              {clients.map((c: any) => (
+              {filteredClients.map((c: any) => (
                 <option key={c.id} value={c.id}>
                   {c.name}
                 </option>
@@ -57,9 +69,10 @@ export function SumarioPage() {
         <SumarioTab clientId={selectedClientId} />
       ) : (
         <div className="max-w-[1200px] mx-auto px-8 py-16 text-center text-[#000033]/50 text-sm">
-          No hay clientes registrados en la plataforma.
+          No hay clientes disponibles para mostrar.
         </div>
       )}
     </div>
   );
 }
+

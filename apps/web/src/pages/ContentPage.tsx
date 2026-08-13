@@ -371,20 +371,20 @@ export function ContentPage() {
   };
 
   const callAI = async (instruction: string) => {
-    if (!ticketId || isAiLoading) return;
+    if (!ticketId || isAiLoading || !instruction || !instruction.trim()) return;
 
     const attachments = attachedFiles
       .filter(f => f.content !== null)
       .map(f => ({ name: f.name, type: f.type, content: f.content!, contentType: f.contentType }));
 
-    // Historial previo — excluye thinking y el saludo inicial
+    // Historial previo — excluye thinking, saludo inicial y errores previos
     const history = chatMessages
-      .filter(m => m.content !== '...' && m.id !== '1')
-      .map(m => ({ role: m.role, content: m.content }));
+      .filter(m => m.content && typeof m.content === 'string' && m.content.trim() && m.content !== '...' && m.id !== '1' && !m.content.startsWith('Error:'))
+      .map(m => ({ role: m.role, content: m.content.trim() }));
 
-    const fullInstruction = instruction;
+    const fullInstruction = instruction.trim();
 
-    const userMsg: ChatMessage = { id: Date.now().toString(), role: 'user', content: instruction };
+    const userMsg: ChatMessage = { id: Date.now().toString(), role: 'user', content: fullInstruction };
     const thinkingId = (Date.now() + 1).toString();
     const thinkingMsg: ChatMessage = { id: thinkingId, role: 'assistant', content: '...' };
 
