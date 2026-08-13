@@ -527,7 +527,12 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
   };
 
   const handleClose = () => {
-    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+      if (isEditing) {
+        performAutoSave();
+      }
+    }
     setSaveStatus(null);
     setFormData(buildFormData(null));
     setError(null);
@@ -662,17 +667,22 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
                           isChecked ? 'bg-[#024fff]/[0.03]' : ''
                         }`}
                         onClick={() => {
-                          setFormData(prev => {
-                            const exists = prev.tiposContenido.includes(t.name);
-                            const next = exists
-                              ? prev.tiposContenido.filter((name: string) => name !== t.name)
-                              : [...prev.tiposContenido, t.name];
-                            return {
-                              ...prev,
-                              ticketTypeId: next.length > 0 ? (tiposFiltrados.find((tf: any) => tf.name === next[0])?.id ?? prev.ticketTypeId) : '',
-                              tiposContenido: next,
-                            };
-                          });
+                          const exists = formData.tiposContenido.includes(t.name);
+                          const next = exists
+                            ? formData.tiposContenido.filter((name: string) => name !== t.name)
+                            : [...formData.tiposContenido, t.name];
+                          const newTicketTypeId = next.length > 0
+                            ? (tiposFiltrados.find((tf: any) => tf.name === next[0])?.id ?? formData.ticketTypeId)
+                            : '';
+                          const updated = {
+                            ...formDataRef.current,
+                            tiposContenido: next,
+                            ticketTypeId: newTicketTypeId,
+                          };
+                          setFormData(updated);
+                          if (isEditing) {
+                            triggerImmediateAutoSave(updated);
+                          }
                         }}
                       >
                         <div className="flex items-center gap-2 font-medium text-[#000033]">

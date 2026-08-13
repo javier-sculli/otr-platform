@@ -83,6 +83,13 @@
   - *Detalle:* Reunión del lunes con diseñadoras, editor y contenidistas para definir el formato mínimo de bajadas.
   - *Estado:* 🟡 Programado (Lunes)
 
+### [2026-08-13] — Fix Auto-guardado de Tipo de Entregables / Formatos en Modal Popup
+- **Desarrollador:** Javier Sculli
+- **Resumen de Avances:**
+  1. **Auto-guardado en Selección de Formatos (`CreateTicketModal.tsx`):** Se corrigió el handler `onClick` al seleccionar/deseleccionar formatos y tipos de entregables (`tiposContenido` y `ticketTypeId`) en la ventana emergente para que active `triggerImmediateAutoSave` inmediatamente.
+  2. **Persistencia Garantizada al Cerrar Modal:** Se actualizó `handleClose` para forzar la ejecución de `performAutoSave()` en caso de haber escrituras o cambios pendientes antes de cerrar la ventana emergente.
+- **Verificación:** Compilación TypeScript (`pnpm --filter web build`) verificada exitosamente (0 errores).
+
 ### [2026-08-13] — Botón "Pasar a [próximo estado]" + Dropdown en Modal Popup de Ticket
 - **Desarrollador:** Javier Sculli
 - **Resumen de Avances:**
