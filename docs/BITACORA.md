@@ -83,6 +83,16 @@
   - *Detalle:* Reunión del lunes con diseñadoras, editor y contenidistas para definir el formato mínimo de bajadas.
   - *Estado:* 🟡 Programado (Lunes)
 
+### [2026-08-13] — Mapeo Estricto de Estados de Flujo por Formato de Contenido (Regla de Negocio)
+- **Desarrollador:** Javier Sculli
+- **Resumen de Avances:**
+  1. **Actualización de Mapeo de Formatos (`lib/workflow.ts`):**
+     - **Regla 1 (Pasan por Diseño Gráfico):** `carrusel`, `placa con diseño`, `story`, `video`, `reel`.
+     - **Regla 2 (Pasan por Audiovisual/Edición):** `video`, `reel`.
+     - **Regla 3 (No pasan por Diseño ni Audiovisual):** `álbum de fotos`, `imagen`, `hilo`, `texto solo`, `repost` (saltean Diseño y Edición pasando directo de Redacción a Revisión Interna).
+  2. **Integración con `getNextStatusInfo` (`lib/estados.ts`, `TicketDetallePage.tsx`, `CreateTicketModal.tsx`):** Se integró la transmisión de `tiposContenido` al calcular `getNextStatusInfo` tanto en el modal popup como en la vista completa de ticket, garantizando que para `video` y `reel` el flujo pase secuencialmente por **Redacción → Diseño → Edición → Revisión Interna**.
+- **Verificación:** Compilación TypeScript (`pnpm --filter web build`) verificada exitosamente (0 errores).
+
 ### [2026-08-13] — Fix Auto-guardado de Tipo de Entregables / Formatos en Modal Popup
 - **Desarrollador:** Javier Sculli
 - **Resumen de Avances:**
