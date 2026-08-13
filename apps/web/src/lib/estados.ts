@@ -92,7 +92,14 @@ export const PRENSA_STATUS_OPTIONS = [
   { value: 'CANCELADO',        label: 'Cancelado' },
 ];
 
-export function getNextStatusInfo(status: string, esPrensa?: boolean, subEstado?: string | null) {
+import { getNextStatusForTicket } from './workflow';
+
+export function getNextStatusInfo(
+  status: string,
+  esPrensa?: boolean,
+  subEstado?: string | null,
+  tiposContenido?: string[]
+) {
   if (esPrensa) {
     const current = subEstado ?? 'PENDIENTE';
     switch (current) {
@@ -106,19 +113,11 @@ export function getNextStatusInfo(status: string, esPrensa?: boolean, subEstado?
     }
   }
 
-  switch (status) {
-    case 'PENDIENTE':           return { next: 'REDACCION', label: 'Redacción' };
-    case 'REDACCION':           return { next: 'DISENO', label: 'Diseño' };
-    case 'DISENO':              return { next: 'EDICION', label: 'Edición' };
-    case 'EDICION':             return { next: 'REVISION_INTERNA', label: 'Revisión Interna' };
-    case 'REVISION_INTERNA':    return { next: 'CLIENTE', label: 'Cliente' };
-    case 'CLIENTE':             return { next: 'ESPERANDO_FEEDBACK', label: 'Esperando feedback' };
-    case 'ESPERANDO_FEEDBACK':  return { next: 'LISTO_PARA_PUBLICAR', label: 'Listo para publicar' };
-    case 'LISTO_PARA_PUBLICAR': return { next: 'PUBLICADO', label: 'Publicado' };
-    case 'PUBLICADO':           return { next: 'LISTO', label: 'Completado' };
-    case 'LISTO':               return { next: 'PENDIENTE', label: 'Reabrir' };
-    case 'CANCELADO':           return { next: 'PENDIENTE', label: 'Reabrir' };
-    default:                    return { next: 'REDACCION', label: 'Redacción' };
-  }
+  const next = getNextStatusForTicket({ status, tiposContenido }) ?? 'REDACCION';
+  const labelObj = STATUS_OPTIONS.find(s => s.value === next);
+  return {
+    next,
+    label: labelObj?.label ?? next,
+  };
 }
 

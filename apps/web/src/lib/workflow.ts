@@ -1,31 +1,65 @@
 // Workflow engine para transiciones inteligentes de estados según tipo de contenido
 
-const FORMATOS_DISENO = [
-  'carrusel', 'imagen', 'infografía', 'infografia', 'flyer', 'banner', 'gráfica', 'grafica',
-  'ilustración', 'ilustracion', 'diseño', 'diseno', 'portada', 'posteo gráfico', 'posteo grafico',
-  'carusel', 'placa'
+/**
+ * Regla de formatos por estado de flujo:
+ * 1. Pasan por diseño: carrusel, placa con diseño, story, video, reel.
+ * 2. Pasan por audiovisual (edición): video, reel.
+ * 3. No pasan por diseño ni audiovisual: álbum de fotos, imagen, hilo, texto solo, repost.
+ */
+
+// Formatos explícitos que NO pasan por diseño ni audiovisual (saltean Diseño y Edición)
+const NO_DISENO_FORMATS = [
+  'imagen', 'imagen / gráfica', 'imagen / grafica',
+  'álbum de fotos', 'album de fotos', 'álbum', 'album',
+  'hilo', 'texto solo', 'texto', 'repost',
+  'blog', 'news', 'newsletter', 'deck', 'estrategia', 'reporte', 'otro',
 ];
 
+// Formatos que pasan por Diseño Gráfico (Regla 1: carrusel, placa con diseño, story, video, reel)
+const FORMATOS_DISENO = [
+  'carrusel', 'carusel',
+  'placa', 'placa con diseño', 'placa con diseno',
+  'story', 'stories',
+  'video', 'video largo',
+  'reel', 'reels',
+  'infografía', 'infografia', 'flyer', 'banner', 'gráfica', 'grafica',
+  'ilustración', 'ilustracion', 'diseño', 'diseno', 'portada',
+];
+
+// Formatos que pasan por Audiovisual/Edición (Regla 2: video, reel)
 const FORMATOS_EDICION = [
-  'reel', 'reels', 'video', 'video largo', 'shorts', 'tiktok', 'animación', 'animacion',
-  'audio', 'podcast', 'edición', 'edicion'
+  'video', 'video largo',
+  'reel', 'reels',
+  'shorts', 'tiktok',
+  'animación', 'animacion',
+  'audio', 'podcast', 'edición', 'edicion',
 ];
 
 /**
  * Determina si los formatos seleccionados en un ticket requieren la etapa de Diseño Gráfico.
- * Si no se especificaron formatos (array vacío u omitido), retorna true por defecto.
  */
 export function requiresDesign(tiposContenido?: string[]): boolean {
   if (!tiposContenido || tiposContenido.length === 0) return true;
-  return tiposContenido.some(t => FORMATOS_DISENO.some(d => t.toLowerCase().includes(d)));
+
+  return tiposContenido.some(t => {
+    const lower = t.toLowerCase().trim();
+    // Excluir explícitamente los formatos de la Regla 3 que no van a diseño
+    if (NO_DISENO_FORMATS.some(nd => lower === nd || (lower.startsWith('imagen') && !lower.includes('placa')))) {
+      return false;
+    }
+    return FORMATOS_DISENO.some(d => lower.includes(d));
+  });
 }
 
 /**
- * Determina si los formatos seleccionados en un ticket requieren la etapa de Edición Audiovisual/Video.
+ * Determina si los formatos seleccionados en un ticket requieren la etapa de Edición Audiovisual.
  */
 export function requiresVideo(tiposContenido?: string[]): boolean {
   if (!tiposContenido || tiposContenido.length === 0) return false;
-  return tiposContenido.some(t => FORMATOS_EDICION.some(e => t.toLowerCase().includes(e)));
+  return tiposContenido.some(t => {
+    const lower = t.toLowerCase().trim();
+    return FORMATOS_EDICION.some(e => lower.includes(e));
+  });
 }
 
 /**
@@ -59,7 +93,7 @@ export function getNextStatusForTicket(ticket: { status?: string; tiposContenido
     case 'REDACCION':
       if (needsDesign) return 'DISENO';
       if (needsVideo) return 'EDICION';
-      return 'REVISION_INTERNA'; // Saltea Diseño y Edición para contenido solo texto
+      return 'REVISION_INTERNA'; // Saltea Diseño y Edición para contenido solo texto / sin gráfica ni video
 
     case 'DISENO':
       if (needsVideo) return 'EDICION';

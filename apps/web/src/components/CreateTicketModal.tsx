@@ -181,7 +181,7 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
 
   const handleNextStatusClickModal = () => {
     const currentSub = (ticket as any)?.subEstado ?? formData.estadoRespuesta;
-    const info = getNextStatusInfo(formData.status, esPrensa, currentSub);
+    const info = getNextStatusInfo(formData.status, esPrensa, currentSub, formData.tiposContenido);
     handleSelectStatusModal(info.next);
   };
 
@@ -1113,7 +1113,7 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
                 {/* Botón cambiar estado: Próximo estado + Dropdown */}
                 {(() => {
                   const currentSub = (ticket as any)?.subEstado ?? null;
-                  const nextInfo = getNextStatusInfo(formData.status, esPrensa, currentSub);
+                  const nextInfo = getNextStatusInfo(formData.status, esPrensa, currentSub, formData.tiposContenido);
                   return (
                     <div className="relative inline-flex items-center rounded-lg shadow-sm" ref={statusDropdownRef}>
                       <button
