@@ -31,13 +31,16 @@ async function main() {
   }
 
   console.log('🌱 Seeding tipos de Tarea...');
-  await prisma.ticketType.upsert({
-    where: { name_kind: { name: 'Base de Medios', kind: 'TAREA' } },
-    update: { kind: 'TAREA' },
-    create: { name: 'Base de Medios', kind: 'TAREA' },
-  });
+  const TAREA_TYPES = ['Base de Medios', 'News', 'Blog', 'Deck', 'Estrategia', 'Reporte', 'Diseño puntual', 'Otro'];
+  for (const name of TAREA_TYPES) {
+    await prisma.ticketType.upsert({
+      where: { name_kind: { name, kind: 'TAREA' } },
+      update: { kind: 'TAREA' },
+      create: { name, kind: 'TAREA' },
+    });
+  }
 
-  console.log(`✅ ${PRENSA_TYPES.length} tipos de Prensa listos`);
+  console.log(`✅ ${PRENSA_TYPES.length} tipos de Prensa y ${TAREA_TYPES.length} tipos de Tarea listos`);
 }
 
 main()

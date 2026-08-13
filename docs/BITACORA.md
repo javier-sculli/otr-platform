@@ -83,7 +83,23 @@
   - *Detalle:* Reunión del lunes con diseñadoras, editor y contenidistas para definir el formato mínimo de bajadas.
   - *Estado:* 🟡 Programado (Lunes)
 
----
+### [2026-08-13] — Tipos de Entregable "News" y "Blog" en Tarjetas de Tareas
+- **Desarrollador:** Javier Sculli
+- **Resumen de Avances:**
+  1. **Nuevos Tipos de Entregable Tarea (DB & Migration):** Migración idempotente (`20260813190000_add_news_blog_task_types`) y actualización de seeders (`seed-prensa.ts`) para dar de alta "News" y "Blog" con `kind = TAREA` en la tabla `ticket_types`.
+  2. **Modal de Creación y Edición (`CreateTicketModal.tsx`):** "News" y "Blog" aparecen automáticamente disponibles como tipo de entregable al seleccionar la pestaña Tareas.
+  3. **Corrección e Integración en Sumario (`SumarioTab.tsx`):** Se corrigió la lista de opciones del selector de tipo de tarea (`row.isTarea ? tareaFormatos : formatos`) para listar todos los tipos de tarea configurados y se actualizó la leyenda informativa.
+  4. **Estética de Tarjetas (`BacklogPage.tsx`):** Se ajustaron los chips de `tiposContenido` en tarjetas de Tareas para usar tonos oscuros/neutrales acordes a la estética visual de Tareas.
+- **Verificación:** `pnpm db:push`, `pnpm seed:prensa` y compilación TypeScript (`pnpm --filter web build`) completados exitosamente sin errores.
+
+### [2026-08-13] — Soporte de Edición de Texto Enriquecido (Bold, Itálica, Listas) en Copy de Tickets
+- **Desarrollador:** Javier Sculli
+- **Resumen de Avances:**
+  1. **Edición Rica en Modal (`CreateTicketModal.tsx`):** Se reemplazó el `<textarea>` del copy por el editor enriquecido `RichNotesEditor`, permitiendo editar formato negrita, cursiva, subrayado, tachado, listas, títulos, links e imágenes en la ventana emergente de edición de ticket.
+  2. **Edición Rica en Ticket Completo (`TicketDetallePage.tsx`):** Se reemplazó la visualización estática `<pre>` del copy por `RichNotesEditor` interactivo, permitiendo a los usuarios redactar y ajustar el formato directamente desde la vista completa del ticket `/piezas/:id` con auto-guardado en `onBlur`.
+  3. **Soporte en Modal del Sumario (`SumarioTab.tsx`):** Se integró `RichNotesEditor` en la vista de edición rápida del copy del Sumario.
+  4. **Copiado Limpio a Portapapeles (`copyHtmlToClipboard`):** Helper en `utils.ts` que convierte el HTML a texto plano con saltos de línea al presionar el botón "Copiar", garantizando un pegado impecable en LinkedIn, Instagram, X/Twitter y WhatsApp sin etiquetas HTML.
+- **Verificación:** Compilación TypeScript (`pnpm --filter web build`) aprobada exitosamente con 0 errores.
 
 ### [2026-08-06] — Rediseño de Notas de Diseño (Lienzo Sábana Blanca Notion + Control de Imágenes Flotante)
 - **Desarrollador:** Javier Sculli

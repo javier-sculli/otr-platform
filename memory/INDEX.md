@@ -19,6 +19,7 @@
 | Sumario de Contenidos (HU Glosario) — Grilla interactiva, BD, backend y react-query | [glosario-contenidos.md](glosario-contenidos.md) | ✅ Implementado y verificado | 2026-06-23 |
 | Servidor MCP remoto (`apps/mcp`) — OAuth 2.1 + Google, tools de tickets/clientes, para Claude Desktop/Slack | [mcp-server.md](mcp-server.md) | ✅ Verificado en local, falta deploy a Railway | 2026-07-01 |
 | Reportes de Agencia (Cumplimiento Clientes) — Acceso restringido DIRECCION, KPIs globales, cadencia semanal (Sem 1-4), % target y semáforo de alertas (En riesgo / Atrasadas) | — | ✅ Implementado y verificado | 2026-07-30 |
+| Edición rica de Copy en Modal y Ticket Completo — RichNotesEditor con Negrita, Cursiva, Listas y Links | — | ✅ Implementado y verificado | 2026-08-13 |
 
 ## Decisiones de producto activas
 

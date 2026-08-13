@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { 
   Calendar, 
@@ -218,6 +218,8 @@ export function SumarioTab({ clientId }: { clientId: string }) {
   // Estado para el modal de edición de Copy
   const [copyEditingRowId, setCopyEditingRowId] = useState<string | null>(null);
   const [tempCopyText, setTempCopyText] = useState('');
+  const [copySaveStatus, setCopySaveStatus] = useState<'saving' | 'saved' | null>(null);
+  const copySaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Mutación para actualizar la meta del cliente
   const updateTargetMutation = useMutation({
@@ -544,12 +546,24 @@ export function SumarioTab({ clientId }: { clientId: string }) {
     }
   };
 
-  const handleSaveCopy = () => {
-    if (copyEditingRowId) {
+  const handleAutoSaveCopy = (val: string) => {
+    setTempCopyText(val);
+    if (!copyEditingRowId) return;
+    setCopySaveStatus('saving');
+    if (copySaveTimeoutRef.current) clearTimeout(copySaveTimeoutRef.current);
+    copySaveTimeoutRef.current = setTimeout(() => {
+      handleUpdateRow(copyEditingRowId, 'copy', val);
+      setCopySaveStatus('saved');
+    }, 400);
+  };
+
+  const handleCloseCopyModal = () => {
+    if (copySaveTimeoutRef.current) clearTimeout(copySaveTimeoutRef.current);
+    if (copyEditingRowId && tempCopyText !== undefined) {
       handleUpdateRow(copyEditingRowId, 'copy', tempCopyText);
-      setCopyEditingRowId(null);
-      showFeedback('info', 'Copy actualizado.');
     }
+    setCopySaveStatus(null);
+    setCopyEditingRowId(null);
   };
 
   const handlePushToBacklog = () => {
@@ -795,7 +809,7 @@ export function SumarioTab({ clientId }: { clientId: string }) {
           className="w-full bg-transparent border-0 p-0 text-xs text-[#000033] focus:ring-0 focus:outline-none focus:bg-gray-50 rounded cursor-pointer truncate"
         >
           <option value="">Sin formato</option>
-          {formatos.map((f: any) => (
+          {(row.isTarea ? tareaFormatos : formatos).map((f: any) => (
             <option key={f.id} value={f.id}>{f.name}</option>
           ))}
         </select>
@@ -1325,7 +1339,7 @@ export function SumarioTab({ clientId }: { clientId: string }) {
                   <Briefcase className="w-4 h-4 text-amber-600" />
                   <span>Tareas (no publicables) ({sortedTareaRows.length})</span>
                 </div>
-                <span className="text-[11px] text-amber-800/70 font-medium">Decks, informes, reportes, piezas visuales puntuales</span>
+                <span className="text-[11px] text-amber-800/70 font-medium">Decks, informes, reportes, news, blogs, piezas visuales puntuales</span>
               </div>
 
               <div className="overflow-x-auto">
@@ -1390,12 +1404,26 @@ export function SumarioTab({ clientId }: { clientId: string }) {
           <div className="bg-white rounded-xl border-2 border-[#000033]/15 shadow-2xl w-full max-w-[600px] overflow-hidden animate-in fade-in zoom-in-95 duration-200">
             {/* Header */}
             <div className="px-6 py-4 border-b border-[#000033]/8 flex items-center justify-between bg-[#fafafa]">
-              <div className="flex items-center gap-2">
-                <FileText className="w-4 h-4 text-[#024fff]" />
-                <h3 className="text-sm font-bold text-[#000033] uppercase tracking-wide">Borrador del Copy / Texto</h3>
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2">
+                  <FileText className="w-4 h-4 text-[#024fff]" />
+                  <h3 className="text-sm font-bold text-[#000033] uppercase tracking-wide">Borrador del Copy / Texto</h3>
+                </div>
+                {copySaveStatus === 'saving' && (
+                  <span className="text-xs font-bold text-[#024fff] flex items-center gap-1.5 animate-pulse">
+                    <span className="w-2 h-2 rounded-full bg-[#024fff]" />
+                    Guardando…
+                  </span>
+                )}
+                {copySaveStatus === 'saved' && (
+                  <span className="text-xs font-bold text-emerald-600 flex items-center gap-1">
+                    <Check className="w-3.5 h-3.5" />
+                    Guardado
+                  </span>
+                )}
               </div>
               <button
-                onClick={() => setCopyEditingRowId(null)}
+                onClick={handleCloseCopyModal}
                 className="p-1 hover:bg-[#000033]/5 text-[#000033]/60 hover:text-[#000033] rounded-lg transition-all"
               >
                 <X className="w-4 h-4" />
@@ -1407,31 +1435,24 @@ export function SumarioTab({ clientId }: { clientId: string }) {
               <label className="text-[10px] font-bold uppercase tracking-wide text-[#000033]/40 block mb-2">
                 Texto de la publicación / Descripción de tarea
               </label>
-              <textarea
+              <RichNotesEditor
                 value={tempCopyText}
-                onChange={(e) => setTempCopyText(e.target.value)}
-                placeholder="Escribí el texto completo acá..."
-                rows={10}
-                className="w-full p-4 border border-[#000033]/15 rounded-lg focus:outline-none focus:border-[#024fff] text-xs font-mono leading-relaxed bg-[#fafafa] focus:bg-white transition-all text-[#000033]"
+                onChange={handleAutoSaveCopy}
+                onBlur={handleCloseCopyModal}
+                placeholder="Escribí o formateá el texto completo acá..."
+                minHeight="220px"
               />
             </div>
 
             {/* Footer */}
-            <div className="px-6 py-4 bg-[#fafafa] border-t border-[#000033]/8 flex justify-end gap-3">
+            <div className="px-6 py-3 bg-[#fafafa] border-t border-[#000033]/8 flex justify-between items-center">
+              <span className="text-xs text-[#000033]/40 italic">Se guarda automáticamente al escribir</span>
               <button
                 type="button"
-                onClick={() => setCopyEditingRowId(null)}
-                className="px-4 py-2 border border-[#000033]/12 text-[#000033]/70 hover:text-[#000033] bg-white text-xs font-bold rounded-lg hover:bg-gray-50 transition-all"
+                onClick={handleCloseCopyModal}
+                className="px-4 py-2 bg-[#024fff] text-white text-xs font-bold rounded-lg hover:bg-[#024fff]/90 transition-all shadow-md shadow-[#024fff]/10"
               >
-                Cancelar
-              </button>
-              <button
-                type="button"
-                onClick={handleSaveCopy}
-                className="px-4 py-2 bg-[#024fff] text-white text-xs font-bold rounded-lg hover:bg-[#024fff]/90 transition-all shadow-md shadow-[#024fff]/10 flex items-center gap-1.5"
-              >
-                <Check className="w-3.5 h-3.5" />
-                Guardar Copy
+                Listo
               </button>
             </div>
           </div>

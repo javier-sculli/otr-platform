@@ -685,7 +685,14 @@ function TicketCard({
       {(ticket as any).tiposContenido?.length > 0 ? (
         <div className="flex items-center gap-1 flex-wrap mb-2 pb-2 border-b border-[#000033]/10">
           {(ticket as any).tiposContenido.map((fmt: string, idx: number) => (
-            <span key={idx} className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-[#024fff]/10 text-[#024fff] text-[10px] font-bold rounded border border-[#024fff]/20">
+            <span
+              key={idx}
+              className={`inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-bold rounded border ${
+                esTarea
+                  ? 'bg-[#000033]/5 text-[#000033] border-[#000033]/15'
+                  : 'bg-[#024fff]/10 text-[#024fff] border-[#024fff]/20'
+              }`}
+            >
               <Package className="w-2.5 h-2.5" />
               {fmt}
             </span>
