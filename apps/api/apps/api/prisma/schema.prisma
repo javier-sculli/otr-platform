@@ -1,0 +1,405 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum UserRole {
+  CONTENIDISTA
+  COORDINADOR
+  DIRECCION
+}
+
+model User {
+  id                 String   @id @default(uuid())
+  email              String   @unique
+  password           String?  // Hashed — null para usuarios de Google
+  googleId           String?  @unique @map("google_id")
+  name               String
+  role               UserRole
+  areaId             String?  @map("area_id")
+  preferredClientIds String[] @default([]) @map("preferred_client_ids")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  area              Area?            @relation(fields: [areaId], references: [id])
+  tickets           Ticket[]
+  reviewedTickets   Ticket[]         @relation("TicketReviewer")
+  clients           Client[]
+  comments          TicketComment[]
+  notifications     Notification[]   @relation("NotificationRecipient")
+
+  @@map("users")
+}
+
+model Client {
+  id            String   @id @default(uuid())
+  name          String
+  active        Boolean  @default(true)
+  ownerId       String?  @map("owner_id")
+  canales       String[] @default([])
+  linkedinUrl   String?  @map("linkedin_url")
+  instagramUrl  String?  @map("instagram_url")
+  twitterUrl    String?  @map("twitter_url")
+  tiktokUrl     String?  @map("tiktok_url")
+  webUrl        String?  @map("web_url")
+  newsletterUrl String?  @map("newsletter_url")
+  blogUrl       String?  @map("blog_url")
+  monthlyContentTarget Int @default(0) @map("monthly_content_target")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  owner        User?          @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+  tickets      Ticket[]
+  brandVoice   BrandVoice?
+  publications Publication[]
+  speakers     Speaker[]
+  pilares      Pilar[]
+  pressReferences PressReference[]
+
+  @@index([ownerId])
+  @@map("clients")
+}
+
+model Speaker {
+  id        String   @id @default(uuid())
+  clientId  String   @map("client_id")
+  nombre    String
+  cargo     String?
+
+  // Redes sociales del vocero
+  linkedinUrl   String? @map("linkedin_url")
+  instagramUrl  String? @map("instagram_url")
+  twitterUrl    String? @map("twitter_url")
+  tiktokUrl     String? @map("tiktok_url")
+  newsletterUrl String? @map("newsletter_url")
+  blogUrl       String? @map("blog_url")
+
+  // Canales habilitados (JSON: { linkedin: true, instagram: false, ... })
+  canalesHabilitados Json @default("{}") @map("canales_habilitados")
+
+  // 9 campos Voz del Vocero
+  personalidadArquetipo  String? @db.Text @map("personalidad_arquetipo")
+  tonoVozPersonal        String? @db.Text @map("tono_voz_personal")
+  contextoExperiencia    String? @db.Text @map("contexto_experiencia")
+  temasHabla             String? @db.Text @map("temas_habla")
+  posicionamientoOpinion String? @db.Text @map("posicionamiento_opinion")
+  estructuraNarrativa    String? @db.Text @map("estructura_narrativa")
+  usoIdioma              String? @db.Text @map("uso_idioma")
+  criteriosCalidad       String? @db.Text @map("criterios_calidad")
+  contextoMarca          String? @db.Text @map("contexto_marca")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  client       Client        @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  tickets      Ticket[]
+  publications Publication[]
+
+  @@index([clientId])
+  @@map("speakers")
+}
+
+model Pilar {
+  id          String   @id @default(uuid())
+  clientId    String   @map("client_id")
+  nombre      String
+  descripcion String?  @db.Text
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  client  Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  tickets Ticket[]
+
+  @@index([clientId])
+  @@map("pilares")
+}
+
+model BrandVoice {
+  id        String   @id @default(uuid())
+  clientId  String   @unique @map("client_id")
+  content   Json     @default("{}")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@map("brand_voices")
+}
+
+model Area {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  users   User[]
+
+  @@map("areas")
+}
+
+enum TicketTypeKind {
+  CONTENIDO
+  TAREA
+  PRENSA
+}
+
+model TicketType {
+  id        String         @id @default(uuid())
+  name      String
+  kind      TicketTypeKind @default(CONTENIDO)
+  createdAt DateTime       @default(now()) @map("created_at")
+  updatedAt DateTime       @updatedAt @map("updated_at")
+
+  // Relations
+  tickets Ticket[]
+
+  @@unique([name, kind])
+  @@map("ticket_types")
+}
+
+enum TicketStatus {
+  PENDIENTE
+  REDACCION
+  DISENO
+  EDICION
+  REVISION_INTERNA
+  CLIENTE
+  ESPERANDO_FEEDBACK
+  LISTO_PARA_PUBLICAR
+  PUBLICADO
+  CANCELADO
+  LISTO
+}
+
+enum Prioridad {
+  ALTA
+  MEDIA
+  BAJA
+}
+
+// Área del ticket — separa el flujo de Contenido del de Prensa (HU Fase 2).
+enum TicketArea {
+  CONTENIDO
+  PRENSA
+}
+
+// Macro-estado compartido entre áreas (columnas del backlog evolucionado).
+enum MacroEstado {
+  BACKLOG
+  EN_PROGRESO
+  EN_REVISION
+  FINALIZADO
+}
+
+// Subestado propio por área. En esta iteración se modelan los 9 de Prensa;
+// cada subestado pertenece a un único macroEstado (ver catálogo en @otr/types).
+enum SubEstado {
+  // Prensa
+  PENDIENTE
+  EN_CURSO
+  REVISION_INTERNA
+  ENVIADO_CLIENTE
+  PENDIENTE_PUBLICACION
+  LISTO
+  CANCELADO
+}
+
+// Estado de respuesta de un pitch a un medio (tipo Gestión-pitch de Prensa).
+enum EstadoRespuesta {
+  ENVIADO
+  RESPONDIDO
+  SIN_RESPUESTA
+}
+
+enum EstadoAprobacionCliente {
+  BORRADOR
+  ENVIADO_AL_CLIENTE
+  APROBADO
+  RECHAZADO
+  REQUIERE_AJUSTES
+}
+
+model Ticket {
+  id           String         @id @default(uuid())
+  title        String
+  objetivo     String?        @db.Text
+  description  String?        @db.Text
+  canales      String[]       @default([])
+  clientId     String         @map("client_id")
+  ownerId      String         @map("owner_id")
+  assigneeIds  String[]       @default([]) @map("assignee_ids")
+  ticketTypeId String?        @map("ticket_type_id")
+  pilarId      String?        @map("pilar_id")
+  speakerId    String?        @map("speaker_id")
+  status       TicketStatus   @default(PENDIENTE)
+  prioridad    Prioridad      @default(MEDIA)
+  // Modelo de dos niveles (HU Fase 2). Contenido sigue usando `status`;
+  // Prensa usa `subEstado` (+ `macroEstado` derivado y persistido).
+  area         TicketArea     @default(CONTENIDO)
+  macroEstado  MacroEstado?   @map("macro_estado")
+  subEstado    SubEstado?     @map("sub_estado")
+  // Asignado a revisar el ticket cuando subEstado = REVISION_INTERNA.
+  reviewerId   String?        @map("reviewer_id")
+  // Campos de gestión-pitch (tipo de Prensa): contacto con medios.
+  medio           String?
+  periodista      String?
+  estadoRespuesta EstadoRespuesta? @map("estado_respuesta")
+  dueDate      DateTime?      @map("due_date")
+  plannedDate  DateTime?      @map("planned_date")
+  isDraftPlan  Boolean        @default(false) @map("is_draft_plan")
+  publishedAt  DateTime?      @map("published_at")
+  estadoAprobacionCliente EstadoAprobacionCliente @default(BORRADOR) @map("estado_aprobacion_cliente")
+  content      String?        @db.Text
+  contentPerCanal Json        @default("{}") @map("content_per_canal")
+  keywords     String?
+  links           String[]       @default([])
+  linkEntregable  String?        @map("link_entregable")
+  notasAudiovisual String?       @db.Text @map("notas_audiovisual")
+  notasGrafica     String?       @db.Text @map("notas_grafica")
+  tiposContenido   String[]      @default([]) @map("tipos_contenido")
+  referenciasGraficas Json?      @map("referencias_graficas")
+  chatHistory     Json?          @map("chat_history")
+  versionsPerCanal Json?         @default("{}") @map("versions_per_canal")
+  createdAt       DateTime       @default(now()) @map("created_at")
+  updatedAt    DateTime       @updatedAt @map("updated_at")
+
+  // Relations
+  client        Client          @relation(fields: [clientId], references: [id])
+  owner         User            @relation(fields: [ownerId], references: [id])
+  reviewer      User?           @relation("TicketReviewer", fields: [reviewerId], references: [id], onDelete: SetNull)
+  ticketType    TicketType?     @relation(fields: [ticketTypeId], references: [id])
+  pilar         Pilar?          @relation(fields: [pilarId], references: [id])
+  speaker       Speaker?        @relation(fields: [speakerId], references: [id])
+  publication   Publication?
+  comments      TicketComment[]
+  notifications Notification[]
+
+  // Tickets de referencia (N:N self) — vínculo vivo, no copia
+  references    Ticket[]        @relation("TicketReferences")
+  referencedBy  Ticket[]        @relation("TicketReferences")
+
+  @@index([clientId])
+  @@index([ownerId])
+  @@index([status])
+  @@index([status, createdAt])
+  @@index([clientId, status])
+  @@index([area, macroEstado])
+  @@index([reviewerId])
+  @@index([pilarId])
+  @@index([speakerId])
+  @@index([isDraftPlan, area])
+  @@index([isDraftPlan, createdAt])
+  @@map("tickets")
+}
+
+model Publication {
+  id          String    @id @default(uuid())
+  ticketId    String?   @unique @map("ticket_id")       // null si fue scrapeado automáticamente
+  clientId    String    @map("client_id")               // siempre tiene cliente
+  speakerId   String?   @map("speaker_id")              // null si es publicación de marca (no vocero)
+  url         String    @unique                         // URL del post — evita duplicados
+  publishedAt DateTime  @map("published_at")
+  canal       String    @default("LinkedIn")
+  imageUrl    String?   @map("image_url")
+  postContent String?   @db.Text @map("post_content")  // texto del post scrapeado
+  isHighlight Boolean   @default(false) @map("is_highlight")
+  tags        String[]  @default([])
+  insights    String?   @db.Text
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  ticket    Ticket?              @relation(fields: [ticketId], references: [id], onDelete: SetNull)
+  client    Client               @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  speaker   Speaker?             @relation(fields: [speakerId], references: [id], onDelete: SetNull)
+  snapshots PostMetricSnapshot[]
+
+  @@index([clientId])
+  @@index([speakerId])
+  @@map("publications")
+}
+
+model PostMetricSnapshot {
+  id            String      @id @default(uuid())
+  publicationId String      @map("publication_id")
+  dayNumber     Int         @map("day_number") // 1-5 = snapshots diarios, 99 = foto final (se pisa)
+  likes         Int         @default(0)
+  comments      Int         @default(0)
+  shares        Int         @default(0)
+  views         Int?        // impresiones (Twitter/X)
+  bookmarks     Int?        // guardados (Twitter/X)
+  quotes        Int?        // quote tweets (Twitter/X)
+  takenAt       DateTime    @default(now()) @map("taken_at")
+
+  publication Publication @relation(fields: [publicationId], references: [id], onDelete: Cascade)
+
+  @@unique([publicationId, dayNumber])
+  @@index([publicationId])
+  @@map("post_metric_snapshots")
+}
+
+model TicketComment {
+  id        String   @id @default(uuid())
+  ticketId  String   @map("ticket_id")
+  userId    String   @map("user_id")
+  content   String   @db.Text
+  mentions  String[] @default([])
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  ticket    Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id])
+
+  @@index([ticketId])
+  @@map("ticket_comments")
+}
+
+enum NotificationType {
+  MENTION
+  ASSIGNED
+  STATUS_CHANGE
+}
+
+model Notification {
+  id         String           @id @default(uuid())
+  userId     String           @map("user_id")
+  ticketId   String?          @map("ticket_id")
+  commentId  String?          @map("comment_id")
+  type       NotificationType @default(MENTION)
+  fromName   String           @map("from_name")
+  message    String
+  read       Boolean          @default(false)
+  createdAt  DateTime         @default(now()) @map("created_at")
+
+  user       User             @relation("NotificationRecipient", fields: [userId], references: [id], onDelete: Cascade)
+  ticket     Ticket?          @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  @@index([userId, read])
+  @@map("notifications")
+}
+
+model PressReference {
+  id        String   @id @default(uuid())
+  clientId  String   @map("client_id")
+  type      String   // 'pitch', 'columna', 'comunicado', 'q&a'
+  content   String   @db.Text
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  client    Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@unique([clientId, type])
+  @@map("press_references")
+}
