@@ -97,6 +97,9 @@ async function getCatalogs() {
 }
 
 export async function ticketsRoutes(fastify: FastifyInstance) {
+  // Pre-calentar catálogos en memoria al arrancar
+  getCatalogs().catch(() => {});
+
   // All routes require authentication
   fastify.addHook('preHandler', authenticate);
 
