@@ -1,4 +1,5 @@
 import Fastify from 'fastify';
+// Production Fastify Server
 import cors from '@fastify/cors';
 import jwt from '@fastify/jwt';
 import { config } from './config.js';
