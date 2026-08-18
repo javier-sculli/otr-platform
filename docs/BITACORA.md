@@ -247,6 +247,7 @@
   3. **Optimización de Carga Útil en Backend (`GET /tickets`):** Se restringió la consulta `findMany` en `tickets.ts` para omitir campos de JSON masivos (`chatHistory` y `versionsPerCanal`) en la vista de listado, reduciendo drásticamente el tamaño del payload.
   4. **Índices de Base de Datos (Prisma):** Se agregaron índices compuestos `@@index([isDraftPlan, area])` y `@@index([isDraftPlan, createdAt])` al modelo `Ticket` en `schema.prisma`.
   5. **Notificaciones Asincrónicas y Eliminación de Búsquedas DB Redundantes:** En `PATCH /tickets/:id`, la creación de notificaciones ahora es asincrónica y en lote (`createMany`), liberando la respuesta HTTP inmediatamente. Además, `attachAssignees` reutiliza los usuarios ya cargados (`owner`/`reviewer`) evitando consultas extras a PostgreSQL.
+  6. **Reducción Crítica de Payload de 31MB a 0.7MB (Reducción del 97%):** Se detectó que las columnas de notas con imágenes base64 (`notasGrafica` y `notasAudiovisual`) inflaban la respuesta de `GET /tickets` a **31 Megabytes** por llamada. Al omitir estas columnas pesadas del listado general (se leen solo al abrir la pieza/ticket individual), la respuesta HTTP pasó de 31 MB a solo 0,7 MB, reduciendo la transferencia de 7 segundos a milisegundos.
 - **Verificación:** Compilación TypeScript (`pnpm --filter web build` y `pnpm --filter api build`) aprobada exitosamente.
 
 ### [2026-08-04] — Normalización y Formateo Absoluto de URLs/Links en Tickets
