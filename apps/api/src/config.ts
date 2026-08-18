@@ -3,7 +3,7 @@ dotenv.config({ override: true });
 
 export const config = {
   nodeEnv: process.env.NODE_ENV || 'development',
-  port: parseInt(process.env.PORT || process.env.API_PORT || '3001', 10),
+  port: parseInt(process.env.PORT || '8080', 10),
   databaseUrl: process.env.DATABASE_URL || '',
   jwtSecret: process.env.JWT_SECRET || 'dev-secret-change-in-production',
   frontendUrl: process.env.FRONTEND_URL || 'http://localhost:5173',
