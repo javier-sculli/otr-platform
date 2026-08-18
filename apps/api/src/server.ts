@@ -50,6 +50,7 @@ try {
   console.log(`🚀 Server running on http://localhost:${config.port}`);
   startCronJobs();
 } catch (err) {
+  console.error('CRITICAL: Fastify startup failed:', err);
   fastify.log.error(err);
   process.exit(1);
 }
