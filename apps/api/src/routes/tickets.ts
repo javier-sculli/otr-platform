@@ -349,22 +349,6 @@ export async function ticketsRoutes(fastify: FastifyInstance) {
 
     clearTicketsCache();
 
-    // Enrich assignees in memory
-    const rawIds: string[] = (Array.isArray(ticket.assigneeIds) && ticket.assigneeIds.length > 0)
-      ? ticket.assigneeIds
-      : (ticket.ownerId ? [ticket.ownerId] : []);
-
-    const missingIds = rawIds;
-    let assignees: any[] = [];
-    if (missingIds.length > 0) {
-      assignees = await prisma.user.findMany({
-        where: { id: { in: missingIds } },
-        select: { id: true, name: true, email: true },
-      });
-    }
-
-    const enriched = { ...ticket, assigneeIds: rawIds, assignees };
-
     reply.header('x-response-time', `${Date.now() - t0}ms`);
 
     // Notificaciones no invasivas (completamente asincrónico fuera del ciclo HTTP)
@@ -398,7 +382,7 @@ export async function ticketsRoutes(fastify: FastifyInstance) {
       });
     }
 
-    return { data: enriched };
+    return { data: ticket };
   });
 
   // Delete ticket
