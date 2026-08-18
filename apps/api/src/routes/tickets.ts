@@ -56,10 +56,12 @@ async function attachAssignees(tickets: any[]) {
 }
 
 const ticketsCache = new Map<string, { timestamp: number; data: any }>();
+const ticketDetailCache = new Map<string, { timestamp: number; data: any }>();
 const CACHE_TTL_MS = 60 * 1000;
 
 export function clearTicketsCache() {
   ticketsCache.clear();
+  ticketDetailCache.clear();
 }
 
 export async function ticketsRoutes(fastify: FastifyInstance) {
@@ -185,18 +187,21 @@ export async function ticketsRoutes(fastify: FastifyInstance) {
   });
 
   // Get single ticket
-  fastify.get('/:id', async (request) => {
+  fastify.get('/:id', async (request, reply) => {
+    const t0 = Date.now();
     const { id } = request.params as { id: string };
+
+    const detailCacheKey = `ticket_detail_${id}`;
+    const cached = ticketDetailCache.get(detailCacheKey);
+    if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
+      reply.header('x-cache', 'HIT');
+      reply.header('x-response-time', `${Date.now() - t0}ms`);
+      return cached.data;
+    }
 
     const ticket = await prisma.ticket.findUnique({
       where: { id },
       include: {
-        client: true,
-        owner: { select: { id: true, name: true, email: true } },
-        reviewer: { select: { id: true, name: true, email: true } },
-        ticketType: true,
-        pilar: true,
-        speaker: true,
         publication: true,
         references: {
           select: {
@@ -213,8 +218,42 @@ export async function ticketsRoutes(fastify: FastifyInstance) {
       throw new Error('Ticket not found');
     }
 
-    const [enriched] = await attachAssignees([ticket]);
-    return { data: enriched };
+    const rawAssigneeIds: string[] = (Array.isArray(ticket.assigneeIds) && ticket.assigneeIds.length > 0)
+      ? ticket.assigneeIds
+      : (ticket.ownerId ? [ticket.ownerId] : []);
+
+    const allUserIds = Array.from(new Set([ticket.ownerId, ticket.reviewerId, ...rawAssigneeIds].filter(Boolean) as string[]));
+
+    const [client, users, ticketType, pilar, speaker] = await Promise.all([
+      ticket.clientId ? prisma.client.findUnique({ where: { id: ticket.clientId } }) : null,
+      allUserIds.length > 0 ? prisma.user.findMany({ where: { id: { in: allUserIds } }, select: { id: true, name: true, email: true } }) : [],
+      ticket.ticketTypeId ? prisma.ticketType.findUnique({ where: { id: ticket.ticketTypeId } }) : null,
+      ticket.pilarId ? prisma.pilar.findUnique({ where: { id: ticket.pilarId } }) : null,
+      ticket.speakerId ? prisma.speaker.findUnique({ where: { id: ticket.speakerId } }) : null,
+    ]);
+
+    const usersMap = new Map((users as any[]).map(u => [u.id, u]));
+    const owner = ticket.ownerId ? usersMap.get(ticket.ownerId) || null : null;
+    const reviewer = ticket.reviewerId ? usersMap.get(ticket.reviewerId) || null : null;
+    const assignees = rawAssigneeIds.map(uid => usersMap.get(uid)).filter(Boolean);
+
+    const enriched = {
+      ...ticket,
+      client,
+      owner,
+      reviewer,
+      ticketType,
+      pilar,
+      speaker,
+      assigneeIds: rawAssigneeIds,
+      assignees,
+    };
+
+    const result = { data: enriched };
+    ticketDetailCache.set(detailCacheKey, { timestamp: Date.now(), data: result });
+    reply.header('x-cache', 'MISS');
+    reply.header('x-response-time', `${Date.now() - t0}ms`);
+    return result;
   });
 
   // Create ticket
