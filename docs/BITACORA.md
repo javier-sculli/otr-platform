@@ -246,6 +246,7 @@
   2. **Actualización Optimista y Caché Directo (`setQueryData`):** Las mutaciones y auto-saves de tickets ahora actualizan directamente el estado local en React Query, otorgando respuesta instantánea al usuario sin latencia de red.
   3. **Optimización de Carga Útil en Backend (`GET /tickets`):** Se restringió la consulta `findMany` en `tickets.ts` para omitir campos de JSON masivos (`chatHistory` y `versionsPerCanal`) en la vista de listado, reduciendo drásticamente el tamaño del payload.
   4. **Índices de Base de Datos (Prisma):** Se agregaron índices compuestos `@@index([isDraftPlan, area])` y `@@index([isDraftPlan, createdAt])` al modelo `Ticket` en `schema.prisma`.
+  5. **Notificaciones Asincrónicas y Eliminación de Búsquedas DB Redundantes:** En `PATCH /tickets/:id`, la creación de notificaciones ahora es asincrónica y en lote (`createMany`), liberando la respuesta HTTP inmediatamente. Además, `attachAssignees` reutiliza los usuarios ya cargados (`owner`/`reviewer`) evitando consultas extras a PostgreSQL.
 - **Verificación:** Compilación TypeScript (`pnpm --filter web build` y `pnpm --filter api build`) aprobada exitosamente.
 
 ### [2026-08-04] — Normalización y Formateo Absoluto de URLs/Links en Tickets
