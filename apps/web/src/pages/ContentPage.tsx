@@ -270,9 +270,20 @@ export function ContentPage() {
       links: contextLinks,
       linkEntregable: linkEntregable || null,
     }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['ticket', ticketId] });
-      queryClient.invalidateQueries({ queryKey: ['tickets'] });
+    onSuccess: (res: any) => {
+      if (res?.data && ticketId) {
+        queryClient.setQueryData(['ticket', ticketId], (old: any) => {
+          if (!old?.data) return old;
+          return { ...old, data: { ...old.data, ...res.data } };
+        });
+        queryClient.setQueryData(['tickets'], (old: any) => {
+          if (!old?.data) return old;
+          return {
+            ...old,
+            data: old.data.map((t: any) => (t.id === res.data.id ? { ...t, ...res.data } : t)),
+          };
+        });
+      }
       setHasChanges(false);
     },
   });
@@ -293,9 +304,20 @@ export function ContentPage() {
       notasAudiovisual: notasAudiovisual || null,
       status: nextStatus,
     }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['ticket', ticketId] });
-      queryClient.invalidateQueries({ queryKey: ['tickets'] });
+    onSuccess: (res: any) => {
+      if (res?.data && ticketId) {
+        queryClient.setQueryData(['ticket', ticketId], (old: any) => {
+          if (!old?.data) return old;
+          return { ...old, data: { ...old.data, ...res.data } };
+        });
+        queryClient.setQueryData(['tickets'], (old: any) => {
+          if (!old?.data) return old;
+          return {
+            ...old,
+            data: old.data.map((t: any) => (t.id === res.data.id ? { ...t, ...res.data } : t)),
+          };
+        });
+      }
       setShowSiguienteModal(false);
       navigate(`/piezas/${ticketId}`);
     },

@@ -90,9 +90,20 @@ export function TicketDetallePage() {
 
   const updateMutation = useMutation({
     mutationFn: (patch: Record<string, unknown>) => api.updateTicket(ticketId!, patch),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['ticket', ticketId] });
-      queryClient.invalidateQueries({ queryKey: ['tickets'] });
+    onSuccess: (res: any) => {
+      if (res?.data && ticketId) {
+        queryClient.setQueryData(['ticket', ticketId], (old: any) => {
+          if (!old?.data) return old;
+          return { ...old, data: { ...old.data, ...res.data } };
+        });
+        queryClient.setQueryData(['tickets'], (old: any) => {
+          if (!old?.data) return old;
+          return {
+            ...old,
+            data: old.data.map((t: any) => (t.id === res.data.id ? { ...t, ...res.data } : t)),
+          };
+        });
+      }
     },
   });
 

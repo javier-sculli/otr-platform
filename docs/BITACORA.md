@@ -239,6 +239,15 @@
   2. **Feedback Visual de Arrastre:** Se incorporó un estado semi-transparente en la fila en movimiento (`opacity-40 border-dashed border-[#024fff]`) y una línea de inserción azul en el destino.
 - **Verificación:** Compilación TypeScript (`pnpm --filter web build`) aprobada exitosamente.
 
+### [2026-08-18] — Optimización de Rendimiento en Carga de Tarjetas y Guardado (Popup & Tickets)
+- **Desarrollador:** Javier Sculli
+- **Resumen de Avances:**
+  1. **Eliminación de Sobre-Invalidación de Caché (`invalidateQueries`):** Se removió el re-fetching masivo por red del listado completo de tickets en cada parche de autoguardado en `CreateTicketModal`, `TicketDetallePage` y `ContentPage`.
+  2. **Actualización Optimista y Caché Directo (`setQueryData`):** Las mutaciones y auto-saves de tickets ahora actualizan directamente el estado local en React Query, otorgando respuesta instantánea al usuario sin latencia de red.
+  3. **Optimización de Carga Útil en Backend (`GET /tickets`):** Se restringió la consulta `findMany` en `tickets.ts` para omitir campos de JSON masivos (`chatHistory` y `versionsPerCanal`) en la vista de listado, reduciendo drásticamente el tamaño del payload.
+  4. **Índices de Base de Datos (Prisma):** Se agregaron índices compuestos `@@index([isDraftPlan, area])` y `@@index([isDraftPlan, createdAt])` al modelo `Ticket` en `schema.prisma`.
+- **Verificación:** Compilación TypeScript (`pnpm --filter web build` y `pnpm --filter api build`) aprobada exitosamente.
+
 ### [2026-08-04] — Normalización y Formateo Absoluto de URLs/Links en Tickets
 - **Desarrollador:** Javier Sculli
 - **Resumen de Avances:**

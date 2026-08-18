@@ -299,6 +299,8 @@ model Ticket {
   @@index([reviewerId])
   @@index([pilarId])
   @@index([speakerId])
+  @@index([isDraftPlan, area])
+  @@index([isDraftPlan, createdAt])
   @@map("tickets")
 }
 

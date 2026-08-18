@@ -278,7 +278,13 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
 
   const createMutation = useMutation({
     mutationFn: (data: any) => api.createTicket(data),
-    onSuccess: () => {
+    onSuccess: (res: any) => {
+      if (res?.data) {
+        queryClient.setQueryData(['tickets'], (old: any) => {
+          if (!old?.data) return old;
+          return { ...old, data: [res.data, ...old.data] };
+        });
+      }
       queryClient.invalidateQueries({ queryKey: ['tickets'] });
     },
     onError: (err: any) => {
@@ -288,8 +294,20 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
 
   const updateMutation = useMutation({
     mutationFn: (data: any) => api.updateTicket(ticket!.id, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['tickets'] });
+    onSuccess: (res: any) => {
+      if (res?.data && ticket?.id) {
+        queryClient.setQueryData(['tickets'], (old: any) => {
+          if (!old?.data) return old;
+          return {
+            ...old,
+            data: old.data.map((t: any) => (t.id === res.data.id ? { ...t, ...res.data } : t)),
+          };
+        });
+        queryClient.setQueryData(['ticket', ticket.id], (old: any) => {
+          if (!old?.data) return old;
+          return { ...old, data: { ...old.data, ...res.data } };
+        });
+      }
     },
     onError: (err: any) => {
       setError(err.message || 'Error al guardar los cambios');
@@ -340,9 +358,20 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
 
     setSaveStatus('saving');
     try {
-      await api.updateTicket(ticket.id, payload);
-      queryClient.invalidateQueries({ queryKey: ['tickets'] });
-      queryClient.invalidateQueries({ queryKey: ['ticket', ticket.id] });
+      const res = await api.updateTicket(ticket.id, payload);
+      if (res?.data) {
+        queryClient.setQueryData(['tickets'], (old: any) => {
+          if (!old?.data) return old;
+          return {
+            ...old,
+            data: old.data.map((t: any) => (t.id === res.data.id ? { ...t, ...res.data } : t)),
+          };
+        });
+        queryClient.setQueryData(['ticket', ticket.id], (old: any) => {
+          if (!old?.data) return old;
+          return { ...old, data: { ...old.data, ...res.data } };
+        });
+      }
       setSaveStatus('saved');
     } catch (err: any) {
       setSaveStatus('error');
