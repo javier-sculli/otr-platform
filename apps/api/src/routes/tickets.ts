@@ -55,12 +55,25 @@ async function attachAssignees(tickets: any[]) {
   });
 }
 
+const ticketsCache = new Map<string, { timestamp: number; data: any }>();
+const CACHE_TTL_MS = 60 * 1000;
+
+export function clearTicketsCache() {
+  ticketsCache.clear();
+}
+
 export async function ticketsRoutes(fastify: FastifyInstance) {
   // All routes require authentication
   fastify.addHook('preHandler', authenticate);
 
   // List tickets with filters
   fastify.get('/', async (request) => {
+    const cacheKey = JSON.stringify(request.query || {});
+    const cached = ticketsCache.get(cacheKey);
+    if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
+      return cached.data;
+    }
+
     const { clientId, ownerId, status, speakerId, area, isDraftPlan } = request.query as {
       clientId?: string;
       ownerId?: string;
@@ -137,7 +150,9 @@ export async function ticketsRoutes(fastify: FastifyInstance) {
     });
 
     const data = await attachAssignees(tickets);
-    return { data };
+    const result = { data };
+    ticketsCache.set(cacheKey, { timestamp: Date.now(), data: result });
+    return result;
   });
 
   // Get single ticket
@@ -221,6 +236,7 @@ export async function ticketsRoutes(fastify: FastifyInstance) {
       },
     });
 
+    clearTicketsCache();
     const [enriched] = await attachAssignees([ticket]);
     return { data: enriched };
   });
@@ -371,6 +387,7 @@ export async function ticketsRoutes(fastify: FastifyInstance) {
       })();
     }
 
+    clearTicketsCache();
     const [enriched] = await attachAssignees([ticket]);
     return { data: enriched };
   });
@@ -379,6 +396,7 @@ export async function ticketsRoutes(fastify: FastifyInstance) {
   fastify.delete('/:id', async (request) => {
     const { id } = request.params as { id: string };
 
+    clearTicketsCache();
     await prisma.ticket.delete({ where: { id } });
 
     return { message: 'Ticket deleted successfully' };
@@ -450,6 +468,7 @@ export async function ticketsRoutes(fastify: FastifyInstance) {
       return { count: 0 };
     }
 
+    clearTicketsCache();
     const result = await prisma.ticket.updateMany({
       where: { id: { in: ids } },
       data: {
@@ -469,6 +488,7 @@ export async function ticketsRoutes(fastify: FastifyInstance) {
       return { count: 0 };
     }
 
+    clearTicketsCache();
     const created = [];
     for (const t of tickets) {
       const ticket = await prisma.ticket.create({
@@ -505,6 +525,7 @@ export async function ticketsRoutes(fastify: FastifyInstance) {
       return { count: 0 };
     }
 
+    clearTicketsCache();
     const result = await prisma.ticket.deleteMany({
       where: { id: { in: ids } },
     });
