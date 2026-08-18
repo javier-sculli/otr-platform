@@ -271,7 +271,8 @@ export async function ticketsRoutes(fastify: FastifyInstance) {
   });
 
   // Update ticket
-  fastify.patch('/:id', async (request) => {
+  fastify.patch('/:id', async (request, reply) => {
+    const t0 = Date.now();
     const { id } = request.params as { id: string };
     const data = request.body as any;
 
@@ -421,6 +422,7 @@ export async function ticketsRoutes(fastify: FastifyInstance) {
 
     clearTicketsCache();
     const [enriched] = await attachAssignees([ticket]);
+    reply.header('x-response-time', `${Date.now() - t0}ms`);
     return { data: enriched };
   });
 
