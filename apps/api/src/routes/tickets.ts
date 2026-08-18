@@ -331,29 +331,32 @@ export async function ticketsRoutes(fastify: FastifyInstance) {
     }
 
     const currentUser = (request as any).user;
-    const existingTicket = await prisma.ticket.findUnique({ where: { id }, select: { ownerId: true, assigneeIds: true, reviewerId: true, status: true, subEstado: true, title: true } });
-
-    const ticket = await prisma.ticket.update({
-      where: { id },
-      data: updateData,
-      include: {
-        client: true,
-        owner: { select: { id: true, name: true, email: true } },
-        reviewer: { select: { id: true, name: true, email: true } },
-        ticketType: true,
-        pilar: true,
-        speaker: true,
-        publication: true,
-        references: {
-          select: {
-            id: true,
-            title: true,
-            status: true,
-            ticketType: { select: { id: true, name: true, kind: true } },
-          },
+    const [existingTicket, ticket] = await Promise.all([
+      prisma.ticket.findUnique({
+        where: { id },
+        select: { ownerId: true, assigneeIds: true, reviewerId: true, status: true, subEstado: true, title: true }
+      }),
+      prisma.ticket.update({
+        where: { id },
+        data: updateData,
+        select: {
+          id: true, title: true, objetivo: true, description: true, canales: true,
+          clientId: true, ownerId: true, assigneeIds: true, ticketTypeId: true,
+          pilarId: true, speakerId: true, status: true, prioridad: true, area: true,
+          macroEstado: true, subEstado: true, reviewerId: true, medio: true,
+          periodista: true, estadoRespuesta: true, dueDate: true, plannedDate: true,
+          isDraftPlan: true, publishedAt: true, estadoAprobacionCliente: true,
+          keywords: true, links: true, linkEntregable: true, tiposContenido: true,
+          referenciasGraficas: true, createdAt: true, updatedAt: true,
+          client: { select: { id: true, name: true } },
+          owner: { select: { id: true, name: true, email: true } },
+          reviewer: { select: { id: true, name: true, email: true } },
+          ticketType: { select: { id: true, name: true, kind: true } },
+          pilar: { select: { id: true, nombre: true } },
+          speaker: { select: { id: true, nombre: true } },
         },
-      },
-    });
+      }),
+    ]);
 
     // Notificaciones no invasivas (asincrónico en background)
     if (existingTicket && currentUser) {
