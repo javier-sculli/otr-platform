@@ -344,12 +344,6 @@ export async function ticketsRoutes(fastify: FastifyInstance) {
         isDraftPlan: true, publishedAt: true, estadoAprobacionCliente: true,
         keywords: true, links: true, linkEntregable: true, tiposContenido: true,
         referenciasGraficas: true, createdAt: true, updatedAt: true,
-        client: { select: { id: true, name: true } },
-        owner: { select: { id: true, name: true, email: true } },
-        reviewer: { select: { id: true, name: true, email: true } },
-        ticketType: { select: { id: true, name: true, kind: true } },
-        pilar: { select: { id: true, nombre: true } },
-        speaker: { select: { id: true, nombre: true } },
       },
     });
 
@@ -359,20 +353,16 @@ export async function ticketsRoutes(fastify: FastifyInstance) {
     const rawIds: string[] = (Array.isArray(ticket.assigneeIds) && ticket.assigneeIds.length > 0)
       ? ticket.assigneeIds
       : (ticket.ownerId ? [ticket.ownerId] : []);
-    const knownUsers = new Map<string, any>();
-    if (ticket.owner) knownUsers.set(ticket.owner.id, ticket.owner);
-    if (ticket.reviewer) knownUsers.set(ticket.reviewer.id, ticket.reviewer);
 
-    const missingIds = rawIds.filter(uid => !knownUsers.has(uid));
+    const missingIds = rawIds;
+    let assignees: any[] = [];
     if (missingIds.length > 0) {
-      const extraUsers = await prisma.user.findMany({
+      assignees = await prisma.user.findMany({
         where: { id: { in: missingIds } },
         select: { id: true, name: true, email: true },
       });
-      extraUsers.forEach(u => knownUsers.set(u.id, u));
     }
 
-    const assignees = rawIds.map(uid => knownUsers.get(uid)).filter(Boolean);
     const enriched = { ...ticket, assigneeIds: rawIds, assignees };
 
     reply.header('x-response-time', `${Date.now() - t0}ms`);
@@ -381,14 +371,22 @@ export async function ticketsRoutes(fastify: FastifyInstance) {
     if (currentUser) {
       (async () => {
         try {
+          let senderName = currentUser.name || currentUser.email;
+          if (!senderName && currentUser.id) {
+            const senderUser = await prisma.user.findUnique({ where: { id: currentUser.id }, select: { name: true, email: true } });
+            senderName = senderUser?.name || senderUser?.email || 'Un usuario';
+          } else if (!senderName) {
+            senderName = 'Un usuario';
+          }
+
           const notifs: any[] = [];
           if (data.ownerId && data.ownerId !== currentUser.id) {
             notifs.push({
               userId: data.ownerId,
               ticketId: ticket.id,
               type: 'ASSIGNED',
-              fromName: currentUser.name || 'Un usuario',
-              message: `${currentUser.name || 'Un usuario'} te asignó el ticket "${ticket.title}"`,
+              fromName: senderName,
+              message: `${senderName} te asignó el ticket "${ticket.title}"`,
             });
           }
           if (notifs.length > 0) {
