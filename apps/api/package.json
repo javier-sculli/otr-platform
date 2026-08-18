@@ -28,6 +28,7 @@
     "fastify": "^4.25.2",
     "node-cron": "^4.2.1",
     "openai": "^6.25.0",
+    "prisma": "^5.22.0",
     "zod": "^3.22.4"
   },
   "devDependencies": {
