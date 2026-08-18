@@ -362,6 +362,16 @@ export async function ticketsRoutes(fastify: FastifyInstance) {
     const knownUsers = new Map<string, any>();
     if (ticket.owner) knownUsers.set(ticket.owner.id, ticket.owner);
     if (ticket.reviewer) knownUsers.set(ticket.reviewer.id, ticket.reviewer);
+
+    const missingIds = rawIds.filter(uid => !knownUsers.has(uid));
+    if (missingIds.length > 0) {
+      const extraUsers = await prisma.user.findMany({
+        where: { id: { in: missingIds } },
+        select: { id: true, name: true, email: true },
+      });
+      extraUsers.forEach(u => knownUsers.set(u.id, u));
+    }
+
     const assignees = rawIds.map(uid => knownUsers.get(uid)).filter(Boolean);
     const enriched = { ...ticket, assigneeIds: rawIds, assignees };
 
