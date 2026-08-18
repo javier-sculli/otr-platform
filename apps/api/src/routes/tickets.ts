@@ -107,53 +107,77 @@ export async function ticketsRoutes(fastify: FastifyInstance) {
       ? { plannedDate: 'asc' } 
       : { createdAt: 'desc' };
 
-    const tickets = await prisma.ticket.findMany({
-      where,
-      select: {
-        id: true,
-        title: true,
-        objetivo: true,
-        description: true,
-        canales: true,
-        clientId: true,
-        ownerId: true,
-        assigneeIds: true,
-        ticketTypeId: true,
-        pilarId: true,
-        speakerId: true,
-        status: true,
-        prioridad: true,
-        area: true,
-        macroEstado: true,
-        subEstado: true,
-        reviewerId: true,
-        medio: true,
-        periodista: true,
-        estadoRespuesta: true,
-        dueDate: true,
-        plannedDate: true,
-        isDraftPlan: true,
-        publishedAt: true,
-        estadoAprobacionCliente: true,
-        keywords: true,
-        links: true,
-        linkEntregable: true,
-        tiposContenido: true,
-        referenciasGraficas: true,
-        createdAt: true,
-        updatedAt: true,
-        client: { select: { id: true, name: true } },
-        owner: { select: { id: true, name: true, email: true } },
-        reviewer: { select: { id: true, name: true, email: true } },
-        ticketType: { select: { id: true, name: true, kind: true } },
-        pilar: { select: { id: true, nombre: true } },
-        speaker: { select: { id: true, nombre: true } },
-      },
-      orderBy,
+    const [tickets, clients, users, ticketTypes, pilares, speakers] = await Promise.all([
+      prisma.ticket.findMany({
+        where,
+        select: {
+          id: true,
+          title: true,
+          objetivo: true,
+          description: true,
+          canales: true,
+          clientId: true,
+          ownerId: true,
+          assigneeIds: true,
+          ticketTypeId: true,
+          pilarId: true,
+          speakerId: true,
+          status: true,
+          prioridad: true,
+          area: true,
+          macroEstado: true,
+          subEstado: true,
+          reviewerId: true,
+          medio: true,
+          periodista: true,
+          estadoRespuesta: true,
+          dueDate: true,
+          plannedDate: true,
+          isDraftPlan: true,
+          publishedAt: true,
+          estadoAprobacionCliente: true,
+          keywords: true,
+          links: true,
+          linkEntregable: true,
+          tiposContenido: true,
+          referenciasGraficas: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+        orderBy,
+      }),
+      prisma.client.findMany({ select: { id: true, name: true } }),
+      prisma.user.findMany({ select: { id: true, name: true, email: true } }),
+      prisma.ticketType.findMany({ select: { id: true, name: true, kind: true } }),
+      prisma.pilar.findMany({ select: { id: true, nombre: true } }),
+      prisma.speaker.findMany({ select: { id: true, nombre: true } }),
+    ]);
+
+    const clientsMap = new Map(clients.map(c => [c.id, c]));
+    const usersMap = new Map(users.map(u => [u.id, u]));
+    const typesMap = new Map(ticketTypes.map(t => [t.id, t]));
+    const pilaresMap = new Map(pilares.map(p => [p.id, p]));
+    const speakersMap = new Map(speakers.map(s => [s.id, s]));
+
+    const enriched = tickets.map(t => {
+      const rawIds: string[] = (Array.isArray(t.assigneeIds) && t.assigneeIds.length > 0)
+        ? t.assigneeIds
+        : (t.ownerId ? [t.ownerId] : []);
+      const assignees = rawIds.map(id => usersMap.get(id)).filter(Boolean);
+      return {
+        ...t,
+        client: clientsMap.get(t.clientId) || null,
+        owner: usersMap.get(t.ownerId) || null,
+        reviewer: t.reviewerId ? usersMap.get(t.reviewerId) || null : null,
+        ticketType: t.ticketTypeId ? typesMap.get(t.ticketTypeId) || null : null,
+        pilar: t.pilarId ? pilaresMap.get(t.pilarId) || null : null,
+        speaker: t.speakerId ? speakersMap.get(t.speakerId) || null : null,
+        assigneeIds: rawIds,
+        assignees,
+      };
     });
 
-    const data = await attachAssignees(tickets);
-    const result = { data };
+    const result = { data: enriched };
     ticketsCache.set(cacheKey, { timestamp: Date.now(), data: result });
     reply.header('x-cache', 'MISS');
     reply.header('x-response-time', `${Date.now() - t0}ms`);
