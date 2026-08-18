@@ -67,10 +67,13 @@ export async function ticketsRoutes(fastify: FastifyInstance) {
   fastify.addHook('preHandler', authenticate);
 
   // List tickets with filters
-  fastify.get('/', async (request) => {
+  fastify.get('/', async (request, reply) => {
+    const t0 = Date.now();
     const cacheKey = JSON.stringify(request.query || {});
     const cached = ticketsCache.get(cacheKey);
     if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
+      reply.header('x-cache', 'HIT');
+      reply.header('x-response-time', `${Date.now() - t0}ms`);
       return cached.data;
     }
 
@@ -152,6 +155,8 @@ export async function ticketsRoutes(fastify: FastifyInstance) {
     const data = await attachAssignees(tickets);
     const result = { data };
     ticketsCache.set(cacheKey, { timestamp: Date.now(), data: result });
+    reply.header('x-cache', 'MISS');
+    reply.header('x-response-time', `${Date.now() - t0}ms`);
     return result;
   });
 
