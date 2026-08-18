@@ -59,9 +59,41 @@ const ticketsCache = new Map<string, { timestamp: number; data: any }>();
 const ticketDetailCache = new Map<string, { timestamp: number; data: any }>();
 const CACHE_TTL_MS = 60 * 1000;
 
+let catalogCache: {
+  timestamp: number;
+  clients: Map<string, any>;
+  users: Map<string, any>;
+  ticketTypes: Map<string, any>;
+  pilares: Map<string, any>;
+  speakers: Map<string, any>;
+} | null = null;
+const CATALOG_TTL_MS = 5 * 60 * 1000;
+
 export function clearTicketsCache() {
   ticketsCache.clear();
   ticketDetailCache.clear();
+}
+
+async function getCatalogs() {
+  if (catalogCache && Date.now() - catalogCache.timestamp < CATALOG_TTL_MS) {
+    return catalogCache;
+  }
+  const [clients, users, ticketTypes, pilares, speakers] = await Promise.all([
+    prisma.client.findMany({ select: { id: true, name: true, active: true, canales: true, linkedinUrl: true, instagramUrl: true, webUrl: true } }),
+    prisma.user.findMany({ select: { id: true, name: true, email: true } }),
+    prisma.ticketType.findMany({ select: { id: true, name: true, kind: true } }),
+    prisma.pilar.findMany({ select: { id: true, nombre: true, descripcion: true } }),
+    prisma.speaker.findMany({ select: { id: true, nombre: true } }),
+  ]);
+  catalogCache = {
+    timestamp: Date.now(),
+    clients: new Map(clients.map(c => [c.id, c])),
+    users: new Map(users.map(u => [u.id, u])),
+    ticketTypes: new Map(ticketTypes.map(t => [t.id, t])),
+    pilares: new Map(pilares.map(p => [p.id, p])),
+    speakers: new Map(speakers.map(s => [s.id, s])),
+  };
+  return catalogCache;
 }
 
 export async function ticketsRoutes(fastify: FastifyInstance) {
@@ -218,33 +250,23 @@ export async function ticketsRoutes(fastify: FastifyInstance) {
       throw new Error('Ticket not found');
     }
 
+    const catalogs = await getCatalogs();
     const rawAssigneeIds: string[] = (Array.isArray(ticket.assigneeIds) && ticket.assigneeIds.length > 0)
       ? ticket.assigneeIds
       : (ticket.ownerId ? [ticket.ownerId] : []);
 
-    const allUserIds = Array.from(new Set([ticket.ownerId, ticket.reviewerId, ...rawAssigneeIds].filter(Boolean) as string[]));
-
-    const [client, users, ticketType, pilar, speaker] = await Promise.all([
-      ticket.clientId ? prisma.client.findUnique({ where: { id: ticket.clientId } }) : null,
-      allUserIds.length > 0 ? prisma.user.findMany({ where: { id: { in: allUserIds } }, select: { id: true, name: true, email: true } }) : [],
-      ticket.ticketTypeId ? prisma.ticketType.findUnique({ where: { id: ticket.ticketTypeId } }) : null,
-      ticket.pilarId ? prisma.pilar.findUnique({ where: { id: ticket.pilarId } }) : null,
-      ticket.speakerId ? prisma.speaker.findUnique({ where: { id: ticket.speakerId } }) : null,
-    ]);
-
-    const usersMap = new Map((users as any[]).map(u => [u.id, u]));
-    const owner = ticket.ownerId ? usersMap.get(ticket.ownerId) || null : null;
-    const reviewer = ticket.reviewerId ? usersMap.get(ticket.reviewerId) || null : null;
-    const assignees = rawAssigneeIds.map(uid => usersMap.get(uid)).filter(Boolean);
+    const owner = ticket.ownerId ? catalogs.users.get(ticket.ownerId) || null : null;
+    const reviewer = ticket.reviewerId ? catalogs.users.get(ticket.reviewerId) || null : null;
+    const assignees = rawAssigneeIds.map(uid => catalogs.users.get(uid)).filter(Boolean);
 
     const enriched = {
       ...ticket,
-      client,
+      client: ticket.clientId ? catalogs.clients.get(ticket.clientId) || null : null,
       owner,
       reviewer,
-      ticketType,
-      pilar,
-      speaker,
+      ticketType: ticket.ticketTypeId ? catalogs.ticketTypes.get(ticket.ticketTypeId) || null : null,
+      pilar: ticket.pilarId ? catalogs.pilares.get(ticket.pilarId) || null : null,
+      speaker: ticket.speakerId ? catalogs.speakers.get(ticket.speakerId) || null : null,
       assigneeIds: rawAssigneeIds,
       assignees,
     };
