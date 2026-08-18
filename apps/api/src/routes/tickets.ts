@@ -367,9 +367,9 @@ export async function ticketsRoutes(fastify: FastifyInstance) {
 
     reply.header('x-response-time', `${Date.now() - t0}ms`);
 
-    // Notificaciones no invasivas (asincrónico en background)
+    // Notificaciones no invasivas (completamente asincrónico fuera del ciclo HTTP)
     if (currentUser) {
-      (async () => {
+      setImmediate(async () => {
         try {
           let senderName = currentUser.name || currentUser.email;
           if (!senderName && currentUser.id) {
@@ -395,7 +395,7 @@ export async function ticketsRoutes(fastify: FastifyInstance) {
         } catch (e) {
           // ignorar errores de notificación en background
         }
-      })();
+      });
     }
 
     return { data: enriched };
