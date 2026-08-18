@@ -105,6 +105,12 @@ Sistema de gestión de producción de contenido para On The Rocks (OTR), una age
 - El Brand Kit tendra seccion de canales: tono y lineamientos minimos por red social
 - Kit del Vocero = capa sobre el Brand Kit, con tono personal y scraping de perfil social
 
+## Reglas Arquitectónicas de Backend y Rendimiento
+
+> ⚠️ **NOTIFICACIONES SIEMPRE EN SEGUNDO PLANO:**
+> - La creación de notificaciones internas (`prisma.notification.createMany` o similar) **NUNCA** debe bloquear la respuesta HTTP enviada al usuario.
+> - **Obligatorio:** Deben ejecutarse fuera del flujo principal de la request usando `setImmediate(async () => { ... })` o un worker asincrónico para garantizar respuestas HTTP ultra rápidas (sub-100ms) sin esperar escrituras de notificaciones secundarias.
+
 ## Memoria del proyecto
 
 > Los archivos de memoria viven en `/memory/` en la raiz del repo.
