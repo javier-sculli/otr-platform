@@ -212,6 +212,37 @@ export async function catalogsRoutes(fastify: FastifyInstance) {
 
   // Get all ticket types
   fastify.get('/ticket-types', async () => {
+    const defaultContenidoTypes = [
+      'Carrusel',
+      'Imagen',
+      'Placa con diseño',
+      'Story',
+      'Reel',
+      'Video',
+      'Artículo Blog',
+      'Hilo',
+      'Texto',
+      'Repost',
+      'Newsletter',
+    ];
+
+    try {
+      const existing = await prisma.ticketType.findMany({ select: { name: true, kind: true } });
+      const existingSet = new Set(existing.map((e) => `${e.kind}:${e.name.toLowerCase()}`));
+
+      for (const name of defaultContenidoTypes) {
+        if (!existingSet.has(`CONTENIDO:${name.toLowerCase()}`)) {
+          await prisma.ticketType.upsert({
+            where: { name_kind: { name, kind: 'CONTENIDO' } },
+            update: {},
+            create: { name, kind: 'CONTENIDO' },
+          });
+        }
+      }
+    } catch (err) {
+      console.error('Error auto-seeding default ticket types:', err);
+    }
+
     const ticketTypes = await prisma.ticketType.findMany({
       orderBy: [{ kind: 'asc' }, { name: 'asc' }],
     });
