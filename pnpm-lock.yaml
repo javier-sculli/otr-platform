@@ -24,7 +24,7 @@ importers:
         specifier: ^8.0.0
         version: 8.0.1
       '@prisma/client':
-        specifier: ^5.8.0
+        specifier: ^5.22.0
         version: 5.22.0(prisma@5.22.0)
       apify-client:
         specifier: ^2.22.3
@@ -44,6 +44,9 @@ importers:
       openai:
         specifier: ^6.25.0
         version: 6.25.0(zod@3.25.76)
+      prisma:
+        specifier: ^5.22.0
+        version: 5.22.0
       zod:
         specifier: ^3.22.4
         version: 3.25.76
@@ -60,9 +63,6 @@ importers:
       '@types/node-cron':
         specifier: ^3.0.11
         version: 3.0.11
-      prisma:
-        specifier: ^5.8.0
-        version: 5.22.0
       tsx:
         specifier: ^4.7.0
         version: 4.21.0
