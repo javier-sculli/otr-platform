@@ -332,85 +332,55 @@ export async function ticketsRoutes(fastify: FastifyInstance) {
     }
 
     const currentUser = (request as any).user;
-    const [existingTicket, ticket] = await Promise.all([
-      prisma.ticket.findUnique({
-        where: { id },
-        select: { ownerId: true, assigneeIds: true, reviewerId: true, status: true, subEstado: true, title: true }
-      }),
-      prisma.ticket.update({
-        where: { id },
-        data: updateData,
-        select: {
-          id: true, title: true, objetivo: true, description: true, canales: true,
-          clientId: true, ownerId: true, assigneeIds: true, ticketTypeId: true,
-          pilarId: true, speakerId: true, status: true, prioridad: true, area: true,
-          macroEstado: true, subEstado: true, reviewerId: true, medio: true,
-          periodista: true, estadoRespuesta: true, dueDate: true, plannedDate: true,
-          isDraftPlan: true, publishedAt: true, estadoAprobacionCliente: true,
-          keywords: true, links: true, linkEntregable: true, tiposContenido: true,
-          referenciasGraficas: true, createdAt: true, updatedAt: true,
-          client: { select: { id: true, name: true } },
-          owner: { select: { id: true, name: true, email: true } },
-          reviewer: { select: { id: true, name: true, email: true } },
-          ticketType: { select: { id: true, name: true, kind: true } },
-          pilar: { select: { id: true, nombre: true } },
-          speaker: { select: { id: true, nombre: true } },
-        },
-      }),
-    ]);
+    const ticket = await prisma.ticket.update({
+      where: { id },
+      data: updateData,
+      select: {
+        id: true, title: true, objetivo: true, description: true, canales: true,
+        clientId: true, ownerId: true, assigneeIds: true, ticketTypeId: true,
+        pilarId: true, speakerId: true, status: true, prioridad: true, area: true,
+        macroEstado: true, subEstado: true, reviewerId: true, medio: true,
+        periodista: true, estadoRespuesta: true, dueDate: true, plannedDate: true,
+        isDraftPlan: true, publishedAt: true, estadoAprobacionCliente: true,
+        keywords: true, links: true, linkEntregable: true, tiposContenido: true,
+        referenciasGraficas: true, createdAt: true, updatedAt: true,
+        client: { select: { id: true, name: true } },
+        owner: { select: { id: true, name: true, email: true } },
+        reviewer: { select: { id: true, name: true, email: true } },
+        ticketType: { select: { id: true, name: true, kind: true } },
+        pilar: { select: { id: true, nombre: true } },
+        speaker: { select: { id: true, nombre: true } },
+      },
+    });
+
+    clearTicketsCache();
+
+    // Enrich assignees in memory
+    const rawIds: string[] = (Array.isArray(ticket.assigneeIds) && ticket.assigneeIds.length > 0)
+      ? ticket.assigneeIds
+      : (ticket.ownerId ? [ticket.ownerId] : []);
+    const knownUsers = new Map<string, any>();
+    if (ticket.owner) knownUsers.set(ticket.owner.id, ticket.owner);
+    if (ticket.reviewer) knownUsers.set(ticket.reviewer.id, ticket.reviewer);
+    const assignees = rawIds.map(uid => knownUsers.get(uid)).filter(Boolean);
+    const enriched = { ...ticket, assigneeIds: rawIds, assignees };
+
+    reply.header('x-response-time', `${Date.now() - t0}ms`);
 
     // Notificaciones no invasivas (asincrónico en background)
-    if (existingTicket && currentUser) {
+    if (currentUser) {
       (async () => {
         try {
           const notifs: any[] = [];
-          if (data.ownerId && data.ownerId !== existingTicket.ownerId && data.ownerId !== currentUser.id) {
+          if (data.ownerId && data.ownerId !== currentUser.id) {
             notifs.push({
               userId: data.ownerId,
               ticketId: ticket.id,
               type: 'ASSIGNED',
-              fromName: currentUser.name,
-              message: `${currentUser.name} te asignó el ticket "${ticket.title}"`,
+              fromName: currentUser.name || 'Un usuario',
+              message: `${currentUser.name || 'Un usuario'} te asignó el ticket "${ticket.title}"`,
             });
           }
-
-          if (Array.isArray(data.assigneeIds)) {
-            const oldAssignees = new Set(existingTicket.assigneeIds || [existingTicket.ownerId]);
-            for (const aid of data.assigneeIds) {
-              if (!oldAssignees.has(aid) && aid !== currentUser.id) {
-                notifs.push({
-                  userId: aid,
-                  ticketId: ticket.id,
-                  type: 'ASSIGNED',
-                  fromName: currentUser.name,
-                  message: `${currentUser.name} te agregó como responsable de "${ticket.title}"`,
-                });
-              }
-            }
-          }
-
-          if (data.reviewerId && data.reviewerId !== existingTicket.reviewerId && data.reviewerId !== currentUser.id) {
-            notifs.push({
-              userId: data.reviewerId,
-              ticketId: ticket.id,
-              type: 'ASSIGNED',
-              fromName: currentUser.name,
-              message: `${currentUser.name} te asignó la revisión de "${ticket.title}"`,
-            });
-          }
-
-          const statusChanged = (data.status && data.status !== existingTicket.status) || (data.subEstado && data.subEstado !== existingTicket.subEstado);
-          if (statusChanged && existingTicket.ownerId !== currentUser.id) {
-            const newStatusLabel = data.status || data.subEstado;
-            notifs.push({
-              userId: existingTicket.ownerId,
-              ticketId: ticket.id,
-              type: 'STATUS_CHANGE',
-              fromName: currentUser.name,
-              message: `${currentUser.name} movió "${ticket.title}" a ${newStatusLabel}`,
-            });
-          }
-
           if (notifs.length > 0) {
             await prisma.notification.createMany({ data: notifs });
           }
@@ -420,9 +390,6 @@ export async function ticketsRoutes(fastify: FastifyInstance) {
       })();
     }
 
-    clearTicketsCache();
-    const [enriched] = await attachAssignees([ticket]);
-    reply.header('x-response-time', `${Date.now() - t0}ms`);
     return { data: enriched };
   });
 
