@@ -1,6 +1,6 @@
 {
   "$schema": "https://railway.app/railway.schema.json",
   "deploy": {
-    "startCommand": "pnpm --filter api start"
+    "startCommand": "npx -y prisma migrate deploy --schema prisma/schema.prisma && node dist/server.js"
   }
 }
