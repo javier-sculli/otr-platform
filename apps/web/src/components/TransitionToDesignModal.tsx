@@ -16,7 +16,7 @@ interface TransitionToDesignModalProps {
     referenciasGraficas?: any[];
     client?: { name: string };
   } | null;
-  onConfirm: (data: { notasGrafica: string; links: string[] }) => Promise<void>;
+  onConfirm: (data: { notasAudiovisual: string; links: string[] }) => Promise<void>;
 }
 
 const labelCls = 'flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide text-[#000033]/50 mb-1.5';
@@ -28,14 +28,14 @@ export function TransitionToDesignModal({
   ticket,
   onConfirm,
 }: TransitionToDesignModalProps) {
-  const [notasGrafica, setNotasGrafica] = useState('');
+  const [notasAudiovisual, setNotasAudiovisual] = useState('');
   const [links, setLinks] = useState<string[]>([]);
   const [newLink, setNewLink] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     if (ticket) {
-      setNotasGrafica(ticket.notasGrafica || ticket.notasAudiovisual || '');
+      setNotasAudiovisual(ticket.notasAudiovisual || ticket.notasGrafica || '');
       setLinks(ticket.links || []);
     }
   }, [ticket]);
@@ -58,7 +58,7 @@ export function TransitionToDesignModal({
     e.preventDefault();
     setIsSubmitting(true);
     try {
-      await onConfirm({ notasGrafica, links });
+      await onConfirm({ notasAudiovisual, links });
       onClose();
     } catch (err) {
       console.error('Error al actualizar notas de diseño:', err);
@@ -101,8 +101,8 @@ export function TransitionToDesignModal({
               Notas de diseño
             </label>
             <RichNotesEditor
-              value={notasGrafica}
-              onChange={setNotasGrafica}
+              value={notasAudiovisual}
+              onChange={setNotasAudiovisual}
               placeholder="Especificaciones visuales por formato, paleta, textos clave o guías (podés pegar texto con formato desde Notion, Word o ChatGPT)..."
               minHeight="140px"
               maxHeight="250px"

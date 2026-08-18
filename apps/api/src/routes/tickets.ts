@@ -294,7 +294,7 @@ export async function ticketsRoutes(fastify: FastifyInstance) {
         linkEntregable: data.linkPublicacionReal !== undefined ? data.linkPublicacionReal : data.linkEntregable,
         links: data.links || [],
         tiposContenido: data.tiposContenido || [],
-        notasGrafica: data.notasGrafica !== undefined ? data.notasGrafica : (data.notasAudiovisual !== undefined ? data.notasAudiovisual : null),
+        notasAudiovisual: data.notasAudiovisual !== undefined ? data.notasAudiovisual : (data.notasGrafica !== undefined ? data.notasGrafica : null),
         referenciasGraficas: data.referenciasGraficas || null,
       },
       include: {
@@ -358,7 +358,7 @@ export async function ticketsRoutes(fastify: FastifyInstance) {
     if (data.keywords !== undefined) updateData.keywords = data.keywords;
     if (data.copyFinal !== undefined) updateData.copyFinal = data.copyFinal;
     if (data.notasAudiovisual !== undefined) updateData.notasAudiovisual = data.notasAudiovisual;
-    if (data.notasGrafica !== undefined) updateData.notasGrafica = data.notasGrafica;
+    else if (data.notasGrafica !== undefined) updateData.notasAudiovisual = data.notasGrafica;
     if (data.tiposContenido !== undefined) updateData.tiposContenido = data.tiposContenido;
     if (data.referenciasGraficas !== undefined) updateData.referenciasGraficas = data.referenciasGraficas;
     if (data.versionsPerCanal !== undefined) updateData.versionsPerCanal = data.versionsPerCanal;

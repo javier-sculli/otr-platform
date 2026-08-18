@@ -769,9 +769,9 @@ export function TicketDetallePage() {
                 value={notasAudiovisual}
                 onChange={setNotasAudiovisual}
                 onBlur={() => {
-                  const currentNotas = (ticket as any).notasGrafica ?? (ticket as any).notasAudiovisual ?? '';
+                  const currentNotas = (ticket as any).notasAudiovisual ?? (ticket as any).notasGrafica ?? '';
                   if (notasAudiovisual !== currentNotas) {
-                    updateMutation.mutate({ notasGrafica: notasAudiovisual || null, notasAudiovisual: notasAudiovisual || null });
+                    updateMutation.mutate({ notasAudiovisual: notasAudiovisual || null });
                   }
                 }}
                 placeholder="Notas de diseño (podés pegar libremente textos con formato, imágenes o links desde Notion)..."
@@ -1045,7 +1045,7 @@ export function TicketDetallePage() {
         onConfirm={async (data) => {
           await updateMutation.mutateAsync({
             status: 'DISENO',
-            notasGrafica: data.notasGrafica || null,
+            notasAudiovisual: data.notasAudiovisual || null,
             links: data.links,
           });
           setIsDesignModalOpen(false);

@@ -624,11 +624,11 @@ export function BacklogPage() {
         isOpen={!!designModalTicket}
         onClose={() => setDesignModalTicket(null)}
         ticket={designModalTicket as any}
-        onConfirm={async ({ notasGrafica, links }) => {
+        onConfirm={async ({ notasAudiovisual, links }) => {
           if (designModalTicket) {
             await api.updateTicket(designModalTicket.id, {
               status: 'DISENO',
-              notasGrafica,
+              notasAudiovisual,
               links,
             });
             queryClient.invalidateQueries({ queryKey: ['tickets'] });
