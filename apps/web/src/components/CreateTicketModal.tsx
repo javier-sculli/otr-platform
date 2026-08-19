@@ -249,7 +249,7 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
     queryKey: ['ticketTypes'],
     queryFn: () => api.getTicketTypes(),
     enabled: isOpen,
-    staleTime: 0,
+    staleTime: 10 * 60 * 1000,
   });
 
   const { data: pilaresData } = useQuery({
