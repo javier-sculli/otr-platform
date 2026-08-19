@@ -95,6 +95,7 @@ export function SumarioTab({ clientId }: { clientId: string }) {
   const { data: ticketTypesData } = useQuery({
     queryKey: ['ticketTypes'],
     queryFn: () => api.getTicketTypes(),
+    staleTime: 10 * 60 * 1000,
   });
 
   const { data: clientsData } = useQuery({

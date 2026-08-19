@@ -252,8 +252,13 @@ export async function catalogsRoutes(fastify: FastifyInstance) {
 
   // Get all ticket types
   fastify.get('/ticket-types', async (request, reply) => {
-    catalogRouteCache.delete('ticket-types');
-    reply.header('Cache-Control', 'no-cache, no-store, must-revalidate');
+    const cacheKey = 'ticket-types';
+    reply.header('Cache-Control', 'public, max-age=600, stale-while-revalidate=3600');
+    const cached = catalogRouteCache.get(cacheKey);
+    if (cached && Date.now() - cached.timestamp < CATALOG_ROUTE_TTL_MS) {
+      reply.header('x-cache', 'HIT');
+      return cached.data;
+    }
 
     const defaultContenidoTypes = [
       'Carrusel',
@@ -414,6 +419,7 @@ export async function catalogsRoutes(fastify: FastifyInstance) {
       orderBy: [{ kind: 'asc' }, { name: 'asc' }],
     });
     const result = { data: ticketTypes };
+    catalogRouteCache.set(cacheKey, { timestamp: Date.now(), data: result });
     reply.header('x-cache', 'MISS');
     return result;
   });
