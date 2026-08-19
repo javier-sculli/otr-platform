@@ -252,17 +252,13 @@ export async function catalogsRoutes(fastify: FastifyInstance) {
 
   // Get all ticket types
   fastify.get('/ticket-types', async (request, reply) => {
-    const cacheKey = 'ticket-types';
-    reply.header('Cache-Control', 'public, max-age=600, stale-while-revalidate=3600');
-    const cached = catalogRouteCache.get(cacheKey);
-    if (cached && Date.now() - cached.timestamp < CATALOG_ROUTE_TTL_MS) {
-      reply.header('x-cache', 'HIT');
-      return cached.data;
-    }
+    catalogRouteCache.delete('ticket-types');
+    reply.header('Cache-Control', 'no-cache, no-store, must-revalidate');
 
     const defaultContenidoTypes = [
       'Carrusel',
-      'Imagen Gráfica',
+      'Imagen',
+      'Placa Gráfica',
       'Story',
       'Reel',
       'Video',
@@ -274,62 +270,91 @@ export async function catalogsRoutes(fastify: FastifyInstance) {
     ];
 
     try {
-      // Auto-migración: migrar 'Imagen', 'Placa con diseño' y variantes legadas a 'Imagen Gráfica'
-      const legacyMerged = await prisma.ticketType.findMany({
+      // 1. Asegurar existencia de 'Imagen', 'Placa Gráfica' y 'Texto'
+      let imagenType = await prisma.ticketType.findFirst({
+        where: { name: 'Imagen', kind: 'CONTENIDO' },
+      });
+      if (!imagenType) {
+        imagenType = await prisma.ticketType.create({
+          data: { name: 'Imagen', kind: 'CONTENIDO' },
+        });
+      }
+
+      let placaGraficaType = await prisma.ticketType.findFirst({
+        where: { name: 'Placa Gráfica', kind: 'CONTENIDO' },
+      });
+      if (!placaGraficaType) {
+        placaGraficaType = await prisma.ticketType.create({
+          data: { name: 'Placa Gráfica', kind: 'CONTENIDO' },
+        });
+      }
+
+      let textoType = await prisma.ticketType.findFirst({
+        where: { name: 'Texto', kind: 'CONTENIDO' },
+      });
+      if (!textoType) {
+        textoType = await prisma.ticketType.create({
+          data: { name: 'Texto', kind: 'CONTENIDO' },
+        });
+      }
+
+      // 2. Migrar nombres legados de gráficas/placas a 'Placa Gráfica'
+      const legacyPlacas = await prisma.ticketType.findMany({
         where: {
           kind: 'CONTENIDO',
           OR: [
-            { name: { equals: 'Imagen', mode: 'insensitive' } },
-            { name: { equals: 'Imagen sola', mode: 'insensitive' } },
-            { name: { equals: 'Imagen estática', mode: 'insensitive' } },
-            { name: { equals: 'Imagen estatica', mode: 'insensitive' } },
             { name: { equals: 'Placa con diseño', mode: 'insensitive' } },
             { name: { equals: 'Placa con diseno', mode: 'insensitive' } },
             { name: { equals: 'Placa', mode: 'insensitive' } },
+            { name: { equals: 'Imagen Gráfica', mode: 'insensitive' } },
+            { name: { equals: 'Imagen grafica', mode: 'insensitive' } },
             { name: { equals: 'Gráfica', mode: 'insensitive' } },
             { name: { equals: 'Grafica', mode: 'insensitive' } },
-            {
-              AND: [
-                { name: { contains: 'imagen', mode: 'insensitive' } },
-                { name: { contains: 'grafica', mode: 'insensitive' } },
-              ],
-            },
-            {
-              AND: [
-                { name: { contains: 'imagen', mode: 'insensitive' } },
-                { name: { contains: 'gráfica', mode: 'insensitive' } },
-              ],
-            },
-            { name: { contains: 'imagen /', mode: 'insensitive' } },
-            { name: { contains: 'imagen (', mode: 'insensitive' } },
           ],
           NOT: [
-            { name: 'Imagen Gráfica' },
+            { name: 'Placa Gráfica' },
           ],
         },
       });
 
-      if (legacyMerged.length > 0) {
-        let targetType = await prisma.ticketType.findFirst({
-          where: { name: 'Imagen Gráfica', kind: 'CONTENIDO' },
-        });
-        if (!targetType) {
-          targetType = await prisma.ticketType.create({
-            data: { name: 'Imagen Gráfica', kind: 'CONTENIDO' },
-          });
-        }
-
-        const legacyIds = legacyMerged.map((t) => t.id);
+      if (legacyPlacas.length > 0) {
+        const legacyPlacaIds = legacyPlacas.map((t) => t.id);
         await prisma.ticket.updateMany({
-          where: { ticketTypeId: { in: legacyIds } },
-          data: { ticketTypeId: targetType.id },
+          where: { ticketTypeId: { in: legacyPlacaIds } },
+          data: { ticketTypeId: placaGraficaType.id },
         });
         await prisma.ticketType.deleteMany({
-          where: { id: { in: legacyIds } },
+          where: { id: { in: legacyPlacaIds } },
         });
       }
 
-      // Auto-migración: migrar 'Texto solo' y variantes legadas a 'Texto'
+      // 3. Migrar nombres legados de imágenes a 'Imagen'
+      const legacyImagenes = await prisma.ticketType.findMany({
+        where: {
+          kind: 'CONTENIDO',
+          OR: [
+            { name: { equals: 'Imagen sola', mode: 'insensitive' } },
+            { name: { equals: 'Imagen estática', mode: 'insensitive' } },
+            { name: { equals: 'Imagen estatica', mode: 'insensitive' } },
+          ],
+          NOT: [
+            { name: 'Imagen' },
+          ],
+        },
+      });
+
+      if (legacyImagenes.length > 0) {
+        const legacyImagenIds = legacyImagenes.map((t) => t.id);
+        await prisma.ticket.updateMany({
+          where: { ticketTypeId: { in: legacyImagenIds } },
+          data: { ticketTypeId: imagenType.id },
+        });
+        await prisma.ticketType.deleteMany({
+          where: { id: { in: legacyImagenIds } },
+        });
+      }
+
+      // 4. Migrar nombres legados de texto solo a 'Texto'
       const legacyTexto = await prisma.ticketType.findMany({
         where: {
           kind: 'CONTENIDO',
@@ -345,15 +370,6 @@ export async function catalogsRoutes(fastify: FastifyInstance) {
       });
 
       if (legacyTexto.length > 0) {
-        let textoType = await prisma.ticketType.findFirst({
-          where: { name: 'Texto', kind: 'CONTENIDO' },
-        });
-        if (!textoType) {
-          textoType = await prisma.ticketType.create({
-            data: { name: 'Texto', kind: 'CONTENIDO' },
-          });
-        }
-
         const legacyTextoIds = legacyTexto.map((t) => t.id);
         await prisma.ticket.updateMany({
           where: { ticketTypeId: { in: legacyTextoIds } },
@@ -364,14 +380,14 @@ export async function catalogsRoutes(fastify: FastifyInstance) {
         });
       }
 
-      // Limpieza explícita de cualquier ticketType redundante de CONTENIDO
+      // 5. Limpieza explícita de cualquier ticketType duplicado o descartado
       await prisma.ticketType.deleteMany({
         where: {
           kind: 'CONTENIDO',
           name: {
             in: [
-              'Imagen', 'imagen', 'Imagen sola', 'Imagen estática', 'Imagen estatica',
               'Placa con diseño', 'Placa con diseno', 'Placa', 'Gráfica', 'Grafica',
+              'Imagen Gráfica', 'Imagen grafica', 'Imagen sola', 'Imagen estática', 'Imagen estatica',
               'Texto solo', 'Texto Solo', 'Texto-solo', 'texto solo',
             ],
           },
@@ -398,7 +414,6 @@ export async function catalogsRoutes(fastify: FastifyInstance) {
       orderBy: [{ kind: 'asc' }, { name: 'asc' }],
     });
     const result = { data: ticketTypes };
-    catalogRouteCache.set(cacheKey, { timestamp: Date.now(), data: result });
     reply.header('x-cache', 'MISS');
     return result;
   });

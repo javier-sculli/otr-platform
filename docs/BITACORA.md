@@ -2,13 +2,15 @@
 
 > **Propósito:** Registro central de avances, decisiones de producto, correcciones de errores y backlog priorizado de la plataforma Rocky (OTR). A partir de la reunión del 31 de Julio de 2026, cada cambio, bugfix y feature completado queda asentado en esta bitácora.
 
-### [2026-08-19] — Unificación de Formatos No Redundantes: Imagen Gráfica y Texto
+### [2026-08-19] — Formatos de Contenido Independientes: Imagen y Placa Gráfica (con Invalidación de Caché)
 - **Desarrollador:** Antigravity (Pair Programming con Javier Sculli)
 - **Resumen de Avances:**
-  1. **Consolidación a Formatos Únicos:** Se migró `"Imagen"` solo a **"Imagen Gráfica"** y `"Texto solo"` a **"Texto"** en la selección de tipos de contenido (`CONTENIDO`), eliminando opciones duplicadas y redundantes.
-  2. **Auto-Migración Backend (`catalogs.ts`):** La ruta `GET /ticket-types` detecta y migra automáticamente registros de `Imagen`, `Imagen sola`, `Imagen estática`, `Texto solo` y `Texto Solo`, re-apuntando sus tickets a `Imagen Gráfica` y `Texto` respectivamente y eliminando tipos legados.
-  3. **Motor de Workflow (`workflow.ts`):** `Imagen Gráfica` requiere Diseño Gráfico (`REDACCIÓN` → `DISEÑO` → `REVISIÓN INTERNA`) y `Texto` saltea Diseño/Edición (`REDACCIÓN` → `REVISIÓN INTERNA`).
-  4. **Migración SQL Prisma:** Actualizada la migración idempotente `20260819120000_separate_imagen_and_placa_types` en PostgreSQL para aplicar la consolidación a nivel base de datos.
+  1. **Dos Formatos Independientes:** Se establecieron formalmente **"Imagen"** (foto estática sin diseño) y **"Placa Gráfica"** (gráfica que pasa por diseño) como los 2 tipos principales de contenido gráfico en `CONTENIDO`.
+  2. **Reglas de Workflow Diferenciadas (`workflow.ts`):**
+     - **`Imagen`:** `requiresDesign` evalúa a `false`, permitiendo saltear la etapa de Diseño Gráfico (`REDACCIÓN` → `REVISIÓN INTERNA`).
+     - **`Placa Gráfica`:** `requiresDesign` evalúa a `true`, asegurando el flujo secuencial por Diseño (`REDACCIÓN` → `DISEÑO` → `REVISIÓN INTERNA`).
+  3. **Auto-Migración e Invalidación de Caché (`catalogs.ts`):** El endpoint `GET /ticket-types` borra la memoria caché previa, establece `Cache-Control: no-cache, no-store`, e invalida tipos duplicados/legados (`Placa con diseño`, `Imagen Gráfica`, `Gráfica`), re-apuntando sus tickets a `Placa Gráfica` e `Imagen`.
+  4. **Migración SQL Prisma:** Actualizada la migración idempotente `20260819120000_separate_imagen_and_placa_types` en PostgreSQL.
 - **Verificación:** Typecheck de TypeScript verificado con 0 errores en todos los paquetes del monorepo (`pnpm typecheck`).
 
 ### [2026-08-19] — Brief de Ticket Auto-Expandible y Layout en 2 Columnas (Pilares y Redes)

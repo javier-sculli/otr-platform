@@ -93,8 +93,8 @@ async function main() {
   // Create ticket types
   const defaultContenidoTypes = [
     'Carrusel',
-    'Imagen Gráfica',
-    'Placa con diseño',
+    'Imagen',
+    'Placa Gráfica',
     'Story',
     'Reel',
     'Video',
