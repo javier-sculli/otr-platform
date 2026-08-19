@@ -17,6 +17,7 @@ export async function catalogsRoutes(fastify: FastifyInstance) {
   fastify.get('/clients', async (request, reply) => {
     const { includeArchived } = request.query as { includeArchived?: string };
     const cacheKey = `clients_${includeArchived}`;
+    reply.header('Cache-Control', 'public, max-age=600, stale-while-revalidate=3600');
     const cached = catalogRouteCache.get(cacheKey);
     if (cached && Date.now() - cached.timestamp < CATALOG_ROUTE_TTL_MS) {
       reply.header('x-cache', 'HIT');
@@ -206,6 +207,7 @@ export async function catalogsRoutes(fastify: FastifyInstance) {
   // Get all users
   fastify.get('/users', async (request, reply) => {
     const cacheKey = 'users';
+    reply.header('Cache-Control', 'public, max-age=600, stale-while-revalidate=3600');
     const cached = catalogRouteCache.get(cacheKey);
     if (cached && Date.now() - cached.timestamp < CATALOG_ROUTE_TTL_MS) {
       reply.header('x-cache', 'HIT');
@@ -232,6 +234,7 @@ export async function catalogsRoutes(fastify: FastifyInstance) {
   // Get all areas
   fastify.get('/areas', async (request, reply) => {
     const cacheKey = 'areas';
+    reply.header('Cache-Control', 'public, max-age=600, stale-while-revalidate=3600');
     const cached = catalogRouteCache.get(cacheKey);
     if (cached && Date.now() - cached.timestamp < CATALOG_ROUTE_TTL_MS) {
       reply.header('x-cache', 'HIT');
@@ -250,6 +253,7 @@ export async function catalogsRoutes(fastify: FastifyInstance) {
   // Get all ticket types
   fastify.get('/ticket-types', async (request, reply) => {
     const cacheKey = 'ticket-types';
+    reply.header('Cache-Control', 'public, max-age=600, stale-while-revalidate=3600');
     const cached = catalogRouteCache.get(cacheKey);
     if (cached && Date.now() - cached.timestamp < CATALOG_ROUTE_TTL_MS) {
       reply.header('x-cache', 'HIT');
@@ -301,6 +305,7 @@ export async function catalogsRoutes(fastify: FastifyInstance) {
   // Get all speakers across all clients
   fastify.get('/speakers', async (request, reply) => {
     const cacheKey = 'speakers_all';
+    reply.header('Cache-Control', 'public, max-age=600, stale-while-revalidate=3600');
     const cached = catalogRouteCache.get(cacheKey);
     if (cached && Date.now() - cached.timestamp < CATALOG_ROUTE_TTL_MS) {
       reply.header('x-cache', 'HIT');
@@ -321,6 +326,7 @@ export async function catalogsRoutes(fastify: FastifyInstance) {
   fastify.get('/clients/:id/speakers', async (request, reply) => {
     const { id } = request.params as { id: string };
     const cacheKey = `speakers_${id}`;
+    reply.header('Cache-Control', 'public, max-age=600, stale-while-revalidate=3600');
     const cached = catalogRouteCache.get(cacheKey);
     if (cached && Date.now() - cached.timestamp < CATALOG_ROUTE_TTL_MS) {
       reply.header('x-cache', 'HIT');
