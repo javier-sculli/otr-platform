@@ -2,6 +2,14 @@
 
 > **Propósito:** Registro central de avances, decisiones de producto, correcciones de errores y backlog priorizado de la plataforma Rocky (OTR). A partir de la reunión del 31 de Julio de 2026, cada cambio, bugfix y feature completado queda asentado en esta bitácora.
 
+### [2026-08-19] — Brief de Ticket Auto-Expandible y Layout en 2 Columnas (Pilares y Redes)
+- **Desarrollador:** Javier Sculli
+- **Resumen de Avances:**
+  1. **Componente Reutilizable (`AutoResizeTextarea`):** Creado en `apps/web/src/components/AutoResizeTextarea.tsx` con auto-expansión dinámica basada en `scrollHeight` y manejo de `minHeight` inteligente.
+  2. **Altura de Brief Consistente con Copy (`180px`):** El brief inicia por defecto con la misma altura base que el editor de Copy (`180px` / `minRows=6`) cuando posee texto, y se reduce a 2 líneas (`68px`) al estar vacío para ahorrar espacio.
+  3. **Layout de 2 Columnas para Pilares y Redes:** Reorganizados "Pilar de contenido" y "Red(es) objetivo" en una grilla de 2 columnas (`grid-cols-2`) en `CreateTicketModal.tsx`, optimizando el espacio vertical del popup.
+  4. **Despliegue en Producción (Railway):** Código commiteado a `main` y servicio API/Web actualizado exitosamente en Railway.
+
 ### [2026-08-19] — Corrección de Desfase de Fechas (-1 día en Backlog, Calendario y Detalles)
 - **Desarrollador:** Javier Sculli
 - **Resumen de Avances:**
@@ -118,6 +126,14 @@
   1. **Auto-guardado en Selección de Formatos (`CreateTicketModal.tsx`):** Se corrigió el handler `onClick` al seleccionar/deseleccionar formatos y tipos de entregables (`tiposContenido` y `ticketTypeId`) en la ventana emergente para que active `triggerImmediateAutoSave` inmediatamente.
   2. **Persistencia Garantizada al Cerrar Modal:** Se actualizó `handleClose` para forzar la ejecución de `performAutoSave()` en caso de haber escrituras o cambios pendientes antes de cerrar la ventana emergente.
 - **Verificación:** Compilación TypeScript (`pnpm --filter web build`) verificada exitosamente (0 errores).
+
+### [2026-08-19] — Alta y Asignación de Área al Equipo de Diseño (nh, so, ns)
+- **Desarrollador:** Javier Sculli
+- **Resumen de Avances:**
+  1. **Alta / Actualización en Base de Datos:** Creación de las áreas `Diseño` y `Contenido` en la base de datos de PostgreSQL/Supabase.
+  2. **Asignación del Equipo de Diseño:** Actualización de los usuarios `nh@ontherocks.tech` (Natalia Heit), `so@ontherocks.tech` (Sofía Ottonello) y `ns@ontherocks.tech` (Nahuel Silvestro), asignándoles el `areaId` correspondiente al área `Diseño`.
+  3. **Actualización de Seeder (`seed.ts`):** Inclusión de los 3 usuarios de diseño con `upsert` asignando el área `Diseño` para que cualquier re-ejecución del seeder preserve los permisos y área del equipo.
+- **Verificación:** Verificación directa contra la base de datos de producción comprobada con 100% de éxito.
 
 ### [2026-08-13] — Botón "Pasar a [próximo estado]" + Dropdown en Modal Popup de Ticket
 - **Desarrollador:** Javier Sculli
