@@ -10,6 +10,7 @@ import { api } from '../lib/api';
 import { CreateTicketModal } from '../components/CreateTicketModal';
 import { TransitionToDesignModal } from '../components/TransitionToDesignModal';
 import { CalendarioBacklog } from '../components/CalendarioBacklog';
+import { parseLocalDate, formatDateSpan } from '../lib/utils';
 
 interface Ticket {
   id: string;
@@ -199,21 +200,28 @@ export function BacklogPage() {
     
     const dateToUse = t.dueDate || (t as any).plannedDate;
     if (dateToUse) {
-      const due = new Date(dateToUse);
-      if (mesesSeleccionados.length > 0) {
-        const matchesAnyMonth = mesesSeleccionados.some(key => {
-          const m = listaMeses.find(item => item.key === key);
-          return m && due >= m.inicio && due <= m.fin;
-        });
-        if (!matchesAnyMonth) return false;
-      }
-      if (filtroQuick === 'semana' && !(due >= inicioSemana && due <= finSemana)) return false;
-      if (filtroQuick === 'rango') {
-        if (fechaDesde && due < new Date(fechaDesde)) return false;
-        if (fechaHasta) {
-          const hasta = new Date(fechaHasta);
-          hasta.setHours(23, 59, 59, 999);
-          if (due > hasta) return false;
+      const due = parseLocalDate(dateToUse);
+      if (due) {
+        if (mesesSeleccionados.length > 0) {
+          const matchesAnyMonth = mesesSeleccionados.some(key => {
+            const m = listaMeses.find(item => item.key === key);
+            return m && due >= m.inicio && due <= m.fin;
+          });
+          if (!matchesAnyMonth) return false;
+        }
+        if (filtroQuick === 'semana' && !(due >= inicioSemana && due <= finSemana)) return false;
+        if (filtroQuick === 'rango') {
+          if (fechaDesde) {
+            const desde = parseLocalDate(fechaDesde);
+            if (desde && due < desde) return false;
+          }
+          if (fechaHasta) {
+            const hasta = parseLocalDate(fechaHasta);
+            if (hasta) {
+              hasta.setHours(23, 59, 59, 999);
+              if (due > hasta) return false;
+            }
+          }
         }
       }
     }
@@ -731,7 +739,7 @@ function TicketCard({
             <div className="flex items-center gap-1 text-[#000033]/60">
               <Calendar className="w-2.5 h-2.5" />
               <span className="font-medium">
-                {new Date(ticket.dueDate).toLocaleDateString('es-ES', { day: '2-digit', month: 'short' })}
+                {formatDateSpan(ticket.dueDate, { day: '2-digit', month: 'short' })}
               </span>
             </div>
           )}

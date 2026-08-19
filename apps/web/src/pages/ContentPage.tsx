@@ -11,6 +11,7 @@ import * as pdfjsLib from 'pdfjs-dist';
 import { api } from '../lib/api';
 import { TicketsReferencia } from '../components/TicketsReferencia';
 import { RichNotesEditor } from '../components/RichNotesEditor';
+import { AutoResizeTextarea } from '../components/AutoResizeTextarea';
 import { ensureAbsoluteUrl } from '../lib/utils';
 import { getNextStatusForTicket } from '../lib/workflow';
 
@@ -889,10 +890,10 @@ export function ContentPage() {
             <div className="flex items-start gap-3 mb-2">
               <div className="flex-1 min-w-0">
                 <label className="block text-xs font-bold text-[#000033]/60 mb-1">BRIEF</label>
-                <input
-                  type="text"
+                <AutoResizeTextarea
                   value={brief}
                   onChange={e => { setBrief(e.target.value); setHasChanges(true); }}
+                  minRows={2}
                   className="w-full px-2.5 py-1.5 border-2 border-[#000033]/10 rounded-md text-xs focus:outline-none focus:ring-2 focus:ring-[#024fff] text-[#000033] hover:border-[#024fff]/40 transition-all"
                 />
               </div>

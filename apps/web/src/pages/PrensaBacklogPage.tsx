@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { api } from '../lib/api';
 import { CreateTicketModal } from '../components/CreateTicketModal';
+import { parseLocalDate, formatDateSpan } from '../lib/utils';
 import {
   MACROS, PRENSA_SUBESTADOS, SUB_DEF, subsDeMacro,
   ESTADO_RESPUESTA_LABEL, TIPO_GESTION_PITCH, MACRO_DEFAULT_SUB,
@@ -263,22 +264,29 @@ export function PrensaBacklogPage() {
     // Para tickets finalizados no aplicamos el filtro de fecha general del backlog
     const dateToUse = t.dueDate || (t as any).plannedDate;
     if (!isFinalized && dateToUse) {
-      const due = new Date(dateToUse);
-      if (mesesSeleccionados.length > 0) {
-        const matchesAnyMonth = mesesSeleccionados.some(key => {
-          const m = listaMeses.find(item => item.key === key);
-          return m && due >= m.inicio && due <= m.fin;
-        });
-        if (!matchesAnyMonth) return false;
-      }
-      if (filtroQuick === 'hoy' && !(due >= inicioHoy && due <= finHoy)) return false;
-      if (filtroQuick === 'semana' && !(due >= inicioSemana && due <= finSemana)) return false;
-      if (filtroQuick === 'rango') {
-        if (fechaDesde && due < new Date(fechaDesde)) return false;
-        if (fechaHasta) {
-          const hasta = new Date(fechaHasta);
-          hasta.setHours(23, 59, 59, 999);
-          if (due > hasta) return false;
+      const due = parseLocalDate(dateToUse);
+      if (due) {
+        if (mesesSeleccionados.length > 0) {
+          const matchesAnyMonth = mesesSeleccionados.some(key => {
+            const m = listaMeses.find(item => item.key === key);
+            return m && due >= m.inicio && due <= m.fin;
+          });
+          if (!matchesAnyMonth) return false;
+        }
+        if (filtroQuick === 'hoy' && !(due >= inicioHoy && due <= finHoy)) return false;
+        if (filtroQuick === 'semana' && !(due >= inicioSemana && due <= finSemana)) return false;
+        if (filtroQuick === 'rango') {
+          if (fechaDesde) {
+            const desde = parseLocalDate(fechaDesde);
+            if (desde && due < desde) return false;
+          }
+          if (fechaHasta) {
+            const hasta = parseLocalDate(fechaHasta);
+            if (hasta) {
+              hasta.setHours(23, 59, 59, 999);
+              if (due > hasta) return false;
+            }
+          }
         }
       }
     }
@@ -1171,13 +1179,13 @@ function TicketCard({
             <div className="flex items-center gap-1 text-[#024fff] font-bold text-[10px]">
               <Calendar className="w-3 h-3 text-[#024fff]/80" />
               <span>
-                {new Date(ticket.dueDate).toLocaleDateString('es-ES', { day: '2-digit', month: 'short' })}
+                {formatDateSpan(ticket.dueDate, { day: '2-digit', month: 'short' })}
               </span>
             </div>
           )}
           {ticket.createdAt && (
             <div className="text-[#000033]/30 text-[9px] font-medium leading-none">
-              Creación: {new Date(ticket.createdAt).toLocaleDateString('es-ES', { day: '2-digit', month: 'short' })}
+              Creación: {formatDateSpan(ticket.createdAt, { day: '2-digit', month: 'short' })}
             </div>
           )}
         </div>

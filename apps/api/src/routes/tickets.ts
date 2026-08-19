@@ -13,6 +13,16 @@ const SUBESTADO_TO_MACRO: Record<string, string> = {
   LISTO: 'FINALIZADO',
 };
 
+function parseApiDate(val: string | null | undefined): Date | null {
+  if (!val) return null;
+  const str = String(val).trim();
+  if (!str) return null;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(str)) {
+    return new Date(`${str}T12:00:00.000Z`);
+  }
+  return new Date(str);
+}
+
 const STATUS_DISPLAY_NAMES: Record<string, string> = {
   PENDIENTE: 'Pendiente',
   REDACCION: 'Redacción',
@@ -373,8 +383,8 @@ export async function ticketsRoutes(fastify: FastifyInstance) {
         medio: data.medio || null,
         periodista: data.periodista || null,
         estadoRespuesta: data.estadoRespuesta || null,
-        dueDate: data.dueDate ? new Date(data.dueDate) : undefined,
-        plannedDate: data.plannedDate ? new Date(data.plannedDate) : null,
+        dueDate: parseApiDate(data.dueDate) ?? undefined,
+        plannedDate: parseApiDate(data.plannedDate),
         isDraftPlan: data.isDraftPlan !== undefined ? data.isDraftPlan : false,
         estadoAprobacionCliente: data.estadoAprobacionCliente || 'BORRADOR',
         content: data.copy !== undefined ? data.copy : data.content,
@@ -461,11 +471,11 @@ export async function ticketsRoutes(fastify: FastifyInstance) {
     if (data.medio !== undefined) updateData.medio = data.medio || null;
     if (data.periodista !== undefined) updateData.periodista = data.periodista || null;
     if (data.estadoRespuesta !== undefined) updateData.estadoRespuesta = data.estadoRespuesta || null;
-    if (data.dueDate !== undefined) updateData.dueDate = data.dueDate ? new Date(data.dueDate) : null;
-    if (data.plannedDate !== undefined) updateData.plannedDate = data.plannedDate ? new Date(data.plannedDate) : null;
+    if (data.dueDate !== undefined) updateData.dueDate = parseApiDate(data.dueDate);
+    if (data.plannedDate !== undefined) updateData.plannedDate = parseApiDate(data.plannedDate);
     if (data.isDraftPlan !== undefined) updateData.isDraftPlan = data.isDraftPlan;
     if (data.estadoAprobacionCliente !== undefined) updateData.estadoAprobacionCliente = data.estadoAprobacionCliente;
-    if (data.publishedAt !== undefined) updateData.publishedAt = data.publishedAt ? new Date(data.publishedAt) : null;
+    if (data.publishedAt !== undefined) updateData.publishedAt = parseApiDate(data.publishedAt);
     if (data.links !== undefined) updateData.links = data.links;
     if (data.linkEntregable !== undefined) updateData.linkEntregable = data.linkEntregable;
     if (data.linkPublicacionReal !== undefined) updateData.linkEntregable = data.linkPublicacionReal;
@@ -580,13 +590,13 @@ export async function ticketsRoutes(fastify: FastifyInstance) {
         ticketId: id,
         clientId: ticket.clientId,
         url: data.url,
-        publishedAt: new Date(data.publishedAt),
+        publishedAt: parseApiDate(data.publishedAt)!,
         canal: data.canal || 'LinkedIn',
         insights: data.insights,
       },
       update: {
         url: data.url,
-        publishedAt: data.publishedAt ? new Date(data.publishedAt) : undefined,
+        publishedAt: parseApiDate(data.publishedAt) ?? undefined,
         canal: data.canal,
         insights: data.insights,
       },

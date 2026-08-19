@@ -5,6 +5,16 @@ import { syncLinkedInMetrics } from '../jobs/syncLinkedInMetrics.js';
 import { syncInstagramMetrics } from '../jobs/syncInstagramMetrics.js';
 import { syncTwitterMetrics } from '../jobs/syncTwitterMetrics.js';
 
+function parseApiDate(val: string | null | undefined): Date | null {
+  if (!val) return null;
+  const str = String(val).trim();
+  if (!str) return null;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(str)) {
+    return new Date(`${str}T12:00:00.000Z`);
+  }
+  return new Date(str);
+}
+
 export async function metricsRoutes(fastify: FastifyInstance) {
   fastify.addHook('preHandler', authenticate);
 
@@ -107,7 +117,7 @@ export async function metricsRoutes(fastify: FastifyInstance) {
     if (body.tags !== undefined) data.tags = body.tags;
     if (body.insights !== undefined) data.insights = body.insights;
     if (body.url !== undefined) data.url = body.url;
-    if (body.publishedAt !== undefined) data.publishedAt = new Date(body.publishedAt);
+    if (body.publishedAt !== undefined) data.publishedAt = parseApiDate(body.publishedAt);
     if (body.canal !== undefined) data.canal = body.canal;
     if (body.speakerId !== undefined) data.speakerId = body.speakerId;
 

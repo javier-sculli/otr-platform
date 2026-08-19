@@ -8,15 +8,17 @@ import {
   Linkedin, Instagram, Facebook, Twitter, Globe, X,
 } from 'lucide-react';
 import { api } from '../lib/api';
+import { parseLocalDate } from '../lib/utils';
 
 type SortKey = 'fecha' | 'likes' | 'comments' | 'shares' | 'views' | 'bookmarks' | 'quotes';
 type SortDir = 'asc' | 'desc';
 
 const CANAL_CONFIG: Record<string, { icon: React.ElementType; color: string }> = {
-  linkedin:  { icon: Linkedin,  color: '#0077B5' },
-  instagram: { icon: Instagram, color: '#E4405F' },
-  facebook:  { icon: Facebook,  color: '#1877F2' },
-  twitter:   { icon: Twitter,   color: '#1DA1F2' },
+  LinkedIn: { icon: Linkedin, color: 'text-[#0077b5]' },
+  Instagram: { icon: Instagram, color: 'text-[#e4405f]' },
+  Facebook: { icon: Facebook, color: 'text-[#1877f2]' },
+  Twitter: { icon: Twitter, color: 'text-[#1da1f2]' },
+  Web: { icon: Globe, color: 'text-[#666666]' },
 };
 
 function getCanalConfig(canal?: string) {
@@ -25,7 +27,7 @@ function getCanalConfig(canal?: string) {
 }
 
 function formatDate(dateStr: string) {
-  const d = new Date(dateStr);
+  const d = parseLocalDate(dateStr) || new Date(dateStr);
   return {
     main: d.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' }),
     year: d.getFullYear().toString(),
@@ -33,7 +35,7 @@ function formatDate(dateStr: string) {
 }
 
 function formatDayTime(dateStr: string) {
-  const d = new Date(dateStr);
+  const d = parseLocalDate(dateStr) || new Date(dateStr);
   const dia = d.toLocaleDateString('es-ES', { weekday: 'short' });
   const hora = d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', hour12: false });
   return { dia: dia.replace('.', ''), hora };

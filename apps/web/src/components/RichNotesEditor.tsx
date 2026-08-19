@@ -49,6 +49,51 @@ export function fixNotionImageUrl(src: string): string {
   return src;
 }
 
+export function compressBase64Image(dataUrl: string, maxWidth = 1600, quality = 0.82): Promise<string> {
+  return new Promise((resolve) => {
+    if (!dataUrl || !dataUrl.startsWith('data:image/') || dataUrl.startsWith('data:image/svg+xml')) {
+      resolve(dataUrl);
+      return;
+    }
+    // Si ya es una imagen liviana (< 200KB en Base64), no es necesario comprimir
+    if (dataUrl.length < 270000) {
+      resolve(dataUrl);
+      return;
+    }
+
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      let width = img.width;
+      let height = img.height;
+
+      if (width > maxWidth) {
+        height = Math.round((height * maxWidth) / width);
+        width = maxWidth;
+      }
+
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        resolve(dataUrl);
+        return;
+      }
+
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, width, height);
+      ctx.drawImage(img, 0, 0, width, height);
+
+      const compressed = canvas.toDataURL('image/jpeg', quality);
+      resolve(compressed.length < dataUrl.length ? compressed : dataUrl);
+    };
+    img.onerror = () => resolve(dataUrl);
+    img.src = dataUrl;
+  });
+}
+
 export async function convertImageUrlToBase64(url: string): Promise<string> {
   const fixedUrl = fixNotionImageUrl(url);
   if (!fixedUrl || fixedUrl.startsWith('data:image/')) return fixedUrl;
@@ -66,9 +111,10 @@ export async function convertImageUrlToBase64(url: string): Promise<string> {
       if (blob && blob.size > 0) {
         return new Promise((resolve) => {
           const reader = new FileReader();
-          reader.onloadend = () => {
+          reader.onloadend = async () => {
             if (typeof reader.result === 'string' && reader.result.startsWith('data:image/')) {
-              resolve(reader.result);
+              const compressed = await compressBase64Image(reader.result);
+              resolve(compressed);
             } else {
               resolve(targetUrl);
             }
@@ -182,41 +228,45 @@ export function RichNotesEditor({
 
   const [selectedImgState, setSelectedImgState] = useState<SelectedImageState | null>(null);
 
-  // Sincronizar HTML externo si cambia desde afuera y convertir imágenes externas a Base64 en segundo plano
+  // Sincronizar HTML externo si cambia desde afuera (sin pisar la edición activa del usuario)
   useEffect(() => {
-    if (editorRef.current && !isUpdatingRef.current) {
+    if (!editorRef.current) return;
+
+    const isFocused = document.activeElement === editorRef.current || editorRef.current.contains(document.activeElement);
+
+    if (!isUpdatingRef.current && !isFocused) {
       const cleanedValue = cleanJunkHtmlBlocks(value || '');
       if (editorRef.current.innerHTML !== cleanedValue) {
         editorRef.current.innerHTML = cleanedValue;
       }
+    }
 
-      // Convertir imágenes externas a Base64 si aún no están convertidas
-      const externalImgs = Array.from(editorRef.current.querySelectorAll('img')).filter(
-        img => img.src && !img.src.startsWith('data:image/')
-      );
-      if (externalImgs.length > 0) {
-        (async () => {
-          let updated = false;
-          for (const img of externalImgs) {
-            const src = img.getAttribute('src');
-            if (src && !src.startsWith('data:image/')) {
-              const base64 = await convertImageUrlToBase64(src);
-              if (base64 && base64 !== src) {
-                img.setAttribute('src', base64);
-                updated = true;
-              }
+    // Convertir imágenes externas a Base64 si aún no están convertidas
+    const externalImgs = Array.from(editorRef.current.querySelectorAll('img')).filter(
+      img => img.src && !img.src.startsWith('data:image/')
+    );
+    if (externalImgs.length > 0 && !isUpdatingRef.current) {
+      (async () => {
+        let updated = false;
+        for (const img of externalImgs) {
+          const src = img.getAttribute('src');
+          if (src && !src.startsWith('data:image/')) {
+            const base64 = await convertImageUrlToBase64(src);
+            if (base64 && base64 !== src) {
+              img.setAttribute('src', base64);
+              updated = true;
             }
           }
-          if (updated && editorRef.current) {
-            isUpdatingRef.current = true;
-            const html = editorRef.current.innerHTML;
-            onChange(html === '<br>' ? '' : html);
-            setTimeout(() => {
-              isUpdatingRef.current = false;
-            }, 0);
-          }
-        })();
-      }
+        }
+        if (updated && editorRef.current) {
+          isUpdatingRef.current = true;
+          const html = editorRef.current.innerHTML;
+          onChange(html === '<br>' ? '' : html);
+          setTimeout(() => {
+            isUpdatingRef.current = false;
+          }, 0);
+        }
+      })();
     }
   }, [value, onChange]);
 
@@ -296,9 +346,11 @@ export function RichNotesEditor({
   const handleImageFile = (file: File) => {
     if (!file.type.startsWith('image/')) return;
     const reader = new FileReader();
-    reader.onload = (e) => {
+    reader.onload = async (e) => {
       if (e.target?.result) {
-        insertImage(e.target.result as string);
+        const rawDataUrl = e.target.result as string;
+        const compressed = await compressBase64Image(rawDataUrl);
+        insertImage(compressed);
       }
     };
     reader.readAsDataURL(file);
@@ -310,7 +362,7 @@ export function RichNotesEditor({
     const imageItem = items.find(item => item.type.startsWith('image/'));
 
     // 1. Si hay un archivo directo de imagen en el portapapeles y el HTML no contiene texto real (o es solo un wrapper de imagen)
-    if (imageItem && (!html || !html.includes('<p>') && !html.includes('<span>'))) {
+    if (imageItem && (!html || (!html.includes('<p>') && !html.includes('<span>')))) {
       e.preventDefault();
       const file = imageItem.getAsFile();
       if (file) {
@@ -328,12 +380,15 @@ export function RichNotesEditor({
       // Limpiar solo elementos dañinos/inseguros
       doc.querySelectorAll('script, style, iframe, meta, input').forEach(el => el.remove());
 
-      // Formatear imágenes pegadas para que sean interactivas y tengan buen estilo Notion
+      // Formatear imágenes pegadas y comprimir Base64 si ya vienen embebidas
       const imgs = Array.from(doc.querySelectorAll('img'));
-      imgs.forEach(img => {
+      for (const img of imgs) {
         // Extraer src real y reparar proxy de Notion (/image/https%3A%2F%2F...)
         const rawSrc = img.getAttribute('src') || img.getAttribute('data-src') || img.getAttribute('data-original-src') || img.closest('a')?.getAttribute('href') || '';
-        const fixedSrc = fixNotionImageUrl(rawSrc);
+        let fixedSrc = fixNotionImageUrl(rawSrc);
+        if (fixedSrc && fixedSrc.startsWith('data:image/')) {
+          fixedSrc = await compressBase64Image(fixedSrc);
+        }
         if (fixedSrc) {
           img.setAttribute('src', fixedSrc);
         }
@@ -353,7 +408,7 @@ export function RichNotesEditor({
         img.style.margin = '12px 0';
         img.style.display = 'block';
         img.classList.add('transition-all', 'cursor-pointer', 'hover:shadow-md');
-      });
+      }
 
       // Eliminar figcaption o subtítulos de capturas de pantalla de Notion
       doc.querySelectorAll('figcaption, figcaption span, .image-caption').forEach(el => {

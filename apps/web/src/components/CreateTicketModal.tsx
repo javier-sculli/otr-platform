@@ -9,9 +9,10 @@ import {
 import { api } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 import { TIPO_GESTION_PITCH, STATUS_OPTIONS, PRENSA_STATUS_OPTIONS, getNextStatusInfo } from '../lib/estados';
-import { ensureAbsoluteUrl, copyHtmlToClipboard } from '../lib/utils';
+import { ensureAbsoluteUrl, copyHtmlToClipboard, formatDateISO } from '../lib/utils';
 import { RichNotesEditor } from './RichNotesEditor';
 import { ResponsablesSelect } from './ResponsablesSelect';
+import { AutoResizeTextarea } from './AutoResizeTextarea';
 
 type AttachedFile = {
   id: string;
@@ -116,7 +117,7 @@ function buildFormData(ticket?: TicketData | null, defaultClientId?: string) {
     speakerId: (ticket as any).speaker?.id ?? '',
     prioridad: ticket.prioridad,
     status: ticket.status,
-    dueDate: ticket.dueDate ? ticket.dueDate.slice(0, 10) : '',
+    dueDate: formatDateISO(ticket.dueDate),
     links: ticket.links ?? [],
     linkEntregable: ticket.linkEntregable ?? '',
     content: (ticket as any).content ?? '',
@@ -193,21 +194,31 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
     handleSelectStatusModal(info.next);
   };
 
-  // Re-populate when ticket, isOpen or defaultClientId changes
+  const lastTicketIdRef = useRef<string | null>(null);
+
+  // Re-populate when ticket ID changes or modal opens/closes (no sobrescribir edición activa si el ticket es el mismo)
   useEffect(() => {
     if (isOpen) {
-      const newFormData = buildFormData(ticket, defaultClientId);
-      setFormData(newFormData);
-      setTipoTicket(initTipo(ticket));
-      const initialCanales = newFormData.canales.length > 0 ? newFormData.canales : ['LinkedIn'];
-      setActiveCopyTab(initialCanales[0]);
-      setError(null);
-      if (ticket?.id) {
-        const saved = sessionStorage.getItem(`ticket-files-${ticket.id}`);
-        setAttachedFiles(saved ? JSON.parse(saved) : []);
-      } else {
-        setAttachedFiles([]);
+      const currentId = ticket?.id ?? null;
+      const isNewTicket = currentId !== lastTicketIdRef.current;
+      lastTicketIdRef.current = currentId;
+
+      if (isNewTicket) {
+        const newFormData = buildFormData(ticket, defaultClientId);
+        setFormData(newFormData);
+        setTipoTicket(initTipo(ticket));
+        const initialCanales = newFormData.canales.length > 0 ? newFormData.canales : ['LinkedIn'];
+        setActiveCopyTab(initialCanales[0]);
+        setError(null);
+        if (ticket?.id) {
+          const saved = sessionStorage.getItem(`ticket-files-${ticket.id}`);
+          setAttachedFiles(saved ? JSON.parse(saved) : []);
+        } else {
+          setAttachedFiles([]);
+        }
       }
+    } else {
+      lastTicketIdRef.current = null;
     }
   }, [ticket?.id, isOpen, defaultClientId]);
 
@@ -769,12 +780,12 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
               <AlignLeft className="w-3 h-3" />
               {noContenido ? 'Descripción' : 'Brief'}
             </label>
-            <textarea
+            <AutoResizeTextarea
               value={formData.brief}
               onChange={e => handleChange('brief', e.target.value)}
               placeholder={noContenido ? 'Descripción — detalle del pedido' : 'Brief — qué querés comunicar y por qué'}
-              className={`${fieldCls} resize-none`}
-              rows={3}
+              className={fieldCls}
+              minRows={3}
             />
           </div>
 

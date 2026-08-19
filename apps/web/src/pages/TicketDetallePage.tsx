@@ -30,9 +30,10 @@ import {
   Archive,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { ensureAbsoluteUrl, copyHtmlToClipboard } from '../lib/utils';
+import { ensureAbsoluteUrl, copyHtmlToClipboard, formatDateSpan } from '../lib/utils';
 import { RichNotesEditor } from '../components/RichNotesEditor';
 import { TransitionToDesignModal } from '../components/TransitionToDesignModal';
+import { AutoResizeTextarea } from '../components/AutoResizeTextarea';
 
 type AttachedFile = {
   id: string;
@@ -251,13 +252,19 @@ export function TicketDetallePage() {
     e.target.value = '';
   };
 
+  const loadedTicketIdRef = useRef<string | null>(null);
+
   useEffect(() => {
-    if (ticket?.title) setTituloTemp(ticket.title);
-    if (ticket?.objetivo !== undefined) setBriefTemp(ticket.objetivo ?? '');
-    if ((ticket as any)?.notasAudiovisual !== undefined) {
-      setNotasAudiovisual((ticket as any).notasAudiovisual ?? '');
-    }
-    if (ticket) {
+    if (!ticket) return;
+    const isNewTicket = ticket.id !== loadedTicketIdRef.current;
+    loadedTicketIdRef.current = ticket.id;
+
+    if (isNewTicket) {
+      if (ticket?.title) setTituloTemp(ticket.title);
+      if (ticket?.objetivo !== undefined) setBriefTemp(ticket.objetivo ?? '');
+      if ((ticket as any)?.notasAudiovisual !== undefined) {
+        setNotasAudiovisual((ticket as any).notasAudiovisual ?? '');
+      }
       const perCanal = (ticket as any).contentPerCanal && typeof (ticket as any).contentPerCanal === 'object'
         ? { ...(ticket as any).contentPerCanal as Record<string, string> }
         : {};
@@ -269,7 +276,7 @@ export function TicketDetallePage() {
         setActiveCopyTab(canales?.length > 0 ? canales[0] : 'LinkedIn');
       }
     }
-  }, [ticket?.title, (ticket as any)?.notasAudiovisual, ticket]);
+  }, [ticket?.id]);
 
   useEffect(() => {
     if (ticketId) {
@@ -496,7 +503,7 @@ export function TicketDetallePage() {
               <div className="flex items-center gap-1 text-xs text-[#000033]/60">
                 <Calendar className="w-3.5 h-3.5" />
                 <span>
-                  {new Date(ticket.dueDate).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })}
+                  {formatDateSpan(ticket.dueDate, { day: '2-digit', month: 'short', year: 'numeric' })}
                 </span>
               </div>
             )}
@@ -521,7 +528,7 @@ export function TicketDetallePage() {
                 <FileText className="w-3.5 h-3.5" />
                 {esNoContenido ? 'Descripción' : 'Brief'}
               </h2>
-              <textarea
+              <AutoResizeTextarea
                 value={briefTemp}
                 onChange={e => setBriefTemp(e.target.value)}
                 onBlur={() => {
@@ -530,8 +537,8 @@ export function TicketDetallePage() {
                   }
                 }}
                 placeholder={esNoContenido ? 'Describí el entregable acá...' : 'Escribí el brief acá...'}
-                rows={3}
-                className="w-full text-xs text-[#000033] leading-relaxed resize-none border-none outline-none bg-transparent placeholder:text-[#000033]/30 hover:bg-[#000033]/3 focus:bg-[#000033]/5 rounded transition-all"
+                minRows={3}
+                className="w-full text-xs text-[#000033] leading-relaxed border-none outline-none bg-transparent placeholder:text-[#000033]/30 hover:bg-[#000033]/3 focus:bg-[#000033]/5 rounded transition-all"
               />
             </div>
 
@@ -998,7 +1005,7 @@ export function TicketDetallePage() {
                   <div className="flex justify-between">
                     <span className="font-bold text-[#000033]/60">Fecha objetivo</span>
                     <span className="text-[#000033]">
-                      {new Date(ticket.dueDate).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })}
+                      {formatDateSpan(ticket.dueDate, { day: '2-digit', month: 'short', year: 'numeric' })}
                     </span>
                   </div>
                 )}

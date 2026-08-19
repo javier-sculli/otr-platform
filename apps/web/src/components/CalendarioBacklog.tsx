@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { ChevronLeft, ChevronRight, AlertCircle, Clock } from 'lucide-react';
+import { parseLocalDate } from '../lib/utils';
 
 interface Ticket {
   id: string;
@@ -26,7 +27,8 @@ const DIAS_SEMANA = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
 function getColorPorFecha(dueDate: string) {
   const hoy = new Date();
   hoy.setHours(0, 0, 0, 0);
-  const fecha = new Date(dueDate);
+  const fecha = parseLocalDate(dueDate);
+  if (!fecha) return { bg: 'bg-[#024fff]/10', border: 'border-[#024fff]/30', text: 'text-[#024fff]', Icon: null, label: null };
   fecha.setHours(0, 0, 0, 0);
   const diff = Math.floor((fecha.getTime() - hoy.getTime()) / (1000 * 60 * 60 * 24));
 
@@ -74,7 +76,8 @@ export function CalendarioBacklog({ tickets, onTicketClick }: CalendarioBacklogP
   const getTicketsDelDia = (fecha: Date) =>
     tickets.filter(t => {
       if (!t.dueDate) return false;
-      const d = new Date(t.dueDate);
+      const d = parseLocalDate(t.dueDate);
+      if (!d) return false;
       return (
         d.getFullYear() === fecha.getFullYear() &&
         d.getMonth() === fecha.getMonth() &&
@@ -92,13 +95,15 @@ export function CalendarioBacklog({ tickets, onTicketClick }: CalendarioBacklogP
 
   const ticketsConFecha = tickets.filter(t => t.dueDate);
   const vencidos = ticketsConFecha.filter(t => {
-    const d = new Date(t.dueDate!);
+    const d = parseLocalDate(t.dueDate!);
+    if (!d) return false;
     d.setHours(0, 0, 0, 0);
     const h = new Date(); h.setHours(0, 0, 0, 0);
     return d < h;
   }).length;
   const urgentes = ticketsConFecha.filter(t => {
-    const d = new Date(t.dueDate!);
+    const d = parseLocalDate(t.dueDate!);
+    if (!d) return false;
     d.setHours(0, 0, 0, 0);
     const h = new Date(); h.setHours(0, 0, 0, 0);
     const diff = Math.floor((d.getTime() - h.getTime()) / (1000 * 60 * 60 * 24));
@@ -110,7 +115,8 @@ export function CalendarioBacklog({ tickets, onTicketClick }: CalendarioBacklogP
   // Tickets en el mes visible
   const ticketsDelMes = tickets.filter(t => {
     if (!t.dueDate) return false;
-    const d = new Date(t.dueDate);
+    const d = parseLocalDate(t.dueDate);
+    if (!d) return false;
     return d.getFullYear() === año && d.getMonth() === mes;
   });
 

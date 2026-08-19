@@ -6,7 +6,7 @@ import {
   Star, Plus, MessageSquare, Heart, Share2, Tag, ExternalLink,
 } from 'lucide-react';
 import { api } from '../lib/api';
-import { ensureAbsoluteUrl } from '../lib/utils';
+import { ensureAbsoluteUrl, formatDateISO } from '../lib/utils';
 
 export function PublicationDetailPage() {
   const { publicationId } = useParams<{ publicationId: string }>();
@@ -36,7 +36,7 @@ export function PublicationDetailPage() {
     if (!pub) return;
     setUrl(pub.url ?? '');
     setCanal(pub.canal ?? 'LinkedIn');
-    setPublishedAt(pub.publishedAt ? pub.publishedAt.slice(0, 10) : '');
+    setPublishedAt(pub.publishedAt ? formatDateISO(pub.publishedAt) : '');
     setIsHighlight(pub.isHighlight ?? false);
     setTagsInput(pub.tags?.join(', ') ?? '');
     setNota(pub.insights ?? '');
