@@ -2,6 +2,16 @@
 
 > **Propósito:** Registro central de avances, decisiones de producto, correcciones de errores y backlog priorizado de la plataforma Rocky (OTR). A partir de la reunión del 31 de Julio de 2026, cada cambio, bugfix y feature completado queda asentado en esta bitácora.
 
+### [2026-08-19] — Sistema de Notificaciones Anti-Spam (Diff Real, Debouncing y Menciones Inteligentes)
+- **Desarrollador:** Javier Sculli
+- **Resumen de Avances:**
+  1. **Diff Real de Estado & Anti-Spam (`PATCH /tickets/:id`):** Se agregó la consulta previa del ticket (`existingTicket`) para comparar si `ownerId` o el estado cambian realmente antes de notificar, erradicando las notificaciones duplicadas generadas por el auto-guardado del frontend.
+  2. **Debounce y Coalescencia (`notifyOrCoalesce`):** Implementada una ventana de coalescencia de 5 minutos: si un ticket cambia rápidamente de estado o asignación varias veces, la notificación no leída previa del mismo tipo se actualiza con los datos más recientes en lugar de acumular múltiples filas duplicadas en la BD.
+  3. **Notificación en Creación de Ticket (`POST /tickets`):** Agregada la emisión asincrónica de notificación `ASSIGNED` cuando se crea un ticket asignado a otro usuario.
+  4. **Notificaciones de Cambio de Estado (`STATUS_CHANGE`):** Activadas las notificaciones automáticas al mover tickets entre columnas Kanban o sub-estados, informando al responsable con nombres legibles (ej. *"Javier Sculli movió 'AGENDA SEPTIEMBRE' a Diseño"*).
+  5. **Menciones Inteligentes e Insensibles a Tildes (`@menciones`):** Añadida normalización de diacríticos (`normalizeStr`) y mapeo de alias/apodos del equipo (`joaco`, `manu`, `javi`, `sofi`, `santi`, `agu`, etc.), permitiendo que menciones como `@joaco` o `@sofia` resuelvan correctamente a sus usuarios correspondientes.
+- **Verificación:** Typecheck de TypeScript (`npm run typecheck` en `apps/api`) y pruebas de backend aprobados con 0 errores.
+
 ---
 
 ## 📌 Estado del Proyecto y Backlog Consolidado

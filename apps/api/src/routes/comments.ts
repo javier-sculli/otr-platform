@@ -2,6 +2,26 @@ import { FastifyInstance } from 'fastify';
 import { prisma } from '../lib/prisma.js';
 import { authenticate } from '../middleware/auth.js';
 
+const NICKNAMES: Record<string, string> = {
+  joaco: 'joaquín',
+  manu: 'manuela',
+  javi: 'javier',
+  sofi: 'sofía',
+  santi: 'santiago',
+  lore: 'lorena',
+  nati: 'natalia',
+  nahue: 'nahuel',
+  palo: 'paloma',
+  geo: 'georgina',
+  agu: 'agustina',
+  guada: 'guadalupe',
+  shai: 'shaiel',
+};
+
+function normalizeStr(str: string) {
+  return (str || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+}
+
 export async function commentsRoutes(fastify: FastifyInstance) {
   fastify.addHook('preHandler', authenticate);
 
@@ -28,33 +48,89 @@ export async function commentsRoutes(fastify: FastifyInstance) {
     if (!ticket) return reply.status(404).send({ error: 'Ticket no encontrado' });
 
     // Detectar @menciones: palabras que empiecen con @
-    const mentionNames = [...content.matchAll(/@([\w\sáéíóúÁÉÍÓÚñÑ]+?)(?=[^a-zA-ZáéíóúÁÉÍÓÚñÑ\s]|$)/g)]
-      .map(m => m[1].trim().toLowerCase());
+    const rawTokens = [...content.matchAll(/@([\w\sáéíóúÁÉÍÓÚñÑ]+?)(?=[^a-zA-ZáéíóúÁÉÍÓÚñÑ\s]|$)/g)]
+      .map(m => m[1].trim().toLowerCase())
+      .filter(t => t.length >= 2);
 
     let mentionedIds: string[] = [];
-    if (mentionNames.length > 0) {
-      const mentionedUsers = await prisma.user.findMany({
-        where: { name: { in: mentionNames.map(n => n), mode: 'insensitive' } },
-        select: { id: true, name: true },
+    if (rawTokens.length > 0) {
+      const allUsers = await prisma.user.findMany({
+        select: { id: true, name: true, email: true }
       });
-      mentionedIds = mentionedUsers.map(u => u.id).filter(id => id !== user.id);
+
+      const matchedUserIds = new Set<string>();
+      for (const rawToken of rawTokens) {
+        const normRaw = normalizeStr(rawToken);
+        const resolvedTarget = NICKNAMES[normRaw] ? normalizeStr(NICKNAMES[normRaw]) : normRaw;
+
+        for (const u of allUsers) {
+          if (u.id === user.id) continue; // Ignorar auto-mención
+          const nameNorm = normalizeStr(u.name);
+          const emailNorm = normalizeStr(u.email);
+          const firstNameNorm = nameNorm.split(' ')[0];
+
+          if (
+            nameNorm === resolvedTarget ||
+            firstNameNorm === resolvedTarget ||
+            nameNorm.includes(resolvedTarget) ||
+            emailNorm.startsWith(resolvedTarget)
+          ) {
+            matchedUserIds.add(u.id);
+          }
+        }
+      }
+      mentionedIds = Array.from(matchedUserIds);
     }
 
     const comment = await prisma.ticketComment.create({
       data: { ticketId, userId: user.id, content, mentions: mentionedIds },
-      include: { user: { select: { id: true, name: true } } },
+      include: { user: { select: { id: true, name: true, email: true } } },
     });
 
     if (mentionedIds.length > 0) {
-      await prisma.notification.createMany({
-        data: mentionedIds.map(uid => ({
-          userId: uid,
-          ticketId,
-          commentId: comment.id,
-          type: 'MENTION',
-          fromName: user.name,
-          message: `${user.name} te mencionó en "${ticket.title}"`,
-        })),
+      let senderName = user.name || user.email;
+      setImmediate(async () => {
+        try {
+          if (!senderName && user.id) {
+            const senderUser = await prisma.user.findUnique({ where: { id: user.id }, select: { name: true, email: true } });
+            senderName = senderUser?.name || senderUser?.email || 'Un usuario';
+          }
+          const twoMinAgo = new Date(Date.now() - 2 * 60 * 1000);
+          for (const uid of mentionedIds) {
+            const existingNotif = await prisma.notification.findFirst({
+              where: {
+                userId: uid,
+                ticketId,
+                type: 'MENTION',
+                read: false,
+                createdAt: { gte: twoMinAgo }
+              }
+            });
+            if (existingNotif) {
+              await prisma.notification.update({
+                where: { id: existingNotif.id },
+                data: {
+                  fromName: senderName,
+                  message: `${senderName} te mencionó en "${ticket.title}"`,
+                  createdAt: new Date(),
+                }
+              });
+            } else {
+              await prisma.notification.create({
+                data: {
+                  userId: uid,
+                  ticketId,
+                  commentId: comment.id,
+                  type: 'MENTION',
+                  fromName: senderName,
+                  message: `${senderName} te mencionó en "${ticket.title}"`,
+                }
+              });
+            }
+          }
+        } catch (e) {
+          // ignore background errors
+        }
       });
     }
 

@@ -11,8 +11,70 @@ const SUBESTADO_TO_MACRO: Record<string, string> = {
   REVISION_INTERNA: 'EN_REVISION',
   ENVIADO_CLIENTE: 'EN_REVISION',
   LISTO: 'FINALIZADO',
-  CANCELADO: 'FINALIZADO',
 };
+
+const STATUS_DISPLAY_NAMES: Record<string, string> = {
+  PENDIENTE: 'Pendiente',
+  REDACCION: 'Redacción',
+  DISENO: 'Diseño',
+  EDICION: 'Edición',
+  REVISION_INTERNA: 'Revisión interna',
+  CLIENTE: 'Cliente',
+  ESPERANDO_FEEDBACK: 'Esperando feedback',
+  LISTO_PARA_PUBLICAR: 'Listo para publicar',
+  PUBLICADO: 'Publicado',
+  CANCELADO: 'Cancelado',
+  LISTO: 'Listo',
+  EN_CURSO: 'En curso',
+  ENVIADO_CLIENTE: 'Enviado al cliente',
+  PENDIENTE_PUBLICACION: 'Pendiente de publicación',
+};
+
+async function notifyOrCoalesce({
+  userId,
+  ticketId,
+  type,
+  fromName,
+  message,
+}: {
+  userId: string;
+  ticketId: string;
+  type: 'ASSIGNED' | 'STATUS_CHANGE' | 'MENTION';
+  fromName: string;
+  message: string;
+}) {
+  const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000);
+  const existing = await prisma.notification.findFirst({
+    where: {
+      userId,
+      ticketId,
+      type,
+      read: false,
+      createdAt: { gte: fiveMinAgo },
+    },
+  });
+
+  if (existing) {
+    await prisma.notification.update({
+      where: { id: existing.id },
+      data: {
+        fromName,
+        message,
+        createdAt: new Date(),
+      },
+    });
+  } else {
+    await prisma.notification.create({
+      data: {
+        userId,
+        ticketId,
+        type,
+        fromName,
+        message,
+      },
+    });
+  }
+}
 
 async function attachAssignees(tickets: any[]) {
   if (!tickets || tickets.length === 0) return tickets;
@@ -331,6 +393,29 @@ export async function ticketsRoutes(fastify: FastifyInstance) {
 
     clearTicketsCache();
     const [enriched] = await attachAssignees([ticket]);
+
+    const currentUser = (request as any).user;
+    if (currentUser && primaryOwnerId && primaryOwnerId !== currentUser.id) {
+      setImmediate(async () => {
+        try {
+          let senderName = currentUser.name || currentUser.email;
+          if (!senderName && currentUser.id) {
+            const senderUser = await prisma.user.findUnique({ where: { id: currentUser.id }, select: { name: true, email: true } });
+            senderName = senderUser?.name || senderUser?.email || 'Un usuario';
+          }
+          await notifyOrCoalesce({
+            userId: primaryOwnerId,
+            ticketId: ticket.id,
+            type: 'ASSIGNED',
+            fromName: senderName || 'Un usuario',
+            message: `${senderName || 'Un usuario'} te asignó el ticket "${ticket.title}"`,
+          });
+        } catch (e) {
+          // ignorar errores de notificación en background
+        }
+      });
+    }
+
     return { data: enriched };
   });
 
@@ -339,6 +424,12 @@ export async function ticketsRoutes(fastify: FastifyInstance) {
     const t0 = Date.now();
     const { id } = request.params as { id: string };
     const data = request.body as any;
+
+    const existingTicket = await prisma.ticket.findUnique({
+      where: { id },
+      select: { id: true, title: true, ownerId: true, status: true, subEstado: true }
+    });
+    if (!existingTicket) return reply.status(404).send({ error: 'Ticket no encontrado' });
 
     const updateData: any = {};
     if (data.title !== undefined) updateData.title = data.title;
@@ -427,18 +518,34 @@ export async function ticketsRoutes(fastify: FastifyInstance) {
             senderName = 'Un usuario';
           }
 
-          const notifs: any[] = [];
-          if (data.ownerId && data.ownerId !== currentUser.id) {
-            notifs.push({
-              userId: data.ownerId,
+          // 1. Notificar asignación solo si ownerId cambió respecto al anterior
+          const newOwnerId = ticket.ownerId;
+          const ownerChanged = newOwnerId && newOwnerId !== existingTicket.ownerId && newOwnerId !== currentUser.id;
+
+          if (ownerChanged) {
+            await notifyOrCoalesce({
+              userId: newOwnerId,
               ticketId: ticket.id,
               type: 'ASSIGNED',
               fromName: senderName,
               message: `${senderName} te asignó el ticket "${ticket.title}"`,
             });
           }
-          if (notifs.length > 0) {
-            await prisma.notification.createMany({ data: notifs });
+
+          // 2. Notificar cambio de estado solo si cambió respecto al anterior
+          const statusChanged = (ticket.status !== existingTicket.status) || (ticket.subEstado !== existingTicket.subEstado);
+          const targetRecipientId = ticket.ownerId;
+
+          if (statusChanged && targetRecipientId && targetRecipientId !== currentUser.id) {
+            const statusKey = ticket.subEstado || ticket.status;
+            const statusLabel = STATUS_DISPLAY_NAMES[statusKey] || statusKey;
+            await notifyOrCoalesce({
+              userId: targetRecipientId,
+              ticketId: ticket.id,
+              type: 'STATUS_CHANGE',
+              fromName: senderName,
+              message: `${senderName} movió "${ticket.title}" a ${statusLabel}`,
+            });
           }
         } catch (e) {
           // ignorar errores de notificación en background
