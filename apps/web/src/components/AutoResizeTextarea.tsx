@@ -37,7 +37,7 @@ export const AutoResizeTextarea = forwardRef<
   };
 
   const computedStyle: React.CSSProperties = {
-    minHeight: minRows ? `${minRows * 1.6}rem` : undefined,
+    minHeight: minRows === 6 ? '180px' : minRows === 2 ? '68px' : minRows ? `${minRows * 1.6}rem` : undefined,
     ...style,
   };
 

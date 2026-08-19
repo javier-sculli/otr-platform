@@ -785,7 +785,7 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
               onChange={e => handleChange('brief', e.target.value)}
               placeholder={noContenido ? 'Descripción — detalle del pedido' : 'Brief — qué querés comunicar y por qué'}
               className={fieldCls}
-              minRows={3}
+              minRows={formData.brief?.trim() ? 6 : 2}
             />
           </div>
 
@@ -910,61 +910,64 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
             </div>
           )}
 
-          {/* Pilar — solo Pieza, si el cliente tiene pilares */}
-          {!noContenido && formData.clientId && pilares.length > 0 && (
-            <div>
-              <label className={labelCls}>
-                <Layers className="w-3 h-3" />
-                Pilar de contenido
-              </label>
-              <div className="flex flex-wrap gap-1.5">
-                {pilares.map((p: any) => {
-                  const selected = formData.pilarId === p.id;
-                  return (
-                    <button
-                      key={p.id}
-                      type="button"
-                      onClick={() => handleChange('pilarId', selected ? '' : p.id)}
-                      className={`px-3 py-1.5 text-xs font-bold rounded-lg border transition-all text-left ${
-                        selected
-                          ? 'bg-[#024fff]/10 text-[#024fff] border-[#024fff]/30'
-                          : 'bg-white text-[#000033]/50 border-[#000033]/10 hover:border-[#024fff]/30 hover:text-[#024fff]'
-                      }`}
-                    >
-                      {p.nombre}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* Red(es) objetivo — solo Pieza */}
+          {/* Pilar y Red(es) objetivo en 2 columnas para ahorrar espacio */}
           {!noContenido && (
-            <div>
-              <label className={labelCls}>
-                <Share2 className="w-3 h-3" />
-                Red(es) objetivo
-                <span className="lowercase font-medium text-[#000033]/30 tracking-normal">opcional</span>
-              </label>
-              <div className="flex flex-wrap gap-1.5">
-                {REDES.map(red => {
-                  const selected = formData.canales.includes(red);
-                  return (
-                    <button
-                      key={red}
-                      type="button"
-                      onClick={() => toggleRed(red)}
-                      className={`px-3 py-1.5 text-xs font-bold rounded-lg border transition-all ${
-                        selected
-                          ? 'bg-[#024fff]/10 text-[#024fff] border-[#024fff]/30'
-                          : 'bg-white text-[#000033]/50 border-[#000033]/10 hover:border-[#024fff]/30 hover:text-[#024fff]'
-                      }`}
-                    >
-                      {red}
-                    </button>
-                  );
-                })}
+            <div className={`grid gap-3 ${formData.clientId && pilares.length > 0 ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1'}`}>
+              {/* Pilar — solo Pieza, si el cliente tiene pilares */}
+              {formData.clientId && pilares.length > 0 && (
+                <div>
+                  <label className={labelCls}>
+                    <Layers className="w-3 h-3" />
+                    Pilar de contenido
+                  </label>
+                  <div className="flex flex-wrap gap-1.5">
+                    {pilares.map((p: any) => {
+                      const selected = formData.pilarId === p.id;
+                      return (
+                        <button
+                          key={p.id}
+                          type="button"
+                          onClick={() => handleChange('pilarId', selected ? '' : p.id)}
+                          className={`px-3 py-1.5 text-xs font-bold rounded-lg border transition-all text-left ${
+                            selected
+                              ? 'bg-[#024fff]/10 text-[#024fff] border-[#024fff]/30'
+                              : 'bg-white text-[#000033]/50 border-[#000033]/10 hover:border-[#024fff]/30 hover:text-[#024fff]'
+                          }`}
+                        >
+                          {p.nombre}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Red(es) objetivo — solo Pieza */}
+              <div>
+                <label className={labelCls}>
+                  <Share2 className="w-3 h-3" />
+                  Red(es) objetivo
+                  <span className="lowercase font-medium text-[#000033]/30 tracking-normal ml-1">opcional</span>
+                </label>
+                <div className="flex flex-wrap gap-1.5">
+                  {REDES.map(red => {
+                    const selected = formData.canales.includes(red);
+                    return (
+                      <button
+                        key={red}
+                        type="button"
+                        onClick={() => toggleRed(red)}
+                        className={`px-3 py-1.5 text-xs font-bold rounded-lg border transition-all ${
+                          selected
+                            ? 'bg-[#024fff]/10 text-[#024fff] border-[#024fff]/30'
+                            : 'bg-white text-[#000033]/50 border-[#000033]/10 hover:border-[#024fff]/30 hover:text-[#024fff]'
+                        }`}
+                      >
+                        {red}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             </div>
           )}

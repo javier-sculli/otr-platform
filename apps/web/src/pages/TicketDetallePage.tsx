@@ -537,7 +537,7 @@ export function TicketDetallePage() {
                   }
                 }}
                 placeholder={esNoContenido ? 'Describí el entregable acá...' : 'Escribí el brief acá...'}
-                minRows={3}
+                minRows={briefTemp?.trim() ? 6 : 2}
                 className="w-full text-xs text-[#000033] leading-relaxed border-none outline-none bg-transparent placeholder:text-[#000033]/30 hover:bg-[#000033]/3 focus:bg-[#000033]/5 rounded transition-all"
               />
             </div>
