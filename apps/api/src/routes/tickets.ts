@@ -405,21 +405,29 @@ export async function ticketsRoutes(fastify: FastifyInstance) {
     const [enriched] = await attachAssignees([ticket]);
 
     const currentUser = (request as any).user;
-    if (currentUser && primaryOwnerId && primaryOwnerId !== currentUser.id) {
+    if (currentUser) {
       setImmediate(async () => {
         try {
-          let senderName = currentUser.name || currentUser.email;
-          if (!senderName && currentUser.id) {
-            const senderUser = await prisma.user.findUnique({ where: { id: currentUser.id }, select: { name: true, email: true } });
-            senderName = senderUser?.name || senderUser?.email || 'Un usuario';
+          const senderUser = await prisma.user.findUnique({ where: { id: currentUser.id }, select: { name: true, email: true } });
+          const senderName = senderUser?.name || senderUser?.email || currentUser.email || 'Un usuario';
+
+          const recipients = new Set<string>();
+          if (primaryOwnerId && primaryOwnerId !== currentUser.id) recipients.add(primaryOwnerId);
+          if (Array.isArray(initialAssigneeIds)) {
+            initialAssigneeIds.forEach((id: string) => {
+              if (id && id !== currentUser.id) recipients.add(id);
+            });
           }
-          await notifyOrCoalesce({
-            userId: primaryOwnerId,
-            ticketId: ticket.id,
-            type: 'ASSIGNED',
-            fromName: senderName || 'Un usuario',
-            message: `${senderName || 'Un usuario'} te asignó el ticket "${ticket.title}"`,
-          });
+
+          for (const recipientId of recipients) {
+            await notifyOrCoalesce({
+              userId: recipientId,
+              ticketId: ticket.id,
+              type: 'ASSIGNED',
+              fromName: senderName,
+              message: `${senderName} te asignó el ticket "${ticket.title}"`,
+            });
+          }
         } catch (e) {
           // ignorar errores de notificación en background
         }
@@ -437,7 +445,7 @@ export async function ticketsRoutes(fastify: FastifyInstance) {
 
     const existingTicket = await prisma.ticket.findUnique({
       where: { id },
-      select: { id: true, title: true, ownerId: true, status: true, subEstado: true }
+      select: { id: true, title: true, ownerId: true, assigneeIds: true, status: true, subEstado: true }
     });
     if (!existingTicket) return reply.status(404).send({ error: 'Ticket no encontrado' });
 
@@ -520,21 +528,26 @@ export async function ticketsRoutes(fastify: FastifyInstance) {
     if (currentUser) {
       setImmediate(async () => {
         try {
-          let senderName = currentUser.name || currentUser.email;
-          if (!senderName && currentUser.id) {
-            const senderUser = await prisma.user.findUnique({ where: { id: currentUser.id }, select: { name: true, email: true } });
-            senderName = senderUser?.name || senderUser?.email || 'Un usuario';
-          } else if (!senderName) {
-            senderName = 'Un usuario';
+          const senderUser = await prisma.user.findUnique({ where: { id: currentUser.id }, select: { name: true, email: true } });
+          const senderName = senderUser?.name || senderUser?.email || currentUser.email || 'Un usuario';
+
+          // 1. Notificar asignación si ownerId o assigneeIds cambiaron respecto al anterior
+          const recipientsToNotifyAssigned = new Set<string>();
+          if (ticket.ownerId && ticket.ownerId !== existingTicket.ownerId && ticket.ownerId !== currentUser.id) {
+            recipientsToNotifyAssigned.add(ticket.ownerId);
+          }
+          if (Array.isArray(ticket.assigneeIds)) {
+            ticket.assigneeIds.forEach((id: string) => {
+              const wasAssigned = Array.isArray(existingTicket.assigneeIds) && existingTicket.assigneeIds.includes(id);
+              if (!wasAssigned && id && id !== currentUser.id) {
+                recipientsToNotifyAssigned.add(id);
+              }
+            });
           }
 
-          // 1. Notificar asignación solo si ownerId cambió respecto al anterior
-          const newOwnerId = ticket.ownerId;
-          const ownerChanged = newOwnerId && newOwnerId !== existingTicket.ownerId && newOwnerId !== currentUser.id;
-
-          if (ownerChanged) {
+          for (const recipientId of recipientsToNotifyAssigned) {
             await notifyOrCoalesce({
-              userId: newOwnerId,
+              userId: recipientId,
               ticketId: ticket.id,
               type: 'ASSIGNED',
               fromName: senderName,
@@ -542,20 +555,28 @@ export async function ticketsRoutes(fastify: FastifyInstance) {
             });
           }
 
-          // 2. Notificar cambio de estado solo si cambió respecto al anterior
+          // 2. Notificar cambio de estado solo si cambió respecto al anterior (a owner y assignees)
           const statusChanged = (ticket.status !== existingTicket.status) || (ticket.subEstado !== existingTicket.subEstado);
-          const targetRecipientId = ticket.ownerId;
-
-          if (statusChanged && targetRecipientId && targetRecipientId !== currentUser.id) {
+          if (statusChanged) {
             const statusKey = ticket.subEstado || ticket.status;
             const statusLabel = STATUS_DISPLAY_NAMES[statusKey] || statusKey;
-            await notifyOrCoalesce({
-              userId: targetRecipientId,
-              ticketId: ticket.id,
-              type: 'STATUS_CHANGE',
-              fromName: senderName,
-              message: `${senderName} movió "${ticket.title}" a ${statusLabel}`,
-            });
+            const statusRecipients = new Set<string>();
+            if (ticket.ownerId && ticket.ownerId !== currentUser.id) statusRecipients.add(ticket.ownerId);
+            if (Array.isArray(ticket.assigneeIds)) {
+              ticket.assigneeIds.forEach((id: string) => {
+                if (id && id !== currentUser.id) statusRecipients.add(id);
+              });
+            }
+
+            for (const recipientId of statusRecipients) {
+              await notifyOrCoalesce({
+                userId: recipientId,
+                ticketId: ticket.id,
+                type: 'STATUS_CHANGE',
+                fromName: senderName,
+                message: `${senderName} movió "${ticket.title}" a ${statusLabel}`,
+              });
+            }
           }
         } catch (e) {
           // ignorar errores de notificación en background
