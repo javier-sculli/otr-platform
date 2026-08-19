@@ -252,18 +252,11 @@ export async function catalogsRoutes(fastify: FastifyInstance) {
 
   // Get all ticket types
   fastify.get('/ticket-types', async (request, reply) => {
-    const cacheKey = 'ticket-types';
-    reply.header('Cache-Control', 'public, max-age=600, stale-while-revalidate=3600');
-    const cached = catalogRouteCache.get(cacheKey);
-    if (cached && Date.now() - cached.timestamp < CATALOG_ROUTE_TTL_MS) {
-      reply.header('x-cache', 'HIT');
-      return cached.data;
-    }
+    reply.header('Cache-Control', 'no-cache, no-store, must-revalidate');
 
     const defaultContenidoTypes = [
       'Carrusel',
       'Imagen Gráfica',
-      'Placa con diseño',
       'Story',
       'Reel',
       'Video',
@@ -275,7 +268,7 @@ export async function catalogsRoutes(fastify: FastifyInstance) {
     ];
 
     try {
-      // Auto-migración: migrar 'Imagen' sola y variantes legadas a 'Imagen Gráfica'
+      // Auto-migración: migrar 'Imagen', 'Placa con diseño' y variantes legadas a 'Imagen Gráfica'
       const legacyMerged = await prisma.ticketType.findMany({
         where: {
           kind: 'CONTENIDO',
@@ -284,6 +277,11 @@ export async function catalogsRoutes(fastify: FastifyInstance) {
             { name: { equals: 'Imagen sola', mode: 'insensitive' } },
             { name: { equals: 'Imagen estática', mode: 'insensitive' } },
             { name: { equals: 'Imagen estatica', mode: 'insensitive' } },
+            { name: { equals: 'Placa con diseño', mode: 'insensitive' } },
+            { name: { equals: 'Placa con diseno', mode: 'insensitive' } },
+            { name: { equals: 'Placa', mode: 'insensitive' } },
+            { name: { equals: 'Gráfica', mode: 'insensitive' } },
+            { name: { equals: 'Grafica', mode: 'insensitive' } },
             {
               AND: [
                 { name: { contains: 'imagen', mode: 'insensitive' } },
@@ -360,6 +358,20 @@ export async function catalogsRoutes(fastify: FastifyInstance) {
         });
       }
 
+      // Limpieza explícita de cualquier ticketType redundante de CONTENIDO
+      await prisma.ticketType.deleteMany({
+        where: {
+          kind: 'CONTENIDO',
+          name: {
+            in: [
+              'Imagen', 'imagen', 'Imagen sola', 'Imagen estática', 'Imagen estatica',
+              'Placa con diseño', 'Placa con diseno', 'Placa', 'Gráfica', 'Grafica',
+              'Texto solo', 'Texto Solo', 'Texto-solo', 'texto solo',
+            ],
+          },
+        },
+      });
+
       const existing = await prisma.ticketType.findMany({ select: { name: true, kind: true } });
       const existingSet = new Set(existing.map((e) => `${e.kind}:${e.name.toLowerCase()}`));
 
@@ -376,11 +388,12 @@ export async function catalogsRoutes(fastify: FastifyInstance) {
       console.error('Error auto-seeding default ticket types:', err);
     }
 
+    catalogRouteCache.delete('ticket-types');
+
     const ticketTypes = await prisma.ticketType.findMany({
       orderBy: [{ kind: 'asc' }, { name: 'asc' }],
     });
     const result = { data: ticketTypes };
-    catalogRouteCache.set(cacheKey, { timestamp: Date.now(), data: result });
     reply.header('x-cache', 'MISS');
     return result;
   });

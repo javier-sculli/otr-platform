@@ -190,7 +190,7 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
 
   const handleNextStatusClickModal = () => {
     const currentSub = (ticket as any)?.subEstado ?? formData.estadoRespuesta;
-    const info = getNextStatusInfo(formData.status, esPrensa, currentSub, formData.tiposContenido);
+    const info = getNextStatusInfo(formData.status, esPrensa, currentSub, formData.tiposContenido, selectedType || (ticket as any)?.ticketType, formData.title);
     handleSelectStatusModal(info.next);
   };
 
@@ -249,7 +249,7 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
     queryKey: ['ticketTypes'],
     queryFn: () => api.getTicketTypes(),
     enabled: isOpen,
-    staleTime: 10 * 60 * 1000,
+    staleTime: 0,
   });
 
   const { data: pilaresData } = useQuery({

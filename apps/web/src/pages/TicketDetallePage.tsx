@@ -205,7 +205,7 @@ export function TicketDetallePage() {
 
   const handleNextStatusClick = () => {
     if (!ticket) return;
-    const info = getNextStatusInfo(ticket.status, esPrensa, ticket.subEstado, (ticket as any).tiposContenido);
+    const info = getNextStatusInfo(ticket.status, esPrensa, ticket.subEstado, (ticket as any).tiposContenido, (ticket as any).ticketType, ticket.title);
     handleSelectStatus(info.next, info.isPrensa);
   };
 
@@ -385,7 +385,7 @@ export function TicketDetallePage() {
             <div className="flex items-center gap-3">
               {/* Botón Principal: Pasar a [próximo estado] + Dropdown Opcional */}
               {(() => {
-                const nextInfo = getNextStatusInfo(ticket.status, esPrensa, ticket.subEstado, (ticket as any).tiposContenido);
+                const nextInfo = getNextStatusInfo(ticket.status, esPrensa, ticket.subEstado, (ticket as any).tiposContenido, (ticket as any).ticketType, ticket.title);
                 return (
                   <div className="relative inline-flex items-center rounded-lg shadow-sm">
                     <button

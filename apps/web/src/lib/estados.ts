@@ -98,7 +98,9 @@ export function getNextStatusInfo(
   status: string,
   esPrensa?: boolean,
   subEstado?: string | null,
-  tiposContenido?: string[]
+  tiposContenido?: string[],
+  ticketType?: { name?: string } | string | null,
+  title?: string
 ) {
   if (esPrensa) {
     const current = subEstado ?? 'PENDIENTE';
@@ -113,11 +115,12 @@ export function getNextStatusInfo(
     }
   }
 
-  const next = getNextStatusForTicket({ status, tiposContenido }) ?? 'REDACCION';
+  const next = getNextStatusForTicket({ status, tiposContenido, ticketType, title }) ?? 'REDACCION';
   const labelObj = STATUS_OPTIONS.find(s => s.value === next);
   return {
     next,
     label: labelObj?.label ?? next,
   };
 }
+
 

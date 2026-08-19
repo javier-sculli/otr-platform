@@ -13,12 +13,13 @@ const NO_DISENO_FORMATS = [
   'álbum de fotos', 'album de fotos', 'álbum', 'album',
   'hilo', 'texto solo', 'texto', 'repost',
   'blog', 'news', 'newsletter', 'deck', 'estrategia', 'reporte', 'otro',
+  'documento', 'evento', 'base de medios', 'columna de opinión', 'comunicado', 'feedback',
 ];
 
 // Formatos que pasan por Diseño Gráfico (Regla 1: carrusel, placa con diseño, imagen gráfica, story, video, reel)
 const FORMATOS_DISENO = [
   'carrusel', 'carusel',
-  'placa', 'placa con diseño', 'placa con diseno',
+  'placa', 'placa con diseño', 'placa con diseno', 'diseño puntual', 'diseno puntual',
   'imagen gráfica', 'imagen grafica',
   'story', 'stories',
   'video', 'video largo',
@@ -36,20 +37,79 @@ const FORMATOS_EDICION = [
   'audio', 'podcast', 'edición', 'edicion',
 ];
 
+export type TicketFormatInput =
+  | {
+      tiposContenido?: string[];
+      ticketType?: { name?: string } | string | null;
+      title?: string;
+    }
+  | string[];
+
+/**
+ * Obtiene la lista de formatos aplicables a un ticket inspeccionando tiposContenido, ticketType o título.
+ */
+export function getEffectiveFormats(ticket?: TicketFormatInput | null): string[] {
+  if (!ticket) return [];
+
+  if (Array.isArray(ticket)) {
+    if (ticket.length > 0) return ticket;
+    return [];
+  }
+
+  // 1. Array tiposContenido
+  if (Array.isArray(ticket.tiposContenido) && ticket.tiposContenido.length > 0) {
+    return ticket.tiposContenido;
+  }
+
+  // 2. Campo ticketType (objeto con name o string)
+  const typeName = typeof ticket.ticketType === 'string'
+    ? ticket.ticketType
+    : ticket.ticketType?.name;
+  if (typeName && typeName.trim()) {
+    return [typeName.trim()];
+  }
+
+  // 3. Fallback: buscar palabras clave en el título del ticket
+  if (ticket.title && typeof ticket.title === 'string') {
+    const titleLower = ticket.title.toLowerCase();
+    if (titleLower.includes('reel')) return ['reel'];
+    if (titleLower.includes('video')) return ['video'];
+    if (titleLower.includes('carrusel') || titleLower.includes('carusel')) return ['carrusel'];
+    if (titleLower.includes('placa')) return ['placa con diseño'];
+    if (titleLower.includes('story') || titleLower.includes('stories')) return ['story'];
+    if (titleLower.includes('hilo')) return ['hilo'];
+    if (titleLower.includes('repost')) return ['repost'];
+    if (titleLower.includes('álbum') || titleLower.includes('album')) return ['álbum de fotos'];
+    if (titleLower.includes('texto solo')) return ['texto solo'];
+    if (titleLower.includes('imagen') && !titleLower.includes('gráfica') && !titleLower.includes('grafica')) return ['imagen'];
+  }
+
+  return [];
+}
+
 /**
  * Determina si los formatos seleccionados en un ticket requieren la etapa de Diseño Gráfico.
  */
-export function requiresDesign(tiposContenido?: string[]): boolean {
-  if (!tiposContenido || tiposContenido.length === 0) return true;
+export function requiresDesign(ticketOrFormats?: TicketFormatInput | null): boolean {
+  const formats = getEffectiveFormats(ticketOrFormats);
+  if (formats.length === 0) return true;
 
-  return tiposContenido.some(t => {
+  return formats.some(t => {
     const lower = t.toLowerCase().trim();
-    // Si contiene "placa", "diseño", "diseno" o "gráfica/grafica", requiere diseño gráfico
-    if (lower.includes('placa') || lower.includes('diseño') || lower.includes('diseno') || lower.includes('gráfica') || lower.includes('grafica')) {
+    if (
+      lower.includes('placa') ||
+      lower.includes('diseño') ||
+      lower.includes('diseno') ||
+      lower.includes('gráfica') ||
+      lower.includes('grafica')
+    ) {
       return true;
     }
-    // Excluir explícitamente los formatos de la Regla 3 que no van a diseño
-    if (NO_DISENO_FORMATS.some(nd => lower === nd || (lower.startsWith('imagen') && !lower.includes('placa') && !lower.includes('diseño') && !lower.includes('diseno') && !lower.includes('grafica') && !lower.includes('gráfica')))) {
+    if (
+      NO_DISENO_FORMATS.some(
+        nd => lower === nd || (lower.startsWith('imagen') && !lower.includes('placa') && !lower.includes('diseño') && !lower.includes('diseno') && !lower.includes('grafica') && !lower.includes('gráfica'))
+      )
+    ) {
       return false;
     }
     return FORMATOS_DISENO.some(d => lower.includes(d));
@@ -59,9 +119,11 @@ export function requiresDesign(tiposContenido?: string[]): boolean {
 /**
  * Determina si los formatos seleccionados en un ticket requieren la etapa de Edición Audiovisual.
  */
-export function requiresVideo(tiposContenido?: string[]): boolean {
-  if (!tiposContenido || tiposContenido.length === 0) return false;
-  return tiposContenido.some(t => {
+export function requiresVideo(ticketOrFormats?: TicketFormatInput | null): boolean {
+  const formats = getEffectiveFormats(ticketOrFormats);
+  if (formats.length === 0) return false;
+
+  return formats.some(t => {
     const lower = t.toLowerCase().trim();
     return FORMATOS_EDICION.some(e => lower.includes(e));
   });
@@ -84,12 +146,17 @@ export const STANDARD_NEXT_STATUS: Record<string, string> = {
 /**
  * Calcula dinámicamente la siguiente etapa de un ticket según su estado actual y sus tipos de contenido.
  */
-export function getNextStatusForTicket(ticket: { status?: string; tiposContenido?: string[]; area?: string }): string | undefined {
+export function getNextStatusForTicket(ticket: {
+  status?: string;
+  tiposContenido?: string[];
+  ticketType?: { name?: string } | string | null;
+  title?: string;
+  area?: string;
+}): string | undefined {
   if (!ticket?.status) return undefined;
 
-  const tipos = ticket.tiposContenido || [];
-  const needsDesign = requiresDesign(tipos);
-  const needsVideo = requiresVideo(tipos);
+  const needsDesign = requiresDesign(ticket);
+  const needsVideo = requiresVideo(ticket);
 
   switch (ticket.status) {
     case 'PENDIENTE':
@@ -123,3 +190,4 @@ export function getNextStatusForTicket(ticket: { status?: string; tiposContenido
       return STANDARD_NEXT_STATUS[ticket.status];
   }
 }
+

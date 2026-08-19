@@ -5,7 +5,7 @@ VALUES
   (gen_random_uuid(), 'Texto', 'CONTENIDO', now(), now())
 ON CONFLICT ("name", "kind") DO NOTHING;
 
--- Migrate tickets pointing to 'Imagen' or legacy combined 'Imagen / Gráfica' types to 'Imagen Gráfica'
+-- Migrate tickets pointing to 'Imagen', 'Placa con diseño' or legacy combined types to 'Imagen Gráfica'
 UPDATE "tickets"
 SET "ticket_type_id" = (SELECT "id" FROM "ticket_types" WHERE "name" = 'Imagen Gráfica' AND "kind" = 'CONTENIDO' LIMIT 1)
 WHERE "ticket_type_id" IN (
@@ -16,6 +16,11 @@ WHERE "ticket_type_id" IN (
     OR LOWER("name") = 'imagen sola'
     OR LOWER("name") = 'imagen estática'
     OR LOWER("name") = 'imagen estatica'
+    OR LOWER("name") = 'placa con diseño'
+    OR LOWER("name") = 'placa con diseno'
+    OR LOWER("name") = 'placa'
+    OR LOWER("name") = 'gráfica'
+    OR LOWER("name") = 'grafica'
     OR (LOWER("name") LIKE '%imagen%' AND (LOWER("name") LIKE '%grafica%' OR LOWER("name") LIKE '%gráfica%'))
     OR LOWER("name") LIKE '%imagen /%'
     OR LOWER("name") LIKE '%imagen (%'
@@ -23,7 +28,7 @@ WHERE "ticket_type_id" IN (
   AND "name" != 'Imagen Gráfica'
 );
 
--- Delete legacy 'Imagen' or combined ticket types
+-- Delete legacy 'Imagen', 'Placa con diseño' or combined ticket types
 DELETE FROM "ticket_types"
 WHERE "kind" = 'CONTENIDO'
 AND (
@@ -31,6 +36,11 @@ AND (
   OR LOWER("name") = 'imagen sola'
   OR LOWER("name") = 'imagen estática'
   OR LOWER("name") = 'imagen estatica'
+  OR LOWER("name") = 'placa con diseño'
+  OR LOWER("name") = 'placa con diseno'
+  OR LOWER("name") = 'placa'
+  OR LOWER("name") = 'gráfica'
+  OR LOWER("name") = 'grafica'
   OR (LOWER("name") LIKE '%imagen%' AND (LOWER("name") LIKE '%grafica%' OR LOWER("name") LIKE '%gráfica%'))
   OR LOWER("name") LIKE '%imagen /%'
   OR LOWER("name") LIKE '%imagen (%'
