@@ -262,7 +262,7 @@ export async function catalogsRoutes(fastify: FastifyInstance) {
 
     const defaultContenidoTypes = [
       'Carrusel',
-      'Imagen',
+      'Imagen Gráfica',
       'Placa con diseño',
       'Story',
       'Reel',
@@ -275,6 +275,91 @@ export async function catalogsRoutes(fastify: FastifyInstance) {
     ];
 
     try {
+      // Auto-migración: migrar 'Imagen' sola y variantes legadas a 'Imagen Gráfica'
+      const legacyMerged = await prisma.ticketType.findMany({
+        where: {
+          kind: 'CONTENIDO',
+          OR: [
+            { name: { equals: 'Imagen', mode: 'insensitive' } },
+            { name: { equals: 'Imagen sola', mode: 'insensitive' } },
+            { name: { equals: 'Imagen estática', mode: 'insensitive' } },
+            { name: { equals: 'Imagen estatica', mode: 'insensitive' } },
+            {
+              AND: [
+                { name: { contains: 'imagen', mode: 'insensitive' } },
+                { name: { contains: 'grafica', mode: 'insensitive' } },
+              ],
+            },
+            {
+              AND: [
+                { name: { contains: 'imagen', mode: 'insensitive' } },
+                { name: { contains: 'gráfica', mode: 'insensitive' } },
+              ],
+            },
+            { name: { contains: 'imagen /', mode: 'insensitive' } },
+            { name: { contains: 'imagen (', mode: 'insensitive' } },
+          ],
+          NOT: [
+            { name: 'Imagen Gráfica' },
+          ],
+        },
+      });
+
+      if (legacyMerged.length > 0) {
+        let targetType = await prisma.ticketType.findFirst({
+          where: { name: 'Imagen Gráfica', kind: 'CONTENIDO' },
+        });
+        if (!targetType) {
+          targetType = await prisma.ticketType.create({
+            data: { name: 'Imagen Gráfica', kind: 'CONTENIDO' },
+          });
+        }
+
+        const legacyIds = legacyMerged.map((t) => t.id);
+        await prisma.ticket.updateMany({
+          where: { ticketTypeId: { in: legacyIds } },
+          data: { ticketTypeId: targetType.id },
+        });
+        await prisma.ticketType.deleteMany({
+          where: { id: { in: legacyIds } },
+        });
+      }
+
+      // Auto-migración: migrar 'Texto solo' y variantes legadas a 'Texto'
+      const legacyTexto = await prisma.ticketType.findMany({
+        where: {
+          kind: 'CONTENIDO',
+          OR: [
+            { name: { equals: 'Texto solo', mode: 'insensitive' } },
+            { name: { equals: 'Texto Solo', mode: 'insensitive' } },
+            { name: { equals: 'Texto-solo', mode: 'insensitive' } },
+          ],
+          NOT: [
+            { name: 'Texto' },
+          ],
+        },
+      });
+
+      if (legacyTexto.length > 0) {
+        let textoType = await prisma.ticketType.findFirst({
+          where: { name: 'Texto', kind: 'CONTENIDO' },
+        });
+        if (!textoType) {
+          textoType = await prisma.ticketType.create({
+            data: { name: 'Texto', kind: 'CONTENIDO' },
+          });
+        }
+
+        const legacyTextoIds = legacyTexto.map((t) => t.id);
+        await prisma.ticket.updateMany({
+          where: { ticketTypeId: { in: legacyTextoIds } },
+          data: { ticketTypeId: textoType.id },
+        });
+        await prisma.ticketType.deleteMany({
+          where: { id: { in: legacyTextoIds } },
+        });
+      }
+
       const existing = await prisma.ticketType.findMany({ select: { name: true, kind: true } });
       const existingSet = new Set(existing.map((e) => `${e.kind}:${e.name.toLowerCase()}`));
 

@@ -2,6 +2,15 @@
 
 > **Propósito:** Registro central de avances, decisiones de producto, correcciones de errores y backlog priorizado de la plataforma Rocky (OTR). A partir de la reunión del 31 de Julio de 2026, cada cambio, bugfix y feature completado queda asentado en esta bitácora.
 
+### [2026-08-19] — Unificación de Formatos No Redundantes: Imagen Gráfica y Texto
+- **Desarrollador:** Antigravity (Pair Programming con Javier Sculli)
+- **Resumen de Avances:**
+  1. **Consolidación a Formatos Únicos:** Se migró `"Imagen"` solo a **"Imagen Gráfica"** y `"Texto solo"` a **"Texto"** en la selección de tipos de contenido (`CONTENIDO`), eliminando opciones duplicadas y redundantes.
+  2. **Auto-Migración Backend (`catalogs.ts`):** La ruta `GET /ticket-types` detecta y migra automáticamente registros de `Imagen`, `Imagen sola`, `Imagen estática`, `Texto solo` y `Texto Solo`, re-apuntando sus tickets a `Imagen Gráfica` y `Texto` respectivamente y eliminando tipos legados.
+  3. **Motor de Workflow (`workflow.ts`):** `Imagen Gráfica` requiere Diseño Gráfico (`REDACCIÓN` → `DISEÑO` → `REVISIÓN INTERNA`) y `Texto` saltea Diseño/Edición (`REDACCIÓN` → `REVISIÓN INTERNA`).
+  4. **Migración SQL Prisma:** Actualizada la migración idempotente `20260819120000_separate_imagen_and_placa_types` en PostgreSQL para aplicar la consolidación a nivel base de datos.
+- **Verificación:** Typecheck de TypeScript verificado con 0 errores en todos los paquetes del monorepo (`pnpm typecheck`).
+
 ### [2026-08-19] — Brief de Ticket Auto-Expandible y Layout en 2 Columnas (Pilares y Redes)
 - **Desarrollador:** Javier Sculli
 - **Resumen de Avances:**

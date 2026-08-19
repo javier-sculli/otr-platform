@@ -48,6 +48,25 @@ async function main() {
     },
   });
 
+  const disenoUsers = [
+    { email: 'nh@ontherocks.tech', name: 'Natalia Heit' },
+    { email: 'so@ontherocks.tech', name: 'Sofía Ottonello' },
+    { email: 'ns@ontherocks.tech', name: 'Nahuel Silvestro' },
+  ];
+
+  for (const u of disenoUsers) {
+    await prisma.user.upsert({
+      where: { email: u.email },
+      update: { areaId: areaDiseno.id },
+      create: {
+        email: u.email,
+        name: u.name,
+        role: 'CONTENIDISTA',
+        areaId: areaDiseno.id,
+      },
+    });
+  }
+
   console.log('✅ Users created (password: password123)');
 
   // Create clients
@@ -74,7 +93,7 @@ async function main() {
   // Create ticket types
   const defaultContenidoTypes = [
     'Carrusel',
-    'Imagen',
+    'Imagen Gráfica',
     'Placa con diseño',
     'Story',
     'Reel',

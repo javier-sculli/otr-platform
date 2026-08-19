@@ -15,10 +15,11 @@ const NO_DISENO_FORMATS = [
   'blog', 'news', 'newsletter', 'deck', 'estrategia', 'reporte', 'otro',
 ];
 
-// Formatos que pasan por Diseño Gráfico (Regla 1: carrusel, placa con diseño, story, video, reel)
+// Formatos que pasan por Diseño Gráfico (Regla 1: carrusel, placa con diseño, imagen gráfica, story, video, reel)
 const FORMATOS_DISENO = [
   'carrusel', 'carusel',
   'placa', 'placa con diseño', 'placa con diseno',
+  'imagen gráfica', 'imagen grafica',
   'story', 'stories',
   'video', 'video largo',
   'reel', 'reels',
@@ -43,12 +44,12 @@ export function requiresDesign(tiposContenido?: string[]): boolean {
 
   return tiposContenido.some(t => {
     const lower = t.toLowerCase().trim();
-    // Si contiene "placa", "diseño" o "diseno", requiere diseño gráfico
-    if (lower.includes('placa') || lower.includes('diseño') || lower.includes('diseno')) {
+    // Si contiene "placa", "diseño", "diseno" o "gráfica/grafica", requiere diseño gráfico
+    if (lower.includes('placa') || lower.includes('diseño') || lower.includes('diseno') || lower.includes('gráfica') || lower.includes('grafica')) {
       return true;
     }
-    // Excluir explícitamente los formatos de la Regla 3 que no van a diseño (ej: imagen pura / foto)
-    if (NO_DISENO_FORMATS.some(nd => lower === nd || (lower.startsWith('imagen') && !lower.includes('placa') && !lower.includes('diseño') && !lower.includes('diseno')))) {
+    // Excluir explícitamente los formatos de la Regla 3 que no van a diseño
+    if (NO_DISENO_FORMATS.some(nd => lower === nd || (lower.startsWith('imagen') && !lower.includes('placa') && !lower.includes('diseño') && !lower.includes('diseno') && !lower.includes('grafica') && !lower.includes('gráfica')))) {
       return false;
     }
     return FORMATOS_DISENO.some(d => lower.includes(d));
