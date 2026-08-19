@@ -2,14 +2,21 @@
 
 > **Propósito:** Registro central de avances, decisiones de producto, correcciones de errores y backlog priorizado de la plataforma Rocky (OTR). A partir de la reunión del 31 de Julio de 2026, cada cambio, bugfix y feature completado queda asentado en esta bitácora.
 
-### [2026-08-19] — Formatos de Contenido Independientes: Imagen y Placa Gráfica (con Invalidación de Caché)
+### [2026-08-19] — Fix de Menciones (@), Nombre de Remitente en Notificaciones y Guardado Optimista de Comentarios (0ms)
 - **Desarrollador:** Antigravity (Pair Programming con Javier Sculli)
 - **Resumen de Avances:**
-  1. **Dos Formatos Independientes:** Se establecieron formalmente **"Imagen"** (foto estática sin diseño) y **"Placa Gráfica"** (gráfica que pasa por diseño) como los 2 tipos principales de contenido gráfico en `CONTENIDO`.
-  2. **Reglas de Workflow Diferenciadas (`workflow.ts`):**
-     - **`Imagen`:** `requiresDesign` evalúa a `false`, permitiendo saltear la etapa de Diseño Gráfico (`REDACCIÓN` → `REVISIÓN INTERNA`).
-     - **`Placa Gráfica`:** `requiresDesign` evalúa a `true`, asegurando el flujo secuencial por Diseño (`REDACCIÓN` → `DISEÑO` → `REVISIÓN INTERNA`).
-  3. **Auto-Migración e Invalidación de Caché (`catalogs.ts`):** El endpoint `GET /ticket-types` borra la memoria caché previa, establece `Cache-Control: no-cache, no-store`, e invalida tipos duplicados/legados (`Placa con diseño`, `Imagen Gráfica`, `Gráfica`), re-apuntando sus tickets a `Placa Gráfica` e `Imagen`.
+  1. **Algoritmo de Menciones Robusto (`comments.ts`):** Se reemplazó la expresión regular previa por un reconocedor de candidatos ordenados (nombres completos, primeros nombres, usuario de email y apodos del diccionario `NICKNAMES` como `@manu`, `@joaco`, `@javi`, `@shai`, `@palo`, etc.). Las menciones en comentarios ahora detectan a los usuarios destinatarios sin fallar por espacios o signos de puntuación.
+  2. **Resolución de Remitente de Notificación (`comments.ts`):** Se corrigió la consulta asincrónica para obtener el `name` real del usuario que menciona, generando mensajes legibles (ej: *"Javier Sculli te mencionó en..."*) en lugar del fallback a email raw.
+  3. **Optimistic UI para Comentarios a 0ms (`TicketDetallePage.tsx`):** Se implementó `onMutate` en `createCommentMutation` y `deleteCommentMutation` con caché directo de React Query. El comentario aparece al instante en la lista y vacía el campo de texto a 0ms sin esperar peticiones secundarias `GET /tickets/:ticketId/comments`.
+  4. **Intervalo de Polling de Notificaciones (`Layout.tsx`):** Ajustada la frecuencia de consulta de notificaciones de 60s a 15s para que el receptor vea las campanas de mención casi en tiempo real.
+- **Verificación:** Compilación del monorepo (`pnpm build`) verificada exitosamente con 0 errores en todos los paquetes.
+
+### [2026-08-19] — Formatos de Contenido Independientes: Imagen y Placa Gráfica (Ambos con Diseño Gráfico)
+- **Desarrollador:** Antigravity (Pair Programming con Javier Sculli)
+- **Resumen de Avances:**
+  1. **Dos Formatos Independientes:** Se establecieron formalmente **"Imagen"** (foto / pieza de imagen) y **"Placa Gráfica"** (gráfica) como los 2 tipos principales de contenido gráfico en `CONTENIDO`.
+  2. **Reglas de Workflow Unificadas para Diseño (`workflow.ts`):** Tanto **`Imagen`** como **`Placa Gráfica`** evalúan `requiresDesign` a `true`, asegurando que ambas piezas pasen siempre por la etapa de Diseño Gráfico (`REDACCIÓN` → `DISEÑO` → `REVISIÓN INTERNA`).
+  3. **Auto-Migración e Invalidación de Caché (`catalogs.ts`):** El endpoint `GET /ticket-types` limpia la memoria caché previa e invalida tipos duplicados/legados (`Placa con diseño`, `Imagen Gráfica`, `Gráfica`), re-apuntando sus tickets a `Placa Gráfica` e `Imagen`.
   4. **Migración SQL Prisma:** Actualizada la migración idempotente `20260819120000_separate_imagen_and_placa_types` en PostgreSQL.
 - **Verificación:** Typecheck de TypeScript verificado con 0 errores en todos los paquetes del monorepo (`pnpm typecheck`).
 

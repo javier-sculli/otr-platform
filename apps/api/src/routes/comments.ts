@@ -47,35 +47,45 @@ export async function commentsRoutes(fastify: FastifyInstance) {
     const ticket = await prisma.ticket.findUnique({ where: { id: ticketId }, select: { id: true, title: true } });
     if (!ticket) return reply.status(404).send({ error: 'Ticket no encontrado' });
 
-    // Detectar @menciones: palabras que empiecen con @
-    const rawTokens = [...content.matchAll(/@([\w\sáéíóúÁÉÍÓÚñÑ]+?)(?=[^a-zA-ZáéíóúÁÉÍÓÚñÑ\s]|$)/g)]
-      .map(m => m[1].trim().toLowerCase())
-      .filter(t => t.length >= 2);
-
+    // Detectar @menciones en el contenido
     let mentionedIds: string[] = [];
-    if (rawTokens.length > 0) {
+    if (content.includes('@')) {
       const allUsers = await prisma.user.findMany({
         select: { id: true, name: true, email: true }
       });
 
       const matchedUserIds = new Set<string>();
-      for (const rawToken of rawTokens) {
-        const normRaw = normalizeStr(rawToken);
-        const resolvedTarget = NICKNAMES[normRaw] ? normalizeStr(NICKNAMES[normRaw]) : normRaw;
+      const normContent = normalizeStr(content);
 
-        for (const u of allUsers) {
-          if (u.id === user.id) continue; // Ignorar auto-mención
-          const nameNorm = normalizeStr(u.name);
-          const emailNorm = normalizeStr(u.email);
-          const firstNameNorm = nameNorm.split(' ')[0];
+      for (const u of allUsers) {
+        if (u.id === user.id) continue; // Ignorar auto-mención
 
-          if (
-            nameNorm === resolvedTarget ||
-            firstNameNorm === resolvedTarget ||
-            nameNorm.includes(resolvedTarget) ||
-            emailNorm.startsWith(resolvedTarget)
-          ) {
+        const nameNorm = normalizeStr(u.name);
+        const firstNameNorm = nameNorm.split(' ')[0];
+        const emailPrefixNorm = normalizeStr(u.email ? u.email.split('@')[0] : '');
+
+        // Construir candidatos de búsqueda para el usuario (nombre, primer nombre, email, apodos)
+        const candidates = new Set<string>();
+        if (nameNorm) candidates.add(nameNorm);
+        if (firstNameNorm) candidates.add(firstNameNorm);
+        if (emailPrefixNorm) candidates.add(emailPrefixNorm);
+
+        for (const [nick, targetName] of Object.entries(NICKNAMES)) {
+          const normTarget = normalizeStr(targetName);
+          if (nameNorm === normTarget || firstNameNorm === normTarget || nameNorm.includes(normTarget)) {
+            candidates.add(nick);
+          }
+        }
+
+        // Probar los candidatos ordenados por longitud descendente para preferir nombres completos
+        const sortedCandidates = Array.from(candidates).sort((a, b) => b.length - a.length);
+        for (const cand of sortedCandidates) {
+          if (!cand || cand.length < 2) continue;
+          const escaped = cand.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          const regex = new RegExp(`@${escaped}(?=[^a-z0-9áéíóúñ]|\\s|$)`, 'i');
+          if (regex.test(normContent)) {
             matchedUserIds.add(u.id);
+            break;
           }
         }
       }
@@ -88,14 +98,16 @@ export async function commentsRoutes(fastify: FastifyInstance) {
     });
 
     if (mentionedIds.length > 0) {
-      let senderName = user.name || user.email;
+      const senderId = user.id;
       setImmediate(async () => {
         try {
-          if (!senderName && user.id) {
-            const senderUser = await prisma.user.findUnique({ where: { id: user.id }, select: { name: true, email: true } });
-            senderName = senderUser?.name || senderUser?.email || 'Un usuario';
-          }
+          const senderUser = await prisma.user.findUnique({
+            where: { id: senderId },
+            select: { name: true, email: true }
+          });
+          const senderName = senderUser?.name || senderUser?.email || user.email || 'Un usuario';
           const twoMinAgo = new Date(Date.now() - 2 * 60 * 1000);
+
           for (const uid of mentionedIds) {
             const existingNotif = await prisma.notification.findFirst({
               where: {

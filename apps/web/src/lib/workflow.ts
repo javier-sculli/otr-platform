@@ -2,24 +2,23 @@
 
 /**
  * Regla de formatos por estado de flujo:
- * 1. Pasan por diseño: carrusel, placa con diseño, story, video, reel.
+ * 1. Pasan por diseño: carrusel, imagen, placa gráfica, story, video, reel.
  * 2. Pasan por audiovisual (edición): video, reel.
- * 3. No pasan por diseño ni audiovisual: álbum de fotos, imagen, hilo, texto solo, repost.
+ * 3. No pasan por diseño ni audiovisual: hilo, texto, repost.
  */
 
 // Formatos explícitos que NO pasan por diseño ni audiovisual (saltean Diseño y Edición)
 const NO_DISENO_FORMATS = [
-  'imagen', 'imagen estática', 'imagen estatica',
-  'álbum de fotos', 'album de fotos', 'álbum', 'album',
   'hilo', 'texto solo', 'texto', 'repost',
   'blog', 'news', 'newsletter', 'deck', 'estrategia', 'reporte', 'otro',
   'documento', 'evento', 'base de medios', 'columna de opinión', 'comunicado', 'feedback',
 ];
 
-// Formatos que pasan por Diseño Gráfico (Regla 1: carrusel, placa con diseño, imagen gráfica, story, video, reel)
+// Formatos que pasan por Diseño Gráfico (Regla 1: carrusel, placa, imagen, story, video, reel, etc.)
 const FORMATOS_DISENO = [
   'carrusel', 'carusel',
-  'placa', 'placa con diseño', 'placa con diseno', 'diseño puntual', 'diseno puntual',
+  'imagen', 'imagen estática', 'imagen estatica',
+  'placa', 'placa con diseño', 'placa con diseno', 'placa gráfica', 'placa grafica', 'diseño puntual', 'diseno puntual',
   'imagen gráfica', 'imagen grafica',
   'story', 'stories',
   'video', 'video largo',
@@ -86,15 +85,12 @@ export function requiresDesign(ticketOrFormats?: TicketFormatInput | null): bool
       lower.includes('diseño') ||
       lower.includes('diseno') ||
       lower.includes('gráfica') ||
-      lower.includes('grafica')
+      lower.includes('grafica') ||
+      lower.includes('imagen')
     ) {
       return true;
     }
-    if (
-      NO_DISENO_FORMATS.some(
-        nd => lower === nd || (lower.startsWith('imagen') && !lower.includes('placa') && !lower.includes('diseño') && !lower.includes('diseno') && !lower.includes('grafica') && !lower.includes('gráfica'))
-      )
-    ) {
+    if (NO_DISENO_FORMATS.some(nd => lower === nd)) {
       return false;
     }
     return FORMATOS_DISENO.some(d => lower.includes(d));

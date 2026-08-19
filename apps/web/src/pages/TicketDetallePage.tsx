@@ -140,15 +140,73 @@ export function TicketDetallePage() {
 
   const createCommentMutation = useMutation({
     mutationFn: (content: string) => api.createComment(ticketId!, content),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['comments', ticketId] });
+    onMutate: async (content: string) => {
+      await queryClient.cancelQueries({ queryKey: ['comments', ticketId] });
+      const previousComments = queryClient.getQueryData<{ data: any[] }>(['comments', ticketId]);
+
+      const tempId = `temp-${Date.now()}`;
+      const tempComment = {
+        id: tempId,
+        ticketId: ticketId!,
+        userId: (currentUser as any)?.id || '',
+        content,
+        mentions: [],
+        createdAt: new Date().toISOString(),
+        user: {
+          id: (currentUser as any)?.id || '',
+          name: (currentUser as any)?.name || (currentUser as any)?.email || 'Usuario',
+        },
+      };
+
+      queryClient.setQueryData<{ data: any[] }>(['comments', ticketId], old => ({
+        data: [...(old?.data ?? []), tempComment],
+      }));
+
       setCommentText('');
+
+      return { previousComments, tempId };
+    },
+    onError: (_err, variables, context) => {
+      if (context?.previousComments) {
+        queryClient.setQueryData(['comments', ticketId], context.previousComments);
+      }
+      setCommentText(variables);
+    },
+    onSuccess: (res, _variables, context) => {
+      const realComment = res?.data;
+      if (realComment) {
+        queryClient.setQueryData<{ data: any[] }>(['comments', ticketId], old => {
+          if (!old?.data) return { data: [realComment] };
+          const updated = old.data.map(c => c.id === context?.tempId ? realComment : c);
+          return { data: updated };
+        });
+      } else {
+        queryClient.invalidateQueries({ queryKey: ['comments', ticketId] });
+      }
     },
   });
 
   const deleteCommentMutation = useMutation({
     mutationFn: (commentId: string) => api.deleteComment(ticketId!, commentId),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['comments', ticketId] }),
+    onMutate: async (commentId: string) => {
+      await queryClient.cancelQueries({ queryKey: ['comments', ticketId] });
+      const previousComments = queryClient.getQueryData<{ data: any[] }>(['comments', ticketId]);
+
+      queryClient.setQueryData<{ data: any[] }>(['comments', ticketId], old => {
+        if (!old?.data) return old;
+        return { data: old.data.filter(c => c.id !== commentId) };
+      });
+
+      return { previousComments };
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.previousComments) {
+        queryClient.setQueryData(['comments', ticketId], context.previousComments);
+      }
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['comments', ticketId] });
+    },
   });
 
   const handleCommentInput = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
