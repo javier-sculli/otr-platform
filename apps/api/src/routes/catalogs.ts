@@ -2,19 +2,36 @@ import { FastifyInstance } from 'fastify';
 import { prisma } from '../lib/prisma.js';
 import { authenticate } from '../middleware/auth.js';
 
+const catalogRouteCache = new Map<string, { timestamp: number; data: any }>();
+const CATALOG_ROUTE_TTL_MS = 10 * 60 * 1000;
+
+export function clearCatalogRouteCache() {
+  catalogRouteCache.clear();
+}
+
 export async function catalogsRoutes(fastify: FastifyInstance) {
   // All routes require authentication
   fastify.addHook('preHandler', authenticate);
 
   // Get all clients
-  fastify.get('/clients', async (request) => {
+  fastify.get('/clients', async (request, reply) => {
     const { includeArchived } = request.query as { includeArchived?: string };
+    const cacheKey = `clients_${includeArchived}`;
+    const cached = catalogRouteCache.get(cacheKey);
+    if (cached && Date.now() - cached.timestamp < CATALOG_ROUTE_TTL_MS) {
+      reply.header('x-cache', 'HIT');
+      return cached.data;
+    }
+
     const where = includeArchived === 'true' ? {} : { active: true };
     const clients = await prisma.client.findMany({
       where,
       orderBy: { name: 'asc' },
     });
-    return { data: clients };
+    const result = { data: clients };
+    catalogRouteCache.set(cacheKey, { timestamp: Date.now(), data: result });
+    reply.header('x-cache', 'MISS');
+    return result;
   });
 
   // Get clients with ticket stats
@@ -187,7 +204,14 @@ export async function catalogsRoutes(fastify: FastifyInstance) {
   });
 
   // Get all users
-  fastify.get('/users', async () => {
+  fastify.get('/users', async (request, reply) => {
+    const cacheKey = 'users';
+    const cached = catalogRouteCache.get(cacheKey);
+    if (cached && Date.now() - cached.timestamp < CATALOG_ROUTE_TTL_MS) {
+      reply.header('x-cache', 'HIT');
+      return cached.data;
+    }
+
     const users = await prisma.user.findMany({
       select: {
         id: true,
@@ -199,19 +223,39 @@ export async function catalogsRoutes(fastify: FastifyInstance) {
       },
       orderBy: { name: 'asc' },
     });
-    return { data: users };
+    const result = { data: users };
+    catalogRouteCache.set(cacheKey, { timestamp: Date.now(), data: result });
+    reply.header('x-cache', 'MISS');
+    return result;
   });
 
   // Get all areas
-  fastify.get('/areas', async () => {
+  fastify.get('/areas', async (request, reply) => {
+    const cacheKey = 'areas';
+    const cached = catalogRouteCache.get(cacheKey);
+    if (cached && Date.now() - cached.timestamp < CATALOG_ROUTE_TTL_MS) {
+      reply.header('x-cache', 'HIT');
+      return cached.data;
+    }
+
     const areas = await prisma.area.findMany({
       orderBy: { name: 'asc' },
     });
-    return { data: areas };
+    const result = { data: areas };
+    catalogRouteCache.set(cacheKey, { timestamp: Date.now(), data: result });
+    reply.header('x-cache', 'MISS');
+    return result;
   });
 
   // Get all ticket types
-  fastify.get('/ticket-types', async () => {
+  fastify.get('/ticket-types', async (request, reply) => {
+    const cacheKey = 'ticket-types';
+    const cached = catalogRouteCache.get(cacheKey);
+    if (cached && Date.now() - cached.timestamp < CATALOG_ROUTE_TTL_MS) {
+      reply.header('x-cache', 'HIT');
+      return cached.data;
+    }
+
     const defaultContenidoTypes = [
       'Carrusel',
       'Imagen',
@@ -246,28 +290,51 @@ export async function catalogsRoutes(fastify: FastifyInstance) {
     const ticketTypes = await prisma.ticketType.findMany({
       orderBy: [{ kind: 'asc' }, { name: 'asc' }],
     });
-    return { data: ticketTypes };
+    const result = { data: ticketTypes };
+    catalogRouteCache.set(cacheKey, { timestamp: Date.now(), data: result });
+    reply.header('x-cache', 'MISS');
+    return result;
   });
 
   // ── Voceros ───────────────────────────────────────────────────────────────
 
   // Get all speakers across all clients
-  fastify.get('/speakers', async () => {
+  fastify.get('/speakers', async (request, reply) => {
+    const cacheKey = 'speakers_all';
+    const cached = catalogRouteCache.get(cacheKey);
+    if (cached && Date.now() - cached.timestamp < CATALOG_ROUTE_TTL_MS) {
+      reply.header('x-cache', 'HIT');
+      return cached.data;
+    }
+
     const speakers = await prisma.speaker.findMany({
       orderBy: [{ clientId: 'asc' }, { createdAt: 'asc' }],
       select: { id: true, nombre: true, cargo: true, clientId: true, client: { select: { name: true } } },
     });
-    return { data: speakers };
+    const result = { data: speakers };
+    catalogRouteCache.set(cacheKey, { timestamp: Date.now(), data: result });
+    reply.header('x-cache', 'MISS');
+    return result;
   });
 
   // Get all speakers for a client
-  fastify.get('/clients/:id/speakers', async (request) => {
+  fastify.get('/clients/:id/speakers', async (request, reply) => {
     const { id } = request.params as { id: string };
+    const cacheKey = `speakers_${id}`;
+    const cached = catalogRouteCache.get(cacheKey);
+    if (cached && Date.now() - cached.timestamp < CATALOG_ROUTE_TTL_MS) {
+      reply.header('x-cache', 'HIT');
+      return cached.data;
+    }
+
     const speakers = await prisma.speaker.findMany({
       where: { clientId: id },
       orderBy: { createdAt: 'asc' },
     });
-    return { data: speakers };
+    const result = { data: speakers };
+    catalogRouteCache.set(cacheKey, { timestamp: Date.now(), data: result });
+    reply.header('x-cache', 'MISS');
+    return result;
   });
 
   // Create speaker
