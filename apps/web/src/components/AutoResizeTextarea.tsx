@@ -1,4 +1,4 @@
-import React, { useLayoutEffect, useRef, forwardRef, useImperativeHandle } from 'react';
+import React, { useLayoutEffect, useEffect, useRef, forwardRef, useImperativeHandle } from 'react';
 
 export interface AutoResizeTextareaProps
   extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {
@@ -24,6 +24,11 @@ export const AutoResizeTextarea = forwardRef<
     adjustHeight();
   }, [value]);
 
+  useEffect(() => {
+    window.addEventListener('resize', adjustHeight);
+    return () => window.removeEventListener('resize', adjustHeight);
+  }, []);
+
   const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     adjustHeight();
     if (onChange) {
@@ -31,14 +36,23 @@ export const AutoResizeTextarea = forwardRef<
     }
   };
 
+  const computedStyle: React.CSSProperties = {
+    minHeight: minRows ? `${minRows * 1.6}rem` : undefined,
+    ...style,
+  };
+
   return (
     <textarea
       ref={innerRef}
       value={value ?? ''}
       onChange={handleChange}
+      onFocus={(e) => {
+        adjustHeight();
+        props.onFocus?.(e);
+      }}
       rows={minRows}
       className={`resize-y overflow-y-auto ${className}`}
-      style={style}
+      style={computedStyle}
       {...props}
     />
   );
