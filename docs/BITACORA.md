@@ -2,6 +2,15 @@
 
 > **Propósito:** Registro central de avances, decisiones de producto, correcciones de errores y backlog priorizado de la plataforma Rocky (OTR). A partir de la reunión del 31 de Julio de 2026, cada cambio, bugfix y feature completado queda asentado en esta bitácora.
 
+### [2026-08-19] — Corrección de Desfase de Fechas (-1 día en Backlog, Calendario y Detalles)
+- **Desarrollador:** Javier Sculli
+- **Resumen de Avances:**
+  1. **Solución a Desfase de Zona Horaria (-1 día):** Identificada la causa donde cadenas de fecha ISO `YYYY-MM-DD` o timestamps `T00:00:00.000Z` eran interpretados como medianoche UTC, convirtiéndose a las 21:00 hs del día anterior en husos horarios locales (GMT-3).
+  2. **Utilidades de Fecha Seguras (`apps/web/src/lib/utils.ts`):** Añadidas funciones `parseLocalDate`, `formatDateSpan` y `formatDateISO` para procesar y renderizar fechas locales a las 00:00 hs sin descalce de zona horaria.
+  3. **Actualización de Componentes de Frontend:** Integradas las funciones en `BacklogPage.tsx`, `PrensaBacklogPage.tsx`, `CalendarioBacklog.tsx`, `TicketDetallePage.tsx`, `CreateTicketModal.tsx`, `PerformancePage.tsx` y `PublicationDetailPage.tsx`.
+  4. **Persistencia API Normalizada (`apps/api/src/routes/tickets.ts` y `metrics.ts`):** Normalizado el parseo de fechas en backend mediante `parseApiDate` a mediodía UTC (`12:00:00.000Z`), asegurando consistencia global en cualquier huso horario.
+- **Verificación:** `pnpm build` ejecutado exitosamente en los 5 paquetes del monorepo.
+
 ### [2026-08-19] — Sistema de Notificaciones Anti-Spam (Diff Real, Debouncing y Menciones Inteligentes)
 - **Desarrollador:** Javier Sculli
 - **Resumen de Avances:**
