@@ -46,7 +46,7 @@ export type TicketFormatInput =
   | string[];
 
 /**
- * Obtiene la lista de formatos aplicables a un ticket inspeccionando tiposContenido, ticketType o título.
+ * Obtiene la lista de formatos aplicables a un ticket inspeccionando únicamente tiposContenido o ticketType.
  */
 export function getEffectiveFormats(ticket?: TicketFormatInput | null): string[] {
   if (!ticket) return [];
@@ -56,32 +56,17 @@ export function getEffectiveFormats(ticket?: TicketFormatInput | null): string[]
     return [];
   }
 
-  // 1. Array tiposContenido
+  // 1. Array tiposContenido (tipo de contenido seleccionado en el ticket)
   if (Array.isArray(ticket.tiposContenido) && ticket.tiposContenido.length > 0) {
     return ticket.tiposContenido;
   }
 
-  // 2. Campo ticketType (objeto con name o string)
+  // 2. Campo ticketType (para lo que no es contenido o si tiposContenido está vacío)
   const typeName = typeof ticket.ticketType === 'string'
     ? ticket.ticketType
     : ticket.ticketType?.name;
   if (typeName && typeName.trim()) {
     return [typeName.trim()];
-  }
-
-  // 3. Fallback: buscar palabras clave en el título del ticket
-  if (ticket.title && typeof ticket.title === 'string') {
-    const titleLower = ticket.title.toLowerCase();
-    if (titleLower.includes('reel')) return ['reel'];
-    if (titleLower.includes('video')) return ['video'];
-    if (titleLower.includes('carrusel') || titleLower.includes('carusel')) return ['carrusel'];
-    if (titleLower.includes('placa')) return ['placa con diseño'];
-    if (titleLower.includes('story') || titleLower.includes('stories')) return ['story'];
-    if (titleLower.includes('hilo')) return ['hilo'];
-    if (titleLower.includes('repost')) return ['repost'];
-    if (titleLower.includes('álbum') || titleLower.includes('album')) return ['álbum de fotos'];
-    if (titleLower.includes('texto solo')) return ['texto solo'];
-    if (titleLower.includes('imagen') && !titleLower.includes('gráfica') && !titleLower.includes('grafica')) return ['imagen'];
   }
 
   return [];
