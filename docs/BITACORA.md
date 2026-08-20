@@ -2,6 +2,16 @@
 
 > **Propósito:** Registro central de avances, decisiones de producto, correcciones de errores y backlog priorizado de la plataforma Rocky (OTR). A partir de la reunión del 31 de Julio de 2026, cada cambio, bugfix y feature completado queda asentado en esta bitácora.
 
+### [2026-08-20] — Regla de Producto: Contenido 100% por Red Social (contentPerCanal), Fix de Copy Perdido y Rescate DB
+- **Desarrollador:** Antigravity (Pair Programming con Javier Sculli)
+- **Resumen de Avances:**
+  1. **Regla de Producto (`contentPerCanal`):** El campo genérico legacy `content` deja de ser la fuente principal. Las piezas se asocian siempre a sus redes sociales (`canales`) y el texto se almacena y lee estrictamente por canal desde `contentPerCanal`.
+  2. **Hidratación con Fallback desde `versionsPerCanal` (`TicketDetallePage.tsx` y `ContentPage.tsx`):** Si `contentPerCanal` o la clave de una red no poseen texto, la interfaz explora automáticamente la última versión generada por Jeeves en `versionsPerCanal[canal]`, impidiendo que el editor aparezca vacío.
+  3. **Rescate en Base de Datos (`0d52e478-c001-4aba-b171-80c31e80aac7`):** Rescatado en Supabase el copy completo generado en castellano para LinkedIn desde `versionsPerCanal.LinkedIn` hacia `contentPerCanal.LinkedIn`.
+  4. **Persistencia de Campos en API (`routes/tickets.ts`):** Añadidos `contentPerCanal`, `content`, `versionsPerCanal` y `notasAudiovisual` al `select` de `prisma.ticket.update` para evitar que las mutations limpien el copy en la caché de React Query.
+  5. **Manejador de Tabs sin Race Conditions (`ContentPage.tsx`):** Refactorizado el cambio de solapas mediante actualizador funcional (`setContentPerCanal(prev => ...)`), resolviendo la asignación de cadenas vacías por clausura obsoleta.
+- **Verificación:** typecheck compilado con 0 errores en todos los paquetes.
+
 ### [2026-08-19] — Fix de Menciones (@), Nombre de Remitente en Notificaciones y Guardado Optimista de Comentarios (0ms)
 - **Desarrollador:** Antigravity (Pair Programming con Javier Sculli)
 - **Resumen de Avances:**

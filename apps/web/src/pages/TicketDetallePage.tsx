@@ -326,12 +326,32 @@ export function TicketDetallePage() {
       const perCanal = (ticket as any).contentPerCanal && typeof (ticket as any).contentPerCanal === 'object'
         ? { ...(ticket as any).contentPerCanal as Record<string, string> }
         : {};
+      const versions = (ticket as any).versionsPerCanal && typeof (ticket as any).versionsPerCanal === 'object'
+        ? (ticket as any).versionsPerCanal as Record<string, string[]>
+        : {};
+
+      const canalesList: string[] = (ticket as any).canales?.length > 0 ? (ticket as any).canales : ['LinkedIn'];
+      canalesList.forEach((canal: string) => {
+        if (!perCanal[canal] || !perCanal[canal].trim()) {
+          const canalVersions = versions[canal] || Object.entries(versions).find(([k]) => k.toLowerCase() === canal.toLowerCase())?.[1];
+          if (Array.isArray(canalVersions) && canalVersions.length > 0) {
+            const lastNonEmpty = [...canalVersions].reverse().find(v => v && v.trim().length > 0);
+            if (lastNonEmpty) {
+              perCanal[canal] = lastNonEmpty;
+            }
+          }
+        }
+      });
+
+      if (Object.keys(perCanal).length === 0 && ticket.content) {
+        perCanal[canalesList[0]] = ticket.content;
+      }
+
       setCopyPerCanal(perCanal);
-      setContentSingle(ticket.content ?? '');
+      setContentSingle(perCanal[canalesList[0]] ?? ticket.content ?? '');
 
       if (!activeCopyTab) {
-        const canales = (ticket as any).canales;
-        setActiveCopyTab(canales?.length > 0 ? canales[0] : 'LinkedIn');
+        setActiveCopyTab(canalesList[0]);
       }
     }
   }, [ticket?.id]);
@@ -784,10 +804,8 @@ export function TicketDetallePage() {
 
                   const handleCopySave = () => {
                     const nextPerCanal = { ...copyPerCanal };
-                    const mainContent = currentTab === (canales[0] ?? 'LinkedIn') ? (copyPerCanal[currentTab] ?? contentSingle) : contentSingle;
                     updateMutation.mutate({
                       contentPerCanal: nextPerCanal,
-                      content: mainContent || null,
                     });
                   };
 

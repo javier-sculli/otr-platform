@@ -387,7 +387,6 @@ export async function ticketsRoutes(fastify: FastifyInstance) {
         plannedDate: parseApiDate(data.plannedDate),
         isDraftPlan: data.isDraftPlan !== undefined ? data.isDraftPlan : false,
         estadoAprobacionCliente: data.estadoAprobacionCliente || 'BORRADOR',
-        content: data.copy !== undefined ? data.copy : data.content,
         linkEntregable: data.linkPublicacionReal !== undefined ? data.linkPublicacionReal : data.linkEntregable,
         links: data.links || [],
         tiposContenido: data.tiposContenido || [],
@@ -487,8 +486,6 @@ export async function ticketsRoutes(fastify: FastifyInstance) {
     if (data.links !== undefined) updateData.links = data.links;
     if (data.linkEntregable !== undefined) updateData.linkEntregable = data.linkEntregable;
     if (data.linkPublicacionReal !== undefined) updateData.linkEntregable = data.linkPublicacionReal;
-    if (data.content !== undefined) updateData.content = data.content;
-    if (data.copy !== undefined) updateData.content = data.copy;
     if (data.keywords !== undefined) updateData.keywords = data.keywords;
     if (data.copyFinal !== undefined) updateData.copyFinal = data.copyFinal;
     if (data.notasAudiovisual !== undefined) updateData.notasAudiovisual = data.notasAudiovisual;
@@ -516,7 +513,8 @@ export async function ticketsRoutes(fastify: FastifyInstance) {
         periodista: true, estadoRespuesta: true, dueDate: true, plannedDate: true,
         isDraftPlan: true, publishedAt: true, estadoAprobacionCliente: true,
         keywords: true, links: true, linkEntregable: true, tiposContenido: true,
-        referenciasGraficas: true, createdAt: true, updatedAt: true,
+        referenciasGraficas: true, contentPerCanal: true, versionsPerCanal: true,
+        notasAudiovisual: true, createdAt: true, updatedAt: true,
       },
     });
 
@@ -701,7 +699,7 @@ export async function ticketsRoutes(fastify: FastifyInstance) {
           plannedDate: t.plannedDate ? new Date(t.plannedDate) : null,
           isDraftPlan: t.isDraftPlan !== undefined ? t.isDraftPlan : true,
           estadoAprobacionCliente: t.estadoAprobacionCliente || 'BORRADOR',
-          content: t.copy || t.content || null,
+          contentPerCanal: t.contentPerCanal || (t.copy ? { [(t.canales && t.canales[0]) || 'LinkedIn']: t.copy } : {}),
           linkEntregable: t.linkPublicacionReal || t.linkEntregable || null,
           keywords: t.keywords || null,
         }

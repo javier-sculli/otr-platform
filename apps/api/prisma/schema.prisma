@@ -261,7 +261,6 @@ model Ticket {
   isDraftPlan  Boolean        @default(false) @map("is_draft_plan")
   publishedAt  DateTime?      @map("published_at")
   estadoAprobacionCliente EstadoAprobacionCliente @default(BORRADOR) @map("estado_aprobacion_cliente")
-  content      String?        @db.Text
   contentPerCanal Json        @default("{}") @map("content_per_canal")
   keywords     String?
   links           String[]       @default([])

@@ -297,7 +297,7 @@ export async function aiRoutes(fastify: FastifyInstance) {
       include: {
         client: { include: { brandVoice: true } },
         speaker: true,
-        references: { select: { title: true, objetivo: true, content: true } },
+        references: { select: { title: true, objetivo: true, contentPerCanal: true } },
         ticketType: true,
       },
     });
@@ -395,7 +395,7 @@ export async function aiRoutes(fastify: FastifyInstance) {
       referencias: ticket.references.map((r) => ({
         title: r.title,
         brief: r.objetivo ?? '',
-        content: r.content ?? '',
+        content: (r.contentPerCanal && typeof r.contentPerCanal === 'object' ? (Object.values(r.contentPerCanal as Record<string, string>)[0] ?? '') : ''),
       })),
       pressReferenceContent,
       ticketTypeName: ticket.ticketType?.name ?? '',

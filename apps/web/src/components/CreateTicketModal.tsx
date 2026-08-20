@@ -1053,7 +1053,7 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
           {isEditing && !noContenido && (() => {
             const canales = formData.canales.length > 0 ? formData.canales : ['LinkedIn'];
             const currentTab = activeCopyTab && canales.includes(activeCopyTab) ? activeCopyTab : canales[0];
-            const currentCopy = formData.contentPerCanal[currentTab] ?? (canales.length === 1 || currentTab === canales[0] ? formData.content : '');
+            const currentCopy = formData.contentPerCanal[currentTab] ?? '';
 
             return (
               <div>
@@ -1098,11 +1098,10 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
                   value={currentCopy}
                   onChange={val => {
                     const nextContentPerCanal = { ...formData.contentPerCanal, [currentTab]: val };
-                    const nextContent = currentTab === (formData.canales[0] ?? 'LinkedIn') ? val : formData.content;
                     const updated = {
                       ...formData,
                       contentPerCanal: nextContentPerCanal,
-                      content: nextContent,
+                      content: nextContentPerCanal[formData.canales[0] ?? 'LinkedIn'] || null,
                     };
                     setFormData(updated);
                     if (isEditing) triggerDebouncedAutoSave(updated);

@@ -143,7 +143,7 @@ export function SumarioTab({ clientId }: { clientId: string }) {
         pilarId: t.pilarId || '',
         formatoId: t.ticketTypeId || '',
         title: t.title || '',
-        copy: t.content || '',
+        copy: (t.contentPerCanal && typeof t.contentPerCanal === 'object' && (t.contentPerCanal[t.canales?.[0] || 'LinkedIn'] || Object.values(t.contentPerCanal)[0])) || t.content || '',
         isTarea,
         isPrensa,
         sortOrder: t.sortOrder ?? index,

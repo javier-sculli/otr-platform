@@ -66,6 +66,13 @@ export function ContentPage() {
   const [canales, setCanales] = useState<string[]>([]);
   const [activeCanal, setActiveCanal] = useState<string>('');
   const [contentPerCanal, setContentPerCanal] = useState<Record<string, string>>({});
+  const contentPerCanalRef = useRef<Record<string, string>>({});
+
+  const updateContentPerCanal = (newContentMap: Record<string, string>) => {
+    contentPerCanalRef.current = newContentMap;
+    setContentPerCanal(newContentMap);
+  };
+
   // Versiones previas por canal: snapshot antes de cada generación de IA
   const [versionsPerCanal, setVersionsPerCanal] = useState<Record<string, string[]>>({});
   const versionsPerCanalRef = useRef<Record<string, string[]>>({});
@@ -73,6 +80,26 @@ export function ContentPage() {
   const updateVersions = (newVersions: Record<string, string[]>) => {
     versionsPerCanalRef.current = newVersions;
     setVersionsPerCanal(newVersions);
+  };
+
+  const getSafeContentPerCanal = (): Record<string, string> => {
+    const currentMap = { ...contentPerCanal, ...contentPerCanalRef.current };
+    if (activeCanal && contentText.trim()) {
+      currentMap[activeCanal] = contentText;
+    }
+    const versionsMap = versionsPerCanalRef.current;
+    canales.forEach((canal: string) => {
+      if (!currentMap[canal] || !currentMap[canal].trim()) {
+        const canalVersions = versionsMap[canal] || Object.entries(versionsMap).find(([k]) => k.toLowerCase() === canal.toLowerCase())?.[1];
+        if (Array.isArray(canalVersions) && canalVersions.length > 0) {
+          const lastNonEmpty = [...canalVersions].reverse().find(v => v && v.trim().length > 0);
+          if (lastNonEmpty) {
+            currentMap[canal] = lastNonEmpty;
+          }
+        }
+      }
+    });
+    return currentMap;
   };
 
   const getVersionsForCanal = (canal: string): string[] => {
@@ -224,16 +251,6 @@ export function ContentPage() {
           delete perCanal['General'];
         }
 
-        if (Object.keys(perCanal).length === 0 && t.content) {
-          perCanal[canalList[0]] = t.content;
-        }
-        setCanales(canalList);
-        setContentPerCanal(perCanal);
-        const initialCanal = canalList[0];
-        setActiveCanal(initialCanal);
-        const initialContent = perCanal[initialCanal] ?? '';
-        setContentText(initialContent);
-        setCharCount(initialContent.length);
         if (t.versionsPerCanal && typeof t.versionsPerCanal === 'object') {
           const rawVersions = { ...t.versionsPerCanal as Record<string, string[]> };
           if (rawVersions['Contenido'] || rawVersions['General']) {
@@ -245,7 +262,31 @@ export function ContentPage() {
             delete rawVersions['General'];
           }
           updateVersions(rawVersions);
+
+          canalList.forEach((canal: string) => {
+            if (!perCanal[canal] || !perCanal[canal].trim()) {
+              const canalVersions = rawVersions[canal] || Object.entries(rawVersions).find(([k]) => k.toLowerCase() === canal.toLowerCase())?.[1];
+              if (Array.isArray(canalVersions) && canalVersions.length > 0) {
+                const lastNonEmpty = [...canalVersions].reverse().find(v => v && v.trim().length > 0);
+                if (lastNonEmpty) {
+                  perCanal[canal] = lastNonEmpty;
+                }
+              }
+            }
+          });
         }
+
+        if (Object.keys(perCanal).length === 0 && t.content) {
+          perCanal[canalList[0]] = t.content;
+        }
+
+        setCanales(canalList);
+        updateContentPerCanal(perCanal);
+        const initialCanal = canalList[0];
+        setActiveCanal(initialCanal);
+        const initialContent = perCanal[initialCanal] ?? '';
+        setContentText(initialContent);
+        setCharCount(initialContent.length);
         setContentLoaded(true);
       }
 
@@ -265,8 +306,7 @@ export function ContentPage() {
       title,
       objetivo: brief,
       keywords,
-      content: contentText,
-      contentPerCanal,
+      contentPerCanal: getSafeContentPerCanal(),
       versionsPerCanal: versionsPerCanalRef.current,
       links: contextLinks,
       linkEntregable: linkEntregable || null,
@@ -297,8 +337,7 @@ export function ContentPage() {
       title,
       objetivo: brief,
       keywords,
-      content: contentText,
-      contentPerCanal,
+      contentPerCanal: getSafeContentPerCanal(),
       versionsPerCanal: versionsPerCanalRef.current,
       links: contextLinks,
       linkEntregable: linkEntregable || null,
@@ -333,7 +372,8 @@ export function ContentPage() {
     const val = e.target.value;
     setContentText(val);
     setCharCount(val.length);
-    setContentPerCanal(prev => ({ ...prev, [activeCanal]: val }));
+    const updated = { ...contentPerCanalRef.current, [activeCanal]: val };
+    updateContentPerCanal(updated);
     setHasChanges(true);
   };
 
@@ -417,7 +457,7 @@ export function ContentPage() {
     try {
       {
         const result = await api.chatWithAI(ticketId, {
-          instruction: fullInstruction, currentContent: contentText, brief, tone, keywords, outputLength, model: 'claude-sonnet-4-6', attachments, history, canal: activeCanal === 'Contenido' ? undefined : activeCanal, otherCanalesContent: Object.fromEntries(Object.entries(contentPerCanal).filter(([k, v]) => k !== activeCanal && v?.trim())),
+          instruction: fullInstruction, currentContent: contentText, brief, tone, keywords, outputLength, model: 'claude-sonnet-4-6', attachments, history, canal: activeCanal === 'Contenido' ? undefined : activeCanal, otherCanalesContent: Object.fromEntries(Object.entries(contentPerCanalRef.current).filter(([k, v]) => k !== activeCanal && v?.trim())),
         });
 
         if (result.newContent !== null) {
@@ -425,20 +465,21 @@ export function ContentPage() {
           const canalVersions = currentVersions[activeCanal] ?? [];
           const updatedVersions = {
             ...currentVersions,
-            [activeCanal]: [...canalVersions, contentText],
+            [activeCanal]: contentText ? [...canalVersions, contentText] : canalVersions,
           };
           updateVersions(updatedVersions);
 
-          const updated = { ...contentPerCanal, [activeCanal]: result.newContent };
+          const updated = { ...contentPerCanalRef.current, [activeCanal]: result.newContent };
+          updateContentPerCanal(updated);
           setContentText(result.newContent);
           setCharCount(result.newContent.length);
-          setContentPerCanal(updated);
           setHasChanges(false);
+
+          // Guardado automático inmediato e instantáneo a DB
           api.updateTicket(ticketId!, {
             title,
             objetivo: brief,
             keywords,
-            content: result.newContent,
             contentPerCanal: updated,
             versionsPerCanal: updatedVersions,
             links: contextLinks,
@@ -478,16 +519,15 @@ export function ContentPage() {
     };
     updateVersions(updatedVersions);
 
-    const updated = { ...contentPerCanal, [activeCanal]: previous };
+    const updated = { ...contentPerCanalRef.current, [activeCanal]: previous };
     setContentText(previous);
     setCharCount(previous.length);
-    setContentPerCanal(updated);
+    updateContentPerCanal(updated);
     setHasChanges(false);
     api.updateTicket(ticketId!, {
       title,
       objetivo: brief,
       keywords,
-      content: previous,
       contentPerCanal: updated,
       versionsPerCanal: updatedVersions,
       links: contextLinks,
@@ -514,16 +554,15 @@ export function ContentPage() {
       }
     }
 
-    const updated = { ...contentPerCanal, [activeCanal]: versionText };
+    const updated = { ...contentPerCanalRef.current, [activeCanal]: versionText };
     setContentText(versionText);
     setCharCount(versionText.length);
-    setContentPerCanal(updated);
+    updateContentPerCanal(updated);
     setHasChanges(false);
     api.updateTicket(ticketId!, {
       title,
       objetivo: brief,
       keywords,
-      content: versionText,
       contentPerCanal: updated,
       versionsPerCanal: updatedVersions,
       links: contextLinks,
@@ -1071,8 +1110,21 @@ export function ContentPage() {
                 <button
                   key={canal}
                   onClick={() => {
-                    setContentPerCanal(prev => ({ ...prev, [activeCanal]: contentText }));
-                    const newContent = contentPerCanal[canal] ?? '';
+                    if (canal === activeCanal) return;
+                    const updated = { ...contentPerCanalRef.current, [activeCanal]: contentText };
+                    updateContentPerCanal(updated);
+
+                    // Guardado inmediato en DB del canal anterior al cambiar de solapa
+                    api.updateTicket(ticketId!, {
+                      contentPerCanal: updated,
+                      versionsPerCanal: versionsPerCanalRef.current,
+                    }).catch(() => {});
+
+                    const canalVersions = getVersionsForCanal(canal);
+                    const fallback = Array.isArray(canalVersions) && canalVersions.length > 0
+                      ? [...canalVersions].reverse().find(v => v && v.trim().length > 0)
+                      : '';
+                    const newContent = updated[canal] ?? fallback ?? '';
                     setActiveCanal(canal);
                     setContentText(newContent);
                     setCharCount(newContent.length);
