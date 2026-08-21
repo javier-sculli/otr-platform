@@ -1068,6 +1068,27 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
             </div>
           )}
 
+          {/* NOTAS DE DISEÑO — solo Pieza en edición */}
+          {isEditing && !noContenido && (
+            <div>
+              <label className={labelCls}>
+                <ImageIcon className="w-3 h-3 text-[#024fff]" />
+                Notas de diseño
+              </label>
+              <RichNotesEditor
+                value={formData.notasAudiovisual}
+                onChange={val => {
+                  const updated = { ...formData, notasAudiovisual: val };
+                  setFormData(updated);
+                  triggerDebouncedAutoSave(updated);
+                }}
+                onBlur={() => triggerImmediateAutoSave()}
+                placeholder="Notas de diseño (indicaciones visuales, estilo, imágenes, links)..."
+                minHeight="140px"
+              />
+            </div>
+          )}
+
           {/* COPY — solo Pieza en edición */}
           {isEditing && !noContenido && (() => {
             const canales = formData.canales.length > 0 ? formData.canales : ['LinkedIn'];
