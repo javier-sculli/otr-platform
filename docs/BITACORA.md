@@ -2,6 +2,14 @@
 
 > **Propósito:** Registro central de avances, decisiones de producto, correcciones de errores y backlog priorizado de la plataforma Rocky (OTR). A partir de la reunión del 31 de Julio de 2026, cada cambio, bugfix y feature completado queda asentado en esta bitácora.
 
+### [2026-08-21] — Guardado Defensivo de `contentPerCanal` (Backend Merge y Protecciones Frontend)
+- **Desarrollador:** Antigravity (Pair Programming con Javier Sculli)
+- **Resumen de Avances:**
+  1. **Merge Defensivo en API (`apps/api/src/routes/tickets.ts`):** En `PATCH /tickets/:id`, se incluyeron `contentPerCanal` y `versionsPerCanal` en la consulta previa (`existingTicket`) y se implementó un algoritmo de fusionado seguro. Si el payload entrante trae cadenas vacías o un objeto vacío `{}` para un canal que ya posee texto en la DB, el backend preserva defensivamente el contenido original, impidiendo que peticiones con payloads incompletos borren el copy.
+  2. **Protección en Auto-Guardado de Modal (`CreateTicketModal.tsx`):** Al auto-guardar cambios de metadatos (estado, asignados, fechas), el modal omite la propiedad `contentPerCanal` de la mutation salvo que el objeto contenga texto real para algún canal. Además, si se abre un ticket sin `contentPerCanal` cargado, se activa un fallback directo al historial de `versionsPerCanal`.
+  3. **Guardado Seguro en Detalle de Ticket (`TicketDetallePage.tsx`):** En `handleCopySave`, se implementó una fusión del estado local con `ticket.contentPerCanal` existente antes de emitir la petición, evitando pisar otros canales.
+- **Verificación:** Monorepo verificado con compilaciones limpias (`pnpm --filter web build` y `pnpm --filter api build`) con 0 errores de TypeScript.
+
 ### [2026-08-20] — Regla de Producto: Contenido 100% por Red Social (contentPerCanal), Fix de Copy Perdido y Rescate DB
 - **Desarrollador:** Antigravity (Pair Programming con Javier Sculli)
 - **Resumen de Avances:**

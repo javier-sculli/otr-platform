@@ -121,7 +121,23 @@ function buildFormData(ticket?: TicketData | null, defaultClientId?: string) {
     links: ticket.links ?? [],
     linkEntregable: ticket.linkEntregable ?? '',
     content: (ticket as any).content ?? '',
-    contentPerCanal: (ticket as any).contentPerCanal && typeof (ticket as any).contentPerCanal === 'object' ? (ticket as any).contentPerCanal : {},
+    contentPerCanal: (() => {
+      const perCanal: Record<string, string> = (ticket as any).contentPerCanal && typeof (ticket as any).contentPerCanal === 'object' ? { ...(ticket as any).contentPerCanal } : {};
+      const versions: Record<string, string[]> = (ticket as any).versionsPerCanal && typeof (ticket as any).versionsPerCanal === 'object' ? (ticket as any).versionsPerCanal : {};
+      const canalesList: string[] = (ticket as any).canales?.length > 0 ? (ticket as any).canales : ['LinkedIn'];
+      canalesList.forEach((canal: string) => {
+        if (!perCanal[canal] || !perCanal[canal].trim()) {
+          const canalVersions = versions[canal] || Object.entries(versions).find(([k]) => k.toLowerCase() === canal.toLowerCase())?.[1];
+          if (Array.isArray(canalVersions) && canalVersions.length > 0) {
+            const lastNonEmpty = [...canalVersions].reverse().find(v => v && v.trim().length > 0);
+            if (lastNonEmpty) {
+              perCanal[canal] = lastNonEmpty;
+            }
+          }
+        }
+      });
+      return perCanal;
+    })(),
     notasAudiovisual: (ticket as any).notasAudiovisual ?? '',
     medio: (ticket as any).medio ?? '',
     periodista: (ticket as any).periodista ?? '',
@@ -358,8 +374,14 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
       links: current.links.map(ensureAbsoluteUrl),
       linkEntregable: current.linkEntregable ? ensureAbsoluteUrl(current.linkEntregable) : null,
       content: noContenido ? undefined : (current.content || null),
-      contentPerCanal: noContenido ? undefined : current.contentPerCanal,
     };
+
+    if (!noContenido) {
+      const hasSomeContent = Object.values(current.contentPerCanal || {}).some((val: any) => typeof val === 'string' && val.trim().length > 0);
+      if (hasSomeContent) {
+        payload.contentPerCanal = current.contentPerCanal;
+      }
+    }
 
     if (esPrensa) {
       payload.area = 'PRENSA';
@@ -1097,11 +1119,12 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
                 <RichNotesEditor
                   value={currentCopy}
                   onChange={val => {
-                    const nextContentPerCanal = { ...formData.contentPerCanal, [currentTab]: val };
+                    const nextContentPerCanal: Record<string, string> = { ...formData.contentPerCanal, [currentTab]: val };
+                    const firstCanal = (formData.canales[0] as string) || 'LinkedIn';
                     const updated = {
                       ...formData,
                       contentPerCanal: nextContentPerCanal,
-                      content: nextContentPerCanal[formData.canales[0] ?? 'LinkedIn'] || null,
+                      content: nextContentPerCanal[firstCanal] || null,
                     };
                     setFormData(updated);
                     if (isEditing) triggerDebouncedAutoSave(updated);

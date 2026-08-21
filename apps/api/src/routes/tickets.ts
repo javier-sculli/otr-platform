@@ -444,7 +444,7 @@ export async function ticketsRoutes(fastify: FastifyInstance) {
 
     const existingTicket = await prisma.ticket.findUnique({
       where: { id },
-      select: { id: true, title: true, ownerId: true, assigneeIds: true, status: true, subEstado: true }
+      select: { id: true, title: true, ownerId: true, assigneeIds: true, status: true, subEstado: true, contentPerCanal: true, versionsPerCanal: true }
     });
     if (!existingTicket) return reply.status(404).send({ error: 'Ticket no encontrado' });
 
@@ -455,7 +455,26 @@ export async function ticketsRoutes(fastify: FastifyInstance) {
     if (data.objetivo !== undefined) updateData.objetivo = data.objetivo;
     if (data.canales !== undefined) updateData.canales = data.canales;
     if (data.canal !== undefined) updateData.canales = [data.canal];
-    if (data.contentPerCanal !== undefined) updateData.contentPerCanal = data.contentPerCanal;
+    if (data.contentPerCanal !== undefined) {
+      const existingMap: Record<string, string> =
+        existingTicket.contentPerCanal && typeof existingTicket.contentPerCanal === 'object'
+          ? (existingTicket.contentPerCanal as Record<string, string>)
+          : {};
+      const incomingMap: Record<string, string> =
+        data.contentPerCanal && typeof data.contentPerCanal === 'object'
+          ? (data.contentPerCanal as Record<string, string>)
+          : {};
+
+      const mergedMap: Record<string, string> = { ...existingMap };
+      for (const [canal, text] of Object.entries(incomingMap)) {
+        if (typeof text === 'string' && text.trim().length > 0) {
+          mergedMap[canal] = text;
+        } else if (!existingMap[canal] || !existingMap[canal].trim()) {
+          mergedMap[canal] = text ?? '';
+        }
+      }
+      updateData.contentPerCanal = mergedMap;
+    }
     if (data.prioridad !== undefined) updateData.prioridad = data.prioridad;
     if (data.ownerId !== undefined) updateData.ownerId = data.ownerId;
     if (data.assigneeIds !== undefined) {

@@ -803,7 +803,15 @@ export function TicketDetallePage() {
                   };
 
                   const handleCopySave = () => {
-                    const nextPerCanal = { ...copyPerCanal };
+                    const existing = (ticket as any)?.contentPerCanal && typeof (ticket as any).contentPerCanal === 'object'
+                      ? (ticket as any).contentPerCanal
+                      : {};
+                    const nextPerCanal = { ...existing, ...copyPerCanal };
+                    Object.keys(existing).forEach(key => {
+                      if ((!nextPerCanal[key] || !nextPerCanal[key].trim()) && existing[key] && existing[key].trim()) {
+                        nextPerCanal[key] = existing[key];
+                      }
+                    });
                     updateMutation.mutate({
                       contentPerCanal: nextPerCanal,
                     });
