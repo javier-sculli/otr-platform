@@ -112,7 +112,7 @@ function buildFormData(ticket?: TicketData | null, defaultClientId?: string) {
     assigneeIds: initialAssignees,
     ticketTypeId: ticket.ticketType?.id ?? '',
     tiposContenido: initialTipos,
-    notasGrafica: (ticket as any).notasGrafica ?? (ticket as any).notasAudiovisual ?? '',
+    notasGrafica: (ticket as any).notasGrafica || (ticket as any).notasAudiovisual || '',
     pilarId: (ticket as any).pilar?.id ?? '',
     speakerId: (ticket as any).speaker?.id ?? '',
     prioridad: ticket.prioridad,
@@ -138,7 +138,7 @@ function buildFormData(ticket?: TicketData | null, defaultClientId?: string) {
       });
       return perCanal;
     })(),
-    notasAudiovisual: (ticket as any).notasAudiovisual ?? '',
+    notasAudiovisual: (ticket as any).notasAudiovisual || (ticket as any).notasGrafica || '',
     medio: (ticket as any).medio ?? '',
     periodista: (ticket as any).periodista ?? '',
     estadoRespuesta: (ticket as any).estadoRespuesta ?? '',

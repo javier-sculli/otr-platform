@@ -320,9 +320,8 @@ export function TicketDetallePage() {
     if (isNewTicket) {
       if (ticket?.title) setTituloTemp(ticket.title);
       if (ticket?.objetivo !== undefined) setBriefTemp(ticket.objetivo ?? '');
-      if ((ticket as any)?.notasAudiovisual !== undefined) {
-        setNotasAudiovisual((ticket as any).notasAudiovisual ?? '');
-      }
+      const initialNotas = (ticket as any)?.notasAudiovisual || (ticket as any)?.notasGrafica || '';
+      setNotasAudiovisual(initialNotas);
       const perCanal = (ticket as any).contentPerCanal && typeof (ticket as any).contentPerCanal === 'object'
         ? { ...(ticket as any).contentPerCanal as Record<string, string> }
         : {};
@@ -860,9 +859,9 @@ export function TicketDetallePage() {
                 value={notasAudiovisual}
                 onChange={setNotasAudiovisual}
                 onBlur={() => {
-                  const currentNotas = (ticket as any).notasAudiovisual ?? (ticket as any).notasGrafica ?? '';
+                  const currentNotas = (ticket as any).notasAudiovisual || (ticket as any).notasGrafica || '';
                   if (notasAudiovisual !== currentNotas) {
-                    updateMutation.mutate({ notasAudiovisual: notasAudiovisual || null });
+                    updateMutation.mutate({ notasAudiovisual: notasAudiovisual || null, notasGrafica: notasAudiovisual || null });
                   }
                 }}
                 placeholder="Notas de diseño (podés pegar libremente textos con formato, imágenes o links desde Notion)..."
