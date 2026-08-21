@@ -35,7 +35,7 @@ export function TransitionToDesignModal({
 
   useEffect(() => {
     if (ticket) {
-      setNotasAudiovisual(ticket.notasAudiovisual || ticket.objetivo || '');
+      setNotasAudiovisual(ticket.notasAudiovisual || '');
       setLinks(ticket.links || []);
     }
   }, [ticket]);
