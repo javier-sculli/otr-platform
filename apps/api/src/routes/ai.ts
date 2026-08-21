@@ -216,15 +216,13 @@ ${instructionContext}
 
 Antes de responder, determiná si el pedido implica **escribir o modificar el contenido del editor** (redactar, reescribir, mejorar, cambiar el tono, acortar, agregar algo, regenerar, etc.) o si es simplemente una **pregunta, consulta o comentario** que no requiere tocar el texto.
 
-**Si hay que escribir o modificar el contenido** (incluyendo redactar o adaptar para una red social específica), respondé EXACTAMENTE así:
-<content canal="NombreDelCanal">
+**Si hay que escribir o modificar el contenido** (redactar, reescribir, adaptar, cambiar el tono, acortar, agregar algo, regenerar, etc.), respondé EXACTAMENTE así:
+<content>
 [contenido completo nuevo aquí]
 </content>
 <summary>
 [1-2 oraciones en español informal explicando qué cambiaste y por qué]
 </summary>
-
-Nota: Si el pedido es para un canal o red social específica (ej: Twitter, Instagram, LinkedIn), especificá siempre el nombre exacto del canal en el atributo canal="...". Si es para el canal actual, podés omitir el atributo.
 
 **Si es una pregunta, consulta o pedido que NO requiere modificar el contenido**, respondé EXACTAMENTE así:
 <response>

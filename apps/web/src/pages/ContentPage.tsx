@@ -461,26 +461,18 @@ export function ContentPage() {
         });
 
         if (result.newContent !== null) {
-          const matchedCanal = result.targetCanal
-            ? canales.find(c => c.toLowerCase() === result.targetCanal!.toLowerCase())
-            : undefined;
-          const destCanal = matchedCanal || activeCanal;
-
           const currentVersions = versionsPerCanalRef.current;
-          const canalVersions = currentVersions[destCanal] ?? [];
+          const canalVersions = currentVersions[activeCanal] ?? [];
           const updatedVersions = {
             ...currentVersions,
-            [destCanal]: [...canalVersions, result.newContent],
+            [activeCanal]: [...canalVersions, result.newContent],
           };
           updateVersions(updatedVersions);
 
-          const updated = { ...contentPerCanalRef.current, [destCanal]: result.newContent };
+          const updated = { ...contentPerCanalRef.current, [activeCanal]: result.newContent };
           updateContentPerCanal(updated);
-
-          if (destCanal === activeCanal) {
-            setContentText(result.newContent);
-            setCharCount(result.newContent.length);
-          }
+          setContentText(result.newContent);
+          setCharCount(result.newContent.length);
           setHasChanges(false);
 
           // Guardado automático inmediato e instantáneo a DB
