@@ -374,15 +374,6 @@ export function ContentPage() {
     setShowSiguienteModal(true);
   };
 
-  const handleContentChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    const val = e.target.value;
-    setContentText(val);
-    setCharCount(val.length);
-    const updated = { ...contentPerCanalRef.current, [activeCanal]: val };
-    updateContentPerCanal(updated);
-    setHasChanges(true);
-  };
-
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files) return;
@@ -1152,13 +1143,21 @@ export function ContentPage() {
 
           {/* Editor Area with Optional History Sidebar */}
           <div className="flex-1 flex min-h-0 overflow-hidden">
-            <div className="flex-1 overflow-y-auto px-8 py-4 min-h-0">
-              <textarea
+            <div className="flex-1 overflow-y-auto px-6 py-4 min-h-0">
+              <RichNotesEditor
                 value={contentText}
-                onChange={handleContentChange}
+                onChange={val => {
+                  setContentText(val);
+                  const plainText = val.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ');
+                  setCharCount(plainText.length);
+                  const updated = { ...contentPerCanalRef.current, [activeCanal]: val };
+                  updateContentPerCanal(updated);
+                  setHasChanges(true);
+                }}
                 onBlur={() => { if (hasChanges) saveMutation.mutate(); }}
-                className="w-full h-full resize-none border-none outline-none text-[#000033] text-sm leading-relaxed bg-transparent"
                 placeholder="Empieza a escribir o pedile a la IA que genere contenido..."
+                minHeight="100%"
+                maxHeight="100%"
               />
             </div>
 

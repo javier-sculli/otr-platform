@@ -133,9 +133,15 @@ export async function convertImageUrlToBase64(url: string): Promise<string> {
 
 export function cleanJunkHtmlBlocks(html: string): string {
   if (!html) return '';
-  // Si es texto plano con saltos de línea sin etiquetas HTML, convertir \n a <br>
-  if (!/<[a-z][\s\S]*>/i.test(html) && html.includes('\n')) {
-    html = html.replace(/\n/g, '<br>');
+  // Si es texto plano (sin etiquetas HTML), convertir marcado Markdown (**bold**) y saltos de línea a HTML
+  if (!/<[a-z][\s\S]*>/i.test(html)) {
+    let converted = html;
+    converted = converted.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+    converted = converted.replace(/__([^_]+)__/g, '<strong>$1</strong>');
+    if (converted.includes('\n')) {
+      converted = converted.replace(/\n/g, '<br>');
+    }
+    html = converted;
   }
   try {
     const parser = new DOMParser();
