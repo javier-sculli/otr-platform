@@ -364,7 +364,7 @@ export function ContentPage() {
   });
 
   const handleOpenSiguiente = () => {
-    setNotasAudiovisual((ticket as any)?.notasAudiovisual || (ticket as any)?.notasGrafica || '');
+    setNotasAudiovisual((ticket as any)?.notasAudiovisual ?? '');
     setShowSiguienteModal(true);
   };
 

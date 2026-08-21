@@ -10,7 +10,6 @@ interface TransitionToDesignModalProps {
   ticket: {
     id: string;
     title: string;
-    notasGrafica?: string | null;
     notasAudiovisual?: string | null;
     links?: string[];
     referenciasGraficas?: any[];
@@ -35,7 +34,7 @@ export function TransitionToDesignModal({
 
   useEffect(() => {
     if (ticket) {
-      setNotasAudiovisual(ticket.notasAudiovisual || ticket.notasGrafica || '');
+      setNotasAudiovisual(ticket.notasAudiovisual || '');
       setLinks(ticket.links || []);
     }
   }, [ticket]);

@@ -266,7 +266,6 @@ model Ticket {
   links           String[]       @default([])
   linkEntregable  String?        @map("link_entregable")
   notasAudiovisual String?       @db.Text @map("notas_audiovisual")
-  notasGrafica     String?       @db.Text @map("notas_grafica")
   tiposContenido   String[]      @default([]) @map("tipos_contenido")
   referenciasGraficas Json?      @map("referencias_graficas")
   chatHistory     Json?          @map("chat_history")

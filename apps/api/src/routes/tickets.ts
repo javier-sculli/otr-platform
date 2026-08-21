@@ -252,7 +252,6 @@ export async function ticketsRoutes(fastify: FastifyInstance) {
           referenciasGraficas: true,
           contentPerCanal: true,
           notasAudiovisual: true,
-          notasGrafica: true,
           createdAt: true,
           updatedAt: true,
         },
@@ -393,8 +392,7 @@ export async function ticketsRoutes(fastify: FastifyInstance) {
         linkEntregable: data.linkPublicacionReal !== undefined ? data.linkPublicacionReal : data.linkEntregable,
         links: data.links || [],
         tiposContenido: data.tiposContenido || [],
-        notasAudiovisual: data.notasAudiovisual !== undefined ? data.notasAudiovisual : (data.notasGrafica !== undefined ? data.notasGrafica : null),
-        notasGrafica: data.notasGrafica !== undefined ? data.notasGrafica : (data.notasAudiovisual !== undefined ? data.notasAudiovisual : null),
+        notasAudiovisual: data.notasAudiovisual !== undefined ? data.notasAudiovisual : null,
         referenciasGraficas: data.referenciasGraficas || null,
       },
       include: {
@@ -511,11 +509,7 @@ export async function ticketsRoutes(fastify: FastifyInstance) {
     if (data.linkPublicacionReal !== undefined) updateData.linkEntregable = data.linkPublicacionReal;
     if (data.keywords !== undefined) updateData.keywords = data.keywords;
     if (data.copyFinal !== undefined) updateData.copyFinal = data.copyFinal;
-    if (data.notasAudiovisual !== undefined || data.notasGrafica !== undefined) {
-      const val = data.notasAudiovisual !== undefined ? data.notasAudiovisual : data.notasGrafica;
-      updateData.notasAudiovisual = val;
-      updateData.notasGrafica = val;
-    }
+    if (data.notasAudiovisual !== undefined) updateData.notasAudiovisual = data.notasAudiovisual;
     if (data.tiposContenido !== undefined) updateData.tiposContenido = data.tiposContenido;
     if (data.referenciasGraficas !== undefined) updateData.referenciasGraficas = data.referenciasGraficas;
     if (data.versionsPerCanal !== undefined) updateData.versionsPerCanal = data.versionsPerCanal;
