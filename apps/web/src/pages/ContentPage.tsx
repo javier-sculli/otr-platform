@@ -920,17 +920,17 @@ export function ContentPage() {
         {/* Right Panel: Brief + Editor */}
         <div className="flex-1 flex flex-col bg-white overflow-hidden min-h-0 min-w-0">
 
-          {/* Brief Section — 2 rows para que no se achique en zoom alto */}
-          <div className="bg-white border-b-2 border-[#000033]/10 px-4 py-2 flex-shrink-0">
+          {/* Brief Section — tope máximo de 25% (1/4) de la sección para dejar el 75% al copy */}
+          <div className="bg-white border-b-2 border-[#000033]/10 px-4 py-2 flex-shrink-0 flex flex-col max-h-[25vh] overflow-hidden">
             {/* Fila 1: Título + Brief */}
-            <div className="flex items-start gap-3 mb-2">
-              <div className="flex-1 min-w-0">
-                <label className="block text-xs font-bold text-[#000033]/60 mb-1">BRIEF</label>
+            <div className="flex items-start gap-3 flex-1 min-h-0">
+              <div className="flex-1 min-w-0 flex flex-col min-h-0">
+                <label className="block text-xs font-bold text-[#000033]/60 mb-1 flex-shrink-0">BRIEF</label>
                 <AutoResizeTextarea
                   value={brief}
                   onChange={e => { setBrief(e.target.value); setHasChanges(true); }}
-                  minRows={brief?.trim() ? 6 : 2}
-                  className="w-full px-2.5 py-1.5 border-2 border-[#000033]/10 rounded-md text-xs focus:outline-none focus:ring-2 focus:ring-[#024fff] text-[#000033] hover:border-[#024fff]/40 transition-all"
+                  minRows={2}
+                  className="w-full px-2.5 py-1.5 border-2 border-[#000033]/10 rounded-md text-xs focus:outline-none focus:ring-2 focus:ring-[#024fff] text-[#000033] hover:border-[#024fff]/40 transition-all max-h-[20vh] overflow-y-auto"
                 />
               </div>
             </div>
