@@ -365,7 +365,6 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
       canales: noContenido ? [] : (current.canales.length > 0 ? current.canales : ['LinkedIn']),
       dueDate: current.dueDate || null,
       ticketTypeId: current.ticketTypeId || null,
-      notasAudiovisual: current.notasAudiovisual || null,
       pilarId: noContenido ? null : (current.pilarId || null),
       speakerId: noContenido ? null : (current.speakerId || null),
       links: current.links.map(ensureAbsoluteUrl),
@@ -536,7 +535,6 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
       dueDate: formData.dueDate || null,
       ticketTypeId: formData.ticketTypeId || null,
       tiposContenido: formData.tiposContenido,
-      notasAudiovisual: formData.notasAudiovisual || null,
       pilarId: noContenido ? null : (formData.pilarId || null),
       speakerId: noContenido ? null : (formData.speakerId || null),
     };
@@ -559,7 +557,6 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
           linkEntregable: formData.linkEntregable ? ensureAbsoluteUrl(formData.linkEntregable) : null,
           content: noContenido ? undefined : (formData.content || null),
           contentPerCanal: noContenido ? undefined : formData.contentPerCanal,
-          notasAudiovisual: noContenido ? undefined : (formData.notasAudiovisual || null),
         });
         const id = ticket!.id;
         handleClose();
