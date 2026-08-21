@@ -69,8 +69,14 @@ export function ContentPage() {
   const contentPerCanalRef = useRef<Record<string, string>>({});
 
   const updateContentPerCanal = (newContentMap: Record<string, string>) => {
-    contentPerCanalRef.current = newContentMap;
-    setContentPerCanal(newContentMap);
+    const merged = { ...contentPerCanalRef.current, ...newContentMap };
+    Object.keys(contentPerCanalRef.current).forEach(canal => {
+      if ((!newContentMap[canal] || !newContentMap[canal].trim()) && contentPerCanalRef.current[canal] && contentPerCanalRef.current[canal].trim()) {
+        merged[canal] = contentPerCanalRef.current[canal];
+      }
+    });
+    contentPerCanalRef.current = merged;
+    setContentPerCanal(merged);
   };
 
   // Versiones previas por canal: snapshot antes de cada generación de IA
@@ -460,7 +466,7 @@ export function ContentPage() {
           instruction: fullInstruction, currentContent: contentText, brief, tone, keywords, outputLength, model: 'claude-sonnet-4-6', attachments, history, canal: activeCanal === 'Contenido' ? undefined : activeCanal, otherCanalesContent: Object.fromEntries(Object.entries(contentPerCanalRef.current).filter(([k, v]) => k !== activeCanal && v?.trim())),
         });
 
-        if (result.newContent !== null) {
+        if (result.newContent !== null && result.newContent.trim().length > 0) {
           const currentVersions = versionsPerCanalRef.current;
           const canalVersions = currentVersions[activeCanal] ?? [];
           const updatedVersions = {
