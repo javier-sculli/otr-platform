@@ -216,13 +216,15 @@ ${instructionContext}
 
 Antes de responder, determiná si el pedido implica **escribir o modificar el contenido del editor** (redactar, reescribir, mejorar, cambiar el tono, acortar, agregar algo, regenerar, etc.) o si es simplemente una **pregunta, consulta o comentario** que no requiere tocar el texto.
 
-**Si hay que escribir o modificar el contenido**, respondé EXACTAMENTE así:
-<content>
+**Si hay que escribir o modificar el contenido** (incluyendo redactar o adaptar para una red social específica), respondé EXACTAMENTE así:
+<content canal="NombreDelCanal">
 [contenido completo nuevo aquí]
 </content>
 <summary>
 [1-2 oraciones en español informal explicando qué cambiaste y por qué]
 </summary>
+
+Nota: Si el pedido es para un canal o red social específica (ej: Twitter, Instagram, LinkedIn), especificá siempre el nombre exacto del canal en el atributo canal="...". Si es para el canal actual, podés omitir el atributo.
 
 **Si es una pregunta, consulta o pedido que NO requiere modificar el contenido**, respondé EXACTAMENTE así:
 <response>
@@ -232,14 +234,15 @@ Antes de responder, determiná si el pedido implica **escribir o modificar el co
 Nunca uses los dos formatos a la vez. Nunca agregues texto fuera de los tags.`;
 }
 
-function parseAIResponse(raw: string): { newContent: string | null; summary: string } {
-  const contentMatch = raw.match(/<content>([\s\S]*?)<\/content>/);
-  const summaryMatch = raw.match(/<summary>([\s\S]*?)<\/summary>/);
-  const responseMatch = raw.match(/<response>([\s\S]*?)<\/response>/);
+function parseAIResponse(raw: string): { newContent: string | null; summary: string; targetCanal?: string } {
+  const contentMatch = raw.match(/<content(?:\s+canal=["']([^"']+)["'])?>([\s\S]*?)<\/content>/i);
+  const summaryMatch = raw.match(/<summary>([\s\S]*?)<\/summary>/i);
+  const responseMatch = raw.match(/<response>([\s\S]*?)<\/response>/i);
 
   if (contentMatch) {
     return {
-      newContent: contentMatch[1].trim(),
+      targetCanal: contentMatch[1]?.trim(),
+      newContent: contentMatch[2].trim(),
       summary: summaryMatch?.[1]?.trim() ?? 'Listo.',
     };
   }
