@@ -396,7 +396,11 @@ export function ContentPage() {
 
   const handleOpenSiguiente = () => {
     setNotasAudiovisual((ticket as any)?.notasAudiovisual ?? '');
-    setShowSiguienteModal(true);
+    if (nextStatus === 'DISENO') {
+      setShowSiguienteModal(true);
+    } else {
+      advanceMutation.mutate();
+    }
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1269,14 +1273,14 @@ export function ContentPage() {
         </div>
       </div>
 
-      {/* Modal: Siguiente paso */}
-      {showSiguienteModal && (
+      {/* Modal: Siguiente paso (Pase a Diseño) */}
+      {showSiguienteModal && nextStatus === 'DISENO' && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#000033]/40 backdrop-blur-sm overflow-y-auto">
           <div className="bg-white rounded-2xl shadow-2xl border-2 border-[#000033]/10 w-full max-w-2xl mx-auto p-6 sm:p-8 flex flex-col gap-5 max-h-[90vh] overflow-hidden relative">
             {/* Header */}
             <div className="flex items-center justify-between flex-shrink-0 pb-3 border-b border-[#000033]/10">
               <div>
-                <h2 className="text-base font-bold text-[#000033]">Avanzar a {STATUS_LABELS[nextStatus!]}</h2>
+                <h2 className="text-base font-bold text-[#000033]">Avanzar a Diseño</h2>
                 <p className="text-xs text-[#000033]/50 mt-0.5">Dejá notas para el equipo de diseño antes de continuar</p>
               </div>
               <button

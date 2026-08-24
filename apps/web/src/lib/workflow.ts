@@ -2,29 +2,19 @@
 
 /**
  * Regla de formatos por estado de flujo:
- * 1. Pasan por diseño: carrusel, imagen, placa gráfica, story, video, reel.
+ * 1. Pasan por diseño: carrusel, placa con diseño, story, video, reel.
  * 2. Pasan por audiovisual (edición): video, reel.
- * 3. No pasan por diseño ni audiovisual: hilo, texto, repost.
+ * 3. No pasan por diseño ni audiovisual: álbum de fotos, imagen, hilo, texto solo, repost.
  */
 
-// Formatos explícitos que NO pasan por diseño ni audiovisual (saltean Diseño y Edición)
-const NO_DISENO_FORMATS = [
-  'hilo', 'texto solo', 'texto', 'repost',
-  'blog', 'news', 'newsletter', 'deck', 'estrategia', 'reporte', 'otro',
-  'documento', 'evento', 'base de medios', 'columna de opinión', 'comunicado', 'feedback',
-];
-
-// Formatos que pasan por Diseño Gráfico (Regla 1: carrusel, placa, imagen, story, video, reel, etc.)
+// Formatos explícitos que pasan por Diseño Gráfico (Regla 1)
 const FORMATOS_DISENO = [
   'carrusel', 'carusel',
-  'imagen', 'imagen estática', 'imagen estatica',
-  'placa', 'placa con diseño', 'placa con diseno', 'placa gráfica', 'placa grafica', 'diseño puntual', 'diseno puntual',
-  'imagen gráfica', 'imagen grafica',
+  'placa con diseño', 'placa con diseno', 'placa gráfica', 'placa grafica', 'placa',
   'story', 'stories',
   'video', 'video largo',
   'reel', 'reels',
-  'infografía', 'infografia', 'flyer', 'banner', 'gráfica', 'grafica',
-  'ilustración', 'ilustracion', 'diseño', 'diseno', 'portada',
+  'diseño puntual', 'diseno puntual', 'infografía', 'infografia', 'flyer', 'banner', 'gráfica', 'grafica', 'ilustración', 'ilustracion', 'portada',
 ];
 
 // Formatos que pasan por Audiovisual/Edición (Regla 2: video, reel)
@@ -34,6 +24,17 @@ const FORMATOS_EDICION = [
   'shorts', 'tiktok',
   'animación', 'animacion',
   'audio', 'podcast', 'edición', 'edicion',
+];
+
+// Formatos explícitos que NO pasan por diseño ni audiovisual (Regla 3: saltean Diseño y Edición)
+const NO_DISENO_FORMATS = [
+  'álbum de fotos', 'album de fotos', 'álbum', 'album', 'fotogalería', 'fotogaleria', 'galería', 'galeria',
+  'imagen', 'imagen estática', 'imagen estatica', 'foto estática', 'foto estatica', 'foto', 'fotos',
+  'hilo', 'thread',
+  'texto solo', 'texto',
+  'repost',
+  'blog', 'artículo blog', 'articulo blog', 'news', 'newsletter', 'deck', 'estrategia', 'reporte', 'otro',
+  'documento', 'evento', 'base de medios', 'columna de opinión', 'comunicado', 'feedback', 'gestión-pitch', 'gestion-pitch',
 ];
 
 export type TicketFormatInput =
@@ -80,20 +81,29 @@ export function requiresDesign(ticketOrFormats?: TicketFormatInput | null): bool
 
   return formats.some(t => {
     const lower = t.toLowerCase().trim();
+
+    // 1. Verificar primero si coincide con formatos explícitos que pasan por Diseño (carrusel, placa con diseño, story, video, reel)
+    if (FORMATOS_DISENO.some(d => lower === d || lower.includes(d))) {
+      return true;
+    }
+
+    // 2. Verificar si es un formato explícito SIN diseño (álbum de fotos, imagen, hilo, texto solo, repost)
+    if (NO_DISENO_FORMATS.some(nd => lower === nd || lower.includes(nd))) {
+      return false;
+    }
+
+    // 3. Fallback genérico para palabras clave de diseño
     if (
       lower.includes('placa') ||
       lower.includes('diseño') ||
       lower.includes('diseno') ||
       lower.includes('gráfica') ||
-      lower.includes('grafica') ||
-      lower.includes('imagen')
+      lower.includes('grafica')
     ) {
       return true;
     }
-    if (NO_DISENO_FORMATS.some(nd => lower === nd)) {
-      return false;
-    }
-    return FORMATOS_DISENO.some(d => lower.includes(d));
+
+    return false;
   });
 }
 
@@ -106,7 +116,7 @@ export function requiresVideo(ticketOrFormats?: TicketFormatInput | null): boole
 
   return formats.some(t => {
     const lower = t.toLowerCase().trim();
-    return FORMATOS_EDICION.some(e => lower.includes(e));
+    return FORMATOS_EDICION.some(e => lower === e || lower.includes(e));
   });
 }
 
