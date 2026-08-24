@@ -22,27 +22,85 @@ interface SelectedImageState {
   left: number;
 }
 
-const EMOJI_CATEGORIES = [
-  {
-    name: 'Frecuentes / Destacados',
-    emojis: ['🔥', '🚀', '✨', '⚡️', '💡', '📌', '📍', '✅', '❌', '⚠️', '👀', '🎯', '💯', '🔝', '📢'],
-  },
-  {
-    name: 'Caras y Emociones',
-    emojis: ['😊', '😄', '😂', '🥹', '😍', '😎', '🤔', '🧐', '🥳', '🙌', '👏', '🙏', '🤯', '🤫', '💪'],
-  },
-  {
-    name: 'Manos y Gestos',
-    emojis: ['👍', '👎', '🤝', '👇', '👉', '👈', '👆', '👋', '✌️', '🤙', '✊', '🤛', '🤜', '🖐️', '👌'],
-  },
-  {
-    name: 'Símbolos y Objetos',
-    emojis: ['📈', '📊', '💼', '📅', '📝', '🔔', '💬', '🏆', '⭐', '🌟', '💥', '🌐', '🔗', '📸', '🎥'],
-  },
-  {
-    name: 'Corazones y Colores',
-    emojis: ['❤️', '💙', '💚', '💛', '🧡', '💜', '🖤', '🤍', '💖', '💔', '🔴', '🟢', '🔵', '🟡', '🟠'],
-  },
+type EmojiItem = { char: string; name: string; category: string };
+
+const EMOJI_LIST: EmojiItem[] = [
+  // Frecuentes / Destacados
+  { char: '🔥', name: 'fuego fire caliente popular', category: 'Destacados' },
+  { char: '🚀', name: 'cohete rocket despegar lanzamiento', category: 'Destacados' },
+  { char: '✨', name: 'destello brillo magia sparkles', category: 'Destacados' },
+  { char: '⚡️', name: 'rayo energia trueno', category: 'Destacados' },
+  { char: '💡', name: 'idea foco luz bombilla', category: 'Destacados' },
+  { char: '📌', name: 'pin chincheta fijar importante', category: 'Destacados' },
+  { char: '📍', name: 'ubicacion mapa lugar pin', category: 'Destacados' },
+  { char: '✅', name: 'check ok si verde listo verificado', category: 'Destacados' },
+  { char: '❌', name: 'no error cruz cancelar mal', category: 'Destacados' },
+  { char: '⚠️', name: 'alerta advertencia atencion peligro', category: 'Destacados' },
+  { char: '👀', name: 'ojos mirar ver ojo atento', category: 'Destacados' },
+  { char: '🎯', name: 'diana objetivo meta blanco', category: 'Destacados' },
+  { char: '💯', name: '100 cien perfecto total', category: 'Destacados' },
+  { char: '🔝', name: 'top arriba lo mejor', category: 'Destacados' },
+  { char: '📢', name: 'megafono altavoz anuncio noticia', category: 'Destacados' },
+
+  // Caras y Emociones
+  { char: '😊', name: 'sonrisa feliz carita contento alegre', category: 'Caras y Emociones' },
+  { char: '😄', name: 'jaja risa contento alegre feliz', category: 'Caras y Emociones' },
+  { char: '😂', name: 'risas carcajada llorar risa lol', category: 'Caras y Emociones' },
+  { char: '🥹', name: 'emocionado conmovido ojos llorosos', category: 'Caras y Emociones' },
+  { char: '😍', name: 'amor me gusta enamorado ojos corazon', category: 'Caras y Emociones' },
+  { char: '😎', name: 'lentes anteojos fachero pro genial cool', category: 'Caras y Emociones' },
+  { char: '🤔', name: 'pensar dudar duda mmm inteligente', category: 'Caras y Emociones' },
+  { char: '🧐', name: 'examinar monoculo investigar buscar', category: 'Caras y Emociones' },
+  { char: '🥳', name: 'fiesta festejo gorro corneta', category: 'Caras y Emociones' },
+  { char: '🙌', name: 'manos arriba celebrar aplausos bravo', category: 'Caras y Emociones' },
+  { char: '👏', name: 'aplauso aplausos felictaciones bravo', category: 'Caras y Emociones' },
+  { char: '🙏', name: 'gracias rezar favor porfa ojala', category: 'Caras y Emociones' },
+  { char: '🤯', name: 'mente volada explotar kaboom impensado', category: 'Caras y Emociones' },
+  { char: '🤫', name: 'silencio secreto shh secreto', category: 'Caras y Emociones' },
+  { char: '💪', name: 'fuerza musculo power gym', category: 'Caras y Emociones' },
+
+  // Manos y Gestos
+  { char: '👍', name: 'dedo arriba ok bien excelente me gusta like', category: 'Manos y Gestos' },
+  { char: '👎', name: 'dedo abajo mal no dislike', category: 'Manos y Gestos' },
+  { char: '🤝', name: 'apreton trato acuerdo socios alianza', category: 'Manos y Gestos' },
+  { char: '👇', name: 'abajo mirar abajo link aca', category: 'Manos y Gestos' },
+  { char: '👉', name: 'derecha señalar link aca', category: 'Manos y Gestos' },
+  { char: '👈', name: 'izquierda señalar mirar', category: 'Manos y Gestos' },
+  { char: '👆', name: 'arriba señalar arriba', category: 'Manos y Gestos' },
+  { char: '👋', name: 'saludo chau hola mano', category: 'Manos y Gestos' },
+  { char: '✌️', name: 'paz victoria v dos', category: 'Manos y Gestos' },
+  { char: '🤙', name: 'shaka llamar onda tranqui', category: 'Manos y Gestos' },
+  { char: '✊', name: 'puño leste lucha', category: 'Manos y Gestos' },
+  { char: '👌', name: 'ok perfecto genial excelente', category: 'Manos y Gestos' },
+
+  // Símbolos y Objetos
+  { char: '📈', name: 'grafico crecimiento subir metricas alza', category: 'Símbolos y Trabajo' },
+  { char: '📊', name: 'barras datos metricas reporte', category: 'Símbolos y Trabajo' },
+  { char: '💼', name: 'portafolio trabajo negocio empresa oficina', category: 'Símbolos y Trabajo' },
+  { char: '📅', name: 'calendario fecha agenda dia evento', category: 'Símbolos y Trabajo' },
+  { char: '📝', name: 'nota escribir lapiz borrador copy', category: 'Símbolos y Trabajo' },
+  { char: '🔔', name: 'campana notificacion aviso alerta', category: 'Símbolos y Trabajo' },
+  { char: '💬', name: 'comentario mensaje chat habla globo', category: 'Símbolos y Trabajo' },
+  { char: '🏆', name: 'copa trofeo ganador premio victoria', category: 'Símbolos y Trabajo' },
+  { char: '⭐', name: 'estrella star calificacion estrella', category: 'Símbolos y Trabajo' },
+  { char: '🌐', name: 'web internet sitio red mundo global', category: 'Símbolos y Trabajo' },
+  { char: '🔗', name: 'link enlace url conexion', category: 'Símbolos y Trabajo' },
+  { char: '📸', name: 'camara foto fotografia instagram', category: 'Símbolos y Trabajo' },
+  { char: '🎥', name: 'video pelicula camara reel tik tok youtube', category: 'Símbolos y Trabajo' },
+
+  // Corazones y Colores
+  { char: '❤️', name: 'corazon rojo amor me gusta', category: 'Corazones y Colores' },
+  { char: '💙', name: 'corazon azul', category: 'Corazones y Colores' },
+  { char: '💚', name: 'corazon verde', category: 'Corazones y Colores' },
+  { char: '💛', name: 'corazon amarillo', category: 'Corazones y Colores' },
+  { char: '🧡', name: 'corazon naranja', category: 'Corazones y Colores' },
+  { char: '💜', name: 'corazon violeta morado', category: 'Corazones y Colores' },
+  { char: '🖤', name: 'corazon negro', category: 'Corazones y Colores' },
+  { char: '🤍', name: 'corazon blanco', category: 'Corazones y Colores' },
+  { char: '💖', name: 'corazon brillante amor', category: 'Corazones y Colores' },
+  { char: '🔴', name: 'circulo rojo vivo directo', category: 'Corazones y Colores' },
+  { char: '🟢', name: 'circulo verde activo en linea', category: 'Corazones y Colores' },
+  { char: '🔵', name: 'circulo azul', category: 'Corazones y Colores' },
 ];
 
 export function fixNotionImageUrl(src: string): string {
@@ -737,13 +795,15 @@ export function RichNotesEditor({
           </button>
 
           <div className="w-px h-3 bg-[#000033]/15 mx-1" />
-
           {/* Emoji Picker Popover */}
           <div className="relative">
             <button
               type="button"
               onMouseDown={(e) => e.preventDefault()}
-              onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+              onClick={() => {
+                setShowEmojiPicker(!showEmojiPicker);
+                setEmojiSearch('');
+              }}
               title="Insertar Emoji"
               className={`p-1 rounded transition-all ${
                 showEmojiPicker ? 'bg-[#024fff]/10 text-[#024fff]' : 'hover:bg-[#000033]/8 text-[#000033]/60 hover:text-[#000033]'
@@ -753,7 +813,6 @@ export function RichNotesEditor({
             </button>
             {showEmojiPicker && (
               <div
-                onMouseDown={(e) => e.preventDefault()}
                 className="absolute right-0 top-full mt-1.5 w-64 bg-white border-2 border-[#000033]/15 rounded-xl shadow-xl z-50 p-2 overflow-hidden animate-in fade-in zoom-in-95 duration-100 select-none"
               >
                 <div className="flex items-center justify-between px-1 pb-1.5 mb-1.5 border-b border-[#000033]/10">
@@ -769,43 +828,58 @@ export function RichNotesEditor({
                 </div>
 
                 <div className="relative mb-2">
-                  <Search className="w-3 h-3 text-[#000033]/40 absolute left-2 top-2" />
+                  <Search className="w-3 h-3 text-[#000033]/40 absolute left-2 top-2.5 pointer-events-none" />
                   <input
                     type="text"
                     value={emojiSearch}
                     onChange={(e) => setEmojiSearch(e.target.value)}
-                    placeholder="Buscar emoji..."
-                    className="w-full text-xs pl-7 pr-2 py-1 bg-[#000033]/5 border border-[#000033]/10 rounded-md outline-none focus:border-[#024fff]/40"
+                    placeholder="Buscar emoji (ej: fuego, ok, corazon)..."
+                    autoFocus
+                    className="w-full text-xs pl-7 pr-2 py-1 bg-[#000033]/5 border border-[#000033]/10 rounded-md outline-none focus:border-[#024fff]/40 text-[#000033]"
                   />
                 </div>
 
                 <div className="max-h-48 overflow-y-auto space-y-2 pr-1">
-                  {EMOJI_CATEGORIES.map((cat) => {
-                    const filtered = cat.emojis.filter(
-                      (em) => !emojiSearch.trim() || em.includes(emojiSearch.trim())
-                    );
-                    if (filtered.length === 0) return null;
-                    return (
-                      <div key={cat.name}>
-                        <div className="text-[10px] font-bold text-[#000033]/40 mb-1">{cat.name}</div>
+                  {(() => {
+                    const query = emojiSearch.trim().toLowerCase();
+                    const categories = Array.from(new Set(EMOJI_LIST.map(e => e.category)));
+
+                    const results = categories.map(catName => {
+                      const items = EMOJI_LIST.filter(item =>
+                        item.category === catName && (!query || item.name.toLowerCase().includes(query) || item.char.includes(query))
+                      );
+                      return { catName, items };
+                    }).filter(c => c.items.length > 0);
+
+                    if (results.length === 0) {
+                      return (
+                        <div className="text-center py-4 text-xs text-[#000033]/40 font-medium">
+                          No se encontraron emojis
+                        </div>
+                      );
+                    }
+
+                    return results.map(({ catName, items }) => (
+                      <div key={catName}>
+                        <div className="text-[10px] font-bold text-[#000033]/40 mb-1">{catName}</div>
                         <div className="grid grid-cols-6 gap-1">
-                          {filtered.map((em) => (
+                          {items.map((em) => (
                             <button
-                              key={em}
+                              key={em.char}
                               type="button"
                               onMouseDown={(e) => e.preventDefault()}
                               onClick={() => {
-                                insertEmoji(em);
+                                insertEmoji(em.char);
                               }}
                               className="p-1 hover:bg-[#024fff]/10 rounded text-base transition-all text-center"
                             >
-                              {em}
+                              {em.char}
                             </button>
                           ))}
                         </div>
                       </div>
-                    );
-                  })}
+                    ));
+                  })()}
                 </div>
               </div>
             )}
