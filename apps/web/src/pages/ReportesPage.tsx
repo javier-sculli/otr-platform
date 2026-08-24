@@ -815,7 +815,7 @@ function ReporteTicketsCreadosDiarios({
                 tickLine={false}
                 allowDecimals={false}
               />
-              <Tooltip content={<CustomTicketsTooltip clientsMap={clientsMap} />} />
+              <Tooltip shared={false} content={<CustomTicketsTooltip clientsMap={clientsMap} />} />
 
               {/* Total Agencia (opcional) */}
               {showAgencyTotal && showAbsolute && (
@@ -826,6 +826,7 @@ function ReporteTicketsCreadosDiarios({
                   stroke="#000033"
                   strokeWidth={3}
                   dot={{ r: 3, fill: '#000033' }}
+                  activeDot={{ r: 7, strokeWidth: 2, stroke: '#ffffff' }}
                 />
               )}
               {showAgencyTotal && showCumulative && (
@@ -835,8 +836,8 @@ function ReporteTicketsCreadosDiarios({
                   name="Total Agencia (Acumulado)"
                   stroke="#000033"
                   strokeWidth={3}
-                  strokeDasharray="6 4"
                   dot={{ r: 3, fill: '#000033' }}
+                  activeDot={{ r: 7, strokeWidth: 2, stroke: '#ffffff' }}
                 />
               )}
 
@@ -855,21 +856,20 @@ function ReporteTicketsCreadosDiarios({
                         stroke={client.color}
                         strokeWidth={2.5}
                         dot={{ r: 3, fill: client.color }}
-                        activeDot={{ r: 6 }}
+                        activeDot={{ r: 7, strokeWidth: 2, stroke: '#ffffff' }}
                       />
                     )}
 
-                    {/* Acumulada (Línea Punteada) */}
+                    {/* Acumulada (Línea Sólida) */}
                     {showCumulative && (
                       <Line
                         type="monotone"
                         dataKey={`${client.id}_acum`}
                         name={`${client.name} (Acumulada)`}
                         stroke={client.color}
-                        strokeWidth={2}
-                        strokeDasharray="5 5"
-                        dot={{ r: 2, fill: client.color }}
-                        activeDot={{ r: 5 }}
+                        strokeWidth={2.5}
+                        dot={{ r: 3, fill: client.color }}
+                        activeDot={{ r: 7, strokeWidth: 2, stroke: '#ffffff' }}
                       />
                     )}
                   </React.Fragment>
@@ -978,57 +978,52 @@ function CustomTicketsTooltip({ active, payload, label, clientsMap }: any) {
   if (!active || !payload || !payload.length) return null;
 
   return (
-    <div className="bg-white border-2 border-[#000033]/15 p-3 rounded-xl shadow-xl text-xs space-y-2 max-w-xs z-50">
-      <div className="font-extrabold text-[#000033] border-b border-[#000033]/10 pb-1 flex justify-between items-center">
-        <span>Fecha: {label}</span>
+    <div className="bg-white border-2 border-[#000033]/20 p-3.5 rounded-xl shadow-2xl text-xs space-y-2 min-w-[220px] max-w-xs z-50">
+      <div className="font-extrabold text-[#000033] border-b border-[#000033]/10 pb-1.5 flex justify-between items-center text-[11px] uppercase tracking-wider">
+        <span>📅 {label}</span>
       </div>
-      <div className="space-y-1.5 max-h-60 overflow-y-auto pr-1">
+      <div className="space-y-2">
         {payload.map((entry: any, index: number) => {
           const isAcum = entry.dataKey.endsWith('_acum');
           const clientId = isAcum ? entry.dataKey.replace('_acum', '') : entry.dataKey;
           const clientInfo = clientsMap?.[clientId];
+          const color = entry.color || clientInfo?.color || '#024fff';
 
           if (entry.dataKey === 'totalDiario') {
             return (
-              <div key={index} className="flex items-center justify-between text-[#000033] font-black pt-1 border-t border-[#000033]/10">
-                <span className="flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded-full bg-[#000033]" />
-                  Total Agencia (Diario):
-                </span>
-                <span>{entry.value} tickets</span>
+              <div key={index} className="bg-[#000033]/5 p-2.5 rounded-lg text-[#000033]">
+                <div className="text-[10px] font-bold text-[#000033]/60 uppercase">Total Agencia (Diario)</div>
+                <div className="text-sm font-black mt-0.5">{entry.value} tickets</div>
               </div>
             );
           }
 
           if (entry.dataKey === 'totalAcumulado') {
             return (
-              <div key={index} className="flex items-center justify-between text-[#000033] font-black">
-                <span className="flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded-full bg-[#000033]" />
-                  Total Agencia (Acum.):
-                </span>
-                <span>{entry.value} tickets</span>
+              <div key={index} className="bg-[#000033]/5 p-2.5 rounded-lg text-[#000033]">
+                <div className="text-[10px] font-bold text-[#000033]/60 uppercase">Total Agencia (Acumulado)</div>
+                <div className="text-sm font-black mt-0.5">{entry.value} tickets</div>
               </div>
             );
           }
 
           return (
-            <div key={index} className="flex items-center justify-between font-medium">
-              <span className="flex items-center gap-1.5 truncate max-w-[170px]">
+            <div key={index} className="bg-[#fafafa] border border-[#000033]/10 p-2.5 rounded-lg space-y-1.5 shadow-sm">
+              <div className="flex items-center gap-2 font-black text-[#000033] text-xs">
                 <span
-                  className="w-2.5 h-2.5 rounded-full flex-shrink-0"
-                  style={{ backgroundColor: entry.color }}
+                  className="w-3 h-3 rounded-full flex-shrink-0"
+                  style={{ backgroundColor: color }}
                 />
-                <span className="text-[#000033]">
-                  {clientInfo?.name ?? entry.name}
-                  <span className="text-[10px] text-[#000033]/50 ml-1">
-                    ({isAcum ? 'Acumulada' : 'Diario'})
-                  </span>
+                <span className="truncate">{clientInfo?.name ?? entry.name}</span>
+              </div>
+              <div className="flex items-center justify-between text-[#000033]/70 text-[11px] pt-1.5 border-t border-[#000033]/10">
+                <span className="font-semibold">
+                  {isAcum ? '📈 Valor Acumulado' : '📊 Valor Diario (Absoluto)'}:
                 </span>
-              </span>
-              <span className="font-bold text-[#000033] ml-2">
-                {entry.value} {entry.value === 1 ? 'ticket' : 'tickets'}
-              </span>
+                <span className="font-black text-xs text-[#000033] ml-2">
+                  {entry.value} {entry.value === 1 ? 'ticket' : 'tickets'}
+                </span>
+              </div>
             </div>
           );
         })}
