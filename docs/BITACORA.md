@@ -2,6 +2,15 @@
 
 > **Propósito:** Registro central de avances, decisiones de producto, correcciones de errores y backlog priorizado de la plataforma Rocky (OTR). A partir de la reunión del 31 de Julio de 2026, cada cambio, bugfix y feature completado queda asentado en esta bitácora.
 
+### [2026-08-24] — Roles Genéricos de Agencia, Registro (Sign Up) en Login y Modal de Selección de Rol Inicial (Onboarding)
+- **Desarrollador:** Antigravity (Pair Programming con Javier Sculli)
+- **Resumen de Avances:**
+  1. **Configuración de Roles Genéricos en DB:** Se crearon y normalizaron las 5 áreas/roles genéricos en la base de datos de PostgreSQL/Supabase: **`Dirección`**, **`Contenido`**, **`Prensa`**, **`Diseño`** y **`Video`**. Se asignaron masivamente las áreas y roles correspondientes a los 12 usuarios activos existentes en la plataforma.
+  2. **Endpoint de Registro (`POST /auth/register`):** En `apps/api/src/routes/auth.ts`, se desarrolló la ruta para crear cuentas nuevas mediante email, nombre y contraseña con hash seguro (bcrypt), retornando el JWT inmediatamente para inicio de sesión continuo.
+  3. **Solapa de Registro ("Sign Up") en Login (`LoginPage.tsx`):** Se rediseñó la pantalla de acceso con un toggle de pestañas (*"Iniciar sesión"* vs *"Registrarse"*), agregando el formulario de creación de cuenta y manteniendo la opción de *Continuar con Google*.
+  4. **Modal de Selección de Rol al Primer Ingreso (`RoleOnboardingModal.tsx`):** Al iniciar sesión por primera vez o si un usuario no posee un área asignada (`!user.areaId`), se despliega de forma automática un modal interactivo para seleccionar su rol genérico principal (*Dirección, Contenido, Prensa, Diseño, Video*), guardándolo de forma permanente en la base de datos vía `PATCH /auth/me`.
+- **Verificación:** Monorepo verificado con builds de producción limpios (`pnpm --filter api build` y `pnpm --filter web build`) con 0 errores.
+
 ### [2026-08-24] — Reporte de Tickets Creados por Día (Vista Mensual con Gráficas Absolutas y Acumuladas por Cliente)
 - **Desarrollador:** Antigravity (Pair Programming con Javier Sculli)
 - **Resumen de Avances:**

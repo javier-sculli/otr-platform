@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState, useRef, useEffect } from 'react';
 import { api } from '../lib/api';
+import { RoleOnboardingModal } from './RoleOnboardingModal';
 
 const baseNavItems = [
   { path: '/clientes', label: 'Clientes', icon: Building2 },
@@ -368,6 +369,7 @@ export function Layout({ children }: LayoutProps) {
         </div>
       </nav>
 
+      <RoleOnboardingModal />
       {children}
     </div>
   );

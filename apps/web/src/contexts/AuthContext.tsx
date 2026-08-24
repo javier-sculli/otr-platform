@@ -6,6 +6,8 @@ interface User {
   email: string;
   name: string;
   role: string;
+  areaId?: string | null;
+  area?: { id: string; name: string } | null;
   preferredClientIds: string[];
 }
 
@@ -13,9 +15,11 @@ interface AuthContextType {
   user: User | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
+  register: (name: string, email: string, password: string) => Promise<void>;
   loginWithToken: (token: string) => Promise<void>;
   logout: () => Promise<void>;
   updatePreferredClients: (clientIds: string[]) => Promise<void>;
+  updateUserArea: (areaId: string, role?: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -41,6 +45,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(result.user);
   };
 
+  const register = async (name: string, email: string, password: string) => {
+    const result = await api.register({ name, email, password });
+    setUser(result.user);
+  };
+
   const loginWithToken = async (token: string) => {
     const result = await api.loginWithToken(token);
     setUser(result.user);
@@ -56,8 +65,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(result.user);
   };
 
+  const updateUserArea = async (areaId: string, role?: string) => {
+    const result = await api.updateMe({ areaId, role });
+    setUser(result.user);
+  };
+
   return (
-    <AuthContext.Provider value={{ user, loading, login, loginWithToken, logout, updatePreferredClients }}>
+    <AuthContext.Provider value={{ user, loading, login, register, loginWithToken, logout, updatePreferredClients, updateUserArea }}>
       {children}
     </AuthContext.Provider>
   );

@@ -60,6 +60,15 @@ class ApiClient {
     return result;
   }
 
+  async register(data: { name: string; email: string; password: string; areaId?: string }) {
+    const result = await this.request<{ user: any; token: string }>('/auth/register', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+    this.setToken(result.token);
+    return result;
+  }
+
   getGoogleAuthUrl() {
     return `${API_URL}/auth/google`;
   }
@@ -77,7 +86,7 @@ class ApiClient {
     return this.request<{ user: any }>('/auth/me');
   }
 
-  async updateMe(data: { preferredClientIds?: string[] }) {
+  async updateMe(data: { preferredClientIds?: string[]; areaId?: string; role?: string }) {
     return this.request<{ user: any }>('/auth/me', {
       method: 'PATCH',
       body: JSON.stringify(data),

@@ -4,11 +4,13 @@ import { useAuth } from '../contexts/AuthContext';
 import { api } from '../lib/api';
 
 export function LoginPage() {
+  const [isSignUp, setIsSignUp] = useState(false);
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const { login } = useAuth();
+  const { login, register } = useAuth();
   const navigate = useNavigate();
 
   const handleSubmit = async (e: FormEvent) => {
@@ -17,10 +19,14 @@ export function LoginPage() {
     setLoading(true);
 
     try {
-      await login(email, password);
+      if (isSignUp) {
+        await register(name, email, password);
+      } else {
+        await login(email, password);
+      }
       navigate('/');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Login failed');
+      setError(err instanceof Error ? err.message : isSignUp ? 'Error al registrarse' : 'Error al iniciar sesión');
     } finally {
       setLoading(false);
     }
@@ -31,32 +37,75 @@ export function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-      <div className="max-w-md w-full bg-white rounded-lg shadow p-8">
-        <h1 className="text-2xl font-bold text-gray-900 mb-6">OTR Platform</h1>
+    <div className="min-h-screen bg-[#fafafa] flex items-center justify-center p-4">
+      <div className="max-w-md w-full bg-white rounded-2xl border-2 border-[#000033]/10 shadow-xl p-8">
+        <h1 className="text-2xl font-bold text-[#000033] mb-6 text-center">OTR Platform</h1>
+
+        {/* Tab Toggle: Login vs Sign Up */}
+        <div className="flex bg-[#000033]/5 p-1 rounded-xl mb-6">
+          <button
+            type="button"
+            onClick={() => { setIsSignUp(false); setError(''); }}
+            className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${
+              !isSignUp
+                ? 'bg-white text-[#024fff] shadow-sm'
+                : 'text-[#000033]/60 hover:text-[#000033]'
+            }`}
+          >
+            Iniciar sesión
+          </button>
+          <button
+            type="button"
+            onClick={() => { setIsSignUp(true); setError(''); }}
+            className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${
+              isSignUp
+                ? 'bg-white text-[#024fff] shadow-sm'
+                : 'text-[#000033]/60 hover:text-[#000033]'
+            }`}
+          >
+            Registrarse
+          </button>
+        </div>
 
         {/* Botón de Google */}
         <button
           type="button"
           onClick={handleGoogleLogin}
-          className="w-full flex items-center justify-center gap-3 border border-gray-300 text-gray-700 py-2 px-4 rounded-md hover:bg-gray-50 transition-colors mb-4"
+          className="w-full flex items-center justify-center gap-3 border border-[#000033]/15 text-[#000033] font-medium py-2.5 px-4 rounded-xl hover:bg-[#000033]/5 transition-colors mb-4 text-xs"
         >
           <GoogleIcon />
           Continuar con Google
         </button>
 
-        <div className="relative mb-4">
+        <div className="relative mb-5">
           <div className="absolute inset-0 flex items-center">
-            <div className="w-full border-t border-gray-200" />
+            <div className="w-full border-t border-[#000033]/10" />
           </div>
-          <div className="relative flex justify-center text-sm">
-            <span className="px-2 bg-white text-gray-400">o</span>
+          <div className="relative flex justify-center text-xs">
+            <span className="px-3 bg-white text-[#000033]/40 font-medium">o con email</span>
           </div>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          {isSignUp && (
+            <div>
+              <label htmlFor="name" className="block text-xs font-semibold text-[#000033] mb-1">
+                Nombre completo
+              </label>
+              <input
+                id="name"
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                required
+                placeholder="Ej. María Pérez"
+                className="w-full px-3 py-2 text-xs border border-[#000033]/15 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#024fff] transition-all"
+              />
+            </div>
+          )}
+
           <div>
-            <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="email" className="block text-xs font-semibold text-[#000033] mb-1">
               Email
             </label>
             <input
@@ -65,13 +114,14 @@ export function LoginPage() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="tu.email@ontherocks.tech"
+              className="w-full px-3 py-2 text-xs border border-[#000033]/15 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#024fff] transition-all"
             />
           </div>
 
           <div>
-            <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
-              Password
+            <label htmlFor="password" className="block text-xs font-semibold text-[#000033] mb-1">
+              Contraseña
             </label>
             <input
               id="password"
@@ -79,12 +129,13 @@ export function LoginPage() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="••••••••"
+              className="w-full px-3 py-2 text-xs border border-[#000033]/15 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#024fff] transition-all"
             />
           </div>
 
           {error && (
-            <div className="text-sm text-red-600 bg-red-50 p-3 rounded">
+            <div className="text-xs text-red-600 bg-red-50 border border-red-200 p-3 rounded-xl font-medium">
               {error}
             </div>
           )}
@@ -92,9 +143,9 @@ export function LoginPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-blue-600 text-white py-2 rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+            className="w-full bg-[#024fff] text-white text-xs font-bold py-2.5 rounded-xl hover:bg-[#024fff]/90 disabled:bg-[#000033]/20 disabled:cursor-not-allowed transition-all shadow-md"
           >
-            {loading ? 'Logging in...' : 'Login'}
+            {loading ? (isSignUp ? 'Creando cuenta...' : 'Iniciando sesión...') : (isSignUp ? 'Crear cuenta' : 'Iniciar sesión')}
           </button>
         </form>
       </div>

@@ -1,6 +1,6 @@
 import { FastifyInstance } from 'fastify';
 import { prisma } from '../lib/prisma.js';
-import { comparePassword } from '../lib/auth.js';
+import { comparePassword, hashPassword } from '../lib/auth.js';
 import { authenticate } from '../middleware/auth.js';
 import { buildGoogleAuthUrl, resolveGoogleUser } from '../lib/google-oauth.js';
 
@@ -34,6 +34,67 @@ export async function authRoutes(fastify: FastifyInstance) {
     const { password: _, ...userWithoutPassword } = user;
 
     return { user: userWithoutPassword, token };
+  });
+
+  // Registro de nuevo usuario (Sign up)
+  fastify.post('/register', async (request, reply) => {
+    const { name, email, password, areaId, role } = request.body as {
+      name: string;
+      email: string;
+      password: string;
+      areaId?: string;
+      role?: string;
+    };
+
+    if (!name || !email || !password) {
+      return reply.status(400).send({ error: 'Nombre, email y contraseña son obligatorios' });
+    }
+
+    const normalizedEmail = email.trim().toLowerCase();
+
+    const existingUser = await prisma.user.findUnique({
+      where: { email: normalizedEmail },
+    });
+
+    if (existingUser) {
+      return reply.status(400).send({ error: 'Este email ya está registrado' });
+    }
+
+    const hashedPassword = await hashPassword(password);
+
+    let userRole: 'CONTENIDISTA' | 'COORDINADOR' | 'DIRECCION' = 'CONTENIDISTA';
+    if (role && ['CONTENIDISTA', 'COORDINADOR', 'DIRECCION'].includes(role)) {
+      userRole = role as any;
+    }
+
+    const user = await prisma.user.create({
+      data: {
+        name,
+        email: normalizedEmail,
+        password: hashedPassword,
+        role: userRole,
+        areaId: areaId || null,
+      },
+      include: { area: true },
+    });
+
+    const token = fastify.jwt.sign({
+      id: user.id,
+      email: user.email,
+      role: user.role,
+    });
+
+    const { password: _, ...userWithoutPassword } = user;
+
+    return reply.status(201).send({ user: userWithoutPassword, token });
+  });
+
+  // Obtener catálogo de áreas públicas para la selección de rol
+  fastify.get('/areas', async () => {
+    const areas = await prisma.area.findMany({
+      orderBy: { name: 'asc' },
+    });
+    return { data: areas };
   });
 
   // Iniciar OAuth con Google — redirige al login de Google
@@ -108,11 +169,22 @@ export async function authRoutes(fastify: FastifyInstance) {
 
   fastify.patch('/me', { preHandler: authenticate }, async (request) => {
     const { id } = request.user as { id: string };
-    const { preferredClientIds } = request.body as { preferredClientIds?: string[] };
+    const { preferredClientIds, areaId, role } = request.body as {
+      preferredClientIds?: string[];
+      areaId?: string;
+      role?: string;
+    };
+
+    const updateData: any = {};
+    if (preferredClientIds !== undefined) updateData.preferredClientIds = preferredClientIds;
+    if (areaId !== undefined) updateData.areaId = areaId;
+    if (role !== undefined && ['CONTENIDISTA', 'COORDINADOR', 'DIRECCION'].includes(role)) {
+      updateData.role = role;
+    }
 
     const user = await prisma.user.update({
       where: { id },
-      data: { ...(preferredClientIds !== undefined ? { preferredClientIds } : {}) },
+      data: updateData,
       include: { area: true },
     });
 
