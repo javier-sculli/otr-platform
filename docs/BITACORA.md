@@ -2,6 +2,30 @@
 
 > **Propósito:** Registro central de avances, decisiones de producto, correcciones de errores y backlog priorizado de la plataforma Rocky (OTR). A partir de la reunión del 31 de Julio de 2026, cada cambio, bugfix y feature completado queda asentado en esta bitácora.
 
+### [2026-08-24] — Reporte de Tickets Creados por Día (Vista Mensual con Gráficas Absolutas y Acumuladas por Cliente)
+- **Desarrollador:** Antigravity (Pair Programming con Javier Sculli)
+- **Resumen de Avances:**
+  1. **Nuevo Endpoint en API (`GET /reports/tickets-creados-diarios`):** En `apps/api/src/routes/reports.ts`, se desarrolló el endpoint que procesa los tickets creados en el mes seleccionado (`createdAt`) y genera las métricas diarias absolutas y acumuladas para cada cliente activo, más el total acumulado de la agencia y KPIs de resumen (promedio diario, día pico y cliente top).
+  2. **Integración en Cliente API (`apps/web/src/lib/api.ts`):** Añadido `getTicketsCreadosDiarios(year, month)` a la clase `ApiClient`.
+  3. **Nueva Sub-Solapa en Reportes de Agencia (`ReportesPage.tsx`):** Creada la pestaña **"Tickets Creados por Día"** en la sección `/reportes`.
+  4. **Gráfica de Líneas Recharts con Colores por Cliente:**
+     - Renderiza líneas **Absolutas (Sólidas —)** para visualizar las creaciones por día.
+     - Renderiza líneas **Acumuladas (Punteadas - - -)** para seguir la evolución del volumen del cliente en el mes.
+     - Incorpora toggles de control para encender/apagar líneas absolutas, acumuladas o el total general de la agencia.
+     - Filtro interactivo de clientes con badges para aislar clientes en la gráfica.
+     - Tooltip interactivo con desglose de valores al pasar el cursor sobre cualquier fecha.
+  5. **Tabla de Desglose Mensual:** Resumen por cliente con volumen total del mes, % de participación y promedio diario.
+- **Verificación:** Monorepo verificado con compilaciones de producción totalmente limpias (`pnpm --filter api build` y `pnpm --filter web build`) con 0 errores de TypeScript.
+
+### [2026-08-24] — Fixes en Editor de Copys (Negritas, Selector de Emojis y Preservación de Párrafos entre Redes)
+- **Desarrollador:** Antigravity (Pair Programming con Javier Sculli)
+- **Resumen de Avances:**
+  1. **Preservación de Espaciado de Párrafos entre Redes (`RichNotesEditor.tsx`):** Se actualizó el algoritmo de limpieza de HTML (`cleanJunkHtmlBlocks`) para que **NO** elimine contenedores de salto de línea vacíos (`<p><br></p>`, `<div><br></div>`, `<br>`, `&nbsp;`). Ahora, al cambiar entre solapas de redes sociales (ej. LinkedIn, Instagram, etc.), los saltos de línea y el espaciado entre párrafos se mantienen 100% intactos.
+  2. **Fix de Negritas y Formatos por Click (`RichNotesEditor.tsx`):** Se añadió `onMouseDown={(e) => e.preventDefault()}` a todos los botones de la barra de herramientas (`Bold`, `Italic`, `Underline`, `Strikethrough`, listas, etc.). Esto evita que el navegador des-seleccione el texto al hacer click en las herramientas de formato. Asimismo, se agregó soporte de conversión automática de sintaxis Markdown (`**negrita**` / `__negrita__`) a `<strong>`.
+  3. **Selector/Picker de Emojis Integrado (`RichNotesEditor.tsx`):** Se implementó un popover desplegable con selector de emojis categorizado (*Frecuentes / Destacados, Caras, Gestos, Símbolos, Corazones*) y buscador de texto. Al hacer click en cualquier emoji, este se inserta limpiamente en la posición exacta del cursor en el editor (`Selection`/`Range` API).
+  4. **Limpieza de Barra de Herramientas redundante (`ContentPage.tsx`):** Se removió la barra de botones decorativos sin handlers en `ContentPage` y se consolidó el control de edición en la barra de herramientas interactiva del `RichNotesEditor`, manteniendo los controles de `Deshacer`, `Ver historial` y contador de caracteres en la barra de acciones superior.
+- **Verificación:** Monorepo verificado con compilación limpia (`pnpm --filter web build`) con 0 errores.
+
 ### [2026-08-21] — Guardado Defensivo de `contentPerCanal` (Backend Merge y Protecciones Frontend)
 - **Desarrollador:** Antigravity (Pair Programming con Javier Sculli)
 - **Resumen de Avances:**

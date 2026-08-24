@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -13,6 +13,15 @@ import {
   Inbox,
   TrendingUp,
 } from 'lucide-react';
+import {
+  ResponsiveContainer,
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+} from 'recharts';
 import { api } from '../lib/api';
 
 const MONTH_NAMES = [
@@ -35,13 +44,27 @@ export function ReportesPage() {
   const now = new Date();
   const [selectedYear, setSelectedYear] = useState(now.getFullYear());
   const [selectedMonth, setSelectedMonth] = useState(now.getMonth() + 1);
-  const [activeTab, setActiveTab] = useState<'cumplimiento' | 'carga' | 'calidad'>('cumplimiento');
+  const [activeTab, setActiveTab] = useState<'cumplimiento' | 'tickets-creados' | 'carga' | 'calidad'>('cumplimiento');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedClientModal, setSelectedClientModal] = useState<any | null>(null);
 
+  // Query Cumplimiento
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ['cumplimiento-clientes', selectedYear, selectedMonth],
     queryFn: () => api.getCumplimientoClientes(selectedYear, selectedMonth),
+    enabled: activeTab === 'cumplimiento',
+  });
+
+  // Query Tickets Creados Diarios
+  const {
+    data: ticketsDiariosData,
+    isLoading: isLoadingDiarios,
+    isError: isErrorDiarios,
+    error: errorDiarios,
+  } = useQuery({
+    queryKey: ['tickets-creados-diarios', selectedYear, selectedMonth],
+    queryFn: () => api.getTicketsCreadosDiarios(selectedYear, selectedMonth),
+    enabled: activeTab === 'tickets-creados',
   });
 
   const reportData = data?.data;
@@ -69,7 +92,7 @@ export function ReportesPage() {
                 </span>
               </div>
               <p className="text-xs text-[#000033]/60 mt-0.5">
-                Seguimiento de entregas listas del mes, volumen en progreso, backlog y cumplimiento por semana.
+                Seguimiento de entregas listas del mes, volumen en progreso, backlog, cumplimiento y tickets creados por día.
               </p>
             </div>
 
@@ -112,6 +135,16 @@ export function ReportesPage() {
               Cumplimiento Clientes
             </button>
             <button
+              onClick={() => setActiveTab('tickets-creados')}
+              className={`px-4 py-2.5 text-xs font-bold transition-all border-b-2 ${
+                activeTab === 'tickets-creados'
+                  ? 'border-[#024fff] text-[#024fff]'
+                  : 'border-transparent text-[#000033]/60 hover:text-[#000033]'
+              }`}
+            >
+              Tickets Creados por Día
+            </button>
+            <button
               disabled
               className="px-4 py-2.5 text-xs font-bold text-[#000033]/30 cursor-not-allowed flex items-center gap-1.5"
             >
@@ -131,383 +164,398 @@ export function ReportesPage() {
 
       {/* Main Content */}
       <div className="max-w-[1600px] mx-auto px-8 py-8 space-y-8">
-        {isLoading ? (
-          <div className="flex items-center justify-center py-16 text-[#000033]/60 text-sm font-medium">
-            Cargando reporte de cumplimiento...
-          </div>
-        ) : isError ? (
-          <div className="bg-red-50 border-2 border-red-200 rounded-xl p-6 text-center text-red-700 text-sm">
-            {(error as any)?.message || 'No tenés permisos para acceder a esta sección.'}
-          </div>
-        ) : (
+        {activeTab === 'cumplimiento' && (
           <>
-            {/* 1. Tarjetas KPI Superiores (Listas, En Progreso, Backlog General, Alertas) */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              {/* Card 1: Publicaciones Listas del Mes */}
-              <div className="bg-white border-2 border-[#000033]/10 rounded-xl p-5 shadow-sm">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-bold text-[#000033]/50 uppercase tracking-wide">
-                    Publicaciones Listas (Mes)
-                  </span>
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                </div>
-                <div className="text-3xl font-black text-emerald-600 mb-1">
-                  {summary?.publicadasListas ?? 0}
-                </div>
-                <p className="text-xs text-[#000033]/60">
-                  Completadas o listas para publicar en {MONTH_NAMES[selectedMonth - 1]}
-                </p>
+            {isLoading ? (
+              <div className="flex items-center justify-center py-16 text-[#000033]/60 text-sm font-medium">
+                Cargando reporte de cumplimiento...
               </div>
-
-              {/* Card 2: En Progreso */}
-              <div className="bg-white border-2 border-[#000033]/10 rounded-xl p-5 shadow-sm">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-bold text-[#000033]/50 uppercase tracking-wide">
-                    En Progreso
-                  </span>
-                  <Layers className="w-4 h-4 text-[#024fff]" />
-                </div>
-                <div className="text-3xl font-black text-[#024fff] mb-1">
-                  {summary?.enProgreso ?? 0}
-                </div>
-                <p className="text-xs text-[#000033]/60">
-                  En redacción, diseño, edición o revisión
-                </p>
+            ) : isError ? (
+              <div className="bg-red-50 border-2 border-red-200 rounded-xl p-6 text-center text-red-700 text-sm">
+                {(error as any)?.message || 'No tenés permisos para acceder a esta sección.'}
               </div>
-
-              {/* Card 3: Backlog General */}
-              <div className="bg-white border-2 border-[#000033]/10 rounded-xl p-5 shadow-sm">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-bold text-[#000033]/50 uppercase tracking-wide">
-                    Backlog General
-                  </span>
-                  <Inbox className="w-4 h-4 text-[#000033]/60" />
-                </div>
-                <div className="text-3xl font-black text-[#000033] mb-1">
-                  {summary?.backlogGeneral ?? 0}
-                </div>
-                <p className="text-xs text-[#000033]/60">
-                  Tareas pendientes sin iniciar en el sistema
-                </p>
-              </div>
-
-              {/* Card 4: Alertas (En Riesgo / Atrasos) */}
-              <div className="bg-white border-2 border-[#000033]/10 rounded-xl p-5 shadow-sm">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-bold text-[#000033]/50 uppercase tracking-wide">
-                    Atención de Fechas
-                  </span>
-                  <AlertTriangle
-                    className={`w-4 h-4 ${
-                      (summary?.atrasadas ?? 0) > 0
-                        ? 'text-rose-600'
-                        : (summary?.enRiesgo ?? 0) > 0
-                        ? 'text-amber-500'
-                        : 'text-emerald-600'
-                    }`}
-                  />
-                </div>
-                <div className="flex items-center gap-3 mb-1">
-                  <span className="text-xl font-black text-amber-600">
-                    🟡 {summary?.enRiesgo ?? 0} <span className="text-xs font-bold text-[#000033]/60">riesgo</span>
-                  </span>
-                  <span className="text-xl font-black text-rose-600">
-                    🔴 {summary?.atrasadas ?? 0} <span className="text-xs font-bold text-[#000033]/60">atraso</span>
-                  </span>
-                </div>
-                <p className="text-xs text-[#000033]/60">Requieren seguimiento de dirección</p>
-              </div>
-            </div>
-
-            {/* 2. Sección: Cumplimiento por Semana (Semanas Calendario: Lunes a Domingo) */}
-            <div>
-              <div className="flex items-center justify-between mb-4">
-                <div>
-                  <h3 className="text-base font-bold text-[#000033] flex items-center gap-2">
-                    <TrendingUp className="w-4 h-4 text-[#024fff]" />
-                    Cumplimiento por Semana (Fecha Objetivo - Lunes a Domingo)
-                  </h3>
-                  <p className="text-xs text-[#000033]/60">
-                    Porcentaje de entregas a tiempo según las semanas calendario reales del mes
-                  </p>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
-                {weeksSummary.map((w: any) => {
-                  const pct = w.percentCumplimiento;
-                  return (
-                    <div
-                      key={w.weekNumber}
-                      className="bg-white border-2 border-[#000033]/10 rounded-xl p-5 shadow-sm hover:border-[#024fff]/40 transition-all"
-                    >
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-xs font-extrabold text-[#000033] uppercase tracking-wide">
-                          Semana {w.weekNumber}
-                        </span>
-                        <span className="text-[10px] text-[#000033]/50 font-bold bg-[#000033]/5 px-2 py-0.5 rounded">
-                          {w.startDay} al {w.endDay} {MONTH_NAMES[selectedMonth - 1].slice(0, 3)}
-                        </span>
-                      </div>
-
-                      {/* Big Percentage */}
-                      <div className="flex items-baseline justify-between mb-2">
-                        <span className="text-3xl font-black text-[#000033]">{pct}%</span>
-                        <span className="text-xs font-bold text-[#000033]/50">
-                          {w.completadas} / {w.total} listas
-                        </span>
-                      </div>
-
-                      {/* Progress Bar */}
-                      <div className="w-full h-2 bg-[#000033]/10 rounded-full overflow-hidden mb-3">
-                        <div
-                          className={`h-full rounded-full transition-all ${
-                            pct >= 90
-                              ? 'bg-emerald-500'
-                              : pct >= 60
-                              ? 'bg-[#024fff]'
-                              : pct > 0
-                              ? 'bg-amber-500'
-                              : 'bg-[#000033]/20'
-                          }`}
-                          style={{ width: `${pct}%` }}
-                        />
-                      </div>
-
-                      {/* Breakdown */}
-                      <div className="text-[11px] text-[#000033]/60 space-y-1 font-medium pt-2 border-t border-[#000033]/5">
-                        <div className="flex justify-between">
-                          <span>Completadas:</span>
-                          <span className="font-bold text-emerald-600">{w.completadas}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span>En progreso:</span>
-                          <span className="font-bold text-[#024fff]">{w.enProgreso}</span>
-                        </div>
-                        {w.atrasadas > 0 && (
-                          <div className="flex justify-between text-rose-600 font-bold">
-                            <span>Atrasadas:</span>
-                            <span>{w.atrasadas}</span>
-                          </div>
-                        )}
-                      </div>
+            ) : (
+              <>
+                {/* 1. Tarjetas KPI Superiores (Listas, En Progreso, Backlog General, Alertas) */}
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                  {/* Card 1: Publicaciones Listas del Mes */}
+                  <div className="bg-white border-2 border-[#000033]/10 rounded-xl p-5 shadow-sm">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs font-bold text-[#000033]/50 uppercase tracking-wide">
+                        Publicaciones Listas (Mes)
+                      </span>
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600" />
                     </div>
-                  );
-                })}
-              </div>
-            </div>
+                    <div className="text-3xl font-black text-emerald-600 mb-1">
+                      {summary?.publicadasListas ?? 0}
+                    </div>
+                    <p className="text-xs text-[#000033]/60">
+                      Completadas o listas para publicar en {MONTH_NAMES[selectedMonth - 1]}
+                    </p>
+                  </div>
 
-            {/* 3. Tabla Principal: Cumplimiento por Cliente */}
-            <div className="bg-white border-2 border-[#000033]/10 rounded-xl overflow-hidden shadow-sm">
-              {/* Table Header Controls */}
-              <div className="p-5 border-b-2 border-[#000033]/10 flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div>
-                  <h3 className="text-sm font-bold text-[#000033]">Apertura de Demanda y Progreso por Cliente</h3>
-                  <div className="flex items-center gap-4 text-xs text-[#000033]/60 mt-1">
-                    <span>Leyenda por semana:</span>
-                    <span className="inline-flex items-center gap-1 font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
-                      🟢 Completadas / Listas
-                    </span>
-                    <span className="inline-flex items-center gap-1 font-bold text-[#024fff] bg-[#024fff]/5 px-1.5 py-0.5 rounded border border-[#024fff]/20">
-                      🔵 En Progreso
-                    </span>
-                    <span className="inline-flex items-center gap-1 font-bold text-rose-700 bg-rose-50 px-1.5 py-0.5 rounded border border-rose-200">
-                      🔴 Atrasadas
-                    </span>
+                  {/* Card 2: En Progreso */}
+                  <div className="bg-white border-2 border-[#000033]/10 rounded-xl p-5 shadow-sm">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs font-bold text-[#000033]/50 uppercase tracking-wide">
+                        En Progreso
+                      </span>
+                      <Layers className="w-4 h-4 text-[#024fff]" />
+                    </div>
+                    <div className="text-3xl font-black text-[#024fff] mb-1">
+                      {summary?.enProgreso ?? 0}
+                    </div>
+                    <p className="text-xs text-[#000033]/60">
+                      En redacción, diseño, edición o revisión
+                    </p>
+                  </div>
+
+                  {/* Card 3: Backlog General */}
+                  <div className="bg-white border-2 border-[#000033]/10 rounded-xl p-5 shadow-sm">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs font-bold text-[#000033]/50 uppercase tracking-wide">
+                        Backlog General
+                      </span>
+                      <Inbox className="w-4 h-4 text-[#000033]/60" />
+                    </div>
+                    <div className="text-3xl font-black text-[#000033] mb-1">
+                      {summary?.backlogGeneral ?? 0}
+                    </div>
+                    <p className="text-xs text-[#000033]/60">
+                      Tareas pendientes sin iniciar en el sistema
+                    </p>
+                  </div>
+
+                  {/* Card 4: Alertas (En Riesgo / Atrasos) */}
+                  <div className="bg-white border-2 border-[#000033]/10 rounded-xl p-5 shadow-sm">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs font-bold text-[#000033]/50 uppercase tracking-wide">
+                        Atención de Fechas
+                      </span>
+                      <AlertTriangle
+                        className={`w-4 h-4 ${
+                          (summary?.atrasadas ?? 0) > 0
+                            ? 'text-rose-600'
+                            : (summary?.enRiesgo ?? 0) > 0
+                            ? 'text-amber-500'
+                            : 'text-emerald-600'
+                        }`}
+                      />
+                    </div>
+                    <div className="flex items-center gap-3 mb-1">
+                      <span className="text-xl font-black text-amber-600">
+                        🟡 {summary?.enRiesgo ?? 0} <span className="text-xs font-bold text-[#000033]/60">riesgo</span>
+                      </span>
+                      <span className="text-xl font-black text-rose-600">
+                        🔴 {summary?.atrasadas ?? 0} <span className="text-xs font-bold text-[#000033]/60">atraso</span>
+                      </span>
+                    </div>
+                    <p className="text-xs text-[#000033]/60">Requieren seguimiento de dirección</p>
                   </div>
                 </div>
 
-                <div className="relative w-72">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#000033]/40" />
-                  <input
-                    type="text"
-                    placeholder="Filtrar cliente..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full pl-9 pr-4 py-2 border-2 border-[#000033]/10 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#024fff] text-[#000033]"
-                  />
-                </div>
-              </div>
+                {/* 2. Sección: Cumplimiento por Semana (Semanas Calendario: Lunes a Domingo) */}
+                <div>
+                  <div className="flex items-center justify-between mb-4">
+                    <div>
+                      <h3 className="text-base font-bold text-[#000033] flex items-center gap-2">
+                        <TrendingUp className="w-4 h-4 text-[#024fff]" />
+                        Cumplimiento por Semana (Fecha Objetivo - Lunes a Domingo)
+                      </h3>
+                      <p className="text-xs text-[#000033]/60">
+                        Porcentaje de entregas a tiempo según las semanas calendario reales del mes
+                      </p>
+                    </div>
+                  </div>
 
-              {/* Table */}
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse">
-                  <thead>
-                    <tr className="bg-[#fafafa] border-b border-[#000033]/10 text-[11px] font-extrabold text-[#000033]/60 uppercase tracking-wider">
-                      <th className="py-3.5 px-5">Cliente</th>
-                      <th className="py-3.5 px-4 text-center border-r border-[#000033]/10">Target Mes</th>
-                      
-                      {/* Sub-columnas dinámicas por Semana Calendario */}
-                      {calendarWeeks.map((w: any) => (
-                        <th key={w.weekNumber} className="py-3.5 px-3 text-center border-r border-[#000033]/10 min-w-[110px]">
-                          <div>Semana {w.weekNumber}</div>
-                          <div className="text-[9px] font-semibold text-[#000033]/40 normal-case">
-                            ({w.startDay} al {w.endDay} {MONTH_NAMES[selectedMonth - 1].slice(0, 3)})
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                    {weeksSummary.map((w: any) => {
+                      const pct = w.percentCumplimiento;
+                      return (
+                        <div
+                          key={w.weekNumber}
+                          className="bg-white border-2 border-[#000033]/10 rounded-xl p-5 shadow-sm hover:border-[#024fff]/40 transition-all"
+                        >
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-xs font-extrabold text-[#000033] uppercase tracking-wide">
+                              Semana {w.weekNumber}
+                            </span>
+                            <span className="text-[10px] text-[#000033]/50 font-bold bg-[#000033]/5 px-2 py-0.5 rounded">
+                              {w.startDay} al {w.endDay} {MONTH_NAMES[selectedMonth - 1].slice(0, 3)}
+                            </span>
                           </div>
-                        </th>
-                      ))}
 
-                      <th className="py-3.5 px-4 text-center">Total Mes</th>
-                      <th className="py-3.5 px-4">Cumplimiento Target</th>
-                      <th className="py-3.5 px-4 text-center">Estado / Alertas</th>
-                      <th className="py-3.5 px-4 text-right">Detalles</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[#000033]/5 text-xs text-[#000033]">
-                    {filteredClients.length === 0 ? (
-                      <tr>
-                        <td colSpan={6 + calendarWeeks.length} className="py-8 text-center text-[#000033]/40 text-xs">
-                          No se encontraron clientes para este período
-                        </td>
-                      </tr>
-                    ) : (
-                      filteredClients.map((client: any) => {
-                        const hasTarget = client.monthlyContentTarget > 0;
-                        const pct = client.percentCumplimiento;
-                        const hasRiesgo = client.statusBreakdown.enRiesgo > 0;
-                        const hasAtraso = client.statusBreakdown.atrasadas > 0;
+                          {/* Big Percentage */}
+                          <div className="flex items-baseline justify-between mb-2">
+                            <span className="text-3xl font-black text-[#000033]">{pct}%</span>
+                            <span className="text-xs font-bold text-[#000033]/50">
+                              {w.completadas} / {w.total} listas
+                            </span>
+                          </div>
 
-                        return (
-                          <tr
-                            key={client.id}
-                            className="hover:bg-[#024fff]/5 transition-colors cursor-pointer"
-                            onClick={() => setSelectedClientModal(client)}
-                          >
-                            {/* Cliente */}
-                            <td className="py-4 px-5 font-bold text-[#000033]">
-                              <span className="hover:text-[#024fff] transition-colors">{client.name}</span>
-                            </td>
+                          {/* Progress Bar */}
+                          <div className="w-full h-2 bg-[#000033]/10 rounded-full overflow-hidden mb-3">
+                            <div
+                              className={`h-full rounded-full transition-all ${
+                                pct >= 90
+                                  ? 'bg-emerald-500'
+                                  : pct >= 60
+                                  ? 'bg-[#024fff]'
+                                  : pct > 0
+                                  ? 'bg-amber-500'
+                                  : 'bg-[#000033]/20'
+                              }`}
+                              style={{ width: `${pct}%` }}
+                            />
+                          </div>
 
-                            {/* Target Mes */}
-                            <td className="py-4 px-4 text-center border-r border-[#000033]/10">
-                              {hasTarget ? (
-                                <span className="px-2 py-0.5 bg-[#024fff]/10 text-[#024fff] font-bold text-xs rounded-md">
-                                  {client.monthlyContentTarget} pz
-                                </span>
-                              ) : (
-                                <span className="text-[#000033]/30 text-[11px] font-medium">Sin target</span>
-                              )}
-                            </td>
-
-                            {/* Celdas Semanales con Desglose: Completadas (verde), En Progreso (azul), Atrasadas (rojo) */}
-                            {client.weeksBreakdown.map((wb: any) => {
-                              const total = wb.total;
-                              return (
-                                <td key={wb.weekNumber} className="py-4 px-3 text-center border-r border-[#000033]/10">
-                                  {total === 0 ? (
-                                    <span className="text-[#000033]/20 font-medium">-</span>
-                                  ) : (
-                                    <div className="flex items-center justify-center gap-1 font-bold text-[11px]">
-                                      {/* Completadas / Listas */}
-                                      <span
-                                        className={`px-1.5 py-0.5 rounded ${
-                                          wb.completadas > 0
-                                            ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
-                                            : 'bg-gray-100 text-gray-400'
-                                        }`}
-                                        title="Completadas / Listas"
-                                      >
-                                        {wb.completadas}
-                                      </span>
-
-                                      {/* En Progreso */}
-                                      <span
-                                        className={`px-1.5 py-0.5 rounded ${
-                                          wb.enProgreso > 0
-                                            ? 'bg-[#024fff]/10 text-[#024fff] border border-[#024fff]/20'
-                                            : 'bg-gray-100 text-gray-400'
-                                        }`}
-                                        title="En Progreso"
-                                      >
-                                        {wb.enProgreso}
-                                      </span>
-
-                                      {/* Atrasadas */}
-                                      {wb.atrasadas > 0 && (
-                                        <span
-                                          className="px-1.5 py-0.5 rounded bg-rose-100 text-rose-800 border border-rose-300"
-                                          title="Atrasadas"
-                                        >
-                                          {wb.atrasadas}
-                                        </span>
-                                      )}
-                                    </div>
-                                  )}
-                                </td>
-                              );
-                            })}
-
-                            {/* Total Mes */}
-                            <td className="py-4 px-4 text-center font-black text-sm text-[#000033]">
-                              {client.totalMonth}
-                            </td>
-
-                            {/* Cumplimiento Target % */}
-                            <td className="py-4 px-4">
-                              {hasTarget ? (
-                                <div className="flex items-center gap-2">
-                                  <div className="w-16 h-2 bg-[#000033]/10 rounded-full overflow-hidden">
-                                    <div
-                                      className={`h-full rounded-full transition-all ${
-                                        pct >= 100
-                                          ? 'bg-emerald-500'
-                                          : pct >= 70
-                                          ? 'bg-[#024fff]'
-                                          : 'bg-amber-500'
-                                      }`}
-                                      style={{ width: `${Math.min(pct, 100)}%` }}
-                                    />
-                                  </div>
-                                  <span className="font-bold text-xs text-[#000033]">{pct}%</span>
-                                </div>
-                              ) : (
-                                <span className="text-xs text-[#000033]/40">{client.totalMonth} tareas acumuladas</span>
-                              )}
-                            </td>
-
-                            {/* Estado y Alertas */}
-                            <td className="py-4 px-4 text-center">
-                              <div className="flex items-center justify-center gap-1.5">
-                                {hasAtraso && (
-                                  <span className="px-2 py-0.5 bg-rose-100 text-rose-700 text-[11px] font-bold rounded-md flex items-center gap-1">
-                                    🔴 {client.statusBreakdown.atrasadas} atraso
-                                  </span>
-                                )}
-                                {hasRiesgo && (
-                                  <span className="px-2 py-0.5 bg-amber-100 text-amber-700 text-[11px] font-bold rounded-md flex items-center gap-1">
-                                    🟡 {client.statusBreakdown.enRiesgo} riesgo
-                                  </span>
-                                )}
-                                {!hasAtraso && !hasRiesgo && (
-                                  <span className="px-2 py-0.5 bg-emerald-50 text-emerald-700 text-[11px] font-bold rounded-md flex items-center gap-1">
-                                    🟢 Al día
-                                  </span>
-                                )}
+                          {/* Breakdown */}
+                          <div className="text-[11px] text-[#000033]/60 space-y-1 font-medium pt-2 border-t border-[#000033]/5">
+                            <div className="flex justify-between">
+                              <span>Completadas:</span>
+                              <span className="font-bold text-emerald-600">{w.completadas}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span>En progreso:</span>
+                              <span className="font-bold text-[#024fff]">{w.enProgreso}</span>
+                            </div>
+                            {w.atrasadas > 0 && (
+                              <div className="flex justify-between text-rose-600 font-bold">
+                                <span>Atrasadas:</span>
+                                <span>{w.atrasadas}</span>
                               </div>
-                            </td>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
 
-                            {/* Detalle Link */}
-                            <td className="py-4 px-4 text-right">
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setSelectedClientModal(client);
-                                }}
-                                className="px-2.5 py-1 text-xs font-bold text-[#024fff] bg-[#024fff]/10 rounded-lg hover:bg-[#024fff]/20 transition-all inline-flex items-center gap-1"
-                              >
-                                Ver
-                                <ChevronRight className="w-3.5 h-3.5" />
-                              </button>
+                {/* 3. Tabla Principal: Cumplimiento por Cliente */}
+                <div className="bg-white border-2 border-[#000033]/10 rounded-xl overflow-hidden shadow-sm">
+                  {/* Table Header Controls */}
+                  <div className="p-5 border-b-2 border-[#000033]/10 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div>
+                      <h3 className="text-sm font-bold text-[#000033]">Apertura de Demanda y Progreso por Cliente</h3>
+                      <div className="flex items-center gap-4 text-xs text-[#000033]/60 mt-1">
+                        <span>Leyenda por semana:</span>
+                        <span className="inline-flex items-center gap-1 font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                          🟢 Completadas / Listas
+                        </span>
+                        <span className="inline-flex items-center gap-1 font-bold text-[#024fff] bg-[#024fff]/5 px-1.5 py-0.5 rounded border border-[#024fff]/20">
+                          🔵 En Progreso
+                        </span>
+                        <span className="inline-flex items-center gap-1 font-bold text-rose-700 bg-rose-50 px-1.5 py-0.5 rounded border border-rose-200">
+                          🔴 Atrasadas
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="relative w-72">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#000033]/40" />
+                      <input
+                        type="text"
+                        placeholder="Filtrar cliente..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="w-full pl-9 pr-4 py-2 border-2 border-[#000033]/10 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#024fff] text-[#000033]"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Table */}
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
+                      <thead>
+                        <tr className="bg-[#fafafa] border-b border-[#000033]/10 text-[11px] font-extrabold text-[#000033]/60 uppercase tracking-wider">
+                          <th className="py-3.5 px-5">Cliente</th>
+                          <th className="py-3.5 px-4 text-center border-r border-[#000033]/10">Target Mes</th>
+                          
+                          {/* Sub-columnas dinámicas por Semana Calendario */}
+                          {calendarWeeks.map((w: any) => (
+                            <th key={w.weekNumber} className="py-3.5 px-3 text-center border-r border-[#000033]/10 min-w-[110px]">
+                              <div>Semana {w.weekNumber}</div>
+                              <div className="text-[9px] font-semibold text-[#000033]/40 normal-case">
+                                ({w.startDay} al {w.endDay} {MONTH_NAMES[selectedMonth - 1].slice(0, 3)})
+                              </div>
+                            </th>
+                          ))}
+
+                          <th className="py-3.5 px-4 text-center">Total Mes</th>
+                          <th className="py-3.5 px-4">Cumplimiento Target</th>
+                          <th className="py-3.5 px-4 text-center">Estado / Alertas</th>
+                          <th className="py-3.5 px-4 text-right">Detalles</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-[#000033]/5 text-xs text-[#000033]">
+                        {filteredClients.length === 0 ? (
+                          <tr>
+                            <td colSpan={6 + calendarWeeks.length} className="py-8 text-center text-[#000033]/40 text-xs">
+                              No se encontraron clientes para este período
                             </td>
                           </tr>
-                        );
-                      })
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+                        ) : (
+                          filteredClients.map((client: any) => {
+                            const hasTarget = client.monthlyContentTarget > 0;
+                            const pct = client.percentCumplimiento;
+                            const hasRiesgo = client.statusBreakdown.enRiesgo > 0;
+                            const hasAtraso = client.statusBreakdown.atrasadas > 0;
+
+                            return (
+                              <tr
+                                key={client.id}
+                                className="hover:bg-[#024fff]/5 transition-colors cursor-pointer"
+                                onClick={() => setSelectedClientModal(client)}
+                              >
+                                {/* Cliente */}
+                                <td className="py-4 px-5 font-bold text-[#000033]">
+                                  <span className="hover:text-[#024fff] transition-colors">{client.name}</span>
+                                </td>
+
+                                {/* Target Mes */}
+                                <td className="py-4 px-4 text-center border-r border-[#000033]/10">
+                                  {hasTarget ? (
+                                    <span className="px-2 py-0.5 bg-[#024fff]/10 text-[#024fff] font-bold text-xs rounded-md">
+                                      {client.monthlyContentTarget} pz
+                                    </span>
+                                  ) : (
+                                    <span className="text-[#000033]/30 text-[11px] font-medium">Sin target</span>
+                                  )}
+                                </td>
+
+                                {/* Celdas Semanales con Desglose: Completadas (verde), En Progreso (azul), Atrasadas (rojo) */}
+                                {client.weeksBreakdown.map((wb: any) => {
+                                  const total = wb.total;
+                                  return (
+                                    <td key={wb.weekNumber} className="py-4 px-3 text-center border-r border-[#000033]/10">
+                                      {total === 0 ? (
+                                        <span className="text-[#000033]/20 font-medium">-</span>
+                                      ) : (
+                                        <div className="flex items-center justify-center gap-1 font-bold text-[11px]">
+                                          {/* Completadas / Listas */}
+                                          <span
+                                            className={`px-1.5 py-0.5 rounded ${
+                                              wb.completadas > 0
+                                                ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                                                : 'bg-gray-100 text-gray-400'
+                                            }`}
+                                            title="Completadas / Listas"
+                                          >
+                                            {wb.completadas}
+                                          </span>
+
+                                          {/* En Progreso */}
+                                          <span
+                                            className={`px-1.5 py-0.5 rounded ${
+                                              wb.enProgreso > 0
+                                                ? 'bg-[#024fff]/10 text-[#024fff] border border-[#024fff]/20'
+                                                : 'bg-gray-100 text-gray-400'
+                                            }`}
+                                            title="En Progreso"
+                                          >
+                                            {wb.enProgreso}
+                                          </span>
+
+                                          {/* Atrasadas */}
+                                          {wb.atrasadas > 0 && (
+                                            <span
+                                              className="px-1.5 py-0.5 rounded bg-rose-100 text-rose-800 border border-rose-300"
+                                              title="Atrasadas"
+                                            >
+                                              {wb.atrasadas}
+                                            </span>
+                                          )}
+                                        </div>
+                                      )}
+                                    </td>
+                                  );
+                                })}
+
+                                {/* Total Mes */}
+                                <td className="py-4 px-4 text-center font-black text-sm text-[#000033]">
+                                  {client.totalMonth}
+                                </td>
+
+                                {/* Cumplimiento Target % */}
+                                <td className="py-4 px-4">
+                                  {hasTarget ? (
+                                    <div className="flex items-center gap-2">
+                                      <div className="w-16 h-2 bg-[#000033]/10 rounded-full overflow-hidden">
+                                        <div
+                                          className={`h-full rounded-full transition-all ${
+                                            pct >= 100
+                                              ? 'bg-emerald-500'
+                                              : pct >= 70
+                                              ? 'bg-[#024fff]'
+                                              : 'bg-amber-500'
+                                          }`}
+                                          style={{ width: `${Math.min(pct, 100)}%` }}
+                                        />
+                                      </div>
+                                      <span className="font-bold text-xs text-[#000033]">{pct}%</span>
+                                    </div>
+                                  ) : (
+                                    <span className="text-xs text-[#000033]/40">{client.totalMonth} tareas acumuladas</span>
+                                  )}
+                                </td>
+
+                                {/* Estado y Alertas */}
+                                <td className="py-4 px-4 text-center">
+                                  <div className="flex items-center justify-center gap-1.5">
+                                    {hasAtraso && (
+                                      <span className="px-2 py-0.5 bg-rose-100 text-rose-700 text-[11px] font-bold rounded-md flex items-center gap-1">
+                                        🔴 {client.statusBreakdown.atrasadas} atraso
+                                      </span>
+                                    )}
+                                    {hasRiesgo && (
+                                      <span className="px-2 py-0.5 bg-amber-100 text-amber-700 text-[11px] font-bold rounded-md flex items-center gap-1">
+                                        🟡 {client.statusBreakdown.enRiesgo} riesgo
+                                      </span>
+                                    )}
+                                    {!hasAtraso && !hasRiesgo && (
+                                      <span className="px-2 py-0.5 bg-emerald-50 text-emerald-700 text-[11px] font-bold rounded-md flex items-center gap-1">
+                                        🟢 Al día
+                                      </span>
+                                    )}
+                                  </div>
+                                </td>
+
+                                {/* Detalle Link */}
+                                <td className="py-4 px-4 text-right">
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setSelectedClientModal(client);
+                                    }}
+                                    className="px-2.5 py-1 text-xs font-bold text-[#024fff] bg-[#024fff]/10 rounded-lg hover:bg-[#024fff]/20 transition-all inline-flex items-center gap-1"
+                                  >
+                                    Ver
+                                    <ChevronRight className="w-3.5 h-3.5" />
+                                  </button>
+                                </td>
+                              </tr>
+                            );
+                          })
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </>
+            )}
           </>
+        )}
+
+        {activeTab === 'tickets-creados' && (
+          <ReporteTicketsCreadosDiarios
+            selectedYear={selectedYear}
+            selectedMonth={selectedMonth}
+            data={ticketsDiariosData}
+            isLoading={isLoadingDiarios}
+            isError={isErrorDiarios}
+            error={errorDiarios}
+          />
         )}
       </div>
 
@@ -519,6 +567,472 @@ export function ReportesPage() {
           onNavigateTicket={(id) => navigate(`/piezas/${id}`)}
         />
       )}
+    </div>
+  );
+}
+
+function ReporteTicketsCreadosDiarios({
+  selectedYear,
+  selectedMonth,
+  data,
+  isLoading,
+  isError,
+  error,
+}: {
+  selectedYear: number;
+  selectedMonth: number;
+  data: any;
+  isLoading: boolean;
+  isError: boolean;
+  error: any;
+}) {
+  const [showAbsolute, setShowAbsolute] = useState(true);
+  const [showCumulative, setShowCumulative] = useState(true);
+  const [showAgencyTotal, setShowAgencyTotal] = useState(false);
+  const [selectedClientsMap, setSelectedClientsMap] = useState<Record<string, boolean>>({});
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-16 text-[#000033]/60 text-sm font-medium">
+        Cargando evolución diaria de tickets creados...
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <div className="bg-red-50 border-2 border-red-200 rounded-xl p-6 text-center text-red-700 text-sm">
+        {(error as any)?.message || 'Ocurrió un error al cargar la evolución diaria.'}
+      </div>
+    );
+  }
+
+  const report = data?.data;
+  const summary = report?.summary;
+  const clients: any[] = report?.clients ?? [];
+  const dailyData: any[] = report?.dailyData ?? [];
+
+  const clientsMap: Record<string, any> = {};
+  clients.forEach((c) => {
+    clientsMap[c.id] = c;
+  });
+
+  const isClientSelected = (id: string) => selectedClientsMap[id] ?? true;
+
+  const toggleClient = (id: string) => {
+    setSelectedClientsMap((prev) => ({
+      ...prev,
+      [id]: !(prev[id] ?? true),
+    }));
+  };
+
+  const selectAll = () => {
+    const next: Record<string, boolean> = {};
+    clients.forEach((c) => {
+      next[c.id] = true;
+    });
+    setSelectedClientsMap(next);
+  };
+
+  const deselectAll = () => {
+    const next: Record<string, boolean> = {};
+    clients.forEach((c) => {
+      next[c.id] = false;
+    });
+    setSelectedClientsMap(next);
+  };
+
+  return (
+    <div className="space-y-8">
+      {/* 1. Tarjetas KPI Superiores */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        {/* Total Creados */}
+        <div className="bg-white border-2 border-[#000033]/10 rounded-xl p-5 shadow-sm">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-bold text-[#000033]/50 uppercase tracking-wide">
+              Total Creados (Mes)
+            </span>
+            <Inbox className="w-4 h-4 text-[#024fff]" />
+          </div>
+          <div className="text-3xl font-black text-[#024fff] mb-1">
+            {summary?.totalTicketsCreados ?? 0}
+          </div>
+          <p className="text-xs text-[#000033]/60">
+            Tickets dados de alta en {MONTH_NAMES[selectedMonth - 1]}
+          </p>
+        </div>
+
+        {/* Promedio Diario */}
+        <div className="bg-white border-2 border-[#000033]/10 rounded-xl p-5 shadow-sm">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-bold text-[#000033]/50 uppercase tracking-wide">
+              Promedio Diario
+            </span>
+            <TrendingUp className="w-4 h-4 text-emerald-600" />
+          </div>
+          <div className="text-3xl font-black text-emerald-600 mb-1">
+            {summary?.promedioDiario ?? 0}
+          </div>
+          <p className="text-xs text-[#000033]/60">Tickets creados por día promedio</p>
+        </div>
+
+        {/* Día Pico */}
+        <div className="bg-white border-2 border-[#000033]/10 rounded-xl p-5 shadow-sm">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-bold text-[#000033]/50 uppercase tracking-wide">
+              Día Máximo Pico
+            </span>
+            <Calendar className="w-4 h-4 text-amber-500" />
+          </div>
+          <div className="text-3xl font-black text-[#000033] mb-1">
+            Día {summary?.diaPico?.day ?? '-'}
+          </div>
+          <p className="text-xs text-[#000033]/60">
+            {summary?.diaPico?.count ?? 0} tickets creados ese día
+          </p>
+        </div>
+
+        {/* Cliente Principal */}
+        <div className="bg-white border-2 border-[#000033]/10 rounded-xl p-5 shadow-sm">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-bold text-[#000033]/50 uppercase tracking-wide">
+              Mayor Volumen
+            </span>
+            <Layers className="w-4 h-4 text-purple-600" />
+          </div>
+          <div className="text-2xl font-black text-[#000033] truncate mb-1" title={summary?.topCliente?.name ?? 'Sin tickets'}>
+            {summary?.topCliente?.name ?? 'N/A'}
+          </div>
+          <p className="text-xs text-[#000033]/60">
+            {summary?.topCliente?.count ?? 0} tickets creados en el mes
+          </p>
+        </div>
+      </div>
+
+      {/* 2. Gráfico Principal con Controles */}
+      <div className="bg-white border-2 border-[#000033]/10 rounded-xl p-6 shadow-sm space-y-6">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-[#000033]/10 pb-4">
+          <div>
+            <h3 className="text-base font-bold text-[#000033] flex items-center gap-2">
+              <TrendingUp className="w-5 h-5 text-[#024fff]" />
+              Evolución Diaria de Tickets Creados — {MONTH_NAMES[selectedMonth - 1]} {selectedYear}
+            </h3>
+            <p className="text-xs text-[#000033]/60 mt-0.5">
+              Comparativa por cliente de tickets creados por día (absoluto) y ritmo acumulado del mes.
+            </p>
+          </div>
+
+          {/* Opciones de Línea (Toggles) */}
+          <div className="flex flex-wrap items-center gap-3">
+            <label className="flex items-center gap-2 cursor-pointer bg-[#fafafa] px-3 py-1.5 rounded-lg border border-[#000033]/10 text-xs font-bold text-[#000033]">
+              <input
+                type="checkbox"
+                checked={showAbsolute}
+                onChange={(e) => setShowAbsolute(e.target.checked)}
+                className="rounded text-[#024fff] focus:ring-[#024fff]"
+              />
+              <span>Líneas Absolutas (Diarias —)</span>
+            </label>
+
+            <label className="flex items-center gap-2 cursor-pointer bg-[#fafafa] px-3 py-1.5 rounded-lg border border-[#000033]/10 text-xs font-bold text-[#000033]">
+              <input
+                type="checkbox"
+                checked={showCumulative}
+                onChange={(e) => setShowCumulative(e.target.checked)}
+                className="rounded text-[#024fff] focus:ring-[#024fff]"
+              />
+              <span>Líneas Acumuladas (- - -)</span>
+            </label>
+
+            <label className="flex items-center gap-2 cursor-pointer bg-[#fafafa] px-3 py-1.5 rounded-lg border border-[#000033]/10 text-xs font-bold text-[#000033]">
+              <input
+                type="checkbox"
+                checked={showAgencyTotal}
+                onChange={(e) => setShowAgencyTotal(e.target.checked)}
+                className="rounded text-[#000033] focus:ring-[#000033]"
+              />
+              <span>Total Agencia</span>
+            </label>
+          </div>
+        </div>
+
+        {/* Filtro por Cliente (Badges) */}
+        <div className="flex flex-wrap items-center gap-2 bg-[#fafafa] p-3 rounded-xl border border-[#000033]/10">
+          <span className="text-xs font-bold text-[#000033]/60 mr-1">Clientes visibles:</span>
+          <button
+            onClick={selectAll}
+            className="text-[11px] font-extrabold text-[#024fff] hover:underline mr-1"
+          >
+            Todos
+          </button>
+          <button
+            onClick={deselectAll}
+            className="text-[11px] font-bold text-[#000033]/40 hover:underline mr-2"
+          >
+            Ninguno
+          </button>
+          <div className="h-4 w-px bg-[#000033]/10 mx-1" />
+
+          {clients.map((c: any) => {
+            const active = isClientSelected(c.id);
+            return (
+              <button
+                key={c.id}
+                onClick={() => toggleClient(c.id)}
+                className={`px-2.5 py-1 rounded-full text-xs font-bold transition-all flex items-center gap-1.5 border ${
+                  active
+                    ? 'bg-white border-[#000033]/20 shadow-sm text-[#000033]'
+                    : 'bg-transparent border-transparent text-[#000033]/40 opacity-50'
+                }`}
+              >
+                <span
+                  className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                  style={{ backgroundColor: c.color }}
+                />
+                <span>{c.name}</span>
+                <span className="text-[10px] text-[#000033]/40 font-normal">
+                  ({c.totalCreated})
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Contenedor del Gráfico */}
+        <div className="w-full h-[450px] pt-4">
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={dailyData} margin={{ top: 10, right: 30, left: 0, bottom: 20 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#000033" strokeOpacity={0.1} vertical={false} />
+              <XAxis
+                dataKey="label"
+                stroke="#000033"
+                tick={{ fontSize: 11, fill: '#000033', opacity: 0.6 }}
+                tickLine={false}
+              />
+              <YAxis
+                stroke="#000033"
+                tick={{ fontSize: 11, fill: '#000033', opacity: 0.6 }}
+                tickLine={false}
+                allowDecimals={false}
+              />
+              <Tooltip content={<CustomTicketsTooltip clientsMap={clientsMap} />} />
+
+              {/* Total Agencia (opcional) */}
+              {showAgencyTotal && showAbsolute && (
+                <Line
+                  type="monotone"
+                  dataKey="totalDiario"
+                  name="Total Agencia (Diario)"
+                  stroke="#000033"
+                  strokeWidth={3}
+                  dot={{ r: 3, fill: '#000033' }}
+                />
+              )}
+              {showAgencyTotal && showCumulative && (
+                <Line
+                  type="monotone"
+                  dataKey="totalAcumulado"
+                  name="Total Agencia (Acumulado)"
+                  stroke="#000033"
+                  strokeWidth={3}
+                  strokeDasharray="6 4"
+                  dot={{ r: 3, fill: '#000033' }}
+                />
+              )}
+
+              {/* Líneas por Cliente */}
+              {clients.map((client: any) => {
+                if (!isClientSelected(client.id)) return null;
+
+                return (
+                  <React.Fragment key={client.id}>
+                    {/* Valor Absoluto Diario (Línea Sólida) */}
+                    {showAbsolute && (
+                      <Line
+                        type="monotone"
+                        dataKey={client.id}
+                        name={`${client.name} (Diario)`}
+                        stroke={client.color}
+                        strokeWidth={2.5}
+                        dot={{ r: 3, fill: client.color }}
+                        activeDot={{ r: 6 }}
+                      />
+                    )}
+
+                    {/* Acumulada (Línea Punteada) */}
+                    {showCumulative && (
+                      <Line
+                        type="monotone"
+                        dataKey={`${client.id}_acum`}
+                        name={`${client.name} (Acumulada)`}
+                        stroke={client.color}
+                        strokeWidth={2}
+                        strokeDasharray="5 5"
+                        dot={{ r: 2, fill: client.color }}
+                        activeDot={{ r: 5 }}
+                      />
+                    )}
+                  </React.Fragment>
+                );
+              })}
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
+      {/* 3. Tabla Desglose Mensual por Cliente */}
+      <div className="bg-white border-2 border-[#000033]/10 rounded-xl overflow-hidden shadow-sm">
+        <div className="p-5 border-b-2 border-[#000033]/10">
+          <h3 className="text-sm font-bold text-[#000033]">Desglose de Creaciones del Mes por Cliente</h3>
+          <p className="text-xs text-[#000033]/60 mt-0.5">
+            Total de tickets generados, participación en el volumen general de la agencia y ritmo medio diario.
+          </p>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="bg-[#fafafa] border-b border-[#000033]/10 text-[11px] font-extrabold text-[#000033]/60 uppercase tracking-wider">
+                <th className="py-3.5 px-5">Cliente</th>
+                <th className="py-3.5 px-4 text-center">Tickets Creados</th>
+                <th className="py-3.5 px-4 text-center">% de la Agencia</th>
+                <th className="py-3.5 px-4 text-center">Promedio Diario</th>
+                <th className="py-3.5 px-4 text-right">Acción</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-[#000033]/5 text-xs text-[#000033]">
+              {clients.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="py-8 text-center text-[#000033]/40 text-xs">
+                    No hay clientes registrados o con actividad en este período.
+                  </td>
+                </tr>
+              ) : (
+                clients.map((client: any) => {
+                  const totalAgencia = summary?.totalTicketsCreados ?? 1;
+                  const pctShare = totalAgencia > 0 ? Math.round((client.totalCreated / totalAgencia) * 100) : 0;
+                  const daysInMonth = report?.daysInMonth ?? 30;
+                  const avgDaily = Math.round((client.totalCreated / daysInMonth) * 10) / 10;
+                  const visible = isClientSelected(client.id);
+
+                  return (
+                    <tr key={client.id} className="hover:bg-[#024fff]/5 transition-colors">
+                      <td className="py-4 px-5 font-bold text-[#000033]">
+                        <div className="flex items-center gap-2">
+                          <span
+                            className="w-3 h-3 rounded-full flex-shrink-0"
+                            style={{ backgroundColor: client.color }}
+                          />
+                          <span>{client.name}</span>
+                        </div>
+                      </td>
+
+                      <td className="py-4 px-4 text-center font-black text-sm text-[#000033]">
+                        {client.totalCreated}
+                      </td>
+
+                      <td className="py-4 px-4 text-center">
+                        <div className="flex items-center justify-center gap-2">
+                          <div className="w-16 h-2 bg-[#000033]/10 rounded-full overflow-hidden">
+                            <div
+                              className="h-full rounded-full transition-all"
+                              style={{
+                                width: `${pctShare}%`,
+                                backgroundColor: client.color,
+                              }}
+                            />
+                          </div>
+                          <span className="font-bold text-xs text-[#000033]">{pctShare}%</span>
+                        </div>
+                      </td>
+
+                      <td className="py-4 px-4 text-center font-medium text-[#000033]/70">
+                        {avgDaily} / día
+                      </td>
+
+                      <td className="py-4 px-4 text-right">
+                        <button
+                          onClick={() => toggleClient(client.id)}
+                          className={`px-3 py-1 text-xs font-bold rounded-lg transition-all ${
+                            visible
+                              ? 'bg-[#000033]/10 text-[#000033] hover:bg-[#000033]/20'
+                              : 'bg-[#024fff]/10 text-[#024fff] hover:bg-[#024fff]/20'
+                          }`}
+                        >
+                          {visible ? 'Ocultar en gráfico' : 'Mostrar en gráfico'}
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CustomTicketsTooltip({ active, payload, label, clientsMap }: any) {
+  if (!active || !payload || !payload.length) return null;
+
+  return (
+    <div className="bg-white border-2 border-[#000033]/15 p-3 rounded-xl shadow-xl text-xs space-y-2 max-w-xs z-50">
+      <div className="font-extrabold text-[#000033] border-b border-[#000033]/10 pb-1 flex justify-between items-center">
+        <span>Fecha: {label}</span>
+      </div>
+      <div className="space-y-1.5 max-h-60 overflow-y-auto pr-1">
+        {payload.map((entry: any, index: number) => {
+          const isAcum = entry.dataKey.endsWith('_acum');
+          const clientId = isAcum ? entry.dataKey.replace('_acum', '') : entry.dataKey;
+          const clientInfo = clientsMap?.[clientId];
+
+          if (entry.dataKey === 'totalDiario') {
+            return (
+              <div key={index} className="flex items-center justify-between text-[#000033] font-black pt-1 border-t border-[#000033]/10">
+                <span className="flex items-center gap-1.5">
+                  <span className="w-2.5 h-2.5 rounded-full bg-[#000033]" />
+                  Total Agencia (Diario):
+                </span>
+                <span>{entry.value} tickets</span>
+              </div>
+            );
+          }
+
+          if (entry.dataKey === 'totalAcumulado') {
+            return (
+              <div key={index} className="flex items-center justify-between text-[#000033] font-black">
+                <span className="flex items-center gap-1.5">
+                  <span className="w-2.5 h-2.5 rounded-full bg-[#000033]" />
+                  Total Agencia (Acum.):
+                </span>
+                <span>{entry.value} tickets</span>
+              </div>
+            );
+          }
+
+          return (
+            <div key={index} className="flex items-center justify-between font-medium">
+              <span className="flex items-center gap-1.5 truncate max-w-[170px]">
+                <span
+                  className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                  style={{ backgroundColor: entry.color }}
+                />
+                <span className="text-[#000033]">
+                  {clientInfo?.name ?? entry.name}
+                  <span className="text-[10px] text-[#000033]/50 ml-1">
+                    ({isAcum ? 'Acumulada' : 'Diario'})
+                  </span>
+                </span>
+              </span>
+              <span className="font-bold text-[#000033] ml-2">
+                {entry.value} {entry.value === 1 ? 'ticket' : 'tickets'}
+              </span>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

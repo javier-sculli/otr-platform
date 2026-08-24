@@ -380,6 +380,14 @@ class ApiClient {
     if (month) params.append('month', month.toString());
     return this.request<{ data: any }>(`/reports/cumplimiento-clientes?${params}`);
   }
+
+  async getTicketsCreadosDiarios(year?: number, month?: number) {
+    const params = new URLSearchParams();
+    if (year) params.append('year', year.toString());
+    if (month) params.append('month', month.toString());
+    return this.request<{ data: any }>(`/reports/tickets-creados-diarios?${params}`);
+  }
 }
+
 
 export const api = new ApiClient();

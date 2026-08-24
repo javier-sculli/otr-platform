@@ -2,8 +2,8 @@ import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
-  ArrowLeft, ArrowRight, Sparkles, Bold, Italic, Underline, List, ListOrdered,
-  Link2, Image as ImageIcon, Type, Eye, Send, GripVertical, Check, AlertCircle,
+  ArrowLeft, ArrowRight, Sparkles,
+  Link2, Image as ImageIcon, Eye, Send, GripVertical, Check, AlertCircle,
   Paperclip, X, FileText, File, ExternalLink, Mic, MicOff, Trash2, Star, BookOpen, Undo2,
   History, Copy, RotateCcw,
 } from 'lucide-react';
@@ -244,8 +244,20 @@ export function ContentPage() {
       setLinkEntregable(t.linkEntregable ?? null);
 
       if (!contentLoaded) {
-        const canalList: string[] = t.canales?.length > 0 ? t.canales : ['LinkedIn'];
-        const perCanal: Record<string, string> = t.contentPerCanal && typeof t.contentPerCanal === 'object' ? { ...t.contentPerCanal as Record<string, string> } : {};
+        const dbCanales: string[] = t.canales?.length > 0 ? t.canales : [];
+        const perCanalRaw: Record<string, string> = t.contentPerCanal && typeof t.contentPerCanal === 'object' ? { ...t.contentPerCanal as Record<string, string> } : {};
+        const rawVersions = t.versionsPerCanal && typeof t.versionsPerCanal === 'object' ? { ...t.versionsPerCanal as Record<string, string[]> } : {};
+
+        const extraKeys = [...Object.keys(perCanalRaw), ...Object.keys(rawVersions)].filter(k => k && k !== 'Contenido' && k !== 'General');
+        const mergedCanalSet = new Set<string>();
+        dbCanales.forEach(c => mergedCanalSet.add(c));
+        extraKeys.forEach(k => {
+          const exists = Array.from(mergedCanalSet).some(existing => existing.toLowerCase() === k.toLowerCase());
+          if (!exists) mergedCanalSet.add(k);
+        });
+
+        const canalList: string[] = Array.from(mergedCanalSet).length > 0 ? Array.from(mergedCanalSet) : ['LinkedIn'];
+        const perCanal: Record<string, string> = { ...perCanalRaw };
 
         // Si existen claves legacy como 'Contenido' o 'General', migrarlas al primer canal real
         if (perCanal['Contenido'] || perCanal['General']) {
@@ -257,8 +269,7 @@ export function ContentPage() {
           delete perCanal['General'];
         }
 
-        if (t.versionsPerCanal && typeof t.versionsPerCanal === 'object') {
-          const rawVersions = { ...t.versionsPerCanal as Record<string, string[]> };
+        if (Object.keys(rawVersions).length > 0) {
           if (rawVersions['Contenido'] || rawVersions['General']) {
             const genericVersions = rawVersions['Contenido'] || rawVersions['General'];
             if (genericVersions?.length > 0 && (!rawVersions[canalList[0]] || rawVersions[canalList[0]].length === 0)) {
@@ -282,15 +293,29 @@ export function ContentPage() {
           });
         }
 
-        if (Object.keys(perCanal).length === 0 && t.content) {
-          perCanal[canalList[0]] = t.content;
+        // Búsqueda insensible a mayúsculas/minúsculas para poblar el mapa por canal si difiere el casing
+        canalList.forEach((canal: string) => {
+          if (!perCanal[canal] || !perCanal[canal].trim()) {
+            const matchKey = Object.keys(perCanal).find(k => k.toLowerCase() === canal.toLowerCase());
+            if (matchKey && perCanal[matchKey]?.trim()) {
+              perCanal[canal] = perCanal[matchKey];
+            }
+          }
+        });
+
+        if (Object.values(perCanal).every(val => !val || !val.trim())) {
+          if (t.content) {
+            perCanal[canalList[0]] = t.content;
+          } else if (t.description) {
+            perCanal[canalList[0]] = t.description;
+          }
         }
 
         setCanales(canalList);
         updateContentPerCanal(perCanal);
         const initialCanal = canalList[0];
         setActiveCanal(initialCanal);
-        const initialContent = perCanal[initialCanal] ?? '';
+        const initialContent = perCanal[initialCanal] ?? (Object.entries(perCanal).find(([k]) => k.toLowerCase() === initialCanal.toLowerCase())?.[1]) ?? '';
         setContentText(initialContent);
         setCharCount(initialContent.length);
         setContentLoaded(true);
@@ -1036,67 +1061,39 @@ export function ContentPage() {
               </div>
           </div>
 
-          {/* Toolbar */}
-          <div className="border-b-2 border-[#000033]/10 px-4 py-1.5 flex-shrink-0">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-0.5">
-                <button className="p-1.5 hover:bg-[#000033]/5 rounded transition-all">
-                  <Type className="w-3.5 h-3.5 text-[#000033]/60" />
-                </button>
-                <div className="w-px h-4 bg-[#000033]/10 mx-0.5" />
-                <button className="p-1.5 hover:bg-[#000033]/5 rounded transition-all">
-                  <Bold className="w-3.5 h-3.5 text-[#000033]/60" />
-                </button>
-                <button className="p-1.5 hover:bg-[#000033]/5 rounded transition-all">
-                  <Italic className="w-3.5 h-3.5 text-[#000033]/60" />
-                </button>
-                <button className="p-1.5 hover:bg-[#000033]/5 rounded transition-all">
-                  <Underline className="w-3.5 h-3.5 text-[#000033]/60" />
-                </button>
-                <div className="w-px h-4 bg-[#000033]/10 mx-0.5" />
-                <button className="p-1.5 hover:bg-[#000033]/5 rounded transition-all">
-                  <List className="w-3.5 h-3.5 text-[#000033]/60" />
-                </button>
-                <button className="p-1.5 hover:bg-[#000033]/5 rounded transition-all">
-                  <ListOrdered className="w-3.5 h-3.5 text-[#000033]/60" />
-                </button>
-                <div className="w-px h-4 bg-[#000033]/10 mx-0.5" />
-                <button className="p-1.5 hover:bg-[#000033]/5 rounded transition-all">
-                  <Link2 className="w-3.5 h-3.5 text-[#000033]/60" />
-                </button>
-                <button className="p-1.5 hover:bg-[#000033]/5 rounded transition-all">
-                  <ImageIcon className="w-3.5 h-3.5 text-[#000033]/60" />
-                </button>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={handleUndo}
-                  disabled={!getVersionsForCanal(activeCanal).length || isAiLoading}
-                  title="Volver a la versión anterior del contenido"
-                  className="flex items-center gap-1 p-1.5 rounded transition-all text-[#000033]/60 hover:bg-[#000033]/5 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent"
-                >
-                  <Undo2 className="w-3.5 h-3.5" />
-                  <span className="text-xs font-bold">Deshacer</span>
-                </button>
-                <button
-                  onClick={() => setShowHistory(prev => !prev)}
-                  className={`flex items-center gap-1.5 px-2 py-1 rounded transition-all text-xs font-bold ${
-                    showHistory
-                      ? 'bg-[#024fff]/10 text-[#024fff]'
-                      : 'text-[#000033]/60 hover:bg-[#000033]/5'
-                  }`}
-                  title="Ver historial completo de versiones de este copy"
-                >
-                  <History className="w-3.5 h-3.5" />
-                  <span>Ver historial</span>
-                  {getVersionsForCanal(activeCanal).length > 0 && (
-                    <span className="px-1.5 py-0.2 text-[10px] bg-[#024fff]/15 text-[#024fff] rounded-full font-extrabold">
-                      {getVersionsForCanal(activeCanal).length}
-                    </span>
-                  )}
-                </button>
-                <span className="text-xs text-[#000033]/60">{charCount} caracteres</span>
-              </div>
+          {/* Actions Bar */}
+          <div className="border-b-2 border-[#000033]/10 px-4 py-1.5 flex-shrink-0 flex items-center justify-between">
+            <div className="text-xs font-bold text-[#000033]/40 uppercase tracking-wider">
+              Editor de Copy
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleUndo}
+                disabled={!getVersionsForCanal(activeCanal).length || isAiLoading}
+                title="Volver a la versión anterior del contenido"
+                className="flex items-center gap-1 p-1.5 rounded transition-all text-[#000033]/60 hover:bg-[#000033]/5 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+              >
+                <Undo2 className="w-3.5 h-3.5" />
+                <span className="text-xs font-bold">Deshacer</span>
+              </button>
+              <button
+                onClick={() => setShowHistory(prev => !prev)}
+                className={`flex items-center gap-1.5 px-2 py-1 rounded transition-all text-xs font-bold ${
+                  showHistory
+                    ? 'bg-[#024fff]/10 text-[#024fff]'
+                    : 'text-[#000033]/60 hover:bg-[#000033]/5'
+                }`}
+                title="Ver historial completo de versiones de este copy"
+              >
+                <History className="w-3.5 h-3.5" />
+                <span>Ver historial</span>
+                {getVersionsForCanal(activeCanal).length > 0 && (
+                  <span className="px-1.5 py-0.2 text-[10px] bg-[#024fff]/15 text-[#024fff] rounded-full font-extrabold">
+                    {getVersionsForCanal(activeCanal).length}
+                  </span>
+                )}
+              </button>
+              <span className="text-xs text-[#000033]/60">{charCount} caracteres</span>
             </div>
           </div>
 

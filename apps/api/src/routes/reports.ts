@@ -369,4 +369,161 @@ export async function reportsRoutes(fastify: FastifyInstance) {
       },
     };
   });
+
+  // GET /reports/tickets-creados-diarios?year=2026&month=8
+  fastify.get('/tickets-creados-diarios', async (request, reply) => {
+    const user = request.user as { id: string; email: string; role: string };
+
+    const isDirectorOrAdmin =
+      user.role === 'DIRECCION' ||
+      ['javier', 'javi', 'joaco', 'manu', 'manuela'].some((name) =>
+        user.email.toLowerCase().includes(name)
+      );
+
+    if (!isDirectorOrAdmin) {
+      return reply.status(403).send({
+        error: 'Acceso restringido: Esta sección solo está disponible para la Dirección.',
+      });
+    }
+
+    const { year: yearQuery, month: monthQuery } = request.query as {
+      year?: string;
+      month?: string;
+    };
+
+    const now = new Date();
+    const year = yearQuery ? parseInt(yearQuery, 10) : now.getFullYear();
+    const month = monthQuery ? parseInt(monthQuery, 10) : now.getMonth() + 1;
+
+    const startDate = new Date(year, month - 1, 1, 0, 0, 0, 0);
+    const endDate = new Date(year, month, 0, 23, 59, 59, 999);
+    const daysInMonth = new Date(year, month, 0).getDate();
+
+    const CLIENT_COLORS = [
+      '#024fff', // OTR Blue
+      '#10b981', // Emerald
+      '#f59e0b', // Amber
+      '#f43f5e', // Rose
+      '#8b5cf6', // Violet
+      '#06b6d4', // Cyan
+      '#ec4899', // Pink
+      '#84cc16', // Lime
+      '#d97706', // Orange
+      '#6366f1', // Indigo
+      '#0284c7', // Sky
+      '#64748b', // Slate
+    ];
+
+    const clients = await prisma.client.findMany({
+      where: { active: true },
+      select: { id: true, name: true },
+      orderBy: { name: 'asc' },
+    });
+
+    const tickets = await prisma.ticket.findMany({
+      where: {
+        createdAt: {
+          gte: startDate,
+          lte: endDate,
+        },
+      },
+      select: {
+        id: true,
+        title: true,
+        createdAt: true,
+        clientId: true,
+        area: true,
+        ticketType: { select: { name: true, kind: true } },
+        client: { select: { id: true, name: true } },
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    const clientMetaMap = new Map<string, { id: string; name: string; color: string; totalCreated: number }>();
+    clients.forEach((c, idx) => {
+      clientMetaMap.set(c.id, {
+        id: c.id,
+        name: c.name,
+        color: CLIENT_COLORS[idx % CLIENT_COLORS.length],
+        totalCreated: 0,
+      });
+    });
+
+    const monthNamesEsShort = [
+      'Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun',
+      'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic',
+    ];
+    const monthShort = monthNamesEsShort[month - 1];
+
+    const cumulativePerClient: Record<string, number> = {};
+    clients.forEach((c) => {
+      cumulativePerClient[c.id] = 0;
+    });
+    let runningAgencyCumulative = 0;
+
+    const dailyData: Record<string, any>[] = [];
+
+    for (let d = 1; d <= daysInMonth; d++) {
+      const ticketsOfDay = tickets.filter((t) => {
+        const ticketDate = new Date(t.createdAt);
+        return ticketDate.getFullYear() === year && ticketDate.getMonth() === month - 1 && ticketDate.getDate() === d;
+      });
+
+      const dayPoint: Record<string, any> = {
+        day: d,
+        dateStr: `${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`,
+        label: `${d} ${monthShort}`,
+        totalDiario: ticketsOfDay.length,
+      };
+
+      runningAgencyCumulative += ticketsOfDay.length;
+      dayPoint.totalAcumulado = runningAgencyCumulative;
+
+      clients.forEach((c) => {
+        const clientTicketsToday = ticketsOfDay.filter((t) => t.clientId === c.id).length;
+        cumulativePerClient[c.id] += clientTicketsToday;
+
+        const meta = clientMetaMap.get(c.id);
+        if (meta) {
+          meta.totalCreated += clientTicketsToday;
+        }
+
+        dayPoint[c.id] = clientTicketsToday;
+        dayPoint[`${c.id}_acum`] = cumulativePerClient[c.id];
+      });
+
+      dailyData.push(dayPoint);
+    }
+
+    const clientsList = Array.from(clientMetaMap.values());
+    const sortedClients = [...clientsList].sort((a, b) => b.totalCreated - a.totalCreated);
+    const topCliente = sortedClients.length > 0 ? sortedClients[0] : null;
+
+    let maxDay = { day: 1, count: 0 };
+    dailyData.forEach((dp) => {
+      if (dp.totalDiario > maxDay.count) {
+        maxDay = { day: dp.day, count: dp.totalDiario };
+      }
+    });
+
+    const promedioDiario = Math.round((tickets.length / daysInMonth) * 10) / 10;
+
+    return {
+      data: {
+        period: { year, month },
+        daysInMonth,
+        summary: {
+          totalTicketsCreados: tickets.length,
+          promedioDiario,
+          diaPico: maxDay,
+          topCliente: topCliente && topCliente.totalCreated > 0
+            ? { id: topCliente.id, name: topCliente.name, count: topCliente.totalCreated }
+            : null,
+        },
+        clients: clientsList,
+        dailyData,
+      },
+    };
+  });
 }
+

@@ -769,9 +769,20 @@ export function TicketDetallePage() {
                     Copy
                   </h2>
                   {(() => {
-                    const canales: string[] = (ticket as any).canales?.length > 0 ? (ticket as any).canales : ['LinkedIn'];
+                    const dbCanales: string[] = (ticket as any).canales?.length > 0 ? (ticket as any).canales : [];
+                    const perCanalKeys = Object.keys(copyPerCanal ?? {});
+                    const extraKeys = perCanalKeys.filter(k => k && k !== 'Contenido' && k !== 'General');
+                    const mergedCanalSet = new Set<string>();
+                    dbCanales.forEach(c => mergedCanalSet.add(c));
+                    extraKeys.forEach(k => {
+                      const exists = Array.from(mergedCanalSet).some(existing => existing.toLowerCase() === k.toLowerCase());
+                      if (!exists) mergedCanalSet.add(k);
+                    });
+                    const canales: string[] = Array.from(mergedCanalSet).length > 0 ? Array.from(mergedCanalSet) : ['LinkedIn'];
                     const currentTab = activeCopyTab && canales.includes(activeCopyTab) ? activeCopyTab : canales[0];
-                    const activeContent = copyPerCanal[currentTab] ?? (canales.length === 1 || currentTab === canales[0] ? contentSingle : '');
+                    const activeContent = copyPerCanal[currentTab]
+                      ?? (Object.entries(copyPerCanal).find(([k]) => k.toLowerCase() === currentTab.toLowerCase())?.[1])
+                      ?? (canales.length === 1 || currentTab === canales[0] ? contentSingle : '');
 
                     return activeContent?.trim() ? (
                       <button
@@ -788,9 +799,20 @@ export function TicketDetallePage() {
                   })()}
                 </div>
                 {(() => {
-                  const canales: string[] = (ticket as any).canales?.length > 0 ? (ticket as any).canales : ['LinkedIn'];
+                  const dbCanales: string[] = (ticket as any).canales?.length > 0 ? (ticket as any).canales : [];
+                  const perCanalKeys = Object.keys(copyPerCanal ?? {});
+                  const extraKeys = perCanalKeys.filter(k => k && k !== 'Contenido' && k !== 'General');
+                  const mergedCanalSet = new Set<string>();
+                  dbCanales.forEach(c => mergedCanalSet.add(c));
+                  extraKeys.forEach(k => {
+                    const exists = Array.from(mergedCanalSet).some(existing => existing.toLowerCase() === k.toLowerCase());
+                    if (!exists) mergedCanalSet.add(k);
+                  });
+                  const canales: string[] = Array.from(mergedCanalSet).length > 0 ? Array.from(mergedCanalSet) : ['LinkedIn'];
                   const currentTab = activeCopyTab && canales.includes(activeCopyTab) ? activeCopyTab : canales[0];
-                  const activeContent = copyPerCanal[currentTab] ?? (canales.length === 1 || currentTab === canales[0] ? contentSingle : '');
+                  const activeContent = copyPerCanal[currentTab]
+                    ?? (Object.entries(copyPerCanal).find(([k]) => k.toLowerCase() === currentTab.toLowerCase())?.[1])
+                    ?? (canales.length === 1 || currentTab === canales[0] ? contentSingle : '');
 
                   const handleCopyChange = (val: string) => {
                     const nextPerCanal = { ...copyPerCanal, [currentTab]: val };
@@ -817,7 +839,7 @@ export function TicketDetallePage() {
 
                   return (
                     <>
-                      {canales.length > 1 && (
+                      {canales.length > 0 && (
                         <div className="flex items-center gap-1 mb-3 overflow-x-auto">
                           {canales.map(canal => (
                             <button

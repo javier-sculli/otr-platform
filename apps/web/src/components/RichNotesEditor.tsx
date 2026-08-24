@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import {
   Bold, Italic, Underline, Strikethrough, List, ListOrdered, Heading1, Heading2,
   Link2, ImageIcon, AlignLeft, AlignCenter, AlignRight, Trash2,
-  RemoveFormatting,
+  RemoveFormatting, Smile, Search, X,
 } from 'lucide-react';
 
 interface RichNotesEditorProps {
@@ -21,6 +21,29 @@ interface SelectedImageState {
   top: number;
   left: number;
 }
+
+const EMOJI_CATEGORIES = [
+  {
+    name: 'Frecuentes / Destacados',
+    emojis: ['🔥', '🚀', '✨', '⚡️', '💡', '📌', '📍', '✅', '❌', '⚠️', '👀', '🎯', '💯', '🔝', '📢'],
+  },
+  {
+    name: 'Caras y Emociones',
+    emojis: ['😊', '😄', '😂', '🥹', '😍', '😎', '🤔', '🧐', '🥳', '🙌', '👏', '🙏', '🤯', '🤫', '💪'],
+  },
+  {
+    name: 'Manos y Gestos',
+    emojis: ['👍', '👎', '🤝', '👇', '👉', '👈', '👆', '👋', '✌️', '🤙', '✊', '🤛', '🤜', '🖐️', '👌'],
+  },
+  {
+    name: 'Símbolos y Objetos',
+    emojis: ['📈', '📊', '💼', '📅', '📝', '🔔', '💬', '🏆', '⭐', '🌟', '💥', '🌐', '🔗', '📸', '🎥'],
+  },
+  {
+    name: 'Corazones y Colores',
+    emojis: ['❤️', '💙', '💚', '💛', '🧡', '💜', '🖤', '🤍', '💖', '💔', '🔴', '🟢', '🔵', '🟡', '🟠'],
+  },
+];
 
 export function fixNotionImageUrl(src: string): string {
   if (!src) return '';
@@ -133,16 +156,18 @@ export async function convertImageUrlToBase64(url: string): Promise<string> {
 
 export function cleanJunkHtmlBlocks(html: string): string {
   if (!html) return '';
-  // Si es texto plano (sin etiquetas HTML), convertir marcado Markdown (**bold**) y saltos de línea a HTML
-  if (!/<[a-z][\s\S]*>/i.test(html)) {
-    let converted = html;
-    converted = converted.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
-    converted = converted.replace(/__([^_]+)__/g, '<strong>$1</strong>');
-    if (converted.includes('\n')) {
-      converted = converted.replace(/\n/g, '<br>');
-    }
-    html = converted;
+
+  // Convertir marcado Markdown (**bold**, __bold__) a HTML
+  let converted = html;
+  converted = converted.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+  converted = converted.replace(/__([^_]+)__/g, '<strong>$1</strong>');
+
+  // Si es texto plano (sin etiquetas HTML), convertir saltos de línea a <br>
+  if (!/<[a-z][\s\S]*>/i.test(html) && converted.includes('\n')) {
+    converted = converted.replace(/\n/g, '<br>');
   }
+  html = converted;
+
   try {
     const parser = new DOMParser();
     const doc = parser.parseFromString(html, 'text/html');
@@ -150,11 +175,11 @@ export function cleanJunkHtmlBlocks(html: string): string {
     // 1. Eliminar scripts/iframes/meta
     doc.querySelectorAll('script, style, iframe, meta, input').forEach(el => el.remove());
 
-    // 2. Eliminar contenedores vacíos (pre, code, span, div sin texto ni imágenes)
+    // 2. Eliminar contenedores verdaderamente vacíos (que no tengan texto, ni imágenes, ni <br>, ni &nbsp;)
     doc.querySelectorAll('pre, code, span, div, p, blockquote').forEach(el => {
       const text = el.textContent?.replace(/[\s\u200B]/g, '') || '';
-      const hasImages = el.querySelector('img') !== null;
-      if (!text && !hasImages) {
+      const hasMediaOrBr = el.querySelector('img, br, hr, iframe, svg') !== null || el.innerHTML.includes('&nbsp;');
+      if (!text && !hasMediaOrBr) {
         el.remove();
       }
     });
@@ -233,6 +258,8 @@ export function RichNotesEditor({
   const draggedImgRef = useRef<HTMLImageElement | null>(null);
 
   const [selectedImgState, setSelectedImgState] = useState<SelectedImageState | null>(null);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [emojiSearch, setEmojiSearch] = useState('');
 
   // Sincronizar HTML externo si cambia desde afuera (sin pisar la edición activa del usuario)
   useEffect(() => {
@@ -338,9 +365,28 @@ export function RichNotesEditor({
   };
 
   const execCmd = (cmd: string, arg?: string) => {
+    editorRef.current?.focus();
     document.execCommand(cmd, false, arg);
     handleInput();
+  };
+
+  const insertEmoji = (emoji: string) => {
     editorRef.current?.focus();
+    const sel = window.getSelection();
+    if (sel && sel.rangeCount > 0 && editorRef.current?.contains(sel.anchorNode)) {
+      const range = sel.getRangeAt(0);
+      range.deleteContents();
+      const textNode = document.createTextNode(emoji);
+      range.insertNode(textNode);
+      range.setStartAfter(textNode);
+      range.setEndAfter(textNode);
+      sel.removeAllRanges();
+      sel.addRange(range);
+    } else if (editorRef.current) {
+      const textNode = document.createTextNode(emoji);
+      editorRef.current.appendChild(textNode);
+    }
+    handleInput();
   };
 
   const insertImage = (src: string) => {
@@ -655,30 +701,34 @@ export function RichNotesEditor({
         <div className="flex items-center gap-1 text-[#000033]/60 flex-wrap">
           <button
             type="button"
+            onMouseDown={(e) => e.preventDefault()}
             onClick={() => execCmd('bold')}
-            title="Negrita"
+            title="Negrita (Cmd+B)"
             className="p-1 hover:bg-[#000033]/8 rounded hover:text-[#000033] transition-all"
           >
             <Bold className="w-3.5 h-3.5" />
           </button>
           <button
             type="button"
+            onMouseDown={(e) => e.preventDefault()}
             onClick={() => execCmd('italic')}
-            title="Cursiva"
+            title="Cursiva (Cmd+I)"
             className="p-1 hover:bg-[#000033]/8 rounded hover:text-[#000033] transition-all"
           >
             <Italic className="w-3.5 h-3.5" />
           </button>
           <button
             type="button"
+            onMouseDown={(e) => e.preventDefault()}
             onClick={() => execCmd('underline')}
-            title="Subrayado"
+            title="Subrayado (Cmd+U)"
             className="p-1 hover:bg-[#000033]/8 rounded hover:text-[#000033] transition-all"
           >
             <Underline className="w-3.5 h-3.5" />
           </button>
           <button
             type="button"
+            onMouseDown={(e) => e.preventDefault()}
             onClick={() => execCmd('strikeThrough')}
             title="Tachado"
             className="p-1 hover:bg-[#000033]/8 rounded hover:text-[#000033] transition-all"
@@ -688,8 +738,84 @@ export function RichNotesEditor({
 
           <div className="w-px h-3 bg-[#000033]/15 mx-1" />
 
+          {/* Emoji Picker Popover */}
+          <div className="relative">
+            <button
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+              title="Insertar Emoji"
+              className={`p-1 rounded transition-all ${
+                showEmojiPicker ? 'bg-[#024fff]/10 text-[#024fff]' : 'hover:bg-[#000033]/8 text-[#000033]/60 hover:text-[#000033]'
+              }`}
+            >
+              <Smile className="w-3.5 h-3.5" />
+            </button>
+            {showEmojiPicker && (
+              <div
+                onMouseDown={(e) => e.preventDefault()}
+                className="absolute right-0 top-full mt-1.5 w-64 bg-white border-2 border-[#000033]/15 rounded-xl shadow-xl z-50 p-2 overflow-hidden animate-in fade-in zoom-in-95 duration-100 select-none"
+              >
+                <div className="flex items-center justify-between px-1 pb-1.5 mb-1.5 border-b border-[#000033]/10">
+                  <span className="text-[11px] font-bold text-[#000033]">Insertar Emoji</span>
+                  <button
+                    type="button"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => setShowEmojiPicker(false)}
+                    className="text-[#000033]/40 hover:text-[#000033] p-0.5 rounded"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+
+                <div className="relative mb-2">
+                  <Search className="w-3 h-3 text-[#000033]/40 absolute left-2 top-2" />
+                  <input
+                    type="text"
+                    value={emojiSearch}
+                    onChange={(e) => setEmojiSearch(e.target.value)}
+                    placeholder="Buscar emoji..."
+                    className="w-full text-xs pl-7 pr-2 py-1 bg-[#000033]/5 border border-[#000033]/10 rounded-md outline-none focus:border-[#024fff]/40"
+                  />
+                </div>
+
+                <div className="max-h-48 overflow-y-auto space-y-2 pr-1">
+                  {EMOJI_CATEGORIES.map((cat) => {
+                    const filtered = cat.emojis.filter(
+                      (em) => !emojiSearch.trim() || em.includes(emojiSearch.trim())
+                    );
+                    if (filtered.length === 0) return null;
+                    return (
+                      <div key={cat.name}>
+                        <div className="text-[10px] font-bold text-[#000033]/40 mb-1">{cat.name}</div>
+                        <div className="grid grid-cols-6 gap-1">
+                          {filtered.map((em) => (
+                            <button
+                              key={em}
+                              type="button"
+                              onMouseDown={(e) => e.preventDefault()}
+                              onClick={() => {
+                                insertEmoji(em);
+                              }}
+                              className="p-1 hover:bg-[#024fff]/10 rounded text-base transition-all text-center"
+                            >
+                              {em}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="w-px h-3 bg-[#000033]/15 mx-1" />
+
           <button
             type="button"
+            onMouseDown={(e) => e.preventDefault()}
             onClick={() => execCmd('insertUnorderedList')}
             title="Lista de viñetas"
             className="p-1 hover:bg-[#000033]/8 rounded hover:text-[#000033] transition-all"
@@ -698,6 +824,7 @@ export function RichNotesEditor({
           </button>
           <button
             type="button"
+            onMouseDown={(e) => e.preventDefault()}
             onClick={() => execCmd('insertOrderedList')}
             title="Lista numerada"
             className="p-1 hover:bg-[#000033]/8 rounded hover:text-[#000033] transition-all"
@@ -709,6 +836,7 @@ export function RichNotesEditor({
 
           <button
             type="button"
+            onMouseDown={(e) => e.preventDefault()}
             onClick={() => execCmd('formatBlock', '<h2>')}
             title="Título principal"
             className="p-1 hover:bg-[#000033]/8 rounded hover:text-[#000033] transition-all"
@@ -717,6 +845,7 @@ export function RichNotesEditor({
           </button>
           <button
             type="button"
+            onMouseDown={(e) => e.preventDefault()}
             onClick={() => execCmd('formatBlock', '<h3>')}
             title="Subtítulo"
             className="p-1 hover:bg-[#000033]/8 rounded hover:text-[#000033] transition-all"
@@ -728,6 +857,7 @@ export function RichNotesEditor({
 
           <button
             type="button"
+            onMouseDown={(e) => e.preventDefault()}
             onClick={() => {
               const url = prompt('Ingresar URL del enlace:');
               if (url) execCmd('createLink', url);
@@ -740,6 +870,7 @@ export function RichNotesEditor({
 
           <button
             type="button"
+            onMouseDown={(e) => e.preventDefault()}
             onClick={() => fileInputRef.current?.click()}
             title="Insertar Imagen"
             className="px-2 py-1 bg-[#024fff]/10 border border-[#024fff]/20 text-[#024fff] hover:bg-[#024fff]/20 rounded-md transition-all flex items-center gap-1 text-[11px] font-bold"
@@ -750,6 +881,7 @@ export function RichNotesEditor({
 
           <button
             type="button"
+            onMouseDown={(e) => e.preventDefault()}
             onClick={() => {
               execCmd('removeFormat');
               if (editorRef.current) {
