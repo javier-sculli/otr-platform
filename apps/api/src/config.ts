@@ -14,5 +14,6 @@ export const config = {
     clientSecret: process.env.GOOGLE_CLIENT_SECRET || '',
     redirectUri: process.env.GOOGLE_REDIRECT_URI || 'http://localhost:3001/auth/google/callback',
   },
+  resendApiKey: process.env.RESEND_API_KEY || '',
 } as const;
 

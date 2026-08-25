@@ -2,6 +2,18 @@
 
 > **Propósito:** Registro central de avances, decisiones de producto, correcciones de errores y backlog priorizado de la plataforma Rocky (OTR). A partir de la reunión del 31 de Julio de 2026, cada cambio, bugfix y feature completado queda asentado en esta bitácora.
 
+### [2026-08-25] — Notificaciones por Email con Estética ROCKY, Estandarización de Asuntos e Integración con Resend
+- **Desarrollador:** Antigravity (Pair Programming con Javier Sculli)
+- **Resumen de Avances:**
+  1. **Servicio de Emailing en Backend (`apps/api/src/lib/email.ts`):** Módulo de envío asincrónico integrado con la API de Resend SDK (`resend`). Generación de plantillas HTML responsive con CSS inline alineadas a la identidad de ROCKY (Navy `#000033`, Azul Eléctrico `#024fff`, fondo `#f4f5f7`, tarjetas bordeadas y badges estilizados).
+  2. **Estandarización del Asunto (Subject Line Standard):** Formato limpio tipo SaaS (`[ROCKY] [{Tipo/Estado}] · {NombreTicket}`):
+     - Mención: `[ROCKY] [Mención] · {NombreTicket}`
+     - Asignación: `[ROCKY] [Asignación] · {NombreTicket}`
+     - Cambio de Estado: `[ROCKY] [Cambio de estado] · {NombreTicket}`
+  3. **Despacho Automático en Background (Non-blocking):** Integración en `routes/tickets.ts` (`notifyOrCoalesce`) y `routes/comments.ts` para disparar correos en segundo plano (`setImmediate`) al crear menciones, asignaciones o cambios de estado, garantizando que el servidor responda HTTP en <100ms.
+  4. **Script de Pruebas (`scripts/send-test-emails.ts`):** Creado y ejecutado exitosamente para validar el envío directo de ejemplos de los 3 tipos de notificación a `javier.sculli@gmail.com`.
+- **Verificación:** Monorepo verificado con `pnpm --filter api typecheck` (0 errores) y despacho exitoso de los 3 correos de prueba en Resend (IDs: `e1047076-0525-4266-bee7-e515f628c42a`, `09c8d96d-9079-4fa9-a2e9-d70d84c30433`, `35ed2d0d-8107-4473-a715-021844475ebf`).
+
 ### [2026-08-24] — Roles Genéricos de Agencia, Registro (Sign Up) en Login y Modal de Selección de Rol Inicial (Onboarding)
 - **Desarrollador:** Antigravity (Pair Programming con Javier Sculli)
 - **Resumen de Avances:**

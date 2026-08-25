@@ -1,6 +1,7 @@
 import { FastifyInstance } from 'fastify';
 import { prisma } from '../lib/prisma.js';
 import { authenticate } from '../middleware/auth.js';
+import { sendNotificationEmail } from '../lib/email.js';
 
 // Catálogo subestado → macroEstado de Prensa (HU Fase 2). Espejo de
 // PRENSA_SUBESTADOS en @otr/types; inline acá porque el API no consume el
@@ -46,12 +47,16 @@ async function notifyOrCoalesce({
   type,
   fromName,
   message,
+  oldStatusLabel,
+  newStatusLabel,
 }: {
   userId: string;
   ticketId: string;
   type: 'ASSIGNED' | 'STATUS_CHANGE' | 'MENTION';
   fromName: string;
   message: string;
+  oldStatusLabel?: string;
+  newStatusLabel?: string;
 }) {
   const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000);
   const existing = await prisma.notification.findFirst({
@@ -83,6 +88,44 @@ async function notifyOrCoalesce({
         message,
       },
     });
+  }
+
+  // Despachar email en segundo plano (non-blocking)
+  try {
+    const recipientUser = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { email: true },
+    });
+    if (recipientUser?.email) {
+      const ticket = await prisma.ticket.findUnique({
+        where: { id: ticketId },
+        select: {
+          title: true,
+          dueDate: true,
+          client: { select: { name: true } },
+          ticketType: { select: { name: true } },
+        },
+      });
+      if (ticket) {
+        const dueDateFormatted = ticket.dueDate
+          ? new Date(ticket.dueDate).toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' })
+          : undefined;
+        sendNotificationEmail({
+          to: recipientUser.email,
+          type,
+          fromName,
+          ticketId,
+          ticketTitle: ticket.title,
+          clientName: ticket.client?.name || 'Cliente',
+          ticketTypeName: ticket.ticketType?.name,
+          dueDateFormatted,
+          oldStatusLabel,
+          newStatusLabel,
+        }).catch(() => {});
+      }
+    }
+  } catch (e) {
+    // Ignorar errores de envío de mail en background
   }
 }
 
@@ -576,6 +619,8 @@ export async function ticketsRoutes(fastify: FastifyInstance) {
           // 2. Notificar cambio de estado solo si cambió respecto al anterior (a owner y assignees)
           const statusChanged = (ticket.status !== existingTicket.status) || (ticket.subEstado !== existingTicket.subEstado);
           if (statusChanged) {
+            const oldStatusKey = existingTicket.subEstado || existingTicket.status;
+            const oldStatusLabel = STATUS_DISPLAY_NAMES[oldStatusKey] || oldStatusKey;
             const statusKey = ticket.subEstado || ticket.status;
             const statusLabel = STATUS_DISPLAY_NAMES[statusKey] || statusKey;
             const statusRecipients = new Set<string>();
@@ -593,6 +638,8 @@ export async function ticketsRoutes(fastify: FastifyInstance) {
                 type: 'STATUS_CHANGE',
                 fromName: senderName,
                 message: `${senderName} movió "${ticket.title}" a ${statusLabel}`,
+                oldStatusLabel,
+                newStatusLabel: statusLabel,
               });
             }
           }

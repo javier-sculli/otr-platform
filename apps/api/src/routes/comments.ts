@@ -1,6 +1,7 @@
 import { FastifyInstance } from 'fastify';
 import { prisma } from '../lib/prisma.js';
 import { authenticate } from '../middleware/auth.js';
+import { sendNotificationEmail } from '../lib/email.js';
 
 const NICKNAMES: Record<string, string> = {
   joaco: 'joaquín',
@@ -44,7 +45,10 @@ export async function commentsRoutes(fastify: FastifyInstance) {
 
     if (!content?.trim()) return reply.status(400).send({ error: 'Contenido requerido' });
 
-    const ticket = await prisma.ticket.findUnique({ where: { id: ticketId }, select: { id: true, title: true } });
+    const ticket = await prisma.ticket.findUnique({
+      where: { id: ticketId },
+      select: { id: true, title: true, client: { select: { name: true } } }
+    });
     if (!ticket) return reply.status(404).send({ error: 'Ticket no encontrado' });
 
     // Detectar @menciones en el contenido
@@ -109,6 +113,11 @@ export async function commentsRoutes(fastify: FastifyInstance) {
           const twoMinAgo = new Date(Date.now() - 2 * 60 * 1000);
 
           for (const uid of mentionedIds) {
+            const recipientUser = await prisma.user.findUnique({
+              where: { id: uid },
+              select: { email: true }
+            });
+
             const existingNotif = await prisma.notification.findFirst({
               where: {
                 userId: uid,
@@ -138,6 +147,18 @@ export async function commentsRoutes(fastify: FastifyInstance) {
                   message: `${senderName} te mencionó en "${ticket.title}"`,
                 }
               });
+            }
+
+            if (recipientUser?.email) {
+              sendNotificationEmail({
+                to: recipientUser.email,
+                type: 'MENTION',
+                fromName: senderName,
+                ticketId: ticket.id,
+                ticketTitle: ticket.title,
+                clientName: ticket.client?.name || 'Cliente',
+                commentContent: content,
+              }).catch(() => {});
             }
           }
         } catch (e) {
