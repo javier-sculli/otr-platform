@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   X, FileText, CheckSquare, Package, Building2, AlignLeft, Calendar, User,
   Flag, Share2, Link2, Plus, ExternalLink, Check, Copy, ChevronDown,
-  Image as ImageIcon, Paperclip, File, Layers, Newspaper, ArrowRight,
+  Image as ImageIcon, Paperclip, File, Layers, Newspaper, ArrowRight, Edit3,
 } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
@@ -161,6 +161,7 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
   // Prensa comparte el gateo de campos de no-contenido con Tarea (sin canales/pilar/vocero).
   const noContenido = esTarea || esPrensa;
   const [newLinkInput, setNewLinkInput] = useState('');
+  const [editingEntregableLink, setEditingEntregableLink] = useState(false);
   const [copyCopied, setCopyCopied] = useState(false);
   const [activeCopyTab, setActiveCopyTab] = useState(() => formData.canales[0] ?? 'Contenido');
   const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([]);
@@ -1135,17 +1136,92 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
           {isEditing && !noContenido && (
             <div>
               <label className={labelCls}>
-                <ImageIcon className="w-3 h-3" />
+                <Link2 className="w-3.5 h-3.5 text-[#024fff]" />
                 Entregable visual
               </label>
-              <input
-                type="url"
-                value={formData.linkEntregable}
-                onChange={e => handleChange('linkEntregable', e.target.value)}
-                onBlur={() => { if (isEditing) triggerImmediateAutoSave(); }}
-                placeholder="https://drive.google.com/..."
-                className={fieldCls}
-              />
+              {formData.linkEntregable && !editingEntregableLink ? (
+                <div className="flex items-center gap-2 px-3 py-2 border border-[#024fff]/30 rounded-lg group hover:border-[#024fff]/50 transition-all bg-[#024fff]/5">
+                  <Link2 className="w-3.5 h-3.5 text-[#024fff] flex-shrink-0" />
+                  <a
+                    href={ensureAbsoluteUrl(formData.linkEntregable)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs text-[#024fff] font-bold truncate flex-1 hover:underline flex items-center gap-1.5"
+                  >
+                    <span className="truncate">{ensureAbsoluteUrl(formData.linkEntregable)}</span>
+                    <ExternalLink className="w-3 h-3 text-[#024fff]/70 flex-shrink-0" />
+                  </a>
+                  <button
+                    type="button"
+                    onClick={() => setEditingEntregableLink(true)}
+                    className="opacity-0 group-hover:opacity-100 transition-opacity text-[#024fff] ml-1 flex-shrink-0 p-1 hover:bg-[#024fff]/10 rounded"
+                    title="Editar link"
+                  >
+                    <Edit3 className="w-3 h-3" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const updated = { ...formData, linkEntregable: '' };
+                      setFormData(updated);
+                      if (isEditing) triggerImmediateAutoSave(updated);
+                    }}
+                    className="opacity-0 group-hover:opacity-100 transition-opacity text-[#000033]/30 hover:text-red-500 flex-shrink-0 p-1 hover:bg-red-50 rounded"
+                    title="Eliminar link"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-1.5">
+                  <input
+                    type="url"
+                    value={formData.linkEntregable}
+                    onChange={e => handleChange('linkEntregable', e.target.value)}
+                    onPaste={e => {
+                      const pasted = e.clipboardData.getData('text');
+                      if (pasted && pasted.trim()) {
+                        e.preventDefault();
+                        const url = ensureAbsoluteUrl(pasted.trim());
+                        if (url) {
+                          const updated = { ...formData, linkEntregable: url };
+                          setFormData(updated);
+                          if (isEditing) triggerImmediateAutoSave(updated);
+                          setEditingEntregableLink(false);
+                        }
+                      }
+                    }}
+                    onBlur={() => {
+                      if (isEditing) triggerImmediateAutoSave();
+                      if (formData.linkEntregable) setEditingEntregableLink(false);
+                    }}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        if (isEditing) triggerImmediateAutoSave();
+                        if (formData.linkEntregable) setEditingEntregableLink(false);
+                      }
+                      if (e.key === 'Escape') {
+                        setEditingEntregableLink(false);
+                      }
+                    }}
+                    placeholder="https://drive.google.com/..."
+                    className={fieldCls}
+                  />
+                  {formData.linkEntregable && (
+                    <a
+                      href={ensureAbsoluteUrl(formData.linkEntregable)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-2.5 py-1.5 bg-[#024fff]/10 border border-[#024fff]/30 text-[#024fff] rounded-lg hover:bg-[#024fff]/20 transition-all flex items-center gap-1 text-xs font-bold flex-shrink-0"
+                      title="Abrir link"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" />
+                      Abrir
+                    </a>
+                  )}
+                </div>
+              )}
             </div>
           )}
 
