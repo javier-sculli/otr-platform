@@ -2,6 +2,14 @@
 
 > **Propósito:** Registro central de avances, decisiones de producto, correcciones de errores y backlog priorizado de la plataforma Rocky (OTR). A partir de la reunión del 31 de Julio de 2026, cada cambio, bugfix y feature completado queda asentado en esta bitácora.
 
+### [2026-08-25] — Formateo de Entregable Visual como Link Activo e Indicadores de Guardado en Detalle de Ticket
+- **Desarrollador:** Javier Sculli
+- **Resumen de Avances:**
+  1. **Entregable Visual como Link Interactivo (`TicketDetallePage.tsx`):** Se actualizó la sección de entregable visual en el detalle del ticket para tratar el link como una URL clicable en azul eléctrico (`#024fff`) con icono `Link2` y apertura externa (`target="_blank"`).
+  2. **Auto-Guardado Inteligente y Pegado de Links (`TicketDetallePage.tsx`):** Se agregaron manejadores para `onPaste`, `onBlur` y `Enter` en el campo de entrada del link entregable, permitiendo pegar o escribir una URL (ej. Google Drive) y guardar automáticamente sin necesidad de clicks adicionales.
+  3. **Indicadores de Estado de Guardado en UI (`TicketDetallePage.tsx`):** Se integraron badges visuales de feedback (*"Guardando..."*, *"Guardado"*, *"Error al guardar"*) en las secciones de Copy y Notas de Diseño para brindar confirmación inmediata al usuario sobre la persistencia de cambios en la base de datos.
+- **Verificación:** Commit `f8dcc98` subido y verificado en la aplicación.
+
 ### [2026-08-25] — Notificaciones por Email con Estética ROCKY, Estandarización de Asuntos e Integración con Resend
 - **Desarrollador:** Antigravity (Pair Programming con Javier Sculli)
 - **Resumen de Avances:**
