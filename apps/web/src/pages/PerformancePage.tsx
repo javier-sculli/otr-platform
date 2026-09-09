@@ -14,16 +14,20 @@ type SortKey = 'fecha' | 'likes' | 'comments' | 'shares' | 'views' | 'bookmarks'
 type SortDir = 'asc' | 'desc';
 
 const CANAL_CONFIG: Record<string, { icon: React.ElementType; color: string }> = {
-  LinkedIn: { icon: Linkedin, color: 'text-[#0077b5]' },
-  Instagram: { icon: Instagram, color: 'text-[#e4405f]' },
-  Facebook: { icon: Facebook, color: 'text-[#1877f2]' },
-  Twitter: { icon: Twitter, color: 'text-[#1da1f2]' },
-  Web: { icon: Globe, color: 'text-[#666666]' },
+  linkedin: { icon: Linkedin, color: 'text-[#0077b5]' },
+  instagram: { icon: Instagram, color: 'text-[#e4405f]' },
+  facebook: { icon: Facebook, color: 'text-[#1877f2]' },
+  twitter: { icon: Twitter, color: 'text-[#1da1f2]' },
+  web: { icon: Globe, color: 'text-[#666666]' },
 };
 
 function getCanalConfig(canal?: string) {
-  const key = (canal ?? '').toLowerCase();
-  return CANAL_CONFIG[key] ?? { icon: Globe, color: '#000033' };
+  const lower = (canal ?? '').toLowerCase().trim();
+  if (lower.includes('linkedin') || lower === 'lk') return CANAL_CONFIG.linkedin;
+  if (lower.includes('instagram') || lower === 'ig') return CANAL_CONFIG.instagram;
+  if (lower.includes('facebook') || lower === 'fb') return CANAL_CONFIG.facebook;
+  if (lower.includes('twitter') || lower.includes('x') || lower === 'tw') return CANAL_CONFIG.twitter;
+  return CANAL_CONFIG[lower] ?? { icon: Globe, color: 'text-[#000033]' };
 }
 
 function formatDate(dateStr: string) {

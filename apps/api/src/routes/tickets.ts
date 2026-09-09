@@ -184,9 +184,14 @@ let catalogCache: {
 } | null = null;
 const CATALOG_TTL_MS = 5 * 60 * 1000;
 
+export function clearCatalogMemoryCache() {
+  catalogCache = null;
+}
+
 export function clearTicketsCache() {
   ticketsCache.clear();
   ticketDetailCache.clear();
+  catalogCache = null;
 }
 
 async function getCatalogs() {

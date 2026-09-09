@@ -2,13 +2,16 @@
 
 > **Propósito:** Registro central de avances, decisiones de producto, correcciones de errores y backlog priorizado de la plataforma Rocky (OTR). A partir de la reunión del 31 de Julio de 2026, cada cambio, bugfix y feature completado queda asentado en esta bitácora.
 
-### [2026-09-09] — Actualización de Backlog Oficial en Notion, Opción "Otro" en Prensa y Migración de Blog/Newsletter a Tareas
+### [2026-09-09] — Actualización de Backlog Oficial en Notion, Opción "Otro" en Prensa, Migración de Blog/Newsletter a Tareas, Fix Voceros Nuevos, Íconos en Performance y Ocultamiento de Notas de Diseño
 - **Desarrollador:** Antigravity (Pair Programming con Javier Sculli)
 - **Resumen de Avances:**
   1. **Configuración de Backlog Oficial de Notion (`CLAUDE.md`):** Se fijó el enlace oficial del Backlog de Notion (`https://app.notion.com/p/Backlog-3ba617fc369281048bfdfc89c5041d9c?source=copy_link`) como fuente de verdad única para el seguimiento de tareas en el proyecto.
   2. **Opción "Otro" en Tipo de Prensa (`apps/api/src/routes/catalogs.ts` y `seed-prensa.ts`):** Se incorporó el tipo "Otro" a las opciones de entregable de Prensa, garantizando su presencia en la base de datos y su ordenamiento automático al final de la lista desplegable en la interfaz.
   3. **Reorganización de Formatos (Blog y Newsletter a Tareas):** Se removieron "Blog", "Artículo Blog" y "Newsletter" del catálogo de Contenido/Pieza y se migraron a la categoría Tarea (`kind: 'TAREA'`). Todos los tickets de esos tipos fueron migrados automáticamente en base de datos.
-- **Verificación:** Pruebas e-to-e en navegador con Playwright en Chrome headless sobre `localhost:5173` y `localhost:3001` con 100% de éxito y capturas generadas.
+  4. **Invalidación Completa de Caché de Voceros (`routes/catalogs.ts` y `routes/tickets.ts`):** Se vinculó la invalidación del `catalogCache` de tickets en memoria (`clearCatalogMemoryCache()`) al crear, editar o eliminar voceros en catálogos, solucionando el desfase donde voceros recién creados no aparecían de inmediato.
+  5. **Resolución Insensible a Mayúsculas de Íconos Sociales en Performance (`PerformancePage.tsx`):** Se actualizó `getCanalConfig` para resolver canales de manera insensible a mayúsculas/minúsculas y admitir alias (`linkedin`, `lk`, `twitter`, `tw`, `x`, `instagram`, `ig`, `facebook`, `fb`), corrigiendo que todas las publicaciones mostraran el ícono web genérico `Globe`.
+  6. **Ocultamiento Condicional de Notas de Diseño en Ticket Expandido (`TicketDetallePage.tsx`):** Se condicionó la visibilidad del bloque "Notas de diseño" evaluando `requiresDesign(ticket)`, ocultándolo en Tareas, Prensa y piezas de solo texto o sin gráfica (salvo que el ticket ya contenga notas previamente ingresadas).
+- **Verificación:** Pruebas e-to-e en navegador con Playwright en Chrome headless sobre `localhost:5173` y `localhost:3001` con 100% de éxito y compilación limpia en todo el monorepo.
 
 ### [2026-08-25] — Formateo de Entregable Visual como Link Activo e Indicadores de Guardado en Detalle de Ticket y Popup
 - **Desarrollador:** Javier Sculli & Antigravity

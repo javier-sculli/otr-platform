@@ -1,12 +1,15 @@
 import { FastifyInstance } from 'fastify';
 import { prisma } from '../lib/prisma.js';
 import { authenticate } from '../middleware/auth.js';
+import { clearCatalogMemoryCache, clearTicketsCache } from './tickets.js';
 
 const catalogRouteCache = new Map<string, { timestamp: number; data: any }>();
 const CATALOG_ROUTE_TTL_MS = 10 * 60 * 1000;
 
 export function clearCatalogRouteCache() {
   catalogRouteCache.clear();
+  clearCatalogMemoryCache();
+  clearTicketsCache();
 }
 
 export async function catalogsRoutes(fastify: FastifyInstance) {

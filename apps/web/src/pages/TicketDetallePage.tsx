@@ -33,6 +33,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { ensureAbsoluteUrl, copyHtmlToClipboard, formatDateSpan } from '../lib/utils';
+import { requiresDesign } from '../lib/workflow';
 import { RichNotesEditor } from '../components/RichNotesEditor';
 import { TransitionToDesignModal } from '../components/TransitionToDesignModal';
 import { AutoResizeTextarea } from '../components/AutoResizeTextarea';
@@ -959,42 +960,44 @@ export function TicketDetallePage() {
               </div>
             )}
 
-            {/* Notas de diseño */}
-            <div className="bg-white border-2 border-[#000033]/10 rounded-lg p-5">
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2.5">
-                  <h2 className="text-xs font-bold text-[#000033] uppercase flex items-center gap-2">
-                    <ImageIcon className="w-3.5 h-3.5 text-[#024fff]" />
-                    Notas de diseño
-                  </h2>
-                  {disenoSaveStatus === 'saving' && (
-                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 text-[11px] font-bold text-amber-700 bg-amber-50 border border-amber-200/80 rounded-full animate-pulse">
-                      <Loader2 className="w-3 h-3 animate-spin text-amber-600" />
-                      Guardando...
-                    </span>
-                  )}
-                  {disenoSaveStatus === 'saved' && (
-                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200/80 rounded-full">
-                      <Check className="w-3 h-3 text-emerald-600" />
-                      Guardado
-                    </span>
-                  )}
-                  {disenoSaveStatus === 'error' && (
-                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 text-[11px] font-bold text-red-700 bg-red-50 border border-red-200/80 rounded-full">
-                      <AlertCircle className="w-3 h-3 text-red-600" />
-                      Error al guardar
-                    </span>
-                  )}
+            {/* Notas de diseño (se muestran únicamente si el formato/ticket requiere diseño o si posee notas ya cargadas) */}
+            {(requiresDesign(ticket) || (notasAudiovisual && notasAudiovisual.trim().length > 0)) && (
+              <div className="bg-white border-2 border-[#000033]/10 rounded-lg p-5">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2.5">
+                    <h2 className="text-xs font-bold text-[#000033] uppercase flex items-center gap-2">
+                      <ImageIcon className="w-3.5 h-3.5 text-[#024fff]" />
+                      Notas de diseño
+                    </h2>
+                    {disenoSaveStatus === 'saving' && (
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 text-[11px] font-bold text-amber-700 bg-amber-50 border border-amber-200/80 rounded-full animate-pulse">
+                        <Loader2 className="w-3 h-3 animate-spin text-amber-600" />
+                        Guardando...
+                      </span>
+                    )}
+                    {disenoSaveStatus === 'saved' && (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200/80 rounded-full">
+                        <Check className="w-3 h-3 text-emerald-600" />
+                        Guardado
+                      </span>
+                    )}
+                    {disenoSaveStatus === 'error' && (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 text-[11px] font-bold text-red-700 bg-red-50 border border-red-200/80 rounded-full">
+                        <AlertCircle className="w-3 h-3 text-red-600" />
+                        Error al guardar
+                      </span>
+                    )}
+                  </div>
                 </div>
+                <RichNotesEditor
+                  value={notasAudiovisual}
+                  onChange={handleNotasChange}
+                  onBlur={handleNotasBlur}
+                  placeholder="Notas de diseño (podés pegar libremente textos con formato, imágenes o links desde Notion)..."
+                  minHeight="320px"
+                />
               </div>
-              <RichNotesEditor
-                value={notasAudiovisual}
-                onChange={handleNotasChange}
-                onBlur={handleNotasBlur}
-                placeholder="Notas de diseño (podés pegar libremente textos con formato, imágenes o links desde Notion)..."
-                minHeight="320px"
-              />
-            </div>
+            )}
 
             {/* Entregable visual */}
             <div className="bg-white border-2 border-[#000033]/10 rounded-lg p-5">
