@@ -68,7 +68,8 @@ export function VocerosPage({ clientId }: { clientId: string }) {
     mutationFn: (datos: { nombre: string; cargo: string; linkedinUrl: string }) =>
       api.createSpeaker(clientId, datos),
     onSuccess: (res) => {
-      queryClient.invalidateQueries({ queryKey: ['speakers', clientId] });
+      queryClient.invalidateQueries({ queryKey: ['speakers'] });
+      queryClient.invalidateQueries({ queryKey: ['clients'] });
       setShowDialogNuevo(false);
       setVistaDetalle(res.data.id);
     },
@@ -77,7 +78,8 @@ export function VocerosPage({ clientId }: { clientId: string }) {
   const deleteMutation = useMutation({
     mutationFn: (speakerId: string) => api.deleteSpeaker(clientId, speakerId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['speakers', clientId] });
+      queryClient.invalidateQueries({ queryKey: ['speakers'] });
+      queryClient.invalidateQueries({ queryKey: ['clients'] });
       setVistaDetalle(null);
     },
   });
@@ -334,7 +336,8 @@ function DetalleVocero({
       return api.updateSpeaker(clientId, speaker.id, payload);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['speakers', clientId] });
+      queryClient.invalidateQueries({ queryKey: ['speakers'] });
+      queryClient.invalidateQueries({ queryKey: ['clients'] });
       setHasChanges(false);
     },
   });

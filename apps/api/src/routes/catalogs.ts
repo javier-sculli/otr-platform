@@ -17,7 +17,7 @@ export async function catalogsRoutes(fastify: FastifyInstance) {
   fastify.get('/clients', async (request, reply) => {
     const { includeArchived } = request.query as { includeArchived?: string };
     const cacheKey = `clients_${includeArchived}`;
-    reply.header('Cache-Control', 'public, max-age=600, stale-while-revalidate=3600');
+    reply.header('Cache-Control', 'no-cache, no-store, must-revalidate');
     const cached = catalogRouteCache.get(cacheKey);
     if (cached && Date.now() - cached.timestamp < CATALOG_ROUTE_TTL_MS) {
       reply.header('x-cache', 'HIT');
@@ -95,6 +95,7 @@ export async function catalogsRoutes(fastify: FastifyInstance) {
       data: { name, ownerId, canales: canales ?? [] },
       include: { owner: { select: { id: true, name: true } } },
     });
+    clearCatalogRouteCache();
     return { data: client };
   });
 
@@ -126,6 +127,7 @@ export async function catalogsRoutes(fastify: FastifyInstance) {
     if (body.monthlyContentTarget !== undefined) data.monthlyContentTarget = body.monthlyContentTarget;
     if ((body as any).ownerId !== undefined) data.ownerId = (body as any).ownerId || null;
     const client = await prisma.client.update({ where: { id }, data });
+    clearCatalogRouteCache();
     return { data: client };
   });
 
@@ -150,6 +152,7 @@ export async function catalogsRoutes(fastify: FastifyInstance) {
     } else {
       await prisma.client.update({ where: { id }, data: { active: false } });
     }
+    clearCatalogRouteCache();
     reply.code(204).send();
   });
 
@@ -169,6 +172,7 @@ export async function catalogsRoutes(fastify: FastifyInstance) {
       create: { clientId: id, content },
       update: { content },
     });
+    clearCatalogRouteCache();
     return { data: brandVoice.content };
   });
 
@@ -207,7 +211,7 @@ export async function catalogsRoutes(fastify: FastifyInstance) {
   // Get all users
   fastify.get('/users', async (request, reply) => {
     const cacheKey = 'users';
-    reply.header('Cache-Control', 'public, max-age=600, stale-while-revalidate=3600');
+    reply.header('Cache-Control', 'no-cache, no-store, must-revalidate');
     const cached = catalogRouteCache.get(cacheKey);
     if (cached && Date.now() - cached.timestamp < CATALOG_ROUTE_TTL_MS) {
       reply.header('x-cache', 'HIT');
@@ -234,7 +238,7 @@ export async function catalogsRoutes(fastify: FastifyInstance) {
   // Get all areas
   fastify.get('/areas', async (request, reply) => {
     const cacheKey = 'areas';
-    reply.header('Cache-Control', 'public, max-age=600, stale-while-revalidate=3600');
+    reply.header('Cache-Control', 'no-cache, no-store, must-revalidate');
     const cached = catalogRouteCache.get(cacheKey);
     if (cached && Date.now() - cached.timestamp < CATALOG_ROUTE_TTL_MS) {
       reply.header('x-cache', 'HIT');
@@ -253,7 +257,7 @@ export async function catalogsRoutes(fastify: FastifyInstance) {
   // Get all ticket types
   fastify.get('/ticket-types', async (request, reply) => {
     const cacheKey = 'ticket-types';
-    reply.header('Cache-Control', 'public, max-age=600, stale-while-revalidate=3600');
+    reply.header('Cache-Control', 'no-cache, no-store, must-revalidate');
     const cached = catalogRouteCache.get(cacheKey);
     if (cached && Date.now() - cached.timestamp < CATALOG_ROUTE_TTL_MS) {
       reply.header('x-cache', 'HIT');
@@ -502,7 +506,7 @@ export async function catalogsRoutes(fastify: FastifyInstance) {
   // Get all speakers across all clients
   fastify.get('/speakers', async (request, reply) => {
     const cacheKey = 'speakers_all';
-    reply.header('Cache-Control', 'public, max-age=600, stale-while-revalidate=3600');
+    reply.header('Cache-Control', 'no-cache, no-store, must-revalidate');
     const cached = catalogRouteCache.get(cacheKey);
     if (cached && Date.now() - cached.timestamp < CATALOG_ROUTE_TTL_MS) {
       reply.header('x-cache', 'HIT');
@@ -523,7 +527,7 @@ export async function catalogsRoutes(fastify: FastifyInstance) {
   fastify.get('/clients/:id/speakers', async (request, reply) => {
     const { id } = request.params as { id: string };
     const cacheKey = `speakers_${id}`;
-    reply.header('Cache-Control', 'public, max-age=600, stale-while-revalidate=3600');
+    reply.header('Cache-Control', 'no-cache, no-store, must-revalidate');
     const cached = catalogRouteCache.get(cacheKey);
     if (cached && Date.now() - cached.timestamp < CATALOG_ROUTE_TTL_MS) {
       reply.header('x-cache', 'HIT');
@@ -553,6 +557,7 @@ export async function catalogsRoutes(fastify: FastifyInstance) {
         canalesHabilitados: { linkedin: !!body.linkedinUrl },
       },
     });
+    clearCatalogRouteCache();
     return { data: speaker };
   });
 
@@ -597,6 +602,7 @@ export async function catalogsRoutes(fastify: FastifyInstance) {
     if (body.canalesHabilitados !== undefined) data.canalesHabilitados = body.canalesHabilitados;
 
     const speaker = await prisma.speaker.update({ where: { id: speakerId }, data });
+    clearCatalogRouteCache();
     return { data: speaker };
   });
 
@@ -619,6 +625,7 @@ export async function catalogsRoutes(fastify: FastifyInstance) {
     const pilar = await prisma.pilar.create({
       data: { clientId: id, nombre: body.nombre, descripcion: body.descripcion || null },
     });
+    clearCatalogRouteCache();
     return { data: pilar };
   });
 
@@ -632,6 +639,7 @@ export async function catalogsRoutes(fastify: FastifyInstance) {
       where: { id: pilarId },
       data: { nombre: body.nombre ?? existing.nombre, descripcion: body.descripcion !== undefined ? (body.descripcion || null) : existing.descripcion },
     });
+    clearCatalogRouteCache();
     return { data: pilar };
   });
 
@@ -641,6 +649,7 @@ export async function catalogsRoutes(fastify: FastifyInstance) {
     const existing = await prisma.pilar.findFirst({ where: { id: pilarId, clientId } });
     if (!existing) return reply.status(404).send({ error: 'Pilar not found' });
     await prisma.pilar.delete({ where: { id: pilarId } });
+    clearCatalogRouteCache();
     reply.code(204).send();
   });
 
@@ -650,6 +659,7 @@ export async function catalogsRoutes(fastify: FastifyInstance) {
     const existing = await prisma.speaker.findFirst({ where: { id: speakerId, clientId } });
     if (!existing) return reply.status(404).send({ error: 'Speaker not found' });
     await prisma.speaker.delete({ where: { id: speakerId } });
+    clearCatalogRouteCache();
     reply.code(204).send();
   });
 }

@@ -432,9 +432,13 @@
   5. **Duplicar Filas (SUM-05):** Añadida acción de clonación rápida de filas entre la 🏢 Marca y los 👤 Voceros del cliente.
 - **Verificación:** Compilación TypeScript (`pnpm --filter web build`) aprobada exitosamente sin errores.
 
-### [2026-07-31] — Creación de Bitácora de Proyecto & Estructuración de Backlog
-- **Acción:** Creación del archivo oficial de Bitácora del proyecto (`docs/BITACORA.md`).
-- **Resumen:** Se compilaron y categorizaron todas las minutas de la reunión estratégica (Sumario, Pilares por Vocero, Bugs de Filtrado/Fechas, Flujos de Trabajo, Integración IA y Transición de Herramientas).
-- **Próximos pasos inmediatos (Javier):** Implementación de correcciones en Sumario (Bug Fechas Agosto + Filter Draper), soporte de Pilares por Vocero y ajustes visuales de tickets.
+### [2026-09-09] — Corrección de Visibilidad Inmediata de Voceros al Crear Tickets
+- **Desarrollador:** Javier Sculli
+- **Resumen de Avances:**
+  1. **Limpieza de Caché del Servidor Backend (`catalogs.ts`):** Se añadió `clearCatalogRouteCache()` en la creación, actualización y eliminación de voceros, clientes, pilares y kit de marca.
+  2. **Cabecera HTTP de Revalidación:** Se reemplazó la cabecera `Cache-Control: public, max-age=600` por `no-cache, no-store, must-revalidate` en las rutas GET de catálogos para evitar almacenamiento en caché en el navegador.
+  3. **Refresco Inmediato en Frontend:** Se removió el `staleTime` estático de 10 minutos para voceros y pilares en `CreateTicketModal.tsx` y se amplio la invalidación de React Query en `VocerosPage.tsx` para invalidar `['speakers']` y `['clients']`.
+- **Verificación:** Compilación TypeScript (`npm run build`) aprobada exitosamente sin errores.
 
 ---
+

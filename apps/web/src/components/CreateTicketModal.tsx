@@ -270,7 +270,6 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
     queryKey: ['pilares', formData.clientId],
     queryFn: () => api.getPilares(formData.clientId),
     enabled: isOpen && !!formData.clientId && !noContenido,
-    staleTime: 10 * 60 * 1000,
   });
   const pilares = pilaresData?.data ?? [];
 
@@ -278,7 +277,6 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
     queryKey: ['speakers', formData.clientId],
     queryFn: () => api.getSpeakers(formData.clientId),
     enabled: isOpen && !!formData.clientId && !noContenido,
-    staleTime: 10 * 60 * 1000,
   });
   const speakers = speakersData?.data ?? [];
 
