@@ -74,6 +74,7 @@ Sistema de gestión de producción de contenido para On The Rocks (OTR), una age
 ⚠️ **Decisión pendiente (estados):** la contenidista documentó un flujo granular para las Tareas — `Ideación → Redacción (si aplica) → Diseño/Edición (si aplica) → Revisión interna → Para enviar → Pend. aprobación → Requiere ajustes ↺ / Listo` — que **NO existe en el modelo** (hoy son 5 estados gruesos: `BACKLOG/EN_PROGRESO/REVISION/BLOQUEADO/CERRADO` + `closeReason`). Antes de codear hay que decidir: ¿overhaul del status para soportar los estados granulares, o mapear el flujo del doc a los 5 estados actuales? La decisión de producto fue "mantener los estados completos del doc", pero implica cambiar el modelo de status.
 
 **Referencias:**
+- **Backlog actualizado / Tareas (fuente de verdad):** https://app.notion.com/p/Backlog-3ba617fc369281048bfdfc89c5041d9c?source=copy_link
 - HU Fase 1 (Tareas): https://app.notion.com/p/379617fc369281419f9de57970caf426
 - HU Fase 2 (Vistas del tablero): https://app.notion.com/p/376617fc36928116866fd6b2d1b7d8b9
 - Tareas de desarrollo Fase 1: 5 ítems con prefijo `F1 ·` en la base de Tareas de Desarrollo.
@@ -147,6 +148,7 @@ railway up --service api --detach -m "descripcion del cambio"
 
 ## Notion del proyecto
 - Hub principal: https://www.notion.so/2f1617fc36928073874dcd55f6937327
+- **Backlog actualizado / Tareas (fuente de verdad):** https://app.notion.com/p/Backlog-3ba617fc369281048bfdfc89c5041d9c?source=copy_link
 - Historias de usuario: https://www.notion.so/311617fc369280539087d9efd37755c5
 - Tareas de desarrollo: https://www.notion.so/325617fc3692819485a4de73daf5c28c
 - Reuniones: https://www.notion.so/2f1617fc3692801e9929d2196ffee78b

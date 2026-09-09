@@ -18,6 +18,7 @@ const PRENSA_TYPES = [
   'Feedback',
   'Estrategia',
   'Base de Medios',
+  'Otro',
 ];
 
 async function main() {
@@ -31,7 +32,7 @@ async function main() {
   }
 
   console.log('🌱 Seeding tipos de Tarea...');
-  const TAREA_TYPES = ['Base de Medios', 'News', 'Blog', 'Deck', 'Estrategia', 'Reporte', 'Diseño puntual', 'Otro'];
+  const TAREA_TYPES = ['Base de Medios', 'News', 'Blog', 'Artículo Blog', 'Newsletter', 'Deck', 'Estrategia', 'Reporte', 'Diseño puntual', 'Otro'];
   for (const name of TAREA_TYPES) {
     await prisma.ticketType.upsert({
       where: { name_kind: { name, kind: 'TAREA' } },

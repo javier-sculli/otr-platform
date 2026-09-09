@@ -2,6 +2,14 @@
 
 > **Propósito:** Registro central de avances, decisiones de producto, correcciones de errores y backlog priorizado de la plataforma Rocky (OTR). A partir de la reunión del 31 de Julio de 2026, cada cambio, bugfix y feature completado queda asentado en esta bitácora.
 
+### [2026-09-09] — Actualización de Backlog Oficial en Notion, Opción "Otro" en Prensa y Migración de Blog/Newsletter a Tareas
+- **Desarrollador:** Antigravity (Pair Programming con Javier Sculli)
+- **Resumen de Avances:**
+  1. **Configuración de Backlog Oficial de Notion (`CLAUDE.md`):** Se fijó el enlace oficial del Backlog de Notion (`https://app.notion.com/p/Backlog-3ba617fc369281048bfdfc89c5041d9c?source=copy_link`) como fuente de verdad única para el seguimiento de tareas en el proyecto.
+  2. **Opción "Otro" en Tipo de Prensa (`apps/api/src/routes/catalogs.ts` y `seed-prensa.ts`):** Se incorporó el tipo "Otro" a las opciones de entregable de Prensa, garantizando su presencia en la base de datos y su ordenamiento automático al final de la lista desplegable en la interfaz.
+  3. **Reorganización de Formatos (Blog y Newsletter a Tareas):** Se removieron "Blog", "Artículo Blog" y "Newsletter" del catálogo de Contenido/Pieza y se migraron a la categoría Tarea (`kind: 'TAREA'`). Todos los tickets de esos tipos fueron migrados automáticamente en base de datos.
+- **Verificación:** Pruebas e-to-e en navegador con Playwright en Chrome headless sobre `localhost:5173` y `localhost:3001` con 100% de éxito y capturas generadas.
+
 ### [2026-08-25] — Formateo de Entregable Visual como Link Activo e Indicadores de Guardado en Detalle de Ticket y Popup
 - **Desarrollador:** Javier Sculli & Antigravity
 - **Resumen de Avances:**

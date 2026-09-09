@@ -267,11 +267,37 @@ export async function catalogsRoutes(fastify: FastifyInstance) {
       'Story',
       'Reel',
       'Video',
-      'Artículo Blog',
       'Hilo',
       'Texto',
       'Repost',
+    ];
+
+    const defaultTareaTypes = [
+      'Base de Medios',
+      'News',
+      'Blog',
+      'Artículo Blog',
       'Newsletter',
+      'Deck',
+      'Estrategia',
+      'Reporte',
+      'Diseño puntual',
+      'Otro',
+    ];
+
+    const defaultPrensaTypes = [
+      'Comunicado',
+      'Columna de opinión',
+      'Cuestionario/Vocería',
+      'Documento',
+      'Gestión-pitch',
+      'Clipping',
+      'Evento',
+      'Brief',
+      'Feedback',
+      'Estrategia',
+      'Base de Medios',
+      'Otro',
     ];
 
     try {
@@ -385,7 +411,33 @@ export async function catalogsRoutes(fastify: FastifyInstance) {
         });
       }
 
-      // 5. Limpieza explícita de cualquier ticketType duplicado o descartado
+      // 5. Migrar Blog, Artículo Blog y Newsletter de CONTENIDO a TAREA
+      const blogNewsTypes = await prisma.ticketType.findMany({
+        where: {
+          kind: 'CONTENIDO',
+          name: { in: ['Blog', 'Artículo Blog', 'Newsletter'] },
+        },
+      });
+
+      for (const oldType of blogNewsTypes) {
+        let tareaType = await prisma.ticketType.findFirst({
+          where: { name: oldType.name, kind: 'TAREA' },
+        });
+        if (!tareaType) {
+          tareaType = await prisma.ticketType.create({
+            data: { name: oldType.name, kind: 'TAREA' },
+          });
+        }
+        await prisma.ticket.updateMany({
+          where: { ticketTypeId: oldType.id },
+          data: { ticketTypeId: tareaType.id },
+        });
+        await prisma.ticketType.delete({
+          where: { id: oldType.id },
+        });
+      }
+
+      // 6. Limpieza explícita de cualquier ticketType duplicado o descartado en CONTENIDO
       await prisma.ticketType.deleteMany({
         where: {
           kind: 'CONTENIDO',
@@ -394,6 +446,7 @@ export async function catalogsRoutes(fastify: FastifyInstance) {
               'Placa con diseño', 'Placa con diseno', 'Placa', 'Gráfica', 'Grafica',
               'Imagen Gráfica', 'Imagen grafica', 'Imagen sola', 'Imagen estática', 'Imagen estatica',
               'Texto solo', 'Texto Solo', 'Texto-solo', 'texto solo',
+              'Blog', 'Artículo Blog', 'Newsletter',
             ],
           },
         },
@@ -408,6 +461,26 @@ export async function catalogsRoutes(fastify: FastifyInstance) {
             where: { name_kind: { name, kind: 'CONTENIDO' } },
             update: {},
             create: { name, kind: 'CONTENIDO' },
+          });
+        }
+      }
+
+      for (const name of defaultTareaTypes) {
+        if (!existingSet.has(`TAREA:${name.toLowerCase()}`)) {
+          await prisma.ticketType.upsert({
+            where: { name_kind: { name, kind: 'TAREA' } },
+            update: {},
+            create: { name, kind: 'TAREA' },
+          });
+        }
+      }
+
+      for (const name of defaultPrensaTypes) {
+        if (!existingSet.has(`PRENSA:${name.toLowerCase()}`)) {
+          await prisma.ticketType.upsert({
+            where: { name_kind: { name, kind: 'PRENSA' } },
+            update: {},
+            create: { name, kind: 'PRENSA' },
           });
         }
       }
