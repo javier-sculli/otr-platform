@@ -83,14 +83,15 @@ export function BacklogPage() {
     }
     return [];
   });
+  const [mostrarTodosClientes, setMostrarTodosClientes] = useState<boolean>(() => savedFilters?.mostrarTodosClientes ?? false);
   const [showDropdownClientes, setShowDropdownClientes] = useState(false);
   const [vocerosSeleccionados, setVocerosSeleccionados] = useState<string[]>(() => savedFilters?.vocerosSeleccionados ?? []);
   const [showDropdownVoceros, setShowDropdownVoceros] = useState(false);
-  const [mesesSeleccionados, setMesesSeleccionados] = useState<string[]>(() => savedFilters?.mesesSeleccionados ?? ['mes_0']);
+  const [mesesSeleccionados, setMesesSeleccionados] = useState<string[]>(() => savedFilters?.mesesSeleccionados ?? []);
   const [filtroQuick, setFiltroQuick] = useState<'semana' | 'rango' | null>(() => savedFilters?.filtroQuick ?? null);
   const [filtroTipo, setFiltroTipo] = useState<'TODOS' | 'CONTENIDO' | 'TAREA'>(() => savedFilters?.filtroTipo ?? 'TODOS');
   const [busqueda, setBusqueda] = useState(() => savedFilters?.busqueda ?? '');
-  const [showBusqueda, setShowBusqueda] = useState(false);
+  const [showBusqueda, setShowBusqueda] = useState(() => !!(savedFilters?.busqueda));
   const [fechaDesde, setFechaDesde] = useState(() => savedFilters?.fechaDesde ?? '');
   const [fechaHasta, setFechaHasta] = useState(() => savedFilters?.fechaHasta ?? '');
   const [vista, setVista] = useState<'kanban' | 'calendario'>(() => savedFilters?.vista ?? 'kanban');
@@ -103,12 +104,16 @@ export function BacklogPage() {
     if (clientesSeleccionados.length > 0) {
       return clientesSeleccionados;
     }
+    if (mostrarTodosClientes) {
+      return [];
+    }
     return preferredIds;
-  }, [clientesSeleccionados, preferredIds]);
+  }, [clientesSeleccionados, preferredIds, mostrarTodosClientes]);
 
   useEffect(() => {
     sessionStorage.setItem('backlog_filters', JSON.stringify({
       clientesSeleccionados,
+      mostrarTodosClientes,
       vocerosSeleccionados,
       mesesSeleccionados,
       filtroQuick,
@@ -118,7 +123,7 @@ export function BacklogPage() {
       fechaHasta,
       vista,
     }));
-  }, [clientesSeleccionados, vocerosSeleccionados, mesesSeleccionados, filtroQuick, filtroTipo, busqueda, fechaDesde, fechaHasta, vista]);
+  }, [clientesSeleccionados, mostrarTodosClientes, vocerosSeleccionados, mesesSeleccionados, filtroQuick, filtroTipo, busqueda, fechaDesde, fechaHasta, vista]);
 
   const { data: ticketsData, isLoading } = useQuery({
     queryKey: ['tickets'],
@@ -132,9 +137,7 @@ export function BacklogPage() {
 
   const allTickets: Ticket[] = ticketsData?.data ?? [];
   const clientes: Cliente[] = clientesData?.data ?? [];
-  const clientesDisponibles = preferredIds.length > 0
-    ? clientes.filter(c => preferredIds.includes(c.id))
-    : clientes;
+  const clientesDisponibles = clientes;
 
   const updateStatusMutation = useMutation({
     mutationFn: ({ id, status }: { id: string; status: string }) =>
@@ -377,10 +380,27 @@ export function BacklogPage() {
                       <X className="w-3 h-3" />
                     </button>
                   ))
+              ) : preferredIds.length > 0 && !mostrarTodosClientes ? (
+                <button
+                  onClick={() => setMostrarTodosClientes(true)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-[#024fff]/10 text-[#024fff] text-xs font-bold rounded-lg border-2 border-[#024fff]/20 hover:bg-[#024fff]/20"
+                  title="Haz clic para ver los tickets de todos los clientes de la agencia"
+                >
+                  Mis clientes ({preferredIds.length})
+                  <span className="text-[10px] font-normal underline ml-1">Ver todos</span>
+                </button>
               ) : (
-                <span className="text-xs text-[#000033]/40">
-                  {preferredIds.length > 0 ? 'Todos mis clientes' : 'Todos los clientes'}
-                </span>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs text-[#000033]/40 font-medium">Todos los clientes</span>
+                  {preferredIds.length > 0 && (
+                    <button
+                      onClick={() => setMostrarTodosClientes(false)}
+                      className="text-[10px] font-bold text-[#024fff] hover:underline bg-[#024fff]/5 px-2 py-0.5 rounded border border-[#024fff]/20"
+                    >
+                      Solo mis clientes
+                    </button>
+                  )}
+                </div>
               )}
 
               <div className="relative">
@@ -392,7 +412,7 @@ export function BacklogPage() {
                   <ChevronDown className="w-3 h-3" />
                 </button>
                 {showDropdownClientes && (
-                  <div className="absolute top-full left-0 mt-1 bg-white border-2 border-[#000033]/20 rounded-lg shadow-lg z-10 min-w-[160px]">
+                  <div className="absolute top-full left-0 mt-1 bg-white border-2 border-[#000033]/20 rounded-lg shadow-lg z-10 min-w-[160px] max-h-60 overflow-y-auto">
                     {clientesDisponibles.map(c => {
                       const isSelected = clientesSeleccionados.includes(c.id);
                       return (
@@ -521,11 +541,11 @@ export function BacklogPage() {
             </div>
           </div>
 
-          {(clientesSeleccionados.length > 0 || vocerosSeleccionados.length > 0 || mesesSeleccionados.length > 0 || filtroQuick !== null || filtroTipo !== 'TODOS') && (
+          {(clientesSeleccionados.length > 0 || vocerosSeleccionados.length > 0 || mesesSeleccionados.length > 0 || filtroQuick !== null || filtroTipo !== 'TODOS' || mostrarTodosClientes || busqueda !== '') && (
             <>
               <div className="flex-1" />
               <button
-                onClick={() => { setClientesSeleccionados([]); setVocerosSeleccionados([]); setMesesSeleccionados([]); setFiltroQuick(null); setFiltroTipo('TODOS'); setFechaDesde(''); setFechaHasta(''); setBusqueda(''); }}
+                onClick={() => { setClientesSeleccionados([]); setVocerosSeleccionados([]); setMesesSeleccionados([]); setFiltroQuick(null); setFiltroTipo('TODOS'); setFechaDesde(''); setFechaHasta(''); setBusqueda(''); setMostrarTodosClientes(true); }}
                 className="text-xs font-bold text-[#000033]/60 hover:text-[#024fff] underline"
               >
                 Limpiar filtros

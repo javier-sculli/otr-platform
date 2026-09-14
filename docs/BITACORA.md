@@ -2,6 +2,15 @@
 
 > **Propósito:** Registro central de avances, decisiones de producto, correcciones de errores y backlog priorizado de la plataforma Rocky (OTR). A partir de la reunión del 31 de Julio de 2026, cada cambio, bugfix y feature completado queda asentado en esta bitácora.
 
+### [2026-09-14] — Resolution of Backlog Filter Ghost Bug, Client Scope Toggle & Month Defaults
+- **Desarrollador:** Antigravity (Pair Programming con Javier Sculli)
+- **Resumen de Avances:**
+  1. **Fix de Filtro Fantasma en Lupa (`BacklogPage.tsx`):** Se corrigió la inicialización del estado `showBusqueda` para evaluar `!!(savedFilters?.busqueda)`. Anteriormente, `busqueda` se restauraba desde `sessionStorage` mientras que `showBusqueda` se forzaba en `false` en el primer render, lo que mantenía el campo de texto colapsado e invisible pero filtraba activamente los tickets en memoria.
+  2. **Ajuste de Filtro por Mes por Defecto (`BacklogPage.tsx`):** Se cambió el estado inicial de `mesesSeleccionados` de `['mes_0']` a `[]` (todos los meses) por defecto, asegurando que las tarjetas de meses pasados y futuros (ej. Agosto/Octubre) permanezcan visibles al ingresar al tablero sin requerir desmarcar manualmente el mes actual.
+  3. **Toggle de Alcance de Clientes Preferidos (`BacklogPage.tsx`):** Se agregó el control interactivo **"Mis clientes / Ver todos"** y se actualizó `clientesDisponibles` para incluir todos los clientes en el desplegable *"+ Seleccionar"*, impidiendo que usuarios con `preferredClientIds` queden atrapados en una vista acotada sin opción de explorar todos los clientes de la agencia.
+  4. **Reset Completo en "Limpiar Filtros" (`BacklogPage.tsx`):** Se aseguró que el botón *"Limpiar filtros"* borre el término de búsqueda de la sesión, cierre la lupa colapsable y restablezca la vista general de clientes y meses.
+- **Verificación:** Monorepo verificado con `pnpm --filter web run typecheck` (0 errores).
+
 ### [2026-09-09] — Actualización de Backlog Oficial en Notion, Opción "Otro" en Prensa, Migración de Blog/Newsletter a Tareas, Fix Voceros Nuevos, Íconos en Performance y Ocultamiento de Notas de Diseño
 - **Desarrollador:** Antigravity (Pair Programming con Javier Sculli)
 - **Resumen de Avances:**
