@@ -545,7 +545,7 @@ export function BacklogPage() {
             <>
               <div className="flex-1" />
               <button
-                onClick={() => { setClientesSeleccionados([]); setVocerosSeleccionados([]); setMesesSeleccionados([]); setFiltroQuick(null); setFiltroTipo('TODOS'); setFechaDesde(''); setFechaHasta(''); setBusqueda(''); setMostrarTodosClientes(true); }}
+                onClick={() => { setClientesSeleccionados([]); setVocerosSeleccionados([]); setMesesSeleccionados([]); setFiltroQuick(null); setFiltroTipo('TODOS'); setFechaDesde(''); setFechaHasta(''); setBusqueda(''); setShowBusqueda(false); setMostrarTodosClientes(false); }}
                 className="text-xs font-bold text-[#000033]/60 hover:text-[#024fff] underline"
               >
                 Limpiar filtros
