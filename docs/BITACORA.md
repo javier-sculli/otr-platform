@@ -2,6 +2,13 @@
 
 > **Propósito:** Registro central de avances, decisiones de producto, correcciones de errores y backlog priorizado de la plataforma Rocky (OTR). A partir de la reunión del 31 de Julio de 2026, cada cambio, bugfix y feature completado queda asentado en esta bitácora.
 
+### [2026-09-14] — Carga Automática de Cliente Filtrado en Nueva Pieza / Tarea
+- **Desarrollador:** Antigravity (Pair Programming con Javier Sculli)
+- **Resumen de Avances:**
+  1. **Carga Automática de Cliente al Crear Ticket (`CreateTicketModal.tsx`):** Se incorporó la auto-selección del cliente en `CreateTicketModal.tsx` al abrir el modal en modo creación (`isOpen && !isEditing`). Si hay un cliente predeterminado o filtrado (`defaultClientId`), o si la lista de clientes disponibles para el usuario tiene 1 único cliente, el modal selecciona y carga automáticamente dicho cliente en el selector de la pieza/tarea sin requerir interacción manual.
+  2. **Propagación del Cliente Activo (`BacklogPage.tsx` y `PrensaBacklogPage.tsx`):** Se actualizó la propiedad `defaultClientId` en la llamada a `CreateTicketModal` para evaluar tanto la selección directa de 1 cliente como el contexto de cliente único en `effectiveClientIds`.
+- **Verificación:** Monorepo verificado con `pnpm --filter web run typecheck` (0 errores) y `pnpm --filter api run typecheck` (0 errores).
+
 ### [2026-09-14] — Resolution of Backlog Filter Ghost Bug, Client Scope Toggle & Month Defaults
 - **Desarrollador:** Antigravity (Pair Programming con Javier Sculli)
 - **Resumen de Avances:**

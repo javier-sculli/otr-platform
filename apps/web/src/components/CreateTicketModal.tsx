@@ -252,6 +252,19 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
     preferredIds.length === 0 || preferredIds.includes(c.id) || (isEditing && ticket?.client?.id === c.id)
   );
 
+  // Auto-seleccionar cliente si se está creando una nueva pieza/tarea y hay 1 solo cliente filtrado o disponible
+  useEffect(() => {
+    if (isOpen && !isEditing) {
+      if (!formData.clientId) {
+        if (defaultClientId) {
+          setFormData(prev => ({ ...prev, clientId: defaultClientId }));
+        } else if (availableClients.length === 1) {
+          setFormData(prev => ({ ...prev, clientId: availableClients[0].id }));
+        }
+      }
+    }
+  }, [isOpen, isEditing, defaultClientId, availableClients, formData.clientId]);
+
   const { data: users } = useQuery({
     queryKey: ['users'],
     queryFn: () => api.getUsers(),
