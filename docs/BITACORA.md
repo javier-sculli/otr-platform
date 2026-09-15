@@ -2,6 +2,13 @@
 
 > **Propósito:** Registro central de avances, decisiones de producto, correcciones de errores y backlog priorizado de la plataforma Rocky (OTR). A partir de la reunión del 31 de Julio de 2026, cada cambio, bugfix y feature completado queda asentado en esta bitácora.
 
+### [2026-09-14] — Campo de Link de Entrega en Tickets de Tareas
+- **Desarrollador:** Antigravity (Pair Programming con Javier Sculli)
+- **Resumen de Avances:**
+  1. **Disponibilidad de Link de Entrega (`CreateTicketModal.tsx`):** Se habilitó el campo **Link del entregable** en `CreateTicketModal.tsx` para Tareas y entregables no-publicables (decks, reportes, estrategias, entregables de prensa), disponible tanto al momento de la creación como en la edición.
+  2. **Persistencia de Entregable al Crear (`CreateTicketModal.tsx`):** Se incluyó la propiedad `linkEntregable` en el payload de `createMutation.mutateAsync` al presionar "Crear", asegurando que enlaces pegados desde Drive/Figma/Google Docs se guarden al instante con formato seguro `ensureAbsoluteUrl`.
+- **Verificación:** Compilación limpia verificada con `pnpm --filter web run typecheck` (0 errores).
+
 ### [2026-09-14] — Carga Automática de Cliente Filtrado en Nueva Pieza / Tarea
 - **Desarrollador:** Antigravity (Pair Programming con Javier Sculli)
 - **Resumen de Avances:**

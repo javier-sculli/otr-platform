@@ -579,6 +579,7 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
           ...payload,
           clientId: formData.clientId,
           ...(formData.links.length > 0 ? { links: formData.links.map(ensureAbsoluteUrl) } : {}),
+          ...(formData.linkEntregable ? { linkEntregable: ensureAbsoluteUrl(formData.linkEntregable) } : {}),
         });
         const newId = res?.data?.id;
         handleClose();
@@ -1143,13 +1144,12 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
             );
           })()}
 
-          {/* ENTREGABLE VISUAL — solo Pieza en edición */}
-          {isEditing && !noContenido && (
-            <div>
-              <label className={labelCls}>
-                <Link2 className="w-3.5 h-3.5 text-[#024fff]" />
-                Entregable visual
-              </label>
+          {/* ENTREGABLE VISUAL / LINK DEL ENTREGABLE */}
+          <div>
+            <label className={labelCls}>
+              <Link2 className="w-3.5 h-3.5 text-[#024fff]" />
+              {noContenido ? 'Link del entregable' : 'Entregable visual'}
+            </label>
               {formData.linkEntregable && !editingEntregableLink ? (
                 <div className="flex items-center gap-2 px-3 py-2 border border-[#024fff]/30 rounded-lg group hover:border-[#024fff]/50 transition-all bg-[#024fff]/5">
                   <Link2 className="w-3.5 h-3.5 text-[#024fff] flex-shrink-0" />
@@ -1234,7 +1234,6 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
                 </div>
               )}
             </div>
-          )}
 
           {/* Prioridad — siempre, abajo de todo, mitad de ancho */}
           <div className="w-1/2">
