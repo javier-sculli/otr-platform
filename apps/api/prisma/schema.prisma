@@ -299,6 +299,7 @@ model Ticket {
   @@index([speakerId])
   @@index([isDraftPlan, area])
   @@index([isDraftPlan, createdAt])
+  @@index([isDraftPlan, plannedDate])
   @@map("tickets")
 }
 

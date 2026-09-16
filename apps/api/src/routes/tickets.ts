@@ -264,7 +264,8 @@ export async function ticketsRoutes(fastify: FastifyInstance) {
       ? { plannedDate: 'asc' } 
       : { createdAt: 'desc' };
 
-    const [tickets, clients, users, ticketTypes, pilares, speakers] = await Promise.all([
+    const [catalogs, tickets] = await Promise.all([
+      getCatalogs(),
       prisma.ticket.findMany({
         where,
         select: {
@@ -305,32 +306,21 @@ export async function ticketsRoutes(fastify: FastifyInstance) {
         },
         orderBy,
       }),
-      prisma.client.findMany({ select: { id: true, name: true } }),
-      prisma.user.findMany({ select: { id: true, name: true, email: true } }),
-      prisma.ticketType.findMany({ select: { id: true, name: true, kind: true } }),
-      prisma.pilar.findMany({ select: { id: true, nombre: true } }),
-      prisma.speaker.findMany({ select: { id: true, nombre: true } }),
     ]);
-
-    const clientsMap = new Map(clients.map(c => [c.id, c]));
-    const usersMap = new Map(users.map(u => [u.id, u]));
-    const typesMap = new Map(ticketTypes.map(t => [t.id, t]));
-    const pilaresMap = new Map(pilares.map(p => [p.id, p]));
-    const speakersMap = new Map(speakers.map(s => [s.id, s]));
 
     const enriched = tickets.map(t => {
       const rawIds: string[] = (Array.isArray(t.assigneeIds) && t.assigneeIds.length > 0)
         ? t.assigneeIds
         : (t.ownerId ? [t.ownerId] : []);
-      const assignees = rawIds.map(id => usersMap.get(id)).filter(Boolean);
+      const assignees = rawIds.map(id => catalogs.users.get(id)).filter(Boolean);
       return {
         ...t,
-        client: clientsMap.get(t.clientId) || null,
-        owner: usersMap.get(t.ownerId) || null,
-        reviewer: t.reviewerId ? usersMap.get(t.reviewerId) || null : null,
-        ticketType: t.ticketTypeId ? typesMap.get(t.ticketTypeId) || null : null,
-        pilar: t.pilarId ? pilaresMap.get(t.pilarId) || null : null,
-        speaker: t.speakerId ? speakersMap.get(t.speakerId) || null : null,
+        client: catalogs.clients.get(t.clientId) || null,
+        owner: catalogs.users.get(t.ownerId) || null,
+        reviewer: t.reviewerId ? catalogs.users.get(t.reviewerId) || null : null,
+        ticketType: t.ticketTypeId ? catalogs.ticketTypes.get(t.ticketTypeId) || null : null,
+        pilar: t.pilarId ? catalogs.pilares.get(t.pilarId) || null : null,
+        speaker: t.speakerId ? catalogs.speakers.get(t.speakerId) || null : null,
         assigneeIds: rawIds,
         assignees,
       };

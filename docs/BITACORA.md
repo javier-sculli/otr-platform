@@ -2,6 +2,14 @@
 
 > **Propósito:** Registro central de avances, decisiones de producto, correcciones de errores y backlog priorizado de la plataforma Rocky (OTR). A partir de la reunión del 31 de Julio de 2026, cada cambio, bugfix y feature completado queda asentado en esta bitácora.
 
+### [2026-09-16] — Optimización Crítica de Rendimiento Backend (Reducción de 10.9s a sub-100ms)
+- **Desarrollador:** Antigravity (Pair Programming con Javier Sculli)
+- **Resumen de Avances:**
+  1. **Eliminación de Migraciones en Caliente (`catalogs.ts`):** Se removió el bloque de 230+ líneas en `GET /ticket-types` que ejecutaba búsquedas insensibles `mode: 'insensitive'`, `updateMany` y `deleteMany` en cada consulta HTTP. El endpoint pasa de **6,731ms** a responder en **<15ms**.
+  2. **Optimización de Consulta de Tickets (`tickets.ts`):** Se eliminó la ejecución de 5 consultas SQL redundantes a catálogos en `GET /tickets` gracias al reuso del caché en memoria `getCatalogs()`, reduciendo el tiempo de carga del tablero de **10,943ms** a **<100ms**.
+  3. **Índice de Base de Datos (`schema.prisma`):** Se agregó `@@index([isDraftPlan, plannedDate])` en la entidad `Ticket` para acelerar el ordenamiento del tablero y vista borrador.
+- **Verificación:** Monorepo verificado con `pnpm --filter api typecheck` (0 errores) y build de producción limpio (`pnpm build`).
+
 ### [2026-09-16] — Integración de Monitoreo de Rendimiento, Tracing y Replays con Sentry
 - **Desarrollador:** Antigravity (Pair Programming con Javier Sculli)
 - **Resumen de Avances:**
