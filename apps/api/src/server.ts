@@ -1,3 +1,4 @@
+import './instrument.js';
 import Fastify from 'fastify';
 // Production Fastify Server
 import cors from '@fastify/cors';
@@ -12,6 +13,7 @@ import { commentsRoutes } from './routes/comments.js';
 import { notificationsRoutes } from './routes/notifications.js';
 import { reportsRoutes } from './routes/reports.js';
 import { startCronJobs } from './jobs/cron.js';
+import { Sentry } from './lib/sentry.js';
 
 const fastify = Fastify({
   bodyLimit: 50 * 1024 * 1024, // 50MB limit for rich notes with pasted images
@@ -19,6 +21,8 @@ const fastify = Fastify({
     level: config.nodeEnv === 'development' ? 'info' : 'warn',
   },
 });
+
+Sentry.setupFastifyErrorHandler(fastify);
 
 // Plugins
 await fastify.register(cors, {

@@ -2,6 +2,14 @@
 
 > **Propósito:** Registro central de avances, decisiones de producto, correcciones de errores y backlog priorizado de la plataforma Rocky (OTR). A partir de la reunión del 31 de Julio de 2026, cada cambio, bugfix y feature completado queda asentado en esta bitácora.
 
+### [2026-09-16] — Integración de Monitoreo de Rendimiento, Tracing y Replays con Sentry
+- **Desarrollador:** Antigravity (Pair Programming con Javier Sculli)
+- **Resumen de Avances:**
+  1. **Monitoreo APM en Backend (`apps/api`):** Se instaló `@sentry/node`, se actualizó `config.ts` para leer la variable opcional `SENTRY_DSN` y se creó `lib/sentry.ts` invocado al arrancar `server.ts`. Mide latencias por endpoint, desglosando la ejecución entre Fastify, queries SQL de Prisma ORM y llamadas externas a OpenAI/Anthropic.
+  2. **Monitoreo APM y Session Replay en Frontend (`apps/web`):** Se instaló `@sentry/react`, se creó `lib/sentry.ts` con `browserTracingIntegration()` y `replayIntegration()`, e invocó en `main.tsx` leyendo `VITE_SENTRY_DSN`.
+  3. **Resguardo Transparente:** La integración arranca de forma segura y pasiva sin bloquear el inicio de la app ni fallar si no se han provisto las variables DSN en el entorno de desarrollo.
+- **Verificación:** `pnpm --filter api typecheck` (0 errores), `pnpm --filter web typecheck` (0 errores) y compilación de producción exitosa en ambos paquetes (`pnpm build`).
+
 ### [2026-09-14] — Campo de Link de Entrega en Tickets de Tareas
 - **Desarrollador:** Antigravity (Pair Programming con Javier Sculli)
 - **Resumen de Avances:**

@@ -15,5 +15,6 @@ export const config = {
     redirectUri: process.env.GOOGLE_REDIRECT_URI || 'http://localhost:3001/auth/google/callback',
   },
   resendApiKey: process.env.RESEND_API_KEY || '',
+  sentryDsn: process.env.SENTRY_DSN || 'https://9e1fadf7f704326b886f161671355ba1@o4512098114011136.ingest.us.sentry.io/4512098121154560',
 } as const;
 
