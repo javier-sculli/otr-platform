@@ -14,6 +14,7 @@ import { notificationsRoutes } from './routes/notifications.js';
 import { reportsRoutes } from './routes/reports.js';
 import { startCronJobs } from './jobs/cron.js';
 import { Sentry } from './lib/sentry.js';
+import { prisma } from './lib/prisma.js';
 
 const fastify = Fastify({
   bodyLimit: 50 * 1024 * 1024, // 50MB limit for rich notes with pasted images
@@ -64,15 +65,14 @@ await fastify.register(commentsRoutes, { prefix: '/tickets' });
 await fastify.register(notificationsRoutes, { prefix: '/notifications' });
 await fastify.register(reportsRoutes, { prefix: '/reports' });
 
-import { prisma } from './lib/prisma.js';
-
 // Start server
 try {
-  await prisma.$connect();
-  console.log('⚡ Prisma DB connection pool pre-warmed.');
   await fastify.listen({ port: config.port, host: '0.0.0.0' });
   console.log(`🚀 Server running on http://localhost:${config.port}`);
   startCronJobs();
+  prisma.$connect().then(() => {
+    console.log('⚡ Prisma DB connection pool pre-warmed.');
+  }).catch((e: any) => console.error('Prisma pre-connect warning:', e));
 } catch (err) {
   console.error('CRITICAL: Fastify startup failed:', err);
   fastify.log.error(err);
