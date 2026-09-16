@@ -64,8 +64,12 @@ await fastify.register(commentsRoutes, { prefix: '/tickets' });
 await fastify.register(notificationsRoutes, { prefix: '/notifications' });
 await fastify.register(reportsRoutes, { prefix: '/reports' });
 
+import { prisma } from './lib/prisma.js';
+
 // Start server
 try {
+  await prisma.$connect();
+  console.log('⚡ Prisma DB connection pool pre-warmed.');
   await fastify.listen({ port: config.port, host: '0.0.0.0' });
   console.log(`🚀 Server running on http://localhost:${config.port}`);
   startCronJobs();

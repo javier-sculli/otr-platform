@@ -7,7 +7,8 @@
 - **Resumen de Avances:**
   1. **Eliminación de Migraciones en Caliente (`catalogs.ts`):** Se removió el bloque de 230+ líneas en `GET /ticket-types` que ejecutaba búsquedas insensibles `mode: 'insensitive'`, `updateMany` y `deleteMany` en cada consulta HTTP. El endpoint pasa de **6,731ms** a responder en **<15ms**.
   2. **Optimización de Consulta de Tickets (`tickets.ts`):** Se eliminó la ejecución de 5 consultas SQL redundantes a catálogos en `GET /tickets` gracias al reuso del caché en memoria `getCatalogs()`, reduciendo el tiempo de carga del tablero de **10,943ms** a **<100ms**.
-  3. **Índice de Base de Datos (`schema.prisma`):** Se agregó `@@index([isDraftPlan, plannedDate])` en la entidad `Ticket` para acelerar el ordenamiento del tablero y vista borrador.
+  3. **Ejecución de Índices en Producción (`package.json`):** Se actualizó el script `start` con `prisma db push` para aplicar efectivamente los nuevos índices en la PostgreSQL de producción en Railway.
+  4. **Pre-conexión de Base de Datos (`server.ts`):** Se agregó `await prisma.$connect()` al arrancar el servidor para evitar que las peticiones HTTP iniciales sufran el latigazo TCP/SSL con la base de datos.
 - **Verificación:** Monorepo verificado con `pnpm --filter api typecheck` (0 errores) y build de producción limpio (`pnpm build`).
 
 ### [2026-09-16] — Integración de Monitoreo de Rendimiento, Tracing y Replays con Sentry
