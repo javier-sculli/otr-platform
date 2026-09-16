@@ -24,6 +24,21 @@ const fastify = Fastify({
 
 Sentry.setupFastifyErrorHandler(fastify);
 
+// Request duration logger for Railway observability
+fastify.addHook('onRequest', async (request) => {
+  (request as any).startTime = process.hrtime.bigint();
+});
+
+fastify.addHook('onResponse', async (request, reply) => {
+  const startTime = (request as any).startTime;
+  if (startTime && request.url !== '/health') {
+    const diff = Number(process.hrtime.bigint() - startTime) / 1e6;
+    const duration = diff.toFixed(1);
+    const icon = diff > 1000 ? '🔴' : diff > 400 ? '🟡' : '⚡';
+    console.log(`${icon} [${request.method} ${request.url}] ${reply.statusCode} - ${duration}ms`);
+  }
+});
+
 // Plugins
 await fastify.register(cors, {
   origin: config.nodeEnv === 'development' ? '*' : config.frontendUrl,
