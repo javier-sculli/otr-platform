@@ -88,6 +88,16 @@ Sistema de gestión de producción de contenido para On The Rocks (OTR), una age
 > 1. **Consultar siempre la Bitácora:** Al iniciar cualquier interacción o tarea, leer [`docs/BITACORA.md`](file:///Users/javiersculli/dev/OTR/docs/BITACORA.md).
 > 2. **Actualizar la Bitácora en cada avance:** Con cada bug resuelto, feature implementado o cambio acordado, es **REQUISITO OBLIGATORIO** actualizar el archivo [`docs/BITACORA.md`](file:///Users/javiersculli/dev/OTR/docs/BITACORA.md), marcando las tareas como completadas (`[x]`) y agregando una entrada formal en la sección *Historial de Cambios y Avances*.
 
+## Regla de Calidad y Solidez: Test Obligatorio por Bugfix y Notificación
+
+> ⚠️ **REGLA MANDATORIA DE FLUJO DE TRABAJO:**
+> Cada vez que se detecte y corrija un error (bug):
+> 1. **Sumar su correspondiente test automatizado:** Crear o actualizar un test unitario o de integración (con Vitest / React Testing Library) que reproduzca el caso, valide la solución y prevenga regresiones futuras.
+> 2. **Notificar en la respuesta al usuario:** Indicar explícitamente en el chat:
+>    - Qué test se agregó o amplió (archivo y descripción del caso).
+>    - Qué valida funcionalmente y de qué manera blinda la lógica ante futuras modificaciones.
+> 3. **Validación local previa:** Ejecutar `pnpm test` y verificar que los tests pasen al 100% antes de commitear o subir a producción.
+
 ## Proceso de documentación
 - **Bitácora del proyecto** (`docs/BITACORA.md`): Registro continuo de épicas, tareas y changelog de desarrollo.
 - **Historia de usuario** (Notion → Historias de usuario): todo el detalle — contexto, problema, decisiones tomadas, criterios de aceptación, módulos afectados, prioridad
