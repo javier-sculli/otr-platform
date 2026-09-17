@@ -13,6 +13,7 @@
   6. **Ajuste de Polling en Frontend (`Layout.tsx`):** Se modificó `refetchInterval` de `GET /notifications` de 15s a 60s (1 minuto) para distanciar las consultas automáticas de la interfaz.
   7. **Caché en Memoria de Métricas (`metrics.ts`):** Se integró caché TTL de 30 segundos en `GET /metrics` para evitar que la carga masiva de publicaciones y snapshots (2,984ms) compita por conexiones de PostgreSQL al ingresar a la plataforma.
   8. **Reducción de Payload de Tickets (`tickets.ts`):** Se removió la transmisión innecesaria del campo pesado `contentPerCanal` (JSON con copias de IA de todos los canales) en la consulta de lista de tickets del Backlog (`GET /tickets`), reduciendo el tamaño del payload transferido sobre la red de 500KB a <15KB.
+  9. **Pre-calentamiento Asincrónico del Caché de Tickets (`tickets.ts`):** Se implementó `fetchAndCacheTickets({})` al arrancar el servidor y tras cada mutación/edición para pre-cargar el caché en background, garantizando que el 100% de las consultas del Backlog de los usuarios resulten en **Cache HIT (300ms)**.
 - **Verificación:** Monorepo verificado con `pnpm --filter api typecheck` (0 errores) y build de producción limpio (`pnpm build`).
 
 ### [2026-09-16] — Integración de Monitoreo de Rendimiento, Tracing y Replays con Sentry

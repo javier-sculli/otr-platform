@@ -219,9 +219,101 @@ async function getCatalogs() {
   return catalogCache;
 }
 
+async function fetchAndCacheTickets(query: any = {}) {
+  const cacheKey = JSON.stringify(query || {});
+  const { clientId, ownerId, status, speakerId, area, isDraftPlan } = query;
+
+  const where: any = {};
+  if (clientId) where.clientId = clientId;
+  if (ownerId) where.ownerId = ownerId;
+  if (status) where.status = status;
+  if (speakerId) where.speakerId = speakerId;
+  if (area) where.area = area;
+
+  if (isDraftPlan === 'true') {
+    where.isDraftPlan = true;
+  } else if (isDraftPlan === 'false') {
+    where.isDraftPlan = false;
+  } else if (isDraftPlan === 'all') {
+    // No filter
+  } else {
+    where.isDraftPlan = false;
+  }
+
+  const orderBy: any = (isDraftPlan === 'true' || isDraftPlan === 'all') 
+    ? { plannedDate: 'asc' } 
+    : { createdAt: 'desc' };
+
+  const [catalogs, tickets] = await Promise.all([
+    getCatalogs(),
+    prisma.ticket.findMany({
+      where,
+      select: {
+        id: true,
+        title: true,
+        objetivo: true,
+        description: true,
+        canales: true,
+        clientId: true,
+        ownerId: true,
+        assigneeIds: true,
+        ticketTypeId: true,
+        pilarId: true,
+        speakerId: true,
+        status: true,
+        prioridad: true,
+        area: true,
+        macroEstado: true,
+        subEstado: true,
+        reviewerId: true,
+        medio: true,
+        periodista: true,
+        estadoRespuesta: true,
+        dueDate: true,
+        plannedDate: true,
+        isDraftPlan: true,
+        publishedAt: true,
+        estadoAprobacionCliente: true,
+        keywords: true,
+        links: true,
+        linkEntregable: true,
+        tiposContenido: true,
+        referenciasGraficas: true,
+        notasAudiovisual: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+      orderBy,
+    }),
+  ]);
+
+  const enriched = tickets.map(t => {
+    const rawIds: string[] = (Array.isArray(t.assigneeIds) && t.assigneeIds.length > 0)
+      ? t.assigneeIds
+      : (t.ownerId ? [t.ownerId] : []);
+    const assignees = rawIds.map(id => catalogs.users.get(id)).filter(Boolean);
+    return {
+      ...t,
+      client: catalogs.clients.get(t.clientId) || null,
+      owner: catalogs.users.get(t.ownerId) || null,
+      reviewer: t.reviewerId ? catalogs.users.get(t.reviewerId) || null : null,
+      ticketType: t.ticketTypeId ? catalogs.ticketTypes.get(t.ticketTypeId) || null : null,
+      pilar: t.pilarId ? catalogs.pilares.get(t.pilarId) || null : null,
+      speaker: t.speakerId ? catalogs.speakers.get(t.speakerId) || null : null,
+      assigneeIds: rawIds,
+      assignees,
+    };
+  });
+
+  const result = { data: enriched };
+  ticketsCache.set(cacheKey, { timestamp: Date.now(), data: result });
+  return result;
+}
+
 export async function ticketsRoutes(fastify: FastifyInstance) {
-  // Pre-calentar catálogos en memoria al arrancar
+  // Pre-calentar catálogos y tickets en memoria al arrancar
   getCatalogs().catch(() => {});
+  fetchAndCacheTickets({}).catch(() => {});
 
   // All routes require authentication
   fastify.addHook('preHandler', authenticate);
@@ -237,99 +329,7 @@ export async function ticketsRoutes(fastify: FastifyInstance) {
       return cached.data;
     }
 
-    const { clientId, ownerId, status, speakerId, area, isDraftPlan } = request.query as {
-      clientId?: string;
-      ownerId?: string;
-      status?: string;
-      speakerId?: string;
-      area?: string;
-      isDraftPlan?: string;
-    };
-
-    const where: any = {};
-    if (clientId) where.clientId = clientId;
-    if (ownerId) where.ownerId = ownerId;
-    if (status) where.status = status;
-    if (speakerId) where.speakerId = speakerId;
-    if (area) where.area = area;
-
-    if (isDraftPlan === 'true') {
-      where.isDraftPlan = true;
-    } else if (isDraftPlan === 'false') {
-      where.isDraftPlan = false;
-    } else if (isDraftPlan === 'all') {
-      // No filter on isDraftPlan: returns both drafts and active tickets
-    } else {
-      where.isDraftPlan = false;
-    }
-
-    const orderBy: any = (isDraftPlan === 'true' || isDraftPlan === 'all') 
-      ? { plannedDate: 'asc' } 
-      : { createdAt: 'desc' };
-
-    const [catalogs, tickets] = await Promise.all([
-      getCatalogs(),
-      prisma.ticket.findMany({
-        where,
-        select: {
-          id: true,
-          title: true,
-          objetivo: true,
-          description: true,
-          canales: true,
-          clientId: true,
-          ownerId: true,
-          assigneeIds: true,
-          ticketTypeId: true,
-          pilarId: true,
-          speakerId: true,
-          status: true,
-          prioridad: true,
-          area: true,
-          macroEstado: true,
-          subEstado: true,
-          reviewerId: true,
-          medio: true,
-          periodista: true,
-          estadoRespuesta: true,
-          dueDate: true,
-          plannedDate: true,
-          isDraftPlan: true,
-          publishedAt: true,
-          estadoAprobacionCliente: true,
-          keywords: true,
-          links: true,
-          linkEntregable: true,
-          tiposContenido: true,
-          referenciasGraficas: true,
-          notasAudiovisual: true,
-          createdAt: true,
-          updatedAt: true,
-        },
-        orderBy,
-      }),
-    ]);
-
-    const enriched = tickets.map(t => {
-      const rawIds: string[] = (Array.isArray(t.assigneeIds) && t.assigneeIds.length > 0)
-        ? t.assigneeIds
-        : (t.ownerId ? [t.ownerId] : []);
-      const assignees = rawIds.map(id => catalogs.users.get(id)).filter(Boolean);
-      return {
-        ...t,
-        client: catalogs.clients.get(t.clientId) || null,
-        owner: catalogs.users.get(t.ownerId) || null,
-        reviewer: t.reviewerId ? catalogs.users.get(t.reviewerId) || null : null,
-        ticketType: t.ticketTypeId ? catalogs.ticketTypes.get(t.ticketTypeId) || null : null,
-        pilar: t.pilarId ? catalogs.pilares.get(t.pilarId) || null : null,
-        speaker: t.speakerId ? catalogs.speakers.get(t.speakerId) || null : null,
-        assigneeIds: rawIds,
-        assignees,
-      };
-    });
-
-    const result = { data: enriched };
-    ticketsCache.set(cacheKey, { timestamp: Date.now(), data: result });
+    const result = await fetchAndCacheTickets(request.query || {});
     reply.header('x-cache', 'MISS');
     reply.header('x-response-time', `${Date.now() - t0}ms`);
     return result;
