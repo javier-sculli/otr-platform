@@ -10,6 +10,7 @@
   3. **Ejecución de Índices en Producción (`package.json`):** Se actualizó el script `start` con `prisma db push` para aplicar efectivamente los nuevos índices en la PostgreSQL de producción en Railway.
   4. **Pre-conexión de Base de Datos (`server.ts`):** Se agregó `prisma.$connect()` asincrónico para evitar que las peticiones HTTP sufran latigazos TCP/SSL con la base de datos.
   5. **Caché en Memoria de Notificaciones (`notifications.ts`):** Se agregó un TTL de 10 segundos en `GET /notifications` con invalidación activa al crear o leer notificaciones. Esto evita que el polling constante del frontend sature el pooler de conexiones de PostgreSQL.
+  6. **Ajuste de Polling en Frontend (`Layout.tsx`):** Se modificó `refetchInterval` de `GET /notifications` de 15s a 60s (1 minuto) para distanciar las consultas automáticas de la interfaz.
 - **Verificación:** Monorepo verificado con `pnpm --filter api typecheck` (0 errores) y build de producción limpio (`pnpm build`).
 
 ### [2026-09-16] — Integración de Monitoreo de Rendimiento, Tracing y Replays con Sentry
