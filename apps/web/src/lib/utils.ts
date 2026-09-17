@@ -86,3 +86,26 @@ export function formatDateISO(dateInput: string | Date | null | undefined): stri
   const day = String(d.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
 }
+
+/**
+ * Fusiona de forma defensiva copys por canal nuevos con existentes.
+ * Si el mapa entrante trae un valor vacío para una red que ya tenía copy guardado,
+ * preserva el copy original para evitar pérdidas de contenido por mutaciones parciales.
+ */
+export function mergeContentPerCanal(
+  existing: Record<string, string> | null | undefined,
+  incoming: Record<string, string> | null | undefined
+): Record<string, string> {
+  const existingMap = existing && typeof existing === 'object' ? { ...existing } : {};
+  const incomingMap = incoming && typeof incoming === 'object' ? { ...incoming } : {};
+  const result: Record<string, string> = { ...existingMap, ...incomingMap };
+
+  Object.keys(existingMap).forEach(key => {
+    if ((!result[key] || !result[key].trim()) && existingMap[key] && existingMap[key].trim()) {
+      result[key] = existingMap[key];
+    }
+  });
+
+  return result;
+}
+

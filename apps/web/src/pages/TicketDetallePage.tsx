@@ -32,7 +32,7 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { ensureAbsoluteUrl, copyHtmlToClipboard, formatDateSpan } from '../lib/utils';
+import { ensureAbsoluteUrl, copyHtmlToClipboard, formatDateSpan, mergeContentPerCanal } from '../lib/utils';
 import { requiresDesign } from '../lib/workflow';
 import { RichNotesEditor } from '../components/RichNotesEditor';
 import { TransitionToDesignModal } from '../components/TransitionToDesignModal';
@@ -373,15 +373,8 @@ export function TicketDetallePage() {
   };
 
   const saveCopy = async (mapToSave: Record<string, string>) => {
-    const existing = (ticket as any)?.contentPerCanal && typeof (ticket as any).contentPerCanal === 'object'
-      ? (ticket as any).contentPerCanal
-      : {};
-    const nextPerCanal = { ...existing, ...mapToSave };
-    Object.keys(existing).forEach(key => {
-      if ((!nextPerCanal[key] || !nextPerCanal[key].trim()) && existing[key] && existing[key].trim()) {
-        nextPerCanal[key] = existing[key];
-      }
-    });
+    const existing = (ticket as any)?.contentPerCanal;
+    const nextPerCanal = mergeContentPerCanal(existing, mapToSave);
 
     setCopySaveStatus('saving');
     try {

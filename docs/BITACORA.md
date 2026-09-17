@@ -6,18 +6,27 @@
 - **Desarrollador:** Antigravity (Pair Programming con Javier Sculli)
 - **Resumen de Avances:**
   1. **Configuración de Vitest & React Testing Library (`apps/web`):** Se instaló e integró `vitest@^2`, `@testing-library/react`, `@testing-library/jest-dom`, `@testing-library/user-event` y `jsdom` en `apps/web`, configurando `vite.config.ts` y `src/test/setup.ts`.
-  2. **Suite de Tests de Integración (`ticketModals.test.tsx`):**
-     - **Pase a Diseño (`TransitionToDesignModal`):** Valida que al abrir el modal y sumar nuevos links o notas de diseño, nunca se sobreescriban ni pierdan los enlaces originales del ticket.
-     - **Indicador de Carga (`CreateTicketModal`):** Valida que al abrir el modal muestre "Cargando…" en el header mientras consulta el ticket en el backend y luego pinte los links completos.
-     - **Preservación en Auto-Guardado (`CreateTicketModal`):** Valida que al editar campos del ticket (como el título) y dispararse el auto-guardado debounced, los `links` y `notasAudiovisual` se envíen intactos en el payload de actualización a `api.updateTicket`.
+  2. **Suite de Tests de Integración y Lógica Crítica (22 tests en 3 suites):**
+     - **Modales de Tickets (`ticketModals.test.tsx`):**
+       - Valida que al abrir `TransitionToDesignModal` y sumar nuevos links o notas de diseño, nunca se sobreescriban ni pierdan los enlaces originales del ticket.
+       - Valida que al abrir `CreateTicketModal` muestre "Cargando…" en el header mientras consulta el ticket en el backend y luego pinte los links completos.
+       - Valida que al editar campos del ticket (como el título) y dispararse el auto-guardado debounced, los `links` y `notasAudiovisual` se envíen intactos en el payload de actualización a `api.updateTicket`.
+     - **Utilidades de Fecha, URLs y Merge Defensivo de Copys (`utils.test.ts`):**
+       - **Prevención de Desfase de -1 Día:** Valida que `parseLocalDate` y `formatDateISO` interpreten cadenas `YYYY-MM-DD` y timestamps UTC sin retroceder de fecha en zonas horarias locales (GMT-3).
+       - **Sanitización de Enlaces:** Valida que `ensureAbsoluteUrl` anteponga protocolo HTTPS sin romper URLs relativas o vacías.
+       - **Fusión Defensiva de Copys (`mergeContentPerCanal`):** Valida que guardar el texto de un canal nunca pise con vacío los textos previamente redactados en otras redes sociales.
+     - **Motor de Workflow y Transiciones (`workflow.test.ts`):**
+       - Valida que formatos de solo texto salteen Diseño y Edición directo a `REVISION_INTERNA`.
+       - Valida que Carruseles y Placas pasen a `DISENO` y luego salteen Edición hacia `REVISION_INTERNA`.
+       - Valida que Reels/Videos pasen secuencialmente por `DISENO`, `EDICION` y `REVISION_INTERNA`.
   3. **Integración Continua con GitHub Actions (`.github/workflows/ci.yml`):** Se configuró un workflow automatizado que corre en cada `push` y `pull request` a la rama `main`:
      - Instala dependencias (`pnpm install --frozen-lockfile`) y genera Prisma Client.
      - Ejecuta validación estática de tipos TypeScript en todo el monorepo (`pnpm -r typecheck`).
      - Corre la suite de tests de componentes y lógica de frontend (`pnpm test`).
   4. **Tiempos de Ejecución:**
-     - **Local:** ~2-3 segundos en total (ejecución pura de tests en ~700ms).
+     - **Local:** ~2-3 segundos en total (ejecución pura de tests en ~800ms).
      - **GitHub Actions (CI):** ~45-60 segundos (incluyendo provisionamiento de runner ubuntu, setup de Node/pnpm y typecheck completo).
-- **Verificación:** Todos los tests pasan exitosamente (`3 passed`) y compilación/typecheck verificados en todo el monorepo.
+- **Verificación:** Todos los tests pasan exitosamente (`22 passed` en 3 suites) y compilación/typecheck verificados en todo el monorepo.
 
 ### [2026-09-17] — Carga Total de Ticket en Popups e Indicador "Cargando…" en Header
 - **Desarrollador:** Antigravity (Pair Programming con Javier Sculli)
