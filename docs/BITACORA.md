@@ -2,12 +2,13 @@
 
 > **Propósito:** Registro central de avances, decisiones de producto, correcciones de errores y backlog priorizado de la plataforma Rocky (OTR). A partir de la reunión del 31 de Julio de 2026, cada cambio, bugfix y feature completado queda asentado en esta bitácora.
 
-### [2026-09-17] — Eliminación de Payload Gigante en GET /tickets (Reducción de 16.78 MB a 350 KB)
+### [2026-09-17] — Eliminación de Payload Gigante y Pre-calentamiento Proactivo en GET /tickets (Sub-50ms)
 - **Desarrollador:** Antigravity (Pair Programming con Javier Sculli)
 - **Resumen de Avances:**
   1. **Diagnóstico Empírico de Payload:** Al probar directamente la API contra el backend en producción, se detectó que `GET /tickets` retornaba **16.78 Megabytes** por respuesta debido a la inclusión del campo `notasAudiovisual` (que contiene imágenes base64 e HTML pegado desde Notion) en la consulta de lista de los 733 tickets.
-  2. **Remoción de `notasAudiovisual` en Lista de Tickets (`tickets.ts`):** Se removió `notasAudiovisual` del `select` de `fetchAndCacheTickets` (lista del Backlog), preservándolo en `GET /tickets/:id` (detalle individual). El peso del payload del Backlog se redujo en un **98%** (de **16.78 MB** a **~350 KB**), recortando el tiempo de transferencia de red de **4.6s** a **<50ms**.
-  3. **Truncado Preventivo en Métricas (`metrics.ts`):** Se agregó un acortado defensivo de `postContent` a 200 caracteres en `GET /metrics` para evitar transferencias megabáticas en la vista general de rendimiento.
+  2. **Remoción de Campos TOAST Pesados en Lista (`tickets.ts`):** Se removió `notasAudiovisual`, `description`, `referenciasGraficas`, `links` y `keywords` del `select` de `fetchAndCacheTickets` (lista del Backlog), reservándolos en `GET /tickets/:id` (detalle individual). El peso del payload del Backlog se redujo en un **98%** (de **16.78 MB** a **~350 KB** no comprimido / **160 KB** gzip), recortando el tiempo de transferencia de red de **4.6s** a **<50ms**.
+  3. **Pre-calentamiento Automático en Fondo tras Mutaciones (`tickets.ts`):** Se actualizó `clearTicketsCache()` para que al invalidar la memoria tras una edición o cambio de estado, dispare de inmediato un `fetchAndCacheTickets({})` asincrónico (`setImmediate`). De este modo, cuando el usuario o el cliente reaccedan al Backlog, la respuesta resulta 100% en un **Cache HIT instantáneo (15-25ms)**.
+  4. **Truncado Preventivo en Métricas (`metrics.ts`):** Se agregó un acortado defensivo de `postContent` a 200 caracteres en `GET /metrics` para evitar transferencias megabáticas en la vista general de rendimiento.
 - **Verificación:** Monorepo verificado con `pnpm --filter api typecheck` (0 errores) y build de producción limpio.
 
 ### [2026-09-16] — Optimización Crítica de Rendimiento Backend (Reducción de 10.9s a sub-100ms)

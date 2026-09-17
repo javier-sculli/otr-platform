@@ -195,6 +195,10 @@ export function clearTicketsCache() {
   ticketsCache.clear();
   ticketDetailCache.clear();
   catalogCache = null;
+  // Pre-warm memory cache immediately in background so next user GET /tickets is instant (Cache HIT)
+  setImmediate(() => {
+    fetchAndCacheTickets({}).catch(() => {});
+  });
 }
 
 async function getCatalogs() {
@@ -252,7 +256,6 @@ async function fetchAndCacheTickets(query: any = {}) {
         id: true,
         title: true,
         objetivo: true,
-        description: true,
         canales: true,
         clientId: true,
         ownerId: true,
@@ -274,11 +277,8 @@ async function fetchAndCacheTickets(query: any = {}) {
         isDraftPlan: true,
         publishedAt: true,
         estadoAprobacionCliente: true,
-        keywords: true,
-        links: true,
         linkEntregable: true,
         tiposContenido: true,
-        referenciasGraficas: true,
         createdAt: true,
         updatedAt: true,
       },
