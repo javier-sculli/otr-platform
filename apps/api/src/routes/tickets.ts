@@ -279,7 +279,6 @@ async function fetchAndCacheTickets(query: any = {}) {
         linkEntregable: true,
         tiposContenido: true,
         referenciasGraficas: true,
-        notasAudiovisual: true,
         createdAt: true,
         updatedAt: true,
       },

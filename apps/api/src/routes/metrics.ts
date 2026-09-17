@@ -57,7 +57,12 @@ export async function metricsRoutes(fastify: FastifyInstance) {
       orderBy: { publishedAt: 'desc' },
     });
 
-    const result = { data: publications };
+    const mapped = publications.map(p => ({
+      ...p,
+      postContent: p.postContent ? (p.postContent.length > 200 ? p.postContent.slice(0, 200) + '...' : p.postContent) : null,
+    }));
+
+    const result = { data: mapped };
     metricsCache.set(cacheKey, { timestamp: Date.now(), data: result });
     reply.header('x-cache', 'MISS');
     return result;
