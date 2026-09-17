@@ -2,6 +2,23 @@
 
 > **Propósito:** Registro central de avances, decisiones de producto, correcciones de errores y backlog priorizado de la plataforma Rocky (OTR). A partir de la reunión del 31 de Julio de 2026, cada cambio, bugfix y feature completado queda asentado en esta bitácora.
 
+### [2026-09-17] — Suite de Tests Automatizados de Integración (Vitest + Testing Library) y CI en GitHub Actions
+- **Desarrollador:** Antigravity (Pair Programming con Javier Sculli)
+- **Resumen de Avances:**
+  1. **Configuración de Vitest & React Testing Library (`apps/web`):** Se instaló e integró `vitest@^2`, `@testing-library/react`, `@testing-library/jest-dom`, `@testing-library/user-event` y `jsdom` en `apps/web`, configurando `vite.config.ts` y `src/test/setup.ts`.
+  2. **Suite de Tests de Integración (`ticketModals.test.tsx`):**
+     - **Pase a Diseño (`TransitionToDesignModal`):** Valida que al abrir el modal y sumar nuevos links o notas de diseño, nunca se sobreescriban ni pierdan los enlaces originales del ticket.
+     - **Indicador de Carga (`CreateTicketModal`):** Valida que al abrir el modal muestre "Cargando…" en el header mientras consulta el ticket en el backend y luego pinte los links completos.
+     - **Preservación en Auto-Guardado (`CreateTicketModal`):** Valida que al editar campos del ticket (como el título) y dispararse el auto-guardado debounced, los `links` y `notasAudiovisual` se envíen intactos en el payload de actualización a `api.updateTicket`.
+  3. **Integración Continua con GitHub Actions (`.github/workflows/ci.yml`):** Se configuró un workflow automatizado que corre en cada `push` y `pull request` a la rama `main`:
+     - Instala dependencias (`pnpm install --frozen-lockfile`) y genera Prisma Client.
+     - Ejecuta validación estática de tipos TypeScript en todo el monorepo (`pnpm -r typecheck`).
+     - Corre la suite de tests de componentes y lógica de frontend (`pnpm test`).
+  4. **Tiempos de Ejecución:**
+     - **Local:** ~2-3 segundos en total (ejecución pura de tests en ~700ms).
+     - **GitHub Actions (CI):** ~45-60 segundos (incluyendo provisionamiento de runner ubuntu, setup de Node/pnpm y typecheck completo).
+- **Verificación:** Todos los tests pasan exitosamente (`3 passed`) y compilación/typecheck verificados en todo el monorepo.
+
 ### [2026-09-17] — Carga Total de Ticket en Popups e Indicador "Cargando…" en Header
 - **Desarrollador:** Antigravity (Pair Programming con Javier Sculli)
 - **Resumen de Avances:**
