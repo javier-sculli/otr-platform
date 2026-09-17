@@ -2,6 +2,14 @@
 
 > **Propósito:** Registro central de avances, decisiones de producto, correcciones de errores y backlog priorizado de la plataforma Rocky (OTR). A partir de la reunión del 31 de Julio de 2026, cada cambio, bugfix y feature completado queda asentado en esta bitácora.
 
+### [2026-09-17] — Corrección Crítica en Despacho de Emails con Resend (Dominio Verificado ontherocks.tech)
+- **Desarrollador:** Antigravity (Pair Programming con Javier Sculli)
+- **Resumen de Avances:**
+  1. **Diagnóstico de Rechazo HTTP 403 (Validation Error):** Se detectó que todas las notificaciones por correo dirigidas a los miembros del equipo (`@ontherocks.tech`) eran rechazadas por Resend debido a que el remitente caía por defecto en `onboarding@resend.dev` (Sandbox), el cual solo permite envíos a la cuenta creadora (`javier.sculli@gmail.com`).
+  2. **Configuración de Dominio Oficial Verificado:** Se configuró el remitente `ROCKY Platform <notificaciones@ontherocks.tech>` tanto en `config.ts` como en las variables de entorno de producción en Railway (`RESEND_FROM`). El dominio `ontherocks.tech` se encuentra verificado en Resend en la región `sa-east-1` (São Paulo).
+  3. **Monitoreo y Alerta en Sentry:** Se incorporó el reporte automático de errores de despacho de Resend a Sentry (`Sentry.captureMessage` y `Sentry.captureException`), eliminando el fallo silencioso y permitiendo visibilidad inmediata ante cualquier eventualidad.
+- **Verificación:** Pruebas directas de despacho ejecutadas exitosamente a través de la API de Resend (IDs: `01a0b0db-780b-7517-a62d-8b3d1502a0e1`, `01a0b0db-793f-76cc-adbd-bf53898d5d66`, `01a0b0db-7a2f-724a-8ef6-24d11cc14b9b`) con eventos confirmados en estado `delivered`.
+
 ### [2026-09-17] — Suite de Tests Automatizados de Integración (Vitest + Testing Library) y CI en GitHub Actions
 - **Desarrollador:** Antigravity (Pair Programming con Javier Sculli)
 - **Resumen de Avances:**

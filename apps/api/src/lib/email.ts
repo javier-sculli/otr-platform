@@ -1,8 +1,9 @@
 import { Resend } from 'resend';
 import { config } from '../config.js';
+import { Sentry } from './sentry.js';
 
 const resend = config.resendApiKey ? new Resend(config.resendApiKey) : null;
-const FROM_EMAIL = process.env.RESEND_FROM || 'ROCKY Platform <onboarding@resend.dev>';
+const FROM_EMAIL = config.resendFrom;
 
 export interface NotificationEmailPayload {
   to: string;
@@ -237,6 +238,7 @@ export async function sendNotificationEmail(payload: NotificationEmailPayload): 
 
     if (data.error) {
       console.error(`[EMAIL DISPATCH ERROR] Failed to send email to ${payload.to}:`, data.error);
+      Sentry.captureMessage(`Resend email error to ${payload.to}: ${JSON.stringify(data.error)}`, 'error');
       return { success: false, error: data.error };
     }
 
@@ -244,6 +246,7 @@ export async function sendNotificationEmail(payload: NotificationEmailPayload): 
     return { success: true, id: data.data?.id };
   } catch (error) {
     console.error(`[EMAIL DISPATCH EXCEPTION] Failed sending email to ${payload.to}:`, error);
+    Sentry.captureException(error);
     return { success: false, error };
   }
 }
