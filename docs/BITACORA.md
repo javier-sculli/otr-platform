@@ -2,6 +2,16 @@
 
 > **Propósito:** Registro central de avances, decisiones de producto, correcciones de errores y backlog priorizado de la plataforma Rocky (OTR). A partir de la reunión del 31 de Julio de 2026, cada cambio, bugfix y feature completado queda asentado en esta bitácora.
 
+### [2026-09-17] — Carga Total de Ticket en Popups e Indicador "Cargando…" en Header
+- **Desarrollador:** Antigravity (Pair Programming con Javier Sculli)
+- **Resumen de Avances:**
+  1. **Carga Específica del Ticket al Abrir Popups (`CreateTicketModal.tsx` y `TransitionToDesignModal.tsx`):** Al abrir cualquier modal de edición o pase a diseño, se dispara inmediatamente una consulta a `GET /tickets/:id` (`ticketDetailQuery`), asegurando que el popup trabaje siempre con la información 100% completa y fresca de la base de datos (links, notas de diseño, links entregables, brief, copies de canales).
+  2. **Feedback Visual "Cargando…" en Header (`CreateTicketModal.tsx`):** En la esquina superior derecha del modal, donde habitualmente se muestra el estado de guardado, ahora se muestra de forma visible un spinner con el texto **"Cargando…"** mientras se completa la descarga de la información del ticket.
+  3. **Protección de Auto-Guardado durante la Carga (`CreateTicketModal.tsx`):** Se bloquea la ejecución de `performAutoSave` mientras `isTicketLoading` esté activo, impidiendo que el formulario despache actualizaciones antes de que la información completa haya sido recibida e inicializada.
+  4. **Fusión Acumulativa de Links en Pase a Diseño (`TransitionToDesignModal.tsx`):** Se asegura que los links ingresados en el modal se sumen a los links preexistentes mediante `Set`, evitando pérdidas accidentales de links previos.
+  5. **Restauración de Datos del Ticket Afectado:** Se recuperó e insertó el link del Google Drive (`https://drive.google.com/drive/folders/1rsjh0k00idzfvU6OhBKhDrKrNmU4sska?usp=drive_link`) para el ticket `f725cbfc-ef90-499e-8e6d-4e538501a632`.
+- **Verificación:** Monorepo verificado con builds limpios (`pnpm --filter api build` y `pnpm --filter web build`) con 0 errores.
+
 ### [2026-09-17] — Eliminación de Payload Gigante y Pre-calentamiento Proactivo en GET /tickets (Sub-50ms)
 - **Desarrollador:** Antigravity (Pair Programming con Javier Sculli)
 - **Resumen de Avances:**

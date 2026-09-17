@@ -508,8 +508,6 @@ export function ContentPage() {
             keywords,
             contentPerCanal: updated,
             versionsPerCanal: updatedVersions,
-            links: contextLinks,
-            linkEntregable: linkEntregable || null,
           }).then(() => {
             queryClient.invalidateQueries({ queryKey: ['ticket', ticketId] });
             queryClient.invalidateQueries({ queryKey: ['tickets'] });
@@ -556,8 +554,6 @@ export function ContentPage() {
       keywords,
       contentPerCanal: updated,
       versionsPerCanal: updatedVersions,
-      links: contextLinks,
-      linkEntregable: linkEntregable || null,
     }).then(() => {
       queryClient.invalidateQueries({ queryKey: ['ticket', ticketId] });
       queryClient.invalidateQueries({ queryKey: ['tickets'] });
@@ -591,8 +587,6 @@ export function ContentPage() {
       keywords,
       contentPerCanal: updated,
       versionsPerCanal: updatedVersions,
-      links: contextLinks,
-      linkEntregable: linkEntregable || null,
     }).then(() => {
       queryClient.invalidateQueries({ queryKey: ['ticket', ticketId] });
       queryClient.invalidateQueries({ queryKey: ['tickets'] });

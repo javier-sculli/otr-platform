@@ -5,6 +5,7 @@ import {
   X, FileText, CheckSquare, Package, Building2, AlignLeft, Calendar, User,
   Flag, Share2, Link2, Plus, ExternalLink, Check, Copy, ChevronDown,
   Image as ImageIcon, Paperclip, File, Layers, Newspaper, ArrowRight, Edit3,
+  Loader2,
 } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
@@ -210,7 +211,17 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
 
   const lastTicketIdRef = useRef<string | null>(null);
 
-  // Re-populate when ticket ID changes or modal opens/closes (no sobrescribir edición activa si el ticket es el mismo)
+  // Carga garantizada de TODOS los datos completos del ticket individual desde la API
+  const { data: ticketDetailQuery, isFetching: isFetchingTicket } = useQuery({
+    queryKey: ['ticket', ticket?.id],
+    queryFn: () => api.getTicket(ticket!.id),
+    enabled: isOpen && !!ticket?.id,
+    staleTime: 0,
+  });
+
+  const isTicketLoading = isEditing && isFetchingTicket;
+
+  // Re-populate when ticket ID changes or modal opens/closes
   useEffect(() => {
     if (isOpen) {
       const currentId = ticket?.id ?? null;
@@ -235,6 +246,18 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
       lastTicketIdRef.current = null;
     }
   }, [ticket?.id, isOpen, defaultClientId]);
+
+  // Sincronizar todos los datos completos cuando responde GET /tickets/:id
+  useEffect(() => {
+    if (ticketDetailQuery?.data && isEditing) {
+      const full = ticketDetailQuery.data as any;
+      const fullFormData = buildFormData(full, defaultClientId);
+      setFormData(fullFormData);
+      setTipoTicket(initTipo(full));
+      const canales = fullFormData.canales.length > 0 ? fullFormData.canales : ['LinkedIn'];
+      setActiveCopyTab(canales[0]);
+    }
+  }, [ticketDetailQuery?.data, isEditing, defaultClientId]);
 
   useEffect(() => {
     if (ticket?.id) {
@@ -362,7 +385,7 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
   formDataRef.current = formData;
 
   const performAutoSave = async (overrideData?: Partial<typeof formData>) => {
-    if (!isEditing || !ticket?.id) return;
+    if (!isEditing || !ticket?.id || isTicketLoading) return;
     const current = { ...formDataRef.current, ...overrideData };
     const primaryOwner = current.ownerId || current.assigneeIds?.[0];
     if (!current.title || !current.clientId || !primaryOwner) return;
@@ -373,14 +396,15 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
       assigneeIds: current.assigneeIds || [],
       status: current.status,
       prioridad: current.prioridad,
-      objetivo: current.brief || null,
+      objetivo: current.brief || undefined,
       canales: noContenido ? [] : (current.canales.length > 0 ? current.canales : ['LinkedIn']),
       dueDate: current.dueDate || null,
       ticketTypeId: current.ticketTypeId || null,
       pilarId: noContenido ? null : (current.pilarId || null),
       speakerId: noContenido ? null : (current.speakerId || null),
-      links: current.links.map(ensureAbsoluteUrl),
-      linkEntregable: current.linkEntregable ? ensureAbsoluteUrl(current.linkEntregable) : null,
+      ...(current.links.length > 0 ? { links: current.links.map(ensureAbsoluteUrl) } : {}),
+      ...(current.linkEntregable ? { linkEntregable: ensureAbsoluteUrl(current.linkEntregable) } : {}),
+      ...(current.notasAudiovisual ? { notasAudiovisual: current.notasAudiovisual } : {}),
       content: noContenido ? undefined : (current.content || null),
     };
 
@@ -638,9 +662,27 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
             <div className="flex items-center gap-3">
               {isEditing && (
                 <span className="text-xs font-medium transition-all">
-                  {saveStatus === 'saving' && <span className="text-[#024fff] flex items-center gap-1.5 font-bold"><span className="w-2 h-2 rounded-full bg-[#024fff] animate-pulse" />Guardando…</span>}
-                  {saveStatus === 'saved' && <span className="text-emerald-600 font-bold flex items-center gap-1"><Check className="w-3.5 h-3.5" />Guardado</span>}
-                  {saveStatus === 'error' && <span className="text-red-500 font-bold">Error al guardar</span>}
+                  {isTicketLoading && (
+                    <span className="text-[#024fff] flex items-center gap-1.5 font-bold">
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      Cargando…
+                    </span>
+                  )}
+                  {!isTicketLoading && saveStatus === 'saving' && (
+                    <span className="text-[#024fff] flex items-center gap-1.5 font-bold">
+                      <span className="w-2 h-2 rounded-full bg-[#024fff] animate-pulse" />
+                      Guardando…
+                    </span>
+                  )}
+                  {!isTicketLoading && saveStatus === 'saved' && (
+                    <span className="text-emerald-600 font-bold flex items-center gap-1">
+                      <Check className="w-3.5 h-3.5" />
+                      Guardado
+                    </span>
+                  )}
+                  {!isTicketLoading && saveStatus === 'error' && (
+                    <span className="text-red-500 font-bold">Error al guardar</span>
+                  )}
                 </span>
               )}
               <button

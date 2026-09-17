@@ -1293,7 +1293,7 @@ export function TicketDetallePage() {
         onConfirm={async (data) => {
           await updateMutation.mutateAsync({
             status: 'DISENO',
-            notasAudiovisual: data.notasAudiovisual || null,
+            notasAudiovisual: data.notasAudiovisual || undefined,
             links: data.links,
           });
           setIsDesignModalOpen(false);

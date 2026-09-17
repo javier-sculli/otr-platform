@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { X, Sparkles, Image as ImageIcon, Link2, Plus, ExternalLink, Trash2 } from 'lucide-react';
 import { ensureAbsoluteUrl } from '../lib/utils';
+import { api } from '../lib/api';
 
 import { RichNotesEditor } from './RichNotesEditor';
 
@@ -33,12 +35,25 @@ export function TransitionToDesignModal({
   const [newLink, setNewLink] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Carga garantizada de datos completos del ticket
+  const { data: ticketDetailQuery } = useQuery({
+    queryKey: ['ticket', ticket?.id],
+    queryFn: () => api.getTicket(ticket!.id),
+    enabled: isOpen && !!ticket?.id,
+    staleTime: 1000 * 30,
+  });
+
   useEffect(() => {
-    if (ticket) {
-      setNotasAudiovisual(ticket.notasAudiovisual || '');
-      setLinks(ticket.links || []);
+    const activeTicket = (ticketDetailQuery?.data as any) || ticket;
+    if (activeTicket) {
+      if (activeTicket.notasAudiovisual) {
+        setNotasAudiovisual(activeTicket.notasAudiovisual);
+      }
+      if (Array.isArray(activeTicket.links) && activeTicket.links.length > 0) {
+        setLinks(prev => Array.from(new Set([...prev, ...activeTicket.links])));
+      }
     }
-  }, [ticket]);
+  }, [ticket, ticketDetailQuery?.data]);
 
   if (!isOpen || !ticket) return null;
 
@@ -58,7 +73,12 @@ export function TransitionToDesignModal({
     e.preventDefault();
     setIsSubmitting(true);
     try {
-      await onConfirm({ notasAudiovisual, links });
+      const activeTicket = (ticketDetailQuery?.data as any) || ticket;
+      const baseLinks = Array.isArray(activeTicket?.links) ? activeTicket.links : [];
+      // Fusión acumulativa: nunca pisar links existentes que el usuario no removió explícitamente
+      const mergedLinks = Array.from(new Set([...baseLinks, ...links]));
+      const finalNotas = notasAudiovisual.trim() ? notasAudiovisual : (activeTicket?.notasAudiovisual || '');
+      await onConfirm({ notasAudiovisual: finalNotas, links: mergedLinks });
       onClose();
     } catch (err) {
       console.error('Error al actualizar notas de diseño:', err);

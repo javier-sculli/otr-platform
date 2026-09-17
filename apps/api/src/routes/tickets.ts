@@ -277,7 +277,9 @@ async function fetchAndCacheTickets(query: any = {}) {
         isDraftPlan: true,
         publishedAt: true,
         estadoAprobacionCliente: true,
+        links: true,
         linkEntregable: true,
+        description: true,
         tiposContenido: true,
         createdAt: true,
         updatedAt: true,
@@ -549,6 +551,7 @@ export async function ticketsRoutes(fastify: FastifyInstance) {
     if (data.keywords !== undefined) updateData.keywords = data.keywords;
     if (data.copyFinal !== undefined) updateData.copyFinal = data.copyFinal;
     if (data.notasAudiovisual !== undefined) updateData.notasAudiovisual = data.notasAudiovisual;
+
     if (data.tiposContenido !== undefined) updateData.tiposContenido = data.tiposContenido;
     if (data.referenciasGraficas !== undefined) updateData.referenciasGraficas = data.referenciasGraficas;
     if (data.versionsPerCanal !== undefined) updateData.versionsPerCanal = data.versionsPerCanal;

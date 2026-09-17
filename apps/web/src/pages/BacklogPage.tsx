@@ -656,7 +656,7 @@ export function BacklogPage() {
           if (designModalTicket) {
             await api.updateTicket(designModalTicket.id, {
               status: 'DISENO',
-              notasAudiovisual,
+              notasAudiovisual: notasAudiovisual || undefined,
               links,
             });
             queryClient.invalidateQueries({ queryKey: ['tickets'] });
