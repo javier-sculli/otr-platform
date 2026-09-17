@@ -2,6 +2,7 @@ import { FastifyInstance } from 'fastify';
 import { prisma } from '../lib/prisma.js';
 import { authenticate } from '../middleware/auth.js';
 import { sendNotificationEmail } from '../lib/email.js';
+import { clearUserNotificationsCache } from './notifications.js';
 
 // Catálogo subestado → macroEstado de Prensa (HU Fase 2). Espejo de
 // PRENSA_SUBESTADOS en @otr/types; inline acá porque el API no consume el
@@ -89,6 +90,8 @@ async function notifyOrCoalesce({
       },
     });
   }
+
+  clearUserNotificationsCache(userId);
 
   // Despachar email en segundo plano (non-blocking)
   try {
