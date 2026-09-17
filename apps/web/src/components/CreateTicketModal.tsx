@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -10,7 +10,7 @@ import {
 import { api } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 import { TIPO_GESTION_PITCH, STATUS_OPTIONS, PRENSA_STATUS_OPTIONS, getNextStatusInfo } from '../lib/estados';
-import { ensureAbsoluteUrl, copyHtmlToClipboard, formatDateISO } from '../lib/utils';
+import { ensureAbsoluteUrl, copyHtmlToClipboard, formatDateISO, getRedesObjetivoForClient } from '../lib/utils';
 import { RichNotesEditor } from './RichNotesEditor';
 import { ResponsablesSelect } from './ResponsablesSelect';
 import { AutoResizeTextarea } from './AutoResizeTextarea';
@@ -57,8 +57,6 @@ interface CreateTicketModalProps {
   area?: 'CONTENIDO' | 'PRENSA';
   defaultClientId?: string;
 }
-
-const REDES = ['LinkedIn', 'Instagram', 'Twitter'];
 
 const PRIORIDADES = [
   { value: 'ALTA',  label: 'Alta',  on: 'bg-[#024fff]/10 text-[#024fff] border-[#024fff]/40' },
@@ -274,6 +272,13 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
   const availableClients = (clients?.data ?? []).filter((c: any) =>
     preferredIds.length === 0 || preferredIds.includes(c.id) || (isEditing && ticket?.client?.id === c.id)
   );
+
+  const selectedClient = (clients?.data ?? []).find((c: any) => c.id === formData.clientId)
+    ?? (ticket?.client?.id === formData.clientId ? (ticket.client as any) : null);
+
+  const redesDisponibles = useMemo(() => {
+    return getRedesObjetivoForClient(selectedClient?.canales, formData.canales);
+  }, [selectedClient?.canales, formData.canales]);
 
   // Auto-seleccionar cliente si se está creando una nueva pieza/tarea y hay 1 solo cliente filtrado o disponible
   useEffect(() => {
@@ -1021,7 +1026,7 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
                   <span className="lowercase font-medium text-[#000033]/30 tracking-normal ml-1">opcional</span>
                 </label>
                 <div className="flex flex-wrap gap-1.5">
-                  {REDES.map(red => {
+                  {redesDisponibles.map(red => {
                     const selected = formData.canales.includes(red);
                     return (
                       <button

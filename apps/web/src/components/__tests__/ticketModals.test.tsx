@@ -204,6 +204,30 @@ describe('CreateTicketModal', () => {
     expect(updatePayload.links).toEqual(['https://drive.google.com/link-importante']);
     expect(updatePayload.notasAudiovisual).toBe('Notas importantes');
   });
+
+  it('muestra únicamente las redes objetivo que trabaja el cliente seleccionado', async () => {
+    (api.getClients as any).mockResolvedValue({
+      data: [
+        { id: 'c1', name: 'Cliente Solo LinkedIn', canales: ['LinkedIn'] },
+      ],
+    });
+
+    render(
+      <CreateTicketModal
+        isOpen={true}
+        onClose={vi.fn()}
+        defaultClientId="c1"
+      />,
+      { wrapper: createWrapper() }
+    );
+
+    // Esperar a que renderice y verificar que aparece LinkedIn pero no Twitter ni Instagram
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /^LinkedIn$/i })).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /^Twitter$/i })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /^Instagram$/i })).not.toBeInTheDocument();
+    });
+  });
 });
 
 

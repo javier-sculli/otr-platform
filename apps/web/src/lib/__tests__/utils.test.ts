@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseLocalDate, formatDateSpan, formatDateISO, ensureAbsoluteUrl, mergeContentPerCanal } from '../utils';
+import { parseLocalDate, formatDateSpan, formatDateISO, ensureAbsoluteUrl, mergeContentPerCanal, getRedesObjetivoForClient } from '../utils';
 
 describe('lib/utils', () => {
   describe('parseLocalDate & Date shift prevention', () => {
@@ -87,6 +87,40 @@ describe('lib/utils', () => {
       expect(mergeContentPerCanal(null, { LinkedIn: 'Hola' })).toEqual({ LinkedIn: 'Hola' });
       expect(mergeContentPerCanal({ LinkedIn: 'Hola' }, null)).toEqual({ LinkedIn: 'Hola' });
       expect(mergeContentPerCanal(undefined, undefined)).toEqual({});
+    });
+  });
+
+  describe('getRedesObjetivoForClient', () => {
+    it('muestra únicamente las redes que trabaja el cliente cuando están configuradas', () => {
+      const clientCanales = ['LinkedIn', 'Instagram'];
+      const redes = getRedesObjetivoForClient(clientCanales);
+      expect(redes).toEqual(['LinkedIn', 'Instagram']);
+    });
+
+    it('si el cliente solo trabaja una red (ej. LinkedIn), solo muestra esa red', () => {
+      const clientCanales = ['LinkedIn'];
+      const redes = getRedesObjetivoForClient(clientCanales);
+      expect(redes).toEqual(['LinkedIn']);
+    });
+
+    it('filtra canales no-redes como blog o newsletter', () => {
+      const clientCanales = ['LinkedIn', 'Twitter/X', 'Blog', 'Newsletter'];
+      const redes = getRedesObjetivoForClient(clientCanales);
+      expect(redes).toEqual(['LinkedIn', 'Twitter/X']);
+    });
+
+    it('retorna las redes por defecto (LinkedIn, Instagram, Twitter) si el cliente no tiene canales configurados', () => {
+      expect(getRedesObjetivoForClient([])).toEqual(['LinkedIn', 'Instagram', 'Twitter']);
+      expect(getRedesObjetivoForClient(null)).toEqual(['LinkedIn', 'Instagram', 'Twitter']);
+      expect(getRedesObjetivoForClient(undefined)).toEqual(['LinkedIn', 'Instagram', 'Twitter']);
+    });
+
+    it('preserva cualquier red ya seleccionada en el ticket para no perder contexto al editar', () => {
+      const clientCanales = ['LinkedIn'];
+      const currentSelected = ['Twitter'];
+      const redes = getRedesObjetivoForClient(clientCanales, currentSelected);
+      expect(redes).toContain('LinkedIn');
+      expect(redes).toContain('Twitter');
     });
   });
 });

@@ -109,3 +109,45 @@ export function mergeContentPerCanal(
   return result;
 }
 
+export const DEFAULT_REDES = ['LinkedIn', 'Instagram', 'Twitter'];
+
+const NON_SOCIAL_CANALES = new Set([
+  'blog',
+  'newsletter',
+  'artículo blog',
+  'articulo blog',
+]);
+
+/**
+ * Retorna las redes sociales objetivo a mostrar para un cliente y ticket.
+ * Si el cliente tiene canales definidos (ej. LinkedIn e Instagram), solo se muestran esos canales sociales.
+ * Si el ticket ya tiene canales seleccionados (ej. por edición de un ticket previo), se preservan.
+ * Si el cliente no tiene canales configurados, retorna el default de redes (LinkedIn, Instagram, Twitter).
+ */
+export function getRedesObjetivoForClient(
+  clientCanales?: string[] | null,
+  currentSelectedCanales?: string[] | null
+): string[] {
+  const result = new Set<string>();
+
+  const filteredClientCanales = (clientCanales ?? []).filter(c => {
+    if (!c || typeof c !== 'string') return false;
+    return !NON_SOCIAL_CANALES.has(c.trim().toLowerCase());
+  });
+
+  if (filteredClientCanales.length > 0) {
+    filteredClientCanales.forEach(c => result.add(c.trim()));
+  } else {
+    DEFAULT_REDES.forEach(r => result.add(r));
+  }
+
+  // Preservar cualquier red que el ticket ya tuviera seleccionada previamente
+  (currentSelectedCanales ?? []).forEach(c => {
+    if (c && typeof c === 'string' && c.trim()) {
+      result.add(c.trim());
+    }
+  });
+
+  return Array.from(result);
+}
+
