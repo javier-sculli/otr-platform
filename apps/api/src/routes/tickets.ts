@@ -302,7 +302,6 @@ export async function ticketsRoutes(fastify: FastifyInstance) {
           linkEntregable: true,
           tiposContenido: true,
           referenciasGraficas: true,
-          contentPerCanal: true,
           notasAudiovisual: true,
           createdAt: true,
           updatedAt: true,
