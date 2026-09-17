@@ -15,12 +15,27 @@ function parseApiDate(val: string | null | undefined): Date | null {
   return new Date(str);
 }
 
+const metricsCache = new Map<string, { timestamp: number; data: any }>();
+const METRICS_TTL_MS = 30 * 1000;
+
+export function clearMetricsCache() {
+  metricsCache.clear();
+}
+
 export async function metricsRoutes(fastify: FastifyInstance) {
   fastify.addHook('preHandler', authenticate);
 
   // GET /metrics?clientId=xxx&highlight=true&canal=LinkedIn
-  fastify.get('/', async (request) => {
+  fastify.get('/', async (request, reply) => {
     const { clientId, highlight, canal } = request.query as { clientId?: string; highlight?: string; canal?: string };
+    const cacheKey = `${clientId}_${highlight}_${canal}`;
+
+    reply.header('Cache-Control', 'no-cache, no-store, must-revalidate');
+    const cached = metricsCache.get(cacheKey);
+    if (cached && Date.now() - cached.timestamp < METRICS_TTL_MS) {
+      reply.header('x-cache', 'HIT');
+      return cached.data;
+    }
 
     const where: Record<string, unknown> = {};
     if (clientId) where.clientId = clientId;
@@ -42,7 +57,10 @@ export async function metricsRoutes(fastify: FastifyInstance) {
       orderBy: { publishedAt: 'desc' },
     });
 
-    return { data: publications };
+    const result = { data: publications };
+    metricsCache.set(cacheKey, { timestamp: Date.now(), data: result });
+    reply.header('x-cache', 'MISS');
+    return result;
   });
 
   // GET /metrics/contexto?clientId=xxx&canal=xxx — posts usados como contexto en el prompt de IA
@@ -127,6 +145,7 @@ export async function metricsRoutes(fastify: FastifyInstance) {
       include: { snapshots: { orderBy: { dayNumber: 'asc' } } },
     });
 
+    clearMetricsCache();
     return { data: publication };
   });
 

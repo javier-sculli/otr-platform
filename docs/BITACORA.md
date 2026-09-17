@@ -11,6 +11,7 @@
   4. **Pre-conexión de Base de Datos (`server.ts`):** Se agregó `prisma.$connect()` asincrónico para evitar que las peticiones HTTP sufran latigazos TCP/SSL con la base de datos.
   5. **Caché en Memoria de Notificaciones (`notifications.ts`):** Se agregó un TTL de 10 segundos en `GET /notifications` con invalidación activa al crear o leer notificaciones. Esto evita que el polling constante del frontend sature el pooler de conexiones de PostgreSQL.
   6. **Ajuste de Polling en Frontend (`Layout.tsx`):** Se modificó `refetchInterval` de `GET /notifications` de 15s a 60s (1 minuto) para distanciar las consultas automáticas de la interfaz.
+  7. **Caché en Memoria de Métricas (`metrics.ts`):** Se integró caché TTL de 30 segundos en `GET /metrics` para evitar que la carga masiva de publicaciones y snapshots (2,984ms) compita por conexiones de PostgreSQL al ingresar a la plataforma.
 - **Verificación:** Monorepo verificado con `pnpm --filter api typecheck` (0 errores) y build de producción limpio (`pnpm build`).
 
 ### [2026-09-16] — Integración de Monitoreo de Rendimiento, Tracing y Replays con Sentry
