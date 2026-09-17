@@ -8,7 +8,6 @@ import {
 } from 'lucide-react';
 import { api } from '../lib/api';
 import { CreateTicketModal } from '../components/CreateTicketModal';
-import { TransitionToDesignModal } from '../components/TransitionToDesignModal';
 import { CalendarioBacklog } from '../components/CalendarioBacklog';
 import { parseLocalDate, formatDateSpan } from '../lib/utils';
 
@@ -97,7 +96,6 @@ export function BacklogPage() {
   const [vista, setVista] = useState<'kanban' | 'calendario'>(() => savedFilters?.vista ?? 'kanban');
   const [showModalNueva, setShowModalNueva] = useState(false);
   const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
-  const [designModalTicket, setDesignModalTicket] = useState<Ticket | null>(null);
   const [draggedId, setDraggedId] = useState<string | null>(null);
 
   const effectiveClientIds = useMemo(() => {
@@ -262,11 +260,7 @@ export function BacklogPage() {
     if (draggedId) {
       const ticket = allTickets.find(t => t.id === draggedId);
       if (ticket && ticket.status !== status) {
-        if (status === 'DISENO') {
-          setDesignModalTicket(ticket);
-        } else {
-          updateStatusMutation.mutate({ id: draggedId, status });
-        }
+        updateStatusMutation.mutate({ id: draggedId, status });
       }
     }
     setDraggedId(null);
@@ -648,21 +642,6 @@ export function BacklogPage() {
         defaultClientId={effectiveClientIds.length === 1 ? effectiveClientIds[0] : (clientesSeleccionados.length === 1 ? clientesSeleccionados[0] : undefined)}
       />
 
-      <TransitionToDesignModal
-        isOpen={!!designModalTicket}
-        onClose={() => setDesignModalTicket(null)}
-        ticket={designModalTicket as any}
-        onConfirm={async ({ notasAudiovisual, links }) => {
-          if (designModalTicket) {
-            await api.updateTicket(designModalTicket.id, {
-              status: 'DISENO',
-              notasAudiovisual: notasAudiovisual || undefined,
-              links,
-            });
-            queryClient.invalidateQueries({ queryKey: ['tickets'] });
-          }
-        }}
-      />
     </div>
   );
 }

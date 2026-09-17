@@ -35,7 +35,6 @@ import { useAuth } from '../contexts/AuthContext';
 import { ensureAbsoluteUrl, copyHtmlToClipboard, formatDateSpan, mergeContentPerCanal } from '../lib/utils';
 import { requiresDesign } from '../lib/workflow';
 import { RichNotesEditor } from '../components/RichNotesEditor';
-import { TransitionToDesignModal } from '../components/TransitionToDesignModal';
 import { AutoResizeTextarea } from '../components/AutoResizeTextarea';
 
 type AttachedFile = {
@@ -245,16 +244,11 @@ export function TicketDetallePage() {
   const [editandoTitulo, setEditandoTitulo] = useState(false);
   const [tituloTemp, setTituloTemp] = useState('');
   const [showStatusDropdown, setShowStatusDropdown] = useState(false);
-  const [isDesignModalOpen, setIsDesignModalOpen] = useState(false);
 
   const handleSelectStatus = (targetStatus: string, isSubEstado?: boolean) => {
     setShowStatusDropdown(false);
     if (isSubEstado) {
       updateMutation.mutate({ subEstado: targetStatus });
-      return;
-    }
-    if (targetStatus === 'DISENO') {
-      setIsDesignModalOpen(true);
       return;
     }
     if (targetStatus === 'LISTO' || targetStatus === 'CANCELADO') {
@@ -1278,20 +1272,6 @@ export function TicketDetallePage() {
         </div>
       </div>
 
-      {/* Modal de transicion a diseno */}
-      <TransitionToDesignModal
-        isOpen={isDesignModalOpen}
-        onClose={() => setIsDesignModalOpen(false)}
-        ticket={ticket}
-        onConfirm={async (data) => {
-          await updateMutation.mutateAsync({
-            status: 'DISENO',
-            notasAudiovisual: data.notasAudiovisual || undefined,
-            links: data.links,
-          });
-          setIsDesignModalOpen(false);
-        }}
-      />
     </div>
   );
 }
