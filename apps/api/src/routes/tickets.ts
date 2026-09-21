@@ -355,6 +355,7 @@ export async function ticketsRoutes(fastify: FastifyInstance) {
 
     const ticket = await prisma.ticket.findUnique({
       where: { id },
+      relationLoadStrategy: 'join',
       include: {
         client: { select: { id: true, name: true, active: true, canales: true, linkedinUrl: true, instagramUrl: true, webUrl: true } },
         owner: { select: { id: true, name: true, email: true } },

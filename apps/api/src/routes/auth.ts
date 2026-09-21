@@ -4,6 +4,17 @@ import { comparePassword, hashPassword } from '../lib/auth.js';
 import { authenticate } from '../middleware/auth.js';
 import { buildGoogleAuthUrl, resolveGoogleUser } from '../lib/google-oauth.js';
 
+const userMeCache = new Map<string, { timestamp: number; user: any }>();
+const USER_ME_TTL_MS = 5 * 60 * 1000;
+
+export function clearUserMeCache(userId?: string) {
+  if (userId) {
+    userMeCache.delete(userId);
+  } else {
+    userMeCache.clear();
+  }
+}
+
 export async function authRoutes(fastify: FastifyInstance) {
   // Login con email/password
   fastify.post('/login', async (request, reply) => {
@@ -154,6 +165,11 @@ export async function authRoutes(fastify: FastifyInstance) {
   fastify.get('/me', { preHandler: authenticate }, async (request) => {
     const { id } = request.user as { id: string };
 
+    const cached = userMeCache.get(id);
+    if (cached && Date.now() - cached.timestamp < USER_ME_TTL_MS) {
+      return { user: cached.user };
+    }
+
     const user = await prisma.user.findUnique({
       where: { id },
       include: { area: true },
@@ -164,11 +180,13 @@ export async function authRoutes(fastify: FastifyInstance) {
     }
 
     const { password: _, ...userWithoutPassword } = user;
+    userMeCache.set(id, { timestamp: Date.now(), user: userWithoutPassword });
     return { user: userWithoutPassword };
   });
 
   fastify.patch('/me', { preHandler: authenticate }, async (request) => {
     const { id } = request.user as { id: string };
+    clearUserMeCache(id);
     const { preferredClientIds, areaId, role } = request.body as {
       preferredClientIds?: string[];
       areaId?: string;
@@ -189,6 +207,7 @@ export async function authRoutes(fastify: FastifyInstance) {
     });
 
     const { password: _, ...userWithoutPassword } = user;
+    userMeCache.set(id, { timestamp: Date.now(), user: userWithoutPassword });
     return { user: userWithoutPassword };
   });
 
