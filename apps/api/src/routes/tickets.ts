@@ -191,10 +191,14 @@ export function clearCatalogMemoryCache() {
   catalogCache = null;
 }
 
-export function clearTicketsCache() {
+export function clearTicketsCache(ticketId?: string) {
   ticketsCache.clear();
-  ticketDetailCache.clear();
-  catalogCache = null;
+  if (ticketId) {
+    ticketDetailCache.delete(`ticket_detail_${ticketId}`);
+  } else {
+    ticketDetailCache.clear();
+  }
+  // No invalidar catalogCache aquí: los catálogos solo cambian cuando se modifican explícitamente en catalogs.ts
   // Pre-warm memory cache immediately in background so next user GET /tickets is instant (Cache HIT)
   setImmediate(() => {
     fetchAndCacheTickets({}).catch(() => {});
@@ -352,6 +356,12 @@ export async function ticketsRoutes(fastify: FastifyInstance) {
     const ticket = await prisma.ticket.findUnique({
       where: { id },
       include: {
+        client: { select: { id: true, name: true, active: true, canales: true, linkedinUrl: true, instagramUrl: true, webUrl: true } },
+        owner: { select: { id: true, name: true, email: true } },
+        reviewer: { select: { id: true, name: true, email: true } },
+        ticketType: { select: { id: true, name: true, kind: true } },
+        pilar: { select: { id: true, nombre: true, descripcion: true } },
+        speaker: { select: { id: true, nombre: true } },
         publication: true,
         references: {
           select: {
@@ -368,23 +378,20 @@ export async function ticketsRoutes(fastify: FastifyInstance) {
       throw new Error('Ticket not found');
     }
 
-    const catalogs = await getCatalogs();
     const rawAssigneeIds: string[] = (Array.isArray(ticket.assigneeIds) && ticket.assigneeIds.length > 0)
       ? ticket.assigneeIds
       : (ticket.ownerId ? [ticket.ownerId] : []);
 
-    const owner = ticket.ownerId ? catalogs.users.get(ticket.ownerId) || null : null;
-    const reviewer = ticket.reviewerId ? catalogs.users.get(ticket.reviewerId) || null : null;
-    const assignees = rawAssigneeIds.map(uid => catalogs.users.get(uid)).filter(Boolean);
+    let assignees: any[] = [];
+    if (rawAssigneeIds.length > 0) {
+      const catalogs = await getCatalogs();
+      assignees = rawAssigneeIds
+        .map(uid => catalogs.users.get(uid) || (ticket.owner?.id === uid ? ticket.owner : null))
+        .filter(Boolean);
+    }
 
     const enriched = {
       ...ticket,
-      client: ticket.clientId ? catalogs.clients.get(ticket.clientId) || null : null,
-      owner,
-      reviewer,
-      ticketType: ticket.ticketTypeId ? catalogs.ticketTypes.get(ticket.ticketTypeId) || null : null,
-      pilar: ticket.pilarId ? catalogs.pilares.get(ticket.pilarId) || null : null,
-      speaker: ticket.speakerId ? catalogs.speakers.get(ticket.speakerId) || null : null,
       assigneeIds: rawAssigneeIds,
       assignees,
     };
@@ -580,7 +587,7 @@ export async function ticketsRoutes(fastify: FastifyInstance) {
       },
     });
 
-    clearTicketsCache();
+    clearTicketsCache(id);
 
     reply.header('x-response-time', `${Date.now() - t0}ms`);
 
@@ -655,7 +662,7 @@ export async function ticketsRoutes(fastify: FastifyInstance) {
   fastify.delete('/:id', async (request) => {
     const { id } = request.params as { id: string };
 
-    clearTicketsCache();
+    clearTicketsCache(id);
     await prisma.ticket.delete({ where: { id } });
 
     return { message: 'Ticket deleted successfully' };

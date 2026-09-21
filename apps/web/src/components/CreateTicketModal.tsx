@@ -214,7 +214,7 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
     queryKey: ['ticket', ticket?.id],
     queryFn: () => api.getTicket(ticket!.id),
     enabled: isOpen && !!ticket?.id,
-    staleTime: 0,
+    staleTime: 30 * 1000,
   });
 
   const isTicketLoading = isEditing && isFetchingTicket;
@@ -267,6 +267,7 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
     queryKey: ['clients'],
     queryFn: () => api.getClients(),
     enabled: isOpen,
+    staleTime: 10 * 60 * 1000,
   });
 
   const availableClients = (clients?.data ?? []).filter((c: any) =>
@@ -311,6 +312,7 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
     queryKey: ['pilares', formData.clientId],
     queryFn: () => api.getPilares(formData.clientId),
     enabled: isOpen && !!formData.clientId && !noContenido,
+    staleTime: 5 * 60 * 1000,
   });
   const pilares = pilaresData?.data ?? [];
 
@@ -318,6 +320,7 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
     queryKey: ['speakers', formData.clientId],
     queryFn: () => api.getSpeakers(formData.clientId),
     enabled: isOpen && !!formData.clientId && !noContenido,
+    staleTime: 5 * 60 * 1000,
   });
   const speakers = speakersData?.data ?? [];
 
