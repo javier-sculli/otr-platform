@@ -21,6 +21,7 @@
 | Reportes de Agencia (Cumplimiento Clientes) — Acceso restringido DIRECCION, KPIs globales, cadencia semanal (Sem 1-4), % target y semáforo de alertas (En riesgo / Atrasadas) | — | ✅ Implementado y verificado | 2026-07-30 |
 | Guardado Defensivo de `contentPerCanal` — Merge defensivo en backend PATCH y sanitizado de auto-guardado en modal/detalle | — | ✅ Implementado y verificado | 2026-08-21 |
 | Fixes Editor de Copys — Preservación de saltos de línea al cambiar de red, negritas por click/markdown y Selector de Emojis | — | ✅ Implementado y verificado | 2026-08-24 |
+| Optimización Apertura Ticket y Caché Catálogos en Memoria | [ticket-performance.md](ticket-performance.md) | ✅ Implementado y desplegado | 2026-09-21 |
 
 ## Decisiones de producto activas
 
