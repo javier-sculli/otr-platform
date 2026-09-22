@@ -208,6 +208,10 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
   };
 
   const lastTicketIdRef = useRef<string | null>(null);
+  const loadedDetailTicketIdRef = useRef<string | null>(null);
+  const dirtyFieldsRef = useRef<Set<string>>(new Set());
+  const pendingSaveDataRef = useRef<Partial<typeof formData> | null>(null);
+  const performAutoSaveRef = useRef<((overrideData?: Partial<typeof formData>) => Promise<void>) | null>(null);
 
   // Carga garantizada de TODOS los datos completos del ticket individual desde la API
   const { data: ticketDetailQuery, isFetching: isFetchingTicket } = useQuery({
@@ -227,6 +231,8 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
       lastTicketIdRef.current = currentId;
 
       if (isNewTicket) {
+        loadedDetailTicketIdRef.current = null;
+        dirtyFieldsRef.current.clear();
         const newFormData = buildFormData(ticket, defaultClientId);
         setFormData(newFormData);
         setTipoTicket(initTipo(ticket));
@@ -242,20 +248,48 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
       }
     } else {
       lastTicketIdRef.current = null;
+      loadedDetailTicketIdRef.current = null;
+      dirtyFieldsRef.current.clear();
     }
   }, [ticket?.id, isOpen, defaultClientId]);
 
-  // Sincronizar todos los datos completos cuando responde GET /tickets/:id
+  // Sincronizar todos los datos completos UNA SOLA VEZ cuando responde la carga inicial de GET /tickets/:id
   useEffect(() => {
-    if (ticketDetailQuery?.data && isEditing) {
+    if (ticketDetailQuery?.data && isEditing && ticket?.id) {
+      if (loadedDetailTicketIdRef.current === ticket.id) return;
+      loadedDetailTicketIdRef.current = ticket.id;
+
       const full = ticketDetailQuery.data as any;
       const fullFormData = buildFormData(full, defaultClientId);
-      setFormData(fullFormData);
-      setTipoTicket(initTipo(full));
-      const canales = fullFormData.canales.length > 0 ? fullFormData.canales : ['LinkedIn'];
-      setActiveCopyTab(canales[0]);
+
+      // Si el usuario ya editó campos mientras cargaba el ticket, preservamos sus cambios
+      setFormData(prev => {
+        const dirty = dirtyFieldsRef.current;
+        if (dirty.size === 0) {
+          return fullFormData;
+        }
+        const merged = { ...fullFormData };
+        dirty.forEach(field => {
+          (merged as any)[field] = (prev as any)[field];
+        });
+        return merged;
+      });
+
+      if (!dirtyFieldsRef.current.has('ticketTypeId')) {
+        setTipoTicket(initTipo(full));
+      }
+      if (!dirtyFieldsRef.current.has('canales')) {
+        const canales = fullFormData.canales.length > 0 ? fullFormData.canales : ['LinkedIn'];
+        setActiveCopyTab((prevTab: string) => (canales.includes(prevTab) ? prevTab : canales[0]));
+      }
+
+      if (pendingSaveDataRef.current) {
+        const toSave = pendingSaveDataRef.current;
+        pendingSaveDataRef.current = null;
+        performAutoSaveRef.current?.(toSave);
+      }
     }
-  }, [ticketDetailQuery?.data, isEditing, defaultClientId]);
+  }, [ticketDetailQuery?.data, isEditing, ticket?.id, defaultClientId]);
 
   useEffect(() => {
     if (ticket?.id) {
@@ -391,9 +425,19 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const formDataRef = useRef(formData);
   formDataRef.current = formData;
+  const isSavingRef = useRef(false);
 
   const performAutoSave = async (overrideData?: Partial<typeof formData>) => {
-    if (!isEditing || !ticket?.id || isTicketLoading) return;
+    if (!isEditing || !ticket?.id) return;
+    if (isTicketLoading) {
+      pendingSaveDataRef.current = { ...(pendingSaveDataRef.current || {}), ...(overrideData || {}) };
+      return;
+    }
+    if (isSavingRef.current) {
+      pendingSaveDataRef.current = { ...(pendingSaveDataRef.current || {}), ...(overrideData || {}) };
+      return;
+    }
+
     const current = { ...formDataRef.current, ...overrideData };
     const primaryOwner = current.ownerId || current.assigneeIds?.[0];
     if (!current.title || !current.clientId || !primaryOwner) return;
@@ -431,6 +475,7 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
       payload.estadoRespuesta = current.estadoRespuesta || null;
     }
 
+    isSavingRef.current = true;
     setSaveStatus('saving');
     try {
       const res = await api.updateTicket(ticket.id, payload);
@@ -448,10 +493,20 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
         });
       }
       setSaveStatus('saved');
+      dirtyFieldsRef.current.clear();
     } catch (err: any) {
       setSaveStatus('error');
+    } finally {
+      isSavingRef.current = false;
+      if (pendingSaveDataRef.current) {
+        const nextSave = pendingSaveDataRef.current;
+        pendingSaveDataRef.current = null;
+        performAutoSave(nextSave);
+      }
     }
   };
+
+  performAutoSaveRef.current = performAutoSave;
 
   const triggerDebouncedAutoSave = (overrideData?: Partial<typeof formData>) => {
     if (!isEditing || !ticket?.id) return;
@@ -459,7 +514,7 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
     setSaveStatus('saving');
     saveTimeoutRef.current = setTimeout(() => {
       performAutoSave(overrideData);
-    }, 500);
+    }, 800);
   };
 
   const triggerImmediateAutoSave = (overrideData?: Partial<typeof formData>) => {
@@ -469,6 +524,7 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
   };
 
   const handleChange = (field: string, value: string, immediate = false) => {
+    dirtyFieldsRef.current.add(field);
     const updated = {
       ...formDataRef.current,
       [field]: value,
@@ -479,9 +535,8 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
     if (isEditing) {
       if (immediate || ['prioridad', 'ownerId', 'dueDate', 'estadoRespuesta', 'speakerId', 'pilarId', 'ticketTypeId'].includes(field)) {
         triggerImmediateAutoSave(updated);
-      } else {
-        triggerDebouncedAutoSave(updated);
       }
+      // Campos de texto (title, brief, etc.) se guardan al salir del campo (onBlur) o al cerrar el modal
     }
   };
 
@@ -626,6 +681,8 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
   const handleVerTicket = async () => {
     if (saveTimeoutRef.current) {
       clearTimeout(saveTimeoutRef.current);
+    }
+    if (isEditing && dirtyFieldsRef.current.size > 0) {
       await performAutoSave();
     }
     const id = ticket?.id;
@@ -643,9 +700,9 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
   const handleClose = () => {
     if (saveTimeoutRef.current) {
       clearTimeout(saveTimeoutRef.current);
-      if (isEditing) {
-        performAutoSave();
-      }
+    }
+    if (isEditing && dirtyFieldsRef.current.size > 0) {
+      performAutoSave();
     }
     setSaveStatus(null);
     setFormData(buildFormData(null));
@@ -653,6 +710,17 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
     if (!isEditing) setAttachedFiles([]);
     onClose();
   };
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        handleClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, isEditing]);
 
   if (!isOpen) return null;
 
@@ -750,6 +818,7 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
               type="text"
               value={formData.title}
               onChange={e => handleChange('title', e.target.value)}
+              onBlur={() => { if (isEditing && dirtyFieldsRef.current.has('title')) triggerImmediateAutoSave(); }}
               placeholder={esPrensa ? 'Título del ticket de prensa' : esTarea ? 'Nombre del pedido' : 'Nombre de la pieza'}
               className={fieldCls}
               autoFocus
@@ -862,6 +931,7 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
             <AutoResizeTextarea
               value={formData.brief}
               onChange={e => handleChange('brief', e.target.value)}
+              onBlur={() => { if (isEditing && dirtyFieldsRef.current.has('brief')) triggerImmediateAutoSave(); }}
               placeholder={noContenido ? 'Descripción — detalle del pedido' : 'Brief — qué querés comunicar y por qué'}
               className={fieldCls}
               minRows={formData.brief?.trim() ? 6 : 2}
@@ -880,6 +950,7 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
                   type="text"
                   value={formData.medio}
                   onChange={e => handleChange('medio', e.target.value)}
+                  onBlur={() => { if (isEditing && dirtyFieldsRef.current.has('medio')) triggerImmediateAutoSave(); }}
                   placeholder="La Nación, Clarín…"
                   className={fieldCls}
                 />
@@ -893,6 +964,7 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
                   type="text"
                   value={formData.periodista}
                   onChange={e => handleChange('periodista', e.target.value)}
+                  onBlur={() => { if (isEditing && dirtyFieldsRef.current.has('periodista')) triggerImmediateAutoSave(); }}
                   placeholder="Nombre del cronista"
                   className={fieldCls}
                 />
@@ -1176,6 +1248,8 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
                 <RichNotesEditor
                   value={currentCopy}
                   onChange={val => {
+                    dirtyFieldsRef.current.add('contentPerCanal');
+                    dirtyFieldsRef.current.add('content');
                     const nextContentPerCanal: Record<string, string> = { ...formData.contentPerCanal, [currentTab]: val };
                     const firstCanal = (formData.canales[0] as string) || 'LinkedIn';
                     const updated = {

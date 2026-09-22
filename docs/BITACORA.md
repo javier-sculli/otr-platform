@@ -2,6 +2,16 @@
 
 > **Propósito:** Registro central de avances, decisiones de producto, correcciones de errores y backlog priorizado de la plataforma Rocky (OTR). A partir de la reunión del 31 de Julio de 2026, cada cambio, bugfix y feature completado queda asentado en esta bitácora.
 
+### [2026-09-22] — Auto-guardado en onBlur y Protección Total al Cerrar Popups de Tickets
+- **Desarrollador:** Antigravity (Pair Programming con Javier Sculli)
+- **Resumen de Avances:**
+  1. **Diagnóstico de Sobreescritura Destructiva en Edición:** Al editar campos de texto libre (Descripción de tarea, Brief de contenido, título), el efecto de sincronización con React Query (`ticketDetailQuery`) re-ejecutaba `setFormData` con la respuesta del servidor cada vez que completaba una mutación de auto-guardado. Si el usuario seguía escribiendo mientras viajaba la petición por red, sus nuevos caracteres eran pisados por la versión vieja retornada por la API.
+  2. **Hidratación Única y Aislada (`loadedDetailTicketIdRef` + `dirtyFieldsRef`):** Se restringió la hidratación completa del ticket a una sola vez al abrir el modal. Las respuestas posteriores del auto-guardado actualizan la caché global sin tocar el estado del formulario en edición, preservando intactos los campos modificados por el usuario.
+  3. **Migración a Guardado en `onBlur`:** Para eliminar tráfico innecesario en la red y brindar una experiencia de escritura nativa y sin parpadeos, los campos de texto (`title`, `brief`, copies, `medio`, `periodista`) ahora se guardan al salir del campo (`onBlur`) únicamente si sufrieron modificaciones (`dirtyFieldsRef`). Los selects y pickers mantienen su guardado inmediato al seleccionar.
+  4. **Protección Total ante Cierre sin Blur:** Se blindó el cierre del modal en `handleClose` para que, si el usuario escribe y cierra inmediatamente el popup (clic en la "X", clic en el fondo oscuro/backdrop, tecla `Escape` o navegación), se despache el guardado antes de desmontar el modal.
+  5. **Suite de Tests Automatizados:** Se agregaron pruebas unitarias en `ticketModals.test.tsx` validando que la respuesta del auto-guardado no sobreescriba el texto escrito y que cerrar el modal sin salir del campo guarde automáticamente todos los cambios pendientes.
+- **Verificación:** 30/30 tests aprobados en Vitest (`pnpm --filter web test`) y build de producción (`pnpm --filter web build`) completado con 0 errores.
+
 ### [2026-09-17] — Corrección Crítica en Despacho de Emails con Resend (Dominio Verificado ontherocks.tech)
 - **Desarrollador:** Antigravity (Pair Programming con Javier Sculli)
 - **Resumen de Avances:**

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
@@ -187,11 +187,12 @@ describe('CreateTicketModal', () => {
       expect(screen.getByText('https://drive.google.com/link-importante')).toBeInTheDocument();
     });
 
-    // Modificar el título para gatillar auto-save
+    // Modificar el título para gatillar auto-save al salir del campo
     const titleInput = screen.getByPlaceholderText('Nombre de la pieza');
     await userEvent.type(titleInput, ' - Editado');
+    await userEvent.tab(); // Sale del campo (onBlur)
 
-    // Esperar a que se ejecute el auto-save con debounce
+    // Esperar a que se ejecute el auto-save
     await waitFor(
       () => {
         expect(api.updateTicket).toHaveBeenCalled();
@@ -227,6 +228,115 @@ describe('CreateTicketModal', () => {
       expect(screen.queryByRole('button', { name: /^Twitter$/i })).not.toBeInTheDocument();
       expect(screen.queryByRole('button', { name: /^Instagram$/i })).not.toBeInTheDocument();
     });
+  });
+
+  it('no sobreescribe ni pisa el brief/descripción al disparar auto-save en onBlur en un ticket de tipo tarea', async () => {
+    const mockTaskTicket = {
+      id: 'ticket-task-1',
+      title: 'Tarea de prueba',
+      objetivo: 'Texto inicial',
+      status: 'PENDIENTE',
+      prioridad: 'MEDIA',
+      links: [],
+      client: { id: 'c1', name: 'Cliente A' },
+      owner: { id: 'u1', name: 'Usuario 1' },
+      ticketType: { id: 'tt1', name: 'Tarea general', kind: 'TAREA' },
+    };
+
+    (api.getTicket as any).mockResolvedValue({
+      data: mockTaskTicket,
+    });
+    (api.updateTicket as any).mockImplementation((_id: string, payload: any) =>
+      Promise.resolve({
+        data: {
+          ...mockTaskTicket,
+          ...payload,
+        },
+      })
+    );
+
+    render(
+      <CreateTicketModal
+        isOpen={true}
+        onClose={vi.fn()}
+        ticket={mockTaskTicket as any}
+      />,
+      { wrapper: createWrapper() }
+    );
+
+    const textarea = await screen.findByPlaceholderText('Descripción — detalle del pedido');
+    expect(textarea).toHaveValue('Texto inicial');
+
+    // El usuario escribe texto continuo
+    await userEvent.type(textarea, ' con detalles adicionales');
+    expect(textarea).toHaveValue('Texto inicial con detalles adicionales');
+
+    // Al salir del campo (onBlur) se dispara el guardado
+    await userEvent.tab();
+
+    // Esperar a que se ejecute el auto-save
+    await waitFor(
+      () => {
+        expect(api.updateTicket).toHaveBeenCalled();
+      },
+      { timeout: 3000 }
+    );
+
+    // Verificar que tras responder el auto-save, el contenido NO fue pisado
+    expect(textarea).toHaveValue('Texto inicial con detalles adicionales');
+  });
+
+  it('guarda los cambios pendientes si el usuario cierra el modal directamente sin salir del campo', async () => {
+    const mockTaskTicket = {
+      id: 'ticket-task-2',
+      title: 'Tarea sin blur previo',
+      objetivo: 'Brief previo',
+      status: 'PENDIENTE',
+      prioridad: 'MEDIA',
+      links: [],
+      client: { id: 'c1', name: 'Cliente A' },
+      owner: { id: 'u1', name: 'Usuario 1' },
+      ticketType: { id: 'tt1', name: 'Tarea general', kind: 'TAREA' },
+    };
+
+    (api.getTicket as any).mockResolvedValue({
+      data: mockTaskTicket,
+    });
+    (api.updateTicket as any).mockResolvedValue({
+      data: mockTaskTicket,
+    });
+
+    const onClose = vi.fn();
+
+    render(
+      <CreateTicketModal
+        isOpen={true}
+        onClose={onClose}
+        ticket={mockTaskTicket as any}
+      />,
+      { wrapper: createWrapper() }
+    );
+
+    const textarea = await screen.findByPlaceholderText('Descripción — detalle del pedido');
+
+    // El usuario escribe pero NO hace blur
+    await userEvent.type(textarea, ' - texto sin salir del campo');
+
+    // Cierra el modal directamente haciendo clic en el backdrop oscuro
+    const backdrop = document.querySelector('.bg-black\\/40');
+    expect(backdrop).not.toBeNull();
+    fireEvent.click(backdrop!);
+
+    // Debe haberse llamado a updateTicket con los cambios pendientes
+    await waitFor(() => {
+      expect(api.updateTicket).toHaveBeenCalledWith(
+        'ticket-task-2',
+        expect.objectContaining({
+          objetivo: 'Brief previo - texto sin salir del campo',
+        })
+      );
+    });
+    expect(onClose).toHaveBeenCalled();
   });
 });
 
