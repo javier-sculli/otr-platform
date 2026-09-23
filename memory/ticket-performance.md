@@ -24,3 +24,8 @@ Al abrir el popup del ticket (`CreateTicketModal` / `GET /tickets/:id`), la pega
    - Se configuró `staleTime: 30 * 1000` para `['ticket', ticket.id]`.
    - Se configuró `staleTime: 10 * 60 * 1000` para `clients` y `ticketTypes`.
    - Se configuró `staleTime: 5 * 60 * 1000` para `pilares` y `speakers`.
+
+4. **Migración de Base de Datos a Railway PostgreSQL (2026-09-23):**
+   - Se migró la base de datos completa de Supabase (São Paulo) a un PostgreSQL nativo en Railway en el mismo proyecto y datacenter (`US East`).
+   - Se exportaron e importaron las 15 tablas con el 100% de los datos (833 tickets, 20 usuarios, 30 clientes, 1.892 publicaciones, métricas, etc.).
+   - La API se conecta ahora a través de la red privada interna (`postgres.railway.internal:5432`), eliminando la latencia transatlántica de 140ms y los problemas de PgBouncer. Latencia API ↔ DB reducida a **0.2 ms**.
