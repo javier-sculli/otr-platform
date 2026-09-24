@@ -5,14 +5,14 @@ import {
   ArrowLeft, ArrowRight, Sparkles,
   Link2, Image as ImageIcon, Eye, Send, GripVertical, Check, AlertCircle,
   Paperclip, X, FileText, File, ExternalLink, Mic, MicOff, Trash2, Star, BookOpen, Undo2,
-  History, Copy, RotateCcw,
+  History, Copy, RotateCcw, Plus, ChevronDown,
 } from 'lucide-react';
 import * as pdfjsLib from 'pdfjs-dist';
 import { api } from '../lib/api';
 import { TicketsReferencia } from '../components/TicketsReferencia';
 import { RichNotesEditor } from '../components/RichNotesEditor';
 import { AutoResizeTextarea } from '../components/AutoResizeTextarea';
-import { ensureAbsoluteUrl } from '../lib/utils';
+import { ensureAbsoluteUrl, copyHtmlToClipboard, recordCopyVersion, stripHtmlToPlainText } from '../lib/utils';
 import { getNextStatusForTicket } from '../lib/workflow';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
@@ -44,11 +44,47 @@ const STATUS_LABELS: Record<string, string> = {
 
 const QUICK_ACTIONS = ['Redactar', 'Reforzar tono', 'Más conciso', 'Regenerar hook'];
 
+export const AI_MODELS = [
+  { id: 'claude-sonnet-5', name: 'Sonnet 5', description: 'Rápido, equilibrado y preciso (Recomendado)', tag: 'Default' },
+  { id: 'claude-opus-5', name: 'Opus 5', description: 'Razonamiento profundo (Prensa y notas complejas)', tag: 'Thinking' },
+  { id: 'claude-fable-5-1', name: 'Fable 5.1', description: 'Narrativa, storytelling y tono creativo', tag: 'Story' },
+] as const;
+
+export type AiModelId = (typeof AI_MODELS)[number]['id'];
+
 export function ContentPage() {
   const { ticketId } = useParams<{ ticketId: string }>();
   const navigate = useNavigate();
   const location = useLocation();
   const queryClient = useQueryClient();
+
+  const [selectedModel, setSelectedModel] = useState<AiModelId>(() => {
+    const saved = localStorage.getItem('otr_selected_ai_model');
+    if (saved && AI_MODELS.some(m => m.id === saved)) {
+      return saved as AiModelId;
+    }
+    return 'claude-sonnet-5';
+  });
+  const [isModelMenuOpen, setIsModelMenuOpen] = useState(false);
+  const modelMenuRef = useRef<HTMLDivElement>(null);
+
+  const handleSelectModel = (modelId: AiModelId) => {
+    setSelectedModel(modelId);
+    localStorage.setItem('otr_selected_ai_model', modelId);
+    setIsModelMenuOpen(false);
+  };
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (modelMenuRef.current && !modelMenuRef.current.contains(e.target as Node)) {
+        setIsModelMenuOpen(false);
+      }
+    }
+    if (isModelMenuOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [isModelMenuOpen]);
 
   const [title, setTitle] = useState('');
   const [brief, setBrief] = useState('');
@@ -126,6 +162,16 @@ export function ContentPage() {
   const [showHistory, setShowHistory] = useState(false);
   const [historyWidth, setHistoryWidth] = useState(420);
   const [copiedVersionIndex, setCopiedVersionIndex] = useState<number | null>(null);
+  const [versionNotice, setVersionNotice] = useState<string | null>(null);
+  const noticeTimeoutRef = useRef<any>(null);
+
+  const showVersionNotice = (msg: string) => {
+    setVersionNotice(msg);
+    if (noticeTimeoutRef.current) clearTimeout(noticeTimeoutRef.current);
+    noticeTimeoutRef.current = setTimeout(() => {
+      setVersionNotice(null);
+    }, 3500);
+  };
 
   const [aiPrompt, setAiPrompt] = useState('');
   const [chatWidth, setChatWidth] = useState(480);
@@ -311,6 +357,17 @@ export function ContentPage() {
           }
         }
 
+        // Si el ticket ya posee copy cargado para un canal pero rawVersions está vacío, inicializar con el copy actual como Versión 1
+        canalList.forEach((canal: string) => {
+          const text = perCanal[canal];
+          const hasText = text && stripHtmlToPlainText(text).length > 0;
+          const versions = rawVersions[canal] || Object.entries(rawVersions).find(([k]) => k.toLowerCase() === canal.toLowerCase())?.[1];
+          if (hasText && (!Array.isArray(versions) || versions.length === 0)) {
+            rawVersions[canal] = [text];
+          }
+        });
+        updateVersions(rawVersions);
+
         setCanales(canalList);
         updateContentPerCanal(perCanal);
         const initialCanal = canalList[0];
@@ -333,15 +390,28 @@ export function ContentPage() {
   }, [chatMessages]);
 
   const saveMutation = useMutation({
-    mutationFn: () => api.updateTicket(ticketId!, {
-      title,
-      objetivo: brief,
-      keywords,
-      contentPerCanal: getSafeContentPerCanal(),
-      versionsPerCanal: versionsPerCanalRef.current,
-      links: contextLinks,
-      linkEntregable: linkEntregable || null,
-    }),
+    mutationFn: () => {
+      let versionsToSave = versionsPerCanalRef.current;
+      const currentPlain = stripHtmlToPlainText(contentText);
+      if (activeCanal && currentPlain.length > 0) {
+        versionsToSave = recordCopyVersion(
+          versionsToSave,
+          activeCanal,
+          contentText
+        );
+        updateVersions(versionsToSave);
+      }
+
+      return api.updateTicket(ticketId!, {
+        title,
+        objetivo: brief,
+        keywords,
+        contentPerCanal: getSafeContentPerCanal(),
+        versionsPerCanal: versionsToSave,
+        links: contextLinks,
+        linkEntregable: linkEntregable || null,
+      });
+    },
     onSuccess: (res: any) => {
       if (res?.data && ticketId) {
         queryClient.setQueryData(['ticket', ticketId], (old: any) => {
@@ -483,7 +553,7 @@ export function ContentPage() {
     try {
       {
         const result = await api.chatWithAI(ticketId, {
-          instruction: fullInstruction, currentContent: contentText, brief, tone, keywords, outputLength, model: 'claude-sonnet-4-6', attachments, history, canal: activeCanal === 'Contenido' ? undefined : activeCanal, otherCanalesContent: Object.fromEntries(Object.entries(contentPerCanalRef.current).filter(([k, v]) => k !== activeCanal && v?.trim())),
+          instruction: fullInstruction, currentContent: contentText, brief, tone, keywords, outputLength, model: selectedModel, attachments, history, canal: activeCanal === 'Contenido' ? undefined : activeCanal, otherCanalesContent: Object.fromEntries(Object.entries(contentPerCanalRef.current).filter(([k, v]) => k !== activeCanal && v?.trim())),
         });
 
         if (result.newContent !== null && result.newContent.trim().length > 0) {
@@ -532,26 +602,72 @@ export function ContentPage() {
     }
   };
 
-  const handleUndo = () => {
-    const currentVersions = versionsPerCanalRef.current;
-    const stack = currentVersions[activeCanal];
-    if (!stack?.length || isAiLoading) return;
-    const previous = stack[stack.length - 1];
-    const updatedVersions = {
-      ...currentVersions,
-      [activeCanal]: stack.slice(0, -1),
-    };
+  const handleEditorPaste = ({
+    finalHtml,
+    isSubstantial,
+  }: {
+    pastedText: string;
+    finalHtml: string;
+    isSubstantial: boolean;
+  }) => {
+    if (!isSubstantial) return;
+
+    const prevContent = contentText;
+    const updatedVersions = recordCopyVersion(
+      versionsPerCanalRef.current,
+      activeCanal,
+      finalHtml,
+      prevContent
+    );
     updateVersions(updatedVersions);
 
-    const updated = { ...contentPerCanalRef.current, [activeCanal]: previous };
-    setContentText(previous);
-    setCharCount(previous.length);
+    const updated = { ...contentPerCanalRef.current, [activeCanal]: finalHtml };
+    updateContentPerCanal(updated);
+    setContentText(finalHtml);
+    setCharCount(stripHtmlToPlainText(finalHtml).length);
+    setHasChanges(false);
+
+    const canalVersions = updatedVersions[activeCanal] || [];
+    showVersionNotice(`Versión ${canalVersions.length} guardada en el historial`);
+
+    api.updateTicket(ticketId!, {
+      contentPerCanal: updated,
+      versionsPerCanal: updatedVersions,
+    }).then(() => {
+      queryClient.invalidateQueries({ queryKey: ['ticket', ticketId] });
+      queryClient.invalidateQueries({ queryKey: ['tickets'] });
+    }).catch((err) => {
+      console.error('Error guardando versión de copy pegada:', err);
+    });
+  };
+
+  const handleSaveCurrentAsVersion = () => {
+    const curContent = contentText.trim();
+    if (!stripHtmlToPlainText(curContent)) return;
+
+    const canalVersions = getVersionsForCanal(activeCanal);
+    const lastVer = canalVersions[canalVersions.length - 1];
+
+    if (lastVer && stripHtmlToPlainText(lastVer) === stripHtmlToPlainText(curContent)) {
+      showVersionNotice('Esta versión ya está guardada en el historial');
+      return;
+    }
+
+    const updatedVersions = recordCopyVersion(
+      versionsPerCanalRef.current,
+      activeCanal,
+      curContent
+    );
+    updateVersions(updatedVersions);
+
+    const updated = { ...contentPerCanalRef.current, [activeCanal]: curContent };
     updateContentPerCanal(updated);
     setHasChanges(false);
+
+    const count = updatedVersions[activeCanal]?.length || canalVersions.length + 1;
+    showVersionNotice(`Versión ${count} guardada en el historial`);
+
     api.updateTicket(ticketId!, {
-      title,
-      objetivo: brief,
-      keywords,
       contentPerCanal: updated,
       versionsPerCanal: updatedVersions,
     }).then(() => {
@@ -559,6 +675,59 @@ export function ContentPage() {
       queryClient.invalidateQueries({ queryKey: ['tickets'] });
     }).catch(() => {});
   };
+
+  const handleUndo = () => {
+    const stack = getVersionsForCanal(activeCanal);
+    if (!stack?.length || isAiLoading) return;
+
+    const currentPlain = stripHtmlToPlainText(contentText);
+
+    // Buscar qué versión del historial coincide con el contenido actual
+    let currentIndex = -1;
+    for (let i = stack.length - 1; i >= 0; i--) {
+      if (stripHtmlToPlainText(stack[i]) === currentPlain) {
+        currentIndex = i;
+        break;
+      }
+    }
+
+    let targetIndex = -1;
+    if (currentIndex > 0) {
+      targetIndex = currentIndex - 1;
+    } else if (currentIndex === -1) {
+      // Si el texto fue editado manualmente y no coincide con la última versión guardada, restaurar la última
+      targetIndex = stack.length - 1;
+    } else {
+      // currentIndex === 0: ya estamos en la primera versión
+      return;
+    }
+
+    const previous = stack[targetIndex];
+    const updated = { ...contentPerCanalRef.current, [activeCanal]: previous };
+    setContentText(previous);
+    setCharCount(stripHtmlToPlainText(previous).length);
+    updateContentPerCanal(updated);
+    setHasChanges(false);
+
+    showVersionNotice(`Restaurada Versión ${targetIndex + 1}`);
+
+    api.updateTicket(ticketId!, {
+      contentPerCanal: updated,
+      versionsPerCanal: versionsPerCanalRef.current,
+    }).then(() => {
+      queryClient.invalidateQueries({ queryKey: ['ticket', ticketId] });
+      queryClient.invalidateQueries({ queryKey: ['tickets'] });
+    }).catch(() => {});
+  };
+
+  const canUndo = (() => {
+    if (isAiLoading) return false;
+    const stack = getVersionsForCanal(activeCanal);
+    if (!stack.length) return false;
+    const currentPlain = stripHtmlToPlainText(contentText);
+    if (stack.length === 1 && stripHtmlToPlainText(stack[0]) === currentPlain) return false;
+    return true;
+  })();
 
   const handleSelectVersion = (versionText: string) => {
     if (isAiLoading) return;
@@ -578,7 +747,7 @@ export function ContentPage() {
 
     const updated = { ...contentPerCanalRef.current, [activeCanal]: versionText };
     setContentText(versionText);
-    setCharCount(versionText.length);
+    setCharCount(stripHtmlToPlainText(versionText).length);
     updateContentPerCanal(updated);
     setHasChanges(false);
     api.updateTicket(ticketId!, {
@@ -593,8 +762,8 @@ export function ContentPage() {
     }).catch(() => {});
   };
 
-  const handleCopyVersion = (text: string, index: number) => {
-    navigator.clipboard.writeText(text);
+  const handleCopyVersion = async (text: string, index: number) => {
+    await copyHtmlToClipboard(text);
     setCopiedVersionIndex(index);
     setTimeout(() => {
       setCopiedVersionIndex(null);
@@ -778,7 +947,58 @@ export function ContentPage() {
               <div className="flex items-center gap-2">
                 <Sparkles className="w-4 h-4 text-[#024fff]" />
                 <h3 className="text-xs font-bold text-[#000033]">Asistente IA</h3>
-                <span className="px-1.5 py-0.5 bg-[#024fff]/10 text-[#024fff] text-xs font-bold rounded">Claude</span>
+
+                {/* Selector de Modelo */}
+                <div className="relative" ref={modelMenuRef}>
+                  <button
+                    type="button"
+                    onClick={() => setIsModelMenuOpen(prev => !prev)}
+                    className="flex items-center gap-1 px-2 py-0.5 bg-[#024fff]/10 hover:bg-[#024fff]/20 text-[#024fff] text-xs font-bold rounded transition-all border border-[#024fff]/20"
+                    title="Elegir modelo de redacción"
+                  >
+                    <span>{AI_MODELS.find(m => m.id === selectedModel)?.name ?? 'Sonnet 5'}</span>
+                    <ChevronDown className={`w-3 h-3 transition-transform duration-200 ${isModelMenuOpen ? 'rotate-180' : ''}`} />
+                  </button>
+
+                  {isModelMenuOpen && (
+                    <div className="absolute left-0 top-full mt-1.5 w-64 bg-white border-2 border-[#000033]/10 rounded-xl shadow-xl z-50 py-1 overflow-hidden">
+                      <div className="px-3 py-1.5 border-b border-[#000033]/5 text-[10px] font-bold text-[#000033]/50 uppercase tracking-wider">
+                        Modelo de Redacción
+                      </div>
+                      {AI_MODELS.map(m => {
+                        const isSelected = m.id === selectedModel;
+                        return (
+                          <button
+                            key={m.id}
+                            type="button"
+                            onClick={() => handleSelectModel(m.id)}
+                            className={`w-full text-left px-3 py-2 flex flex-col gap-0.5 transition-colors ${
+                              isSelected
+                                ? 'bg-[#024fff]/10 text-[#000033]'
+                                : 'hover:bg-[#000033]/5 text-[#000033]/80 hover:text-[#000033]'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between">
+                              <span className={`text-xs font-bold ${isSelected ? 'text-[#024fff]' : ''}`}>
+                                {m.name}
+                              </span>
+                              <span className={`text-[9px] px-1.5 py-0.5 rounded font-semibold ${
+                                isSelected
+                                  ? 'bg-[#024fff] text-white'
+                                  : 'bg-[#000033]/5 text-[#000033]/50'
+                              }`}>
+                                {m.tag}
+                              </span>
+                            </div>
+                            <span className="text-[10px] text-[#000033]/50 leading-tight">
+                              {m.description}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
               </div>
               {contexto.length > 0 && (
                 <div className="relative group">
@@ -1065,9 +1285,15 @@ export function ContentPage() {
               Editor de Copy
             </div>
             <div className="flex items-center gap-2">
+              {versionNotice && (
+                <span className="flex items-center gap-1.5 px-2.5 py-0.5 text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-full animate-pulse mr-1">
+                  <Check className="w-3 h-3 text-emerald-600" />
+                  {versionNotice}
+                </span>
+              )}
               <button
                 onClick={handleUndo}
-                disabled={!getVersionsForCanal(activeCanal).length || isAiLoading}
+                disabled={!canUndo}
                 title="Volver a la versión anterior del contenido"
                 className="flex items-center gap-1 p-1.5 rounded transition-all text-[#000033]/60 hover:bg-[#000033]/5 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent"
               >
@@ -1143,13 +1369,14 @@ export function ContentPage() {
                 value={contentText}
                 onChange={val => {
                   setContentText(val);
-                  const plainText = val.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ');
+                  const plainText = stripHtmlToPlainText(val);
                   setCharCount(plainText.length);
                   const updated = { ...contentPerCanalRef.current, [activeCanal]: val };
                   updateContentPerCanal(updated);
                   setHasChanges(true);
                 }}
                 onBlur={() => { if (hasChanges) saveMutation.mutate(); }}
+                onPaste={handleEditorPaste}
                 placeholder="Empieza a escribir o pedile a la IA que genere contenido..."
                 minHeight="100%"
                 maxHeight="100%"
@@ -1187,13 +1414,23 @@ export function ContentPage() {
                       </span>
                     )}
                   </div>
-                  <button
-                    onClick={() => setShowHistory(false)}
-                    className="p-1 hover:bg-[#000033]/5 rounded transition-all text-[#000033]/40 hover:text-[#000033]"
-                    title="Cerrar historial"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      onClick={handleSaveCurrentAsVersion}
+                      className="flex items-center gap-1 px-2 py-1 bg-[#024fff]/10 hover:bg-[#024fff]/20 text-[#024fff] rounded text-[11px] font-bold transition-all"
+                      title="Guardar el contenido actual como una nueva versión en el historial"
+                    >
+                      <Plus className="w-3 h-3" />
+                      <span>Guardar actual</span>
+                    </button>
+                    <button
+                      onClick={() => setShowHistory(false)}
+                      className="p-1 hover:bg-[#000033]/5 rounded transition-all text-[#000033]/40 hover:text-[#000033]"
+                      title="Cerrar historial"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
 
                 {/* Sidebar Content */}
@@ -1218,14 +1455,19 @@ export function ContentPage() {
                               Versión {verNum}
                             </span>
                             <span className="text-[10px] text-[#000033]/40">
-                              {verText.length} caracteres
+                              {stripHtmlToPlainText(verText).length} caracteres
                             </span>
                           </div>
 
                           {/* Version Text Box - Selectable */}
-                          <div className="p-3 bg-[#000033]/[0.02] border border-[#000033]/5 rounded text-xs text-[#000033]/90 font-mono leading-relaxed min-h-[120px] max-h-[360px] overflow-y-auto whitespace-pre-wrap select-text">
-                            {verText || <span className="italic text-[#000033]/30">(vacío)</span>}
-                          </div>
+                          <div
+                            className="p-3 bg-[#000033]/[0.02] border border-[#000033]/5 rounded text-xs text-[#000033]/90 leading-relaxed min-h-[120px] max-h-[360px] overflow-y-auto whitespace-pre-wrap select-text"
+                            dangerouslySetInnerHTML={{
+                              __html: verText
+                                ? (verText.includes('<') ? verText : verText.replace(/\n/g, '<br>'))
+                                : '<span class="italic text-[#000033]/30">(vacío)</span>',
+                            }}
+                          />
 
                           {/* Actions */}
                           <div className="flex items-center justify-end gap-1.5 pt-1 border-t border-[#000033]/5">

@@ -80,13 +80,11 @@ Sistema de gestión de producción de contenido para On The Rocks (OTR), una age
 - Tareas de desarrollo Fase 1: 5 ítems con prefijo `F1 ·` en la base de Tareas de Desarrollo.
 - Doc de procesos de la contenidista: `BAJADAS INFO ROCKY` (flujos por formato, publicable vs no publicable, ticket de "otros pedidos").
 
-## Bitácora del Proyecto (`docs/BITACORA.md`) — REGLA OBLIGATORIA DE PROCESO
+## Backlog Oficial (Notion) y Bitácora (`docs/BITACORA.md`) — REGLA OBLIGATORIA
 
-> ⚠️ **OBLIGATORIO PARA CLAUDE / AGENTES DE IA:**
-> El archivo [`docs/BITACORA.md`](file:///Users/javiersculli/dev/OTR/docs/BITACORA.md) es la fuente de verdad del progreso del proyecto, backlog de épicas y registro de cambios (changelog).
->
-> 1. **Consultar siempre la Bitácora:** Al iniciar cualquier interacción o tarea, leer [`docs/BITACORA.md`](file:///Users/javiersculli/dev/OTR/docs/BITACORA.md).
-> 2. **Actualizar la Bitácora en cada avance:** Con cada bug resuelto, feature implementado o cambio acordado, es **REQUISITO OBLIGATORIO** actualizar el archivo [`docs/BITACORA.md`](file:///Users/javiersculli/dev/OTR/docs/BITACORA.md), marcando las tareas como completadas (`[x]`) y agregando una entrada formal en la sección *Historial de Cambios y Avances*.
+> ⚠️ **REGLA MANDATORIA DE GESTIÓN Y SEGUIMIENTO:**
+> 1. **Backlog Oficial (Única Fuente de Verdad):** Todas las tareas, prioridades, pendientes y estados viven **exclusivamente en Notion**: [Notion Backlog Oficial](https://app.notion.com/p/Backlog-3ba617fc369281048bfdfc89c5041d9c?source=copy_link). **NUNCA** mantener tareas sueltas o checklists de pendientes (`[ ]`) en archivos Markdown.
+> 2. **Bitácora del Proyecto (`docs/BITACORA.md`):** Funciona estrictamente como **registro histórico de avances completados (changelog)**, decisiones de producto/arquitectura y registro de tests automatizados de cada release. Con cada avance completado, asentar una entrada formal en [`docs/BITACORA.md`](file:///Users/javiersculli/dev/OTR/docs/BITACORA.md) y pasar la tarea a `Done` en Notion.
 
 ## Regla de Calidad y Solidez: Test Obligatorio por Bugfix y Notificación
 

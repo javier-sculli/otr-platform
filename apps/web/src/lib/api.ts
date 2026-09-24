@@ -219,18 +219,22 @@ class ApiClient {
   }
 
   // Pilares
-  async getPilares(clientId: string) {
-    return this.request<{ data: any[] }>(`/catalogs/clients/${clientId}/pilares`);
+  async getPilares(clientId: string, speakerId?: string, includeBrand?: boolean) {
+    const params = new URLSearchParams();
+    if (speakerId) params.append('speakerId', speakerId);
+    if (includeBrand !== undefined) params.append('includeBrand', String(includeBrand));
+    const query = params.toString() ? `?${params.toString()}` : '';
+    return this.request<{ data: any[] }>(`/catalogs/clients/${clientId}/pilares${query}`);
   }
 
-  async createPilar(clientId: string, data: { nombre: string; descripcion?: string }) {
+  async createPilar(clientId: string, data: { nombre: string; descripcion?: string; speakerId?: string | null }) {
     return this.request<{ data: any }>(`/catalogs/clients/${clientId}/pilares`, {
       method: 'POST',
       body: JSON.stringify(data),
     });
   }
 
-  async updatePilar(clientId: string, pilarId: string, data: { nombre?: string; descripcion?: string }) {
+  async updatePilar(clientId: string, pilarId: string, data: { nombre?: string; descripcion?: string; speakerId?: string | null }) {
     return this.request<{ data: any }>(`/catalogs/clients/${clientId}/pilares/${pilarId}`, {
       method: 'PATCH',
       body: JSON.stringify(data),

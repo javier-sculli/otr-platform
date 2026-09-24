@@ -9,6 +9,11 @@ interface RichNotesEditorProps {
   value: string;
   onChange: (value: string) => void;
   onBlur?: () => void;
+  onPaste?: (info: {
+    pastedText: string;
+    finalHtml: string;
+    isSubstantial: boolean;
+  }) => void;
   placeholder?: string;
   minHeight?: string;
   maxHeight?: string;
@@ -305,6 +310,7 @@ export function RichNotesEditor({
   value,
   onChange,
   onBlur,
+  onPaste,
   placeholder = 'Escribí o pegá libremente notas de diseño, especificaciones, referencias, links e imágenes desde Notion, ChatGPT o Google Docs...',
   minHeight = '340px',
   maxHeight = '650px',
@@ -468,8 +474,19 @@ export function RichNotesEditor({
 
   const handlePaste = async (e: React.ClipboardEvent<HTMLDivElement>) => {
     const html = e.clipboardData.getData('text/html');
+    const text = e.clipboardData.getData('text/plain') || '';
     const items = Array.from(e.clipboardData.items || []);
     const imageItem = items.find(item => item.type.startsWith('image/'));
+
+    // Check editor content and selection before paste
+    const beforeText = (editorRef.current?.innerText || '').trim();
+    const sel = window.getSelection();
+    const selectionLen = sel ? sel.toString().trim().length : 0;
+    const isSubstantial =
+      beforeText.length === 0 ||
+      (selectionLen > 0 && selectionLen >= beforeText.length * 0.7) ||
+      text.trim().length >= 40 ||
+      (text.includes('\n') && text.trim().length >= 20);
 
     // 1. Si hay un archivo directo de imagen en el portapapeles y el HTML no contiene texto real (o es solo un wrapper de imagen)
     if (imageItem && (!html || (!html.includes('<p>') && !html.includes('<span>')))) {
@@ -539,6 +556,11 @@ export function RichNotesEditor({
       document.execCommand('insertHTML', false, cleanHTML);
       handleInput();
 
+      if (onPaste && editorRef.current) {
+        const finalHtml = cleanJunkHtmlBlocks(editorRef.current.innerHTML);
+        onPaste({ pastedText: text, finalHtml, isSubstantial });
+      }
+
       // Convertir imágenes externas (Notion AWS S3, etc.) a Base64 en segundo plano para persistencia permanente
       if (editorRef.current) {
         const editorImgs = Array.from(editorRef.current.querySelectorAll('img'));
@@ -561,7 +583,6 @@ export function RichNotesEditor({
     }
 
     // 3. Texto plano o URL directa
-    const text = e.clipboardData.getData('text/plain');
     if (text) {
       e.preventDefault();
       const trimmed = text.trim();
@@ -585,6 +606,11 @@ export function RichNotesEditor({
         const htmlText = text.replace(/\n/g, '<br>');
         document.execCommand('insertHTML', false, htmlText);
         handleInput();
+
+        if (onPaste && editorRef.current) {
+          const finalHtml = cleanJunkHtmlBlocks(editorRef.current.innerHTML);
+          onPaste({ pastedText: text, finalHtml, isSubstantial });
+        }
       }
     }
   };

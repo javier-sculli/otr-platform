@@ -10,7 +10,7 @@ import {
 import { api } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 import { TIPO_GESTION_PITCH, STATUS_OPTIONS, PRENSA_STATUS_OPTIONS, getNextStatusInfo } from '../lib/estados';
-import { ensureAbsoluteUrl, copyHtmlToClipboard, formatDateISO, getRedesObjetivoForClient } from '../lib/utils';
+import { ensureAbsoluteUrl, copyHtmlToClipboard, formatDateISO, getRedesObjetivoForClient, recordCopyVersion } from '../lib/utils';
 import { RichNotesEditor } from './RichNotesEditor';
 import { ResponsablesSelect } from './ResponsablesSelect';
 import { AutoResizeTextarea } from './AutoResizeTextarea';
@@ -464,6 +464,26 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
       const hasSomeContent = Object.values(current.contentPerCanal || {}).some((val: any) => typeof val === 'string' && val.trim().length > 0);
       if (hasSomeContent) {
         payload.contentPerCanal = current.contentPerCanal;
+
+        // Registrar versiones en versionsPerCanal si se modificó o pegó copy
+        if (dirtyFieldsRef.current.has('contentPerCanal') && isEditing && ticket) {
+          let updatedVersions: Record<string, string[]> =
+            (ticket as any)?.versionsPerCanal && typeof (ticket as any).versionsPerCanal === 'object'
+              ? { ...((ticket as any).versionsPerCanal as Record<string, string[]>) }
+              : {};
+          const existingMap: Record<string, string> =
+            (ticket as any)?.contentPerCanal && typeof (ticket as any).contentPerCanal === 'object'
+              ? (ticket as any).contentPerCanal
+              : {};
+
+          Object.entries(current.contentPerCanal || {}).forEach(([canal, text]: [string, any]) => {
+            if (typeof text === 'string' && text.trim().length > 0) {
+              const prevText = existingMap[canal];
+              updatedVersions = recordCopyVersion(updatedVersions, canal, text, prevText);
+            }
+          });
+          payload.versionsPerCanal = updatedVersions;
+        }
       }
     }
 
@@ -1261,6 +1281,20 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
                     if (isEditing) triggerDebouncedAutoSave(updated);
                   }}
                   onBlur={() => { if (isEditing) triggerImmediateAutoSave(); }}
+                  onPaste={({ finalHtml, isSubstantial }) => {
+                    if (!isSubstantial) return;
+                    dirtyFieldsRef.current.add('contentPerCanal');
+                    dirtyFieldsRef.current.add('content');
+                    const nextContentPerCanal: Record<string, string> = { ...formData.contentPerCanal, [currentTab]: finalHtml };
+                    const firstCanal = (formData.canales[0] as string) || 'LinkedIn';
+                    const updated = {
+                      ...formData,
+                      contentPerCanal: nextContentPerCanal,
+                      content: nextContentPerCanal[firstCanal] || null,
+                    };
+                    setFormData(updated);
+                    if (isEditing) triggerImmediateAutoSave(updated);
+                  }}
                   placeholder={`Copy para ${currentTab}...`}
                   minHeight="180px"
                 />

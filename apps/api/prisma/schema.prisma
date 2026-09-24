@@ -106,6 +106,7 @@ model Speaker {
   client       Client        @relation(fields: [clientId], references: [id], onDelete: Cascade)
   tickets      Ticket[]
   publications Publication[]
+  pilares      Pilar[]
 
   @@index([clientId])
   @@map("speakers")
@@ -114,15 +115,18 @@ model Speaker {
 model Pilar {
   id          String   @id @default(uuid())
   clientId    String   @map("client_id")
+  speakerId   String?  @map("speaker_id")
   nombre      String
   descripcion String?  @db.Text
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
   client  Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  speaker Speaker? @relation(fields: [speakerId], references: [id], onDelete: Cascade)
   tickets Ticket[]
 
   @@index([clientId])
+  @@index([speakerId])
   @@map("pilares")
 }
 

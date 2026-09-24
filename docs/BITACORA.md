@@ -1,6 +1,54 @@
 # Bitácora de Desarrollo y Seguimiento — OTR Platform (Rocky / Ruki)
 
-> **Propósito:** Registro central de avances, decisiones de producto, correcciones de errores y backlog priorizado de la plataforma Rocky (OTR). A partir de la reunión del 31 de Julio de 2026, cada cambio, bugfix y feature completado queda asentado en esta bitácora.
+> **Propósito:** Registro central de avances, decisiones de producto, correcciones de errores y bitácora técnica de la plataforma Rocky (OTR).
+> 
+> 🎯 **BACKLOG OFICIAL Y PRIORIDADES (FUENTE DE VERDAD):** [Notion Backlog Oficial](https://app.notion.com/p/Backlog-3ba617fc369281048bfdfc89c5041d9c?source=copy_link). Todas las prioridades y tareas activas se gestionan directamente allí.
+
+### [2026-09-24] — Gestión de Pilares Propios por Vocero [VOC-01]
+- **Desarrollador:** Antigravity (Pair Programming con Javier Sculli)
+- **Tarea en Notion:** [Gestión de Pilares Propios por Vocero [VOC-01]](https://app.notion.com/p/Gesti-n-de-Pilares-Propios-por-Vocero-VOC-01-3e5617fc369281e99f36c6ae01467bd2) (Estado: ✅ Done)
+- **Resumen de Avances:**
+  1. **Modelo de Datos y Migración (`schema.prisma` y DB):** Se añadió el campo `speakerId String? @map("speaker_id")` en el modelo `Pilar`, con relación opcional `@relation(fields: [speakerId], references: [id], onDelete: Cascade)` e índice `@@index([speakerId])`. Se creó y aplicó la migración `20260924153000_add_speaker_to_pilares` en PostgreSQL de Railway.
+  2. **Endpoints de Catálogo (`catalogs.ts`):** Se actualizaron las rutas `GET`, `POST` y `PATCH` de `/clients/:id/pilares` para admitir `speakerId` e `includeBrand`. Si se provee `speakerId`, por defecto resuelve los pilares propios del vocero más los generales de la marca, o estrictamente los del vocero si `includeBrand=false`.
+  3. **Cliente API Frontend (`api.ts`):** Métodos `getPilares(clientId, speakerId?, includeBrand?)`, `createPilar` y `updatePilar` actualizados para soportar `speakerId`.
+  4. **Interfaz de Gestión en Detalle de Vocero (`VocerosPage.tsx`):** Se integró la sección *"Pilares de contenido del vocero"* con contador dinámico, estado vacío intuitivo, formulario para agregar pilar, edición rápida inline (`Edit3`) y eliminación con confirmación.
+  5. **Módulo de Filtrado y Blindaje de Lógica (`utils.ts`):** Se implementó la función pura `filterPilaresBySpeaker` con tipado genérico para resolver pilares por vocero y marca de manera defensiva.
+- **Suite de Tests:** Se incorporó en `utils.test.ts` la suite `'filterPilaresBySpeaker [VOC-01 / VOC-02]'` con 4 tests que validan:
+  - Filtrado exclusivo de pilares de marca cuando no hay vocero activo (modo contenido de marca).
+  - Fusión de pilares propios del vocero + pilares de marca cuando hay vocero seleccionado.
+  - Filtrado estricto sin pilares de marca cuando `includeBrand = false` (modo edición en Voceros).
+  - Manejo defensivo ante listas vacías o valores nulos/indefinidos.
+- **Verificación:** Suite de Vitest pasando al 100% (41/41 tests aprobados) y compilación completa del monorepo (`pnpm -r build`) exitosa con 0 errores de TypeScript.
+
+### [2026-09-23] — Actualización a Familia Claude 5 y Selector Interactivo de Modelos de Redacción
+- **Desarrollador:** Antigravity (Pair Programming con Javier Sculli)
+- **Resumen de Avances:**
+  1. **Migración a la Familia Claude 5:** Se actualizó el motor de redacción de IA de OTR a los modelos de la generación 5 de Anthropic (`claude-sonnet-5`, `claude-opus-5`, `claude-fable-5-1`).
+  2. **Selector de Modelos en Cabecera de Asistente IA (`ContentPage.tsx`):** Se reemplazó el badge estático por un menú desplegable interactivo que permite al redactor alternar entre:
+     - **Sonnet 5 (`claude-sonnet-5`):** Rápido, equilibrado y preciso (por defecto recomendado para redes sociales y adaptaciones).
+     - **Opus 5 (`claude-opus-5`):** Razonamiento profundo con thinking nativo (ideal para notas de prensa y comunicados complejos).
+     - **Fable 5.1 (`claude-fable-5-1`):** Narrativa, storytelling y tono creativo.
+  3. **Persistencia de Preferencia:** La selección del usuario se almacena en `localStorage` (`otr_selected_ai_model`), manteniéndose activa entre recargas y navegación entre tickets.
+  4. **Compatibilidad Dinámica en Backend (`ai.ts`):** Se expandió `allowedModels` en la ruta `/ai/:ticketId/chat` y se dinaminizó la llamada a Anthropic para enviar el modelo seleccionado por el usuario.
+- **Verificación:** Monorepo verificado con builds exitosos tanto en backend como frontend (`pnpm --filter api build` y `pnpm --filter web build`).
+
+### [2026-09-23] — Historial Automático de Versiones de Copy al Pegar y Editar (Redacción, Modal y Detalle)
+- **Desarrollador:** Antigravity (Pair Programming con Javier Sculli)
+- **Resumen de Avances:**
+  1. **Diagnóstico de Omisión de Versiones Externas:** El historial de versiones de copy (`versionsPerCanal`) solo registraba contenido cuando este era generado por el asistente de IA interno de Rocky (`callAI`). Al pegar una nueva versión elaborada externamente (ChatGPT, Claude, Notion, Google Docs) o al editar palabras, el editor enriquecido solo emitía `onChange`, sobreescribiendo `contentPerCanal` sin preservar la versión previa ni asentar la nueva en el historial.
+  2. **Módulo Unificado de Versionado Defensivo (`utils.ts`):** Se implementó la función pura `recordCopyVersion` y el normalizador `stripHtmlToPlainText`. La función verifica si el copy anterior en la solapa/red social estaba registrado en el historial (si no estaba, lo inserta primero como versión histórica para impedir pérdidas accidentales al pisar texto) y luego agrega el nuevo texto como la versión siguiente si difiere del último snapshot.
+  3. **Detección Inteligente de Pegado en Editor Enriquecido (`RichNotesEditor.tsx`):** Se integró el callback `onPaste` en `RichNotesEditor`. Calcula automáticamente si el pegado es sustancial (reemplazo de contenido seleccionado, editor vacío, texto largo o con saltos de línea) y emite el HTML final sanitizado e insertado inmediatamente.
+  4. **Persistencia y Feedback en Pantalla de Redacción (`ContentPage.tsx`):**
+     - **Pegado (`handleEditorPaste`):** Guarda automáticamente la versión previa y la pegada en la base de datos de forma instantánea. Muestra un badge de confirmación visual animado (*"Versión N guardada en el historial"*).
+     - **Edición manual (`saveMutation`):** Al perder el foco (`onBlur`) tras modificar palabras en el editor de copy, se detecta el cambio respecto al historial y se registra como nueva versión.
+     - **Botón manual:** Se añadió la acción interactiva `+ Guardar actual` en la barra lateral del historial para que el usuario pueda capturar un snapshot en cualquier momento.
+     - **Corrección de "Deshacer" (`handleUndo`):** Se desacopló de la eliminación destructiva de la pila; ahora navega hacia atrás por las versiones existentes en el historial sin borrarlas de la base de datos.
+     - **Visualización y Copiado Enriquecido:** Las tarjetas del historial ahora renderizan el copy formateado con saltos de línea visuales y el botón "Copiar" utiliza `copyHtmlToClipboard` para transferir texto plano limpio.
+     - **Hidratación inicial:** Si el ticket ya tenía copy cargado pero su historial estaba vacío en la base de datos, se inicializa defensivamente como "Versión 1".
+  5. **Soporte en Detalle de Ticket y Modal (`TicketDetallePage.tsx` y `CreateTicketModal.tsx`):**
+     - En la solapa de copy de `TicketDetallePage`, tanto el pegado como el desenfoque (`onBlur`) persisten la nueva versión en `versionsPerCanal`.
+     - En `CreateTicketModal`, la edición de copy y el pegado registran la versión correspondiente en `versionsPerCanal` al auto-guardar.
+- **Verificación:** Monorepo verificado con compilaciones limpias (`pnpm --filter web build` y `pnpm --filter api build`) con 0 errores de TypeScript.
 
 ### [2026-09-22] — Auto-guardado en onBlur y Protección Total al Cerrar Popups de Tickets
 - **Desarrollador:** Antigravity (Pair Programming con Javier Sculli)
@@ -241,84 +289,16 @@
 
 ---
 
-## 📌 Estado del Proyecto y Backlog Consolidado
+## 📌 Backlog del Proyecto — Centralizado en Notion
 
-### 🔴 Épica 1: Bugs Críticos & Correcciones Inmediatas de Sumario
-- [x] **[BUG-01] Selector de Meses Futuros (Habilitación de Agosto - Máximo M+1)**
-  - *Problema:* Agosto y meses futuros no aparecían disponibles en el selector del Sumario.
-  - *Solución:* Selector dinámico que lista desde meses pasados hasta exactamente el próximo mes (`M+1` relativo al actual).
-  - *Estado:* 🟢 Completado (2026-07-31)
-- [x] **[BUG-02] Filtrado de Ítems de Prensa por Cliente (Fix leak de Draper)**
-  - *Problema:* El sumario mostraba ítems de prensa pertenecientes a otros clientes (Draper).
-  - *Solución:* Forzado filtrado estricto por `clientId` tanto en mapeos frontend como en llamadas API.
-  - *Estado:* 🟢 Completado (2026-07-31)
-
-### 🟡 Épica 2: Mejoras e Ingesta de Funcionalidades en Sumario
-- [x] **[SUM-01] Filtro de Meses Múltiple (Multi-Toggle)**
-  - *Detalle:* Selector desplegable con checkboxes que permite elegir múltiples meses en simultáneo (ej. Julio + Agosto).
-  - *Estado:* 🟢 Completado (2026-07-31)
-- [x] **[SUM-02] Separación por Canales/Formatos (Redes, Blog, Newsletters)**
-  - *Detalle:* Agrupamiento en secciones visuales diferenciadas: Redes Sociales, Blog & Artículos, Newsletters.
-  - *Estado:* 🟢 Completado (2026-07-31)
-- [x] **[SUM-03] Reordenamiento Manual de Filas (Mover arriba / abajo)**
-  - *Detalle:* Botones ▲ y ▼ en cada fila para ajustar la secuencia/prioridad de los contenidos.
-  - *Estado:* 🟢 Completado (2026-07-31)
-- [x] **[SUM-04] Inclusión de Tareas en Vista Sumario**
-  - *Detalle:* Toggle `+ Ver Tareas / Incluyendo Tareas` para visualizar tareas no-contenido con distintivo `[Tarea]`.
-  - *Estado:* 🟢 Completado (2026-07-31)
-- [x] **[SUM-05] Duplicar Filas de Sumario (Marca ↔ Voceros)**
-  - *Detalle:* Acción de duplicación en cada fila con selector hacia 🏢 Marca o 👤 [Vocero].
-  - *Estado:* 🟢 Completado (2026-07-31)
-
-### 🔵 Épica 3: Pilares de Contenido por Vocero (Vocero-Specific Pillars)
-- [ ] **[VOC-01] Gestión de Pilares Propios por Vocero**
-  - *Detalle:* Cada vocero debe tener sus propios 4-5 pilares de contenido editables, independientes de los pilares de la marca.
-  - *Estado:* 🟡 Planificado
-- [ ] **[VOC-02] Filtrado Contextual de Pilares en Ticket y Sumario**
-  - *Detalle:* Al seleccionar un vocero al crear contenido o en el sumario, mostrar únicamente los pilares asignados a ese vocero (más opcionalmente los de marca).
-  - *Estado:* 🟡 Planificado
-
-### 🟢 Épica 4: UX de Tickets, Clientes y Caja de Diseño/Audiovisual
-- [ ] **[UI-01] Edición de Nombre del Cliente**
-  - *Detalle:* Permitir editar el nombre del cliente directamente desde la vista/gestión de Clientes.
-  - *Estado:* 🟡 Planificado
-- [ ] **[UI-02] Rediseño de Jerarquía "Ver Ticket Completo"**
-  - *Detalle:* Destar el botón / enlace "Ver ticket completo" en los modales para mejorar la usabilidad.
-  - *Estado:* 🟡 Planificado
-- [ ] **[UI-03] Distinción "Guardar Rápido" vs "Guardar e ir al Ticket"**
-  - *Detalle:* Ofrecer dos acciones claras al guardar un ticket: guardado rápido sin salir o guardar y redirigir al detalle del ticket.
-  - *Estado:* 🟡 Planificado
-- [x] **[UI-04] Caja Flexible de Instrucciones para Diseño / Audiovisual & Referencias**
-  - *Detalle:* Apartado de "Notas de Gráfica / Diseño" con especificaciones por formato, hipervínculos a referencias externas y soporte para previsualización de imágenes.
-  - *Estado:* 🟢 Completado (2026-08-04)
-- [x] **[UI-05] Selector Desplegable Multi-Formato y Popup de Transición a Diseño**
-  - *Detalle:* Selector desplegable con checkboxes para multi-formato (simple para 1 clic, expandible para múltiples). Popup modal `TransitionToDesignModal` al arrastrar o cambiar tarjetas al estado "Diseño".
-  - *Estado:* 🟢 Completado (2026-08-04)
-- [x] **[UI-06] Auto-selección de Cliente Activo al Crear Tarea / Ticket**
-  - *Detalle:* Si existe un filtro de cliente activo seleccionado en el tablero (Backlog o Prensa), al presionar "Nueva" el modal `CreateTicketModal` pre-selecciona automáticamente dicho cliente.
-  - *Estado:* 🟢 Completado (2026-08-06)
-
-### 💜 Épica 5: IA, Brand Kit & Procesamiento de Contenido
-- [ ] **[IA-01] Limpieza de Texto Plano para Documentos de Estrategia**
-  - *Detalle:* Procesar archivos de estrategia/PPT/PDFs convirtiéndolos a texto plano para evitar ruido de formato en el contexto del prompt de IA.
-  - *Estado:* 🟡 Planificado
-- [ ] **[IA-02] Integración y Exploración de Cloud Design**
-  - *Detalle:* Evaluar integración con Cloud Design para templates transaccionales y brand kits por cliente.
-  - *Estado:* 🔵 Backlog Futuro
-
-### 🤝 Épica 6: Operativa y Migración del Equipo (Ruki Migration & Workflow)
-- [ ] **[OPS-01] Workshop de Alineación del Equipo**
-  - *Responsable:* St / Manu
-  - *Detalle:* Taller de capacitación la próxima semana para migración total del equipo a Rocky y abandono de Notion/ChatGPT.
-  - *Estado:* 🟡 Programado (Semana próxima)
-- [ ] **[OPS-02] Depuración de Herramientas y Cierre de ChatGPT**
-  - *Responsable:* Joaco / St
-  - *Detalle:* Descarga de assets e información relevante de ChatGPT para efectuar el cierre de cuenta y consolidar en Claude/Rocky.
-  - *Estado:* 🟡 En curso
-- [ ] **[OPS-03] Alineación de Criterios Diseño/Audiovisual**
-  - *Responsable:* St
-  - *Detalle:* Reunión del lunes con diseñadoras, editor y contenidistas para definir el formato mínimo de bajadas.
-  - *Estado:* 🟡 Programado (Lunes)
+> 🎯 **REGLA ESTRICTA DE GESTIÓN (A PARTIR DE SEPTIEMBRE 2026):**
+> 
+> El backlog oficial, priorizado y vivo del proyecto se gestiona **exclusivamente en Notion**:
+> 👉 **[Notion Backlog Oficial — OTR Platform](https://app.notion.com/p/Backlog-3ba617fc369281048bfdfc89c5041d9c?source=copy_link)**
+> 
+> - **Sin tareas sueltas en Markdown:** Ninguna tarea, pendiente o bugfix se mantiene como checklist abierto (`[ ]`) en este archivo.
+> - **Migración completada:** Todas las tareas pendientes técnicas (`[VOC-01]`, `[VOC-02]`, `[UI-01]`, `[IA-01]`, `[IA-02]`) y operativas fueron migradas a la base de datos de Notion con su respectiva prioridad y responsable.
+> - **Rol de la Bitácora (`docs/BITACORA.md`):** Este documento se reserva estrictamente como **registro histórico de avances completados (changelog)**, decisiones de arquitectura y documentación de pruebas unitarias/integración asociadas a cada entrega.
 
 ### [2026-08-13] — Mapeo Estricto de Estados de Flujo por Formato de Contenido (Regla de Negocio)
 - **Desarrollador:** Javier Sculli

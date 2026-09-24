@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseLocalDate, formatDateSpan, formatDateISO, ensureAbsoluteUrl, mergeContentPerCanal, getRedesObjetivoForClient } from '../utils';
+import { parseLocalDate, formatDateSpan, formatDateISO, ensureAbsoluteUrl, mergeContentPerCanal, getRedesObjetivoForClient, stripHtmlToPlainText, recordCopyVersion, filterPilaresBySpeaker } from '../utils';
 
 describe('lib/utils', () => {
   describe('parseLocalDate & Date shift prevention', () => {
@@ -121,6 +121,97 @@ describe('lib/utils', () => {
       const redes = getRedesObjetivoForClient(clientCanales, currentSelected);
       expect(redes).toContain('LinkedIn');
       expect(redes).toContain('Twitter');
+    });
+  });
+
+  describe('stripHtmlToPlainText', () => {
+    it('elimina etiquetas HTML y entidades decodificándolas a texto plano', () => {
+      const html = '<p>Hola <strong>mundo</strong>!&nbsp;¿Cómo estás?</p>';
+      expect(stripHtmlToPlainText(html)).toBe('Hola mundo! ¿Cómo estás?');
+    });
+
+    it('maneja strings vacíos, nulos o indefinidos', () => {
+      expect(stripHtmlToPlainText('')).toBe('');
+      expect(stripHtmlToPlainText(null)).toBe('');
+      expect(stripHtmlToPlainText(undefined)).toBe('');
+    });
+  });
+
+  describe('recordCopyVersion', () => {
+    it('si el copy anterior no estaba en el historial, lo guarda como Versión 1 y el nuevo como Versión 2', () => {
+      const versions = {};
+      const result = recordCopyVersion(versions, 'LinkedIn', '<p>Versión nueva pegada</p>', '<p>Copy original que ya estaba</p>');
+      expect(result.LinkedIn).toHaveLength(2);
+      expect(result.LinkedIn[0]).toBe('<p>Copy original que ya estaba</p>');
+      expect(result.LinkedIn[1]).toBe('<p>Versión nueva pegada</p>');
+    });
+
+    it('no duplica la versión previa si ya era la última versión en el historial', () => {
+      const versions = {
+        LinkedIn: ['<p>Copy original que ya estaba</p>'],
+      };
+      const result = recordCopyVersion(versions, 'LinkedIn', '<p>Versión 2</p>', '<p>Copy original que ya estaba</p>');
+      expect(result.LinkedIn).toHaveLength(2);
+      expect(result.LinkedIn[0]).toBe('<p>Copy original que ya estaba</p>');
+      expect(result.LinkedIn[1]).toBe('<p>Versión 2</p>');
+    });
+
+    it('no crea una nueva versión si el nuevo copy es idéntico a la última versión', () => {
+      const versions = {
+        LinkedIn: ['<p>Copy exacto</p>'],
+      };
+      const result = recordCopyVersion(versions, 'LinkedIn', '<p>Copy exacto</p>');
+      expect(result.LinkedIn).toHaveLength(1);
+      expect(result.LinkedIn[0]).toBe('<p>Copy exacto</p>');
+    });
+
+    it('permite registrar versión inicial cuando no había contenido previo', () => {
+      const versions = {};
+      const result = recordCopyVersion(versions, 'Twitter', 'Primer copy para twitter');
+      expect(result.Twitter).toHaveLength(1);
+      expect(result.Twitter[0]).toBe('Primer copy para twitter');
+    });
+
+    it('maneja claves de canales de forma insensible a mayúsculas/minúsculas', () => {
+      const versions = {
+        linkedin: ['Versión previa'],
+      };
+      const result = recordCopyVersion(versions, 'LinkedIn', 'Versión nueva');
+      expect(result.linkedin).toHaveLength(2);
+      expect(result.linkedin[1]).toBe('Versión nueva');
+    });
+  });
+
+  describe('filterPilaresBySpeaker [VOC-01 / VOC-02]', () => {
+    const pilaresMock = [
+      { id: '1', nombre: 'Pilar Marca 1', speakerId: null },
+      { id: '2', nombre: 'Pilar Marca 2', speakerId: undefined },
+      { id: '3', nombre: 'Pilar Vocero A', speakerId: 'spk-a' },
+      { id: '4', nombre: 'Pilar Vocero B', speakerId: 'spk-b' },
+    ];
+
+    it('retorna solo pilares de marca si no se pasa speakerId (modo contenido de marca)', () => {
+      const result = filterPilaresBySpeaker(pilaresMock, null);
+      expect(result).toHaveLength(2);
+      expect(result.map(p => p.id)).toEqual(['1', '2']);
+    });
+
+    it('retorna pilares del vocero + pilares de marca por defecto cuando hay speakerId activo', () => {
+      const result = filterPilaresBySpeaker(pilaresMock, 'spk-a');
+      expect(result).toHaveLength(3);
+      expect(result.map(p => p.id)).toEqual(['1', '2', '3']);
+    });
+
+    it('retorna estrictamente los pilares propios del vocero si includeBrand es false', () => {
+      const result = filterPilaresBySpeaker(pilaresMock, 'spk-a', false);
+      expect(result).toHaveLength(1);
+      expect(result[0].id).toBe('3');
+      expect(result[0].nombre).toBe('Pilar Vocero A');
+    });
+
+    it('maneja listas vacías o valores inválidos defensivamente', () => {
+      expect(filterPilaresBySpeaker([], 'spk-a')).toEqual([]);
+      expect(filterPilaresBySpeaker(null as any, 'spk-a')).toEqual([]);
     });
   });
 });

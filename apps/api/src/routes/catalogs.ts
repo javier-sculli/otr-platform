@@ -383,11 +383,29 @@ export async function catalogsRoutes(fastify: FastifyInstance) {
 
   // ── Pilares ───────────────────────────────────────────────────────────────
 
-  // Get all pilares for a client
+  // Get all pilares for a client (optional filter by speakerId, includeBrand)
   fastify.get('/clients/:id/pilares', async (request) => {
     const { id } = request.params as { id: string };
+    const { speakerId, includeBrand } = request.query as { speakerId?: string; includeBrand?: string };
+
+    let where: any = { clientId: id };
+
+    if (speakerId) {
+      if (speakerId === 'brand' || speakerId === 'none') {
+        where.speakerId = null;
+      } else if (includeBrand === 'false') {
+        where.speakerId = speakerId;
+      } else {
+        // Return pilares belonging to this speaker plus general brand pilares
+        where.OR = [
+          { speakerId },
+          { speakerId: null },
+        ];
+      }
+    }
+
     const pilares = await prisma.pilar.findMany({
-      where: { clientId: id },
+      where,
       orderBy: { createdAt: 'asc' },
     });
     return { data: pilares };
@@ -396,9 +414,14 @@ export async function catalogsRoutes(fastify: FastifyInstance) {
   // Create pilar
   fastify.post('/clients/:id/pilares', async (request) => {
     const { id } = request.params as { id: string };
-    const body = request.body as { nombre: string; descripcion?: string };
+    const body = request.body as { nombre: string; descripcion?: string; speakerId?: string | null };
     const pilar = await prisma.pilar.create({
-      data: { clientId: id, nombre: body.nombre, descripcion: body.descripcion || null },
+      data: {
+        clientId: id,
+        speakerId: body.speakerId || null,
+        nombre: body.nombre,
+        descripcion: body.descripcion || null,
+      },
     });
     clearCatalogRouteCache();
     return { data: pilar };
@@ -407,12 +430,16 @@ export async function catalogsRoutes(fastify: FastifyInstance) {
   // Update pilar
   fastify.patch('/clients/:clientId/pilares/:pilarId', async (request, reply) => {
     const { clientId, pilarId } = request.params as { clientId: string; pilarId: string };
-    const body = request.body as { nombre?: string; descripcion?: string };
+    const body = request.body as { nombre?: string; descripcion?: string; speakerId?: string | null };
     const existing = await prisma.pilar.findFirst({ where: { id: pilarId, clientId } });
     if (!existing) return reply.status(404).send({ error: 'Pilar not found' });
     const pilar = await prisma.pilar.update({
       where: { id: pilarId },
-      data: { nombre: body.nombre ?? existing.nombre, descripcion: body.descripcion !== undefined ? (body.descripcion || null) : existing.descripcion },
+      data: {
+        nombre: body.nombre ?? existing.nombre,
+        descripcion: body.descripcion !== undefined ? (body.descripcion || null) : existing.descripcion,
+        speakerId: body.speakerId !== undefined ? (body.speakerId || null) : existing.speakerId,
+      },
     });
     clearCatalogRouteCache();
     return { data: pilar };

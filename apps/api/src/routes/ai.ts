@@ -278,8 +278,8 @@ export async function aiRoutes(fastify: FastifyInstance) {
     }
 
     const cleanInstruction = instruction.trim();
-    const allowedModels = ['gpt-4o', 'claude-sonnet-4-6'];
-    const selectedModel = model && allowedModels.includes(model) ? model : 'claude-sonnet-4-6';
+    const allowedModels = ['gpt-4o', 'claude-sonnet-5', 'claude-opus-5', 'claude-fable-5-1', 'claude-fable-5', 'claude-sonnet-4-6'];
+    const selectedModel = model && allowedModels.includes(model) ? model : 'claude-sonnet-5';
 
     const cleanHistory = (history ?? []).filter(m => {
       if (!m || typeof m.content !== 'string') return false;
@@ -420,7 +420,7 @@ export async function aiRoutes(fastify: FastifyInstance) {
 
     try {
 
-    if (selectedModel !== 'claude-sonnet-4-6') {
+    if (selectedModel === 'gpt-4o') {
       if (!config.openaiApiKey) {
         return reply.status(503).send({ error: 'OpenAI API key not configured' });
       }
@@ -504,7 +504,7 @@ export async function aiRoutes(fastify: FastifyInstance) {
       const MAX_ITERATIONS = 5;
       for (let i = 0; i < MAX_ITERATIONS; i++) {
         const response = await anthropic.messages.create({
-          model: 'claude-sonnet-4-6',
+          model: selectedModel,
           max_tokens: 2048,
           temperature: 0.7,
           system: systemPrompt,

@@ -13,6 +13,8 @@ build/
 # Misc
 .DS_Store
 *.log
+*.sql
+!**/migrations/**/*.sql
 
 # Environment
 .env

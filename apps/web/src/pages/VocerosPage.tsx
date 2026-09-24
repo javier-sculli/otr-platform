@@ -3,10 +3,19 @@ import {
   Plus, X, ArrowLeft, Save, Trash2,
   Linkedin, Instagram, Twitter,
   Mail, BookOpen, Video, ExternalLink, Mic, Check, AlertCircle,
+  Target, Edit3,
 } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/api';
 import { Toggle } from '../components/Toggle';
+
+interface Pilar {
+  id: string;
+  clientId: string;
+  speakerId: string | null;
+  nombre: string;
+  descripcion: string | null;
+}
 
 interface Speaker {
   id: string;
@@ -319,6 +328,45 @@ function DetalleVocero({
   const [local, setLocal] = useState<Speaker>({ ...speaker });
   const [hasChanges, setHasChanges] = useState(false);
   const [confirmarBorrar, setConfirmarBorrar] = useState(false);
+
+  // Pilares propios del vocero
+  const [showNuevoPilar, setShowNuevoPilar] = useState(false);
+  const [nuevoPilar, setNuevoPilar] = useState({ nombre: '', descripcion: '' });
+  const [editandoPilarId, setEditandoPilarId] = useState<string | null>(null);
+  const [pilarEditado, setPilarEditado] = useState<{ nombre: string; descripcion: string | null } | null>(null);
+
+  const { data: pilaresData, isLoading: isLoadingPilares } = useQuery({
+    queryKey: ['pilares', clientId, speaker.id],
+    queryFn: () => api.getPilares(clientId, speaker.id, false),
+  });
+  const pilares: Pilar[] = pilaresData?.data ?? [];
+
+  const createPilarMutation = useMutation({
+    mutationFn: (datos: { nombre: string; descripcion?: string }) =>
+      api.createPilar(clientId, { ...datos, speakerId: speaker.id }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['pilares', clientId] });
+      setShowNuevoPilar(false);
+      setNuevoPilar({ nombre: '', descripcion: '' });
+    },
+  });
+
+  const updatePilarMutation = useMutation({
+    mutationFn: (datos: { id: string; nombre: string; descripcion: string }) =>
+      api.updatePilar(clientId, datos.id, { nombre: datos.nombre, descripcion: datos.descripcion, speakerId: speaker.id }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['pilares', clientId] });
+      setEditandoPilarId(null);
+      setPilarEditado(null);
+    },
+  });
+
+  const deletePilarMutation = useMutation({
+    mutationFn: (pilarId: string) => api.deletePilar(clientId, pilarId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['pilares', clientId] });
+    },
+  });
   const saveMutation = useMutation({
     mutationFn: () => {
       const payload: Record<string, any> = {
@@ -499,6 +547,160 @@ function DetalleVocero({
                 </div>
               ))}
             </div>
+          </div>
+        </div>
+
+        {/* Pilares de contenido del vocero */}
+        <div className="bg-white border-2 border-[#000033]/10 rounded-xl p-6">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <div className="flex items-center gap-2">
+                <Target className="w-4 h-4 text-[#024fff]" />
+                <h2 className="text-xs font-bold text-[#000033] uppercase tracking-wider">
+                  Pilares de contenido del vocero
+                </h2>
+                <span className="text-xs text-[#000033]/50">({pilares.length})</span>
+              </div>
+              <p className="text-xs text-[#000033]/60 mt-1">
+                Ejes temáticos propios de este vocero (4–5 pilares recomendados).
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowNuevoPilar(true)}
+              className="flex items-center gap-2 px-3 py-2 bg-[#024fff] text-white rounded-lg hover:bg-[#024fff]/90 transition-all font-bold text-sm shadow-lg shadow-[#024fff]/20"
+            >
+              <Plus className="w-4 h-4" /> Agregar pilar
+            </button>
+          </div>
+
+          <div className="space-y-3">
+            {isLoadingPilares ? (
+              <div className="text-center py-6 text-xs text-[#000033]/50">Cargando pilares...</div>
+            ) : pilares.length === 0 && !showNuevoPilar ? (
+              <div className="text-center py-8 border-2 border-dashed border-[#000033]/10 rounded-lg">
+                <div className="w-12 h-12 bg-[#024fff]/10 rounded-full flex items-center justify-center mx-auto mb-2">
+                  <Target className="w-6 h-6 text-[#024fff]" />
+                </div>
+                <p className="text-sm font-bold text-[#000033] mb-1">Sin pilares propios definidos</p>
+                <p className="text-xs text-[#000033]/60 mb-3 max-w-sm mx-auto">
+                  Definí los ejes y temas diferenciales desde los cuales redactar para este vocero.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setShowNuevoPilar(true)}
+                  className="inline-flex items-center gap-2 px-3 py-1.5 bg-[#024fff] text-white rounded-lg hover:bg-[#024fff]/90 transition-all font-bold text-xs"
+                >
+                  <Plus className="w-3.5 h-3.5" /> Agregar primer pilar
+                </button>
+              </div>
+            ) : null}
+
+            {showNuevoPilar && (
+              <div className="border-2 border-[#024fff]/30 bg-[#024fff]/5 rounded-lg p-4 space-y-3">
+                <input
+                  type="text"
+                  value={nuevoPilar.nombre}
+                  onChange={e => setNuevoPilar({ ...nuevoPilar, nombre: e.target.value })}
+                  placeholder="Nombre del pilar (ej: Liderazgo y Cultura)"
+                  className="w-full px-3 py-2 border-2 border-[#024fff]/20 rounded-lg text-sm font-bold focus:outline-none focus:ring-2 focus:ring-[#024fff] text-[#000033] bg-white"
+                  autoFocus
+                />
+                <textarea
+                  value={nuevoPilar.descripcion}
+                  onChange={e => setNuevoPilar({ ...nuevoPilar, descripcion: e.target.value })}
+                  placeholder="Descripción del pilar (qué temas abarca, ángulo propio)..."
+                  rows={2}
+                  className="w-full px-3 py-2 border-2 border-[#024fff]/20 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#024fff] text-[#000033] resize-none bg-white"
+                />
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => createPilarMutation.mutate(nuevoPilar)}
+                    disabled={!nuevoPilar.nombre.trim() || createPilarMutation.isPending}
+                    className="flex items-center gap-2 px-3 py-2 bg-[#024fff] text-white rounded-lg hover:bg-[#024fff]/90 transition-all font-bold text-sm disabled:opacity-50"
+                  >
+                    <Check className="w-4 h-4" /> {createPilarMutation.isPending ? 'Guardando...' : 'Crear pilar'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setShowNuevoPilar(false); setNuevoPilar({ nombre: '', descripcion: '' }); }}
+                    className="px-3 py-2 text-[#000033]/60 hover:text-[#000033] hover:bg-[#000033]/5 rounded-lg transition-all font-bold text-sm"
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {pilares.map(pilar => (
+              <div key={pilar.id} className="border-2 border-[#000033]/10 rounded-lg p-4 hover:border-[#024fff]/20 transition-all bg-white">
+                {editandoPilarId === pilar.id && pilarEditado ? (
+                  <div className="space-y-3">
+                    <input
+                      type="text"
+                      value={pilarEditado.nombre}
+                      onChange={e => setPilarEditado({ ...pilarEditado, nombre: e.target.value })}
+                      placeholder="Nombre del pilar"
+                      className="w-full px-3 py-2 border-2 border-[#024fff]/20 rounded-lg text-sm font-bold focus:outline-none focus:ring-2 focus:ring-[#024fff] text-[#000033]"
+                      autoFocus
+                    />
+                    <textarea
+                      value={pilarEditado.descripcion ?? ''}
+                      onChange={e => setPilarEditado({ ...pilarEditado, descripcion: e.target.value })}
+                      placeholder="Descripción del pilar"
+                      rows={2}
+                      className="w-full px-3 py-2 border-2 border-[#024fff]/20 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#024fff] text-[#000033] resize-none"
+                    />
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => updatePilarMutation.mutate({ id: pilar.id, nombre: pilarEditado.nombre, descripcion: pilarEditado.descripcion ?? '' })}
+                        disabled={!pilarEditado.nombre.trim() || updatePilarMutation.isPending}
+                        className="flex items-center gap-2 px-3 py-2 bg-[#024fff] text-white rounded-lg hover:bg-[#024fff]/90 transition-all font-bold text-sm disabled:opacity-50"
+                      >
+                        <Check className="w-4 h-4" /> Guardar
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { setEditandoPilarId(null); setPilarEditado(null); }}
+                        className="px-3 py-2 text-[#000033]/60 hover:text-[#000033] hover:bg-[#000033]/5 rounded-lg transition-all font-bold text-sm"
+                      >
+                        Cancelar
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex-1 min-w-0">
+                      <h3 className="text-sm font-bold text-[#000033] mb-1">{pilar.nombre}</h3>
+                      {pilar.descripcion && (
+                        <p className="text-xs text-[#000033]/60 leading-relaxed">{pilar.descripcion}</p>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => { setEditandoPilarId(pilar.id); setPilarEditado({ ...pilar }); }}
+                        className="p-2 text-[#024fff] hover:bg-[#024fff]/10 rounded-lg transition-all"
+                        title="Editar pilar"
+                      >
+                        <Edit3 className="w-4 h-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => deletePilarMutation.mutate(pilar.id)}
+                        disabled={deletePilarMutation.isPending}
+                        className="p-2 text-[#000033]/40 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                        title="Eliminar pilar"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
           </div>
         </div>
 

@@ -32,7 +32,7 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { ensureAbsoluteUrl, copyHtmlToClipboard, formatDateSpan, mergeContentPerCanal } from '../lib/utils';
+import { ensureAbsoluteUrl, copyHtmlToClipboard, formatDateSpan, mergeContentPerCanal, recordCopyVersion, stripHtmlToPlainText } from '../lib/utils';
 import { requiresDesign } from '../lib/workflow';
 import { RichNotesEditor } from '../components/RichNotesEditor';
 import { AutoResizeTextarea } from '../components/AutoResizeTextarea';
@@ -366,13 +366,35 @@ export function TicketDetallePage() {
     saveNotasAudiovisual(notasAudiovisualRef.current);
   };
 
-  const saveCopy = async (mapToSave: Record<string, string>) => {
+  const saveCopy = async (mapToSave: Record<string, string>, targetTab?: string) => {
     const existing = (ticket as any)?.contentPerCanal;
     const nextPerCanal = mergeContentPerCanal(existing, mapToSave);
 
+    const payload: any = { contentPerCanal: nextPerCanal };
+
+    // Registrar versión en versionsPerCanal si hubo edición o pegado en targetTab
+    const tabToVersion = targetTab || activeCopyTab;
+    if (tabToVersion) {
+      const currentVersions = (ticket as any)?.versionsPerCanal && typeof (ticket as any).versionsPerCanal === 'object'
+        ? (ticket as any).versionsPerCanal
+        : {};
+      const newText = mapToSave[tabToVersion];
+      const prevText = existing?.[tabToVersion];
+
+      if (newText && stripHtmlToPlainText(newText).length > 0) {
+        const updatedVersions = recordCopyVersion(
+          currentVersions,
+          tabToVersion,
+          newText,
+          prevText
+        );
+        payload.versionsPerCanal = updatedVersions;
+      }
+    }
+
     setCopySaveStatus('saving');
     try {
-      await updateMutation.mutateAsync({ contentPerCanal: nextPerCanal });
+      await updateMutation.mutateAsync(payload);
       setCopySaveStatus('saved');
     } catch (err) {
       console.error('Error guardando copy:', err);
@@ -391,7 +413,7 @@ export function TicketDetallePage() {
 
     if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
     copyTimeoutRef.current = setTimeout(() => {
-      saveCopy(nextPerCanal);
+      saveCopy(nextPerCanal, currentTab);
     }, 1000);
   };
 
@@ -400,7 +422,27 @@ export function TicketDetallePage() {
       clearTimeout(copyTimeoutRef.current);
       copyTimeoutRef.current = null;
     }
-    saveCopy(copyPerCanalRef.current);
+    saveCopy(copyPerCanalRef.current, activeCopyTab);
+  };
+
+  const handleCopyPaste = (
+    { finalHtml, isSubstantial }: { pastedText: string; finalHtml: string; isSubstantial: boolean },
+    currentTab: string,
+    canales: string[]
+  ) => {
+    if (!isSubstantial) return;
+    if (copyTimeoutRef.current) {
+      clearTimeout(copyTimeoutRef.current);
+      copyTimeoutRef.current = null;
+    }
+
+    const nextPerCanal = { ...copyPerCanalRef.current, [currentTab]: finalHtml };
+    setCopyPerCanal(nextPerCanal);
+    copyPerCanalRef.current = nextPerCanal;
+    if (currentTab === (canales[0] ?? 'LinkedIn')) {
+      setContentSingle(finalHtml);
+    }
+    saveCopy(nextPerCanal, currentTab);
   };
 
   useEffect(() => {
@@ -938,6 +980,7 @@ export function TicketDetallePage() {
                         value={activeContent}
                         onChange={(val) => handleCopyChange(val, currentTab, canales)}
                         onBlur={handleCopyBlur}
+                        onPaste={(info) => handleCopyPaste(info, currentTab, canales)}
                         placeholder={`Escribí o formateá el copy para ${currentTab} (negrita, cursiva, listas, links)...`}
                         minHeight="220px"
                       />
