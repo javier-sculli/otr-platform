@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseLocalDate, formatDateSpan, formatDateISO, ensureAbsoluteUrl, mergeContentPerCanal, getRedesObjetivoForClient, stripHtmlToPlainText, recordCopyVersion, filterPilaresBySpeaker } from '../utils';
+import { parseLocalDate, formatDateSpan, formatDateISO, ensureAbsoluteUrl, mergeContentPerCanal, getRedesObjetivoForClient, stripHtmlToPlainText, recordCopyVersion, filterPilaresBySpeaker, shouldOmitTemperature } from '../utils';
 
 describe('lib/utils', () => {
   describe('parseLocalDate & Date shift prevention', () => {
@@ -214,4 +214,27 @@ describe('lib/utils', () => {
       expect(filterPilaresBySpeaker(null as any, 'spk-a')).toEqual([]);
     });
   });
+
+  describe('shouldOmitTemperature', () => {
+    it('identifica correctamente modelos Claude y de razonamiento que deprecian o no admiten temperature', () => {
+      expect(shouldOmitTemperature('claude-sonnet-5')).toBe(true);
+      expect(shouldOmitTemperature('claude-opus-5')).toBe(true);
+      expect(shouldOmitTemperature('claude-fable-5-1')).toBe(true);
+      expect(shouldOmitTemperature('claude-sonnet-4-6')).toBe(true);
+      expect(shouldOmitTemperature('o1-preview')).toBe(true);
+      expect(shouldOmitTemperature('o3-mini')).toBe(true);
+    });
+
+    it('permite temperature en modelos GPT tradicionales compatibles', () => {
+      expect(shouldOmitTemperature('gpt-4o')).toBe(false);
+      expect(shouldOmitTemperature('gpt-4o-mini')).toBe(false);
+    });
+
+    it('maneja valores vacíos, nulos o indefinidos de forma segura', () => {
+      expect(shouldOmitTemperature('')).toBe(false);
+      expect(shouldOmitTemperature(null)).toBe(false);
+      expect(shouldOmitTemperature(undefined)).toBe(false);
+    });
+  });
 });
+

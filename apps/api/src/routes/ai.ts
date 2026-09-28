@@ -506,7 +506,6 @@ export async function aiRoutes(fastify: FastifyInstance) {
         const response = await anthropic.messages.create({
           model: selectedModel,
           max_tokens: 2048,
-          temperature: 0.7,
           system: systemPrompt,
           tools: [FETCH_URL_TOOL],
           messages,

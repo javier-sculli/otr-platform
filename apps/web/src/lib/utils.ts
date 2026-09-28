@@ -254,3 +254,13 @@ export function filterPilaresBySpeaker<T extends { speakerId?: string | null }>(
   return pilares.filter(p => p.speakerId === speakerId || !p.speakerId);
 }
 
+/**
+ * Identifica modelos de IA que deprecian o no admiten el parámetro manual 'temperature' en sus llamadas API
+ * (p. ej. familia Anthropic Claude 5, modelos de razonamiento OpenAI o1/o3-mini).
+ */
+export function shouldOmitTemperature(model: string | null | undefined): boolean {
+  if (!model) return false;
+  const m = model.toLowerCase().trim();
+  return m.startsWith('claude-') || m.startsWith('o1') || m.startsWith('o3');
+}
+

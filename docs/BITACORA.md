@@ -4,6 +4,18 @@
 > 
 > 🎯 **BACKLOG OFICIAL Y PRIORIDADES (FUENTE DE VERDAD):** [Notion Backlog Oficial](https://app.notion.com/p/Backlog-3ba617fc369281048bfdfc89c5041d9c?source=copy_link). Todas las prioridades y tareas activas se gestionan directamente allí.
 
+### [2026-09-28] — Corrección de Error 'temperature' is deprecated en Módulo de Redacción IA
+- **Desarrollador:** Antigravity (Pair Programming con Javier Sculli)
+- **Resumen de Avances:**
+  1. **Diagnóstico del Error de Muestreo:** En las llamadas de generación de texto y chat con IA (`/ai/:ticketId/chat`), la API de Anthropic Messages para los modelos de la generación Claude 5 (`claude-sonnet-5`, `claude-opus-5`, `claude-fable-5-1`) rechazaba las solicitudes con error 400 (`Error: 'temperature' is deprecated for this model`).
+  2. **Ajuste en Parámetros de Invocación (`ai.ts`):** Se removió el parámetro `temperature: 0.7` de la llamada `anthropic.messages.create()`. Al omitirse, Anthropic aplica sus valores predeterminados de muestreo gestionados internamente sin causar rechazo.
+  3. **Módulo de Utilidad Defensiva (`utils.ts`):** Se incorporó la función pura `shouldOmitTemperature` para identificar modelos que desaconsejan o deprecian parámetros manuales de sampling (familia Claude 5, modelos de razonamiento OpenAI o1/o3-mini).
+- **Suite de Tests:** Se incorporó en `utils.test.ts` la suite `'shouldOmitTemperature'` con 3 tests que validan:
+  - Detección precisa de modelos Claude 5, 4.6 y series de razonamiento o1/o3-mini.
+  - Compatibilidad preservada para modelos GPT tradicionales (como `gpt-4o`).
+  - Manejo seguro de cadenas vacías, valores nulos y no definidos.
+- **Verificación:** Suite de Vitest pasando al 100% (44/44 tests aprobados) y verificación de tipos (`pnpm -r typecheck`) limpia.
+
 ### [2026-09-24] — Gestión de Pilares Propios por Vocero [VOC-01]
 - **Desarrollador:** Antigravity (Pair Programming con Javier Sculli)
 - **Tarea en Notion:** [Gestión de Pilares Propios por Vocero [VOC-01]](https://app.notion.com/p/Gesti-n-de-Pilares-Propios-por-Vocero-VOC-01-3e5617fc369281e99f36c6ae01467bd2) (Estado: ✅ Done)
