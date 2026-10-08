@@ -77,5 +77,23 @@ describe('lib/workflow', () => {
       };
       expect(getNextStatusForTicket(ticketEdicion)).toBe('REVISION_INTERNA');
     });
+
+    it('cuando no tiene formato elegido o no puede inferirlo: avanza siempre al estado siguiente secuencial sin trabarse', () => {
+      // Sin formato especificado desde REDACCION -> avanza al siguiente (DISENO)
+      expect(getNextStatusForTicket({ status: 'REDACCION', tiposContenido: [] })).toBe('DISENO');
+      expect(getNextStatusForTicket({ status: 'REDACCION', tiposContenido: undefined, ticketType: null })).toBe('DISENO');
+
+      // Sin formato especificado desde DISENO -> avanza al siguiente (EDICION) en lugar de saltearlo
+      expect(getNextStatusForTicket({ status: 'DISENO', tiposContenido: [] })).toBe('EDICION');
+
+      // Secuencia completa estándar sin formato
+      expect(getNextStatusForTicket({ status: 'PENDIENTE' })).toBe('REDACCION');
+      expect(getNextStatusForTicket({ status: 'EDICION' })).toBe('REVISION_INTERNA');
+      expect(getNextStatusForTicket({ status: 'REVISION_INTERNA' })).toBe('CLIENTE');
+      expect(getNextStatusForTicket({ status: 'CLIENTE' })).toBe('ESPERANDO_FEEDBACK');
+      expect(getNextStatusForTicket({ status: 'ESPERANDO_FEEDBACK' })).toBe('LISTO_PARA_PUBLICAR');
+      expect(getNextStatusForTicket({ status: 'LISTO_PARA_PUBLICAR' })).toBe('PUBLICADO');
+      expect(getNextStatusForTicket({ status: 'PUBLICADO' })).toBe('LISTO');
+    });
   });
 });

@@ -649,6 +649,64 @@ describe('CreateTicketModal', () => {
       expect(screen.getByText('https://twitter.com/status/12345')).toBeInTheDocument();
     });
   });
+
+  it('un ticket existente sin formato elegido no bloquea el botón y permite avanzar al estado siguiente (ej. REDACCION -> DISENO)', async () => {
+    const ticketSinFormato = {
+      id: 'c1c449f1-e53c-4a3e-a465-9c2c8df385b2',
+      title: 'posteo Lanzamiento Kombucha',
+      status: 'REDACCION',
+      prioridad: 'MEDIA',
+      client: { id: 'c1', name: 'Cliente Kombucha' },
+      owner: { id: 'user-1', name: 'Tester' },
+      assigneeIds: ['user-1'],
+      canales: ['LinkedIn'],
+      tiposContenido: [],
+      ticketType: null,
+      links: [],
+      objetivo: 'Objetivo de prueba',
+    };
+
+    (api.getTicket as any).mockResolvedValue({
+      data: ticketSinFormato,
+    });
+    (api.updateTicket as any).mockResolvedValue({
+      data: { ...ticketSinFormato, status: 'DISENO' },
+    });
+
+    render(
+      <CreateTicketModal
+        isOpen={true}
+        onClose={vi.fn()}
+        ticket={ticketSinFormato as any}
+      />,
+      { wrapper: createWrapper() }
+    );
+
+    // Esperar a que cargue el ticket
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('posteo Lanzamiento Kombucha')).toBeInTheDocument();
+    });
+
+    // El botón no debe estar bloqueado y debe inferir el estado siguiente (Diseño)
+    const advanceButton = screen.getByRole('button', { name: /pasar a diseño/i });
+    expect(advanceButton).toBeInTheDocument();
+    expect(advanceButton).not.toBeDisabled();
+
+    // No debe mostrar advertencia de "Falta completar: formato"
+    expect(screen.queryByText(/falta completar/i)).not.toBeInTheDocument();
+
+    // Al hacer clic, avanza al estado siguiente
+    fireEvent.click(advanceButton);
+
+    await waitFor(() => {
+      expect(api.updateTicket).toHaveBeenCalledWith(
+        'c1c449f1-e53c-4a3e-a465-9c2c8df385b2',
+        expect.objectContaining({
+          status: 'DISENO',
+        })
+      );
+    });
+  });
 });
 
 

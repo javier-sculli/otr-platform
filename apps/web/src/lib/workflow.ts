@@ -132,6 +132,7 @@ export const STANDARD_NEXT_STATUS: Record<string, string> = {
   CLIENTE: 'ESPERANDO_FEEDBACK',
   ESPERANDO_FEEDBACK: 'LISTO_PARA_PUBLICAR',
   LISTO_PARA_PUBLICAR: 'PUBLICADO',
+  PUBLICADO: 'LISTO',
 };
 
 /**
@@ -146,10 +147,18 @@ export function getNextStatusForTicket(ticket: {
 }): string | undefined {
   if (!ticket?.status) return undefined;
 
+  const formats = getEffectiveFormats(ticket);
+  const statusUpper = ticket.status.toUpperCase();
+
+  // Si no puede inferirlo (no hay formatos seleccionados), avanza siempre al estado siguiente estándar
+  if (formats.length === 0) {
+    return STANDARD_NEXT_STATUS[statusUpper] ?? STANDARD_NEXT_STATUS[ticket.status];
+  }
+
   const needsDesign = requiresDesign(ticket);
   const needsVideo = requiresVideo(ticket);
 
-  switch (ticket.status) {
+  switch (statusUpper) {
     case 'PENDIENTE':
       return 'REDACCION';
 
@@ -178,7 +187,7 @@ export function getNextStatusForTicket(ticket: {
       return 'PUBLICADO';
 
     default:
-      return STANDARD_NEXT_STATUS[ticket.status];
+      return STANDARD_NEXT_STATUS[statusUpper] ?? STANDARD_NEXT_STATUS[ticket.status];
   }
 }
 

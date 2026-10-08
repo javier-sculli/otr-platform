@@ -902,16 +902,16 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
     setPopInput('');
   };
 
-  // Missing fields validation
+  // Missing fields validation (requeridos para crear ticket nuevo)
   const missing: string[] = [];
   if (!formData.title.trim()) missing.push('nombre');
   if (!formData.clientId) missing.push('cliente');
   if (!(formData.ownerId || formData.assigneeIds.length)) missing.push('responsable');
-  if (!(formData.tiposContenido || []).length) missing.push(isPieza ? 'formato' : 'tipo de entregable');
+  if (!isEditing && !(formData.tiposContenido || []).length) missing.push(isPieza ? 'formato' : 'tipo de entregable');
 
   // Submit / Next Status Primary Action
   const handlePrimary = async () => {
-    if (missing.length > 0) {
+    if (!isEditing && missing.length > 0) {
       setError(`Completá los campos requeridos: ${missing.join(' y ')}`);
       return;
     }
@@ -2253,7 +2253,11 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
           )}
 
           <span className="flex-1 text-[12px] text-[#5b6675] text-right truncate px-2">
-            {error ? <span className="text-red-600 font-medium">{error}</span> : missing.length > 0 ? `Falta completar: ${missing.join(' y ')}` : ''}
+            {error ? (
+              <span className="text-red-600 font-medium">{error}</span>
+            ) : (!isEditing && missing.length > 0) ? (
+              `Falta completar: ${missing.join(' y ')}`
+            ) : ''}
           </span>
 
           {isEditing && (
@@ -2273,11 +2277,11 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
             <button
               type="button"
               onClick={handlePrimary}
-              disabled={missing.length > 0 || createMutation.isPending || updateMutation.isPending}
+              disabled={isEditing ? (createMutation.isPending || updateMutation.isPending) : (missing.length > 0 || createMutation.isPending || updateMutation.isPending)}
               className={`h-[38px] px-4 sm:px-4.5 border-0 font-anek text-[13px] sm:text-[14px] font-bold flex items-center justify-center gap-2 text-white transition-all whitespace-nowrap leading-none shrink-0 ${
                 isEditing ? 'rounded-l-lg' : 'rounded-lg'
               } ${
-                missing.length > 0
+                (!isEditing && missing.length > 0)
                   ? 'bg-[#b9c2cd] cursor-not-allowed'
                   : 'bg-[#024fff] hover:bg-[#0c57d3] cursor-pointer'
               }`}
@@ -2286,7 +2290,7 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
               <span className="leading-none flex items-center whitespace-nowrap">
                 {isEditing ? `Pasar a ${nextStatusInfo.label}` : 'Crear ticket'}
               </span>
-              {missing.length === 0 && <span className="text-[11px] font-medium opacity-75 leading-none shrink-0 ml-0.5">⌘↵</span>}
+              {(isEditing || missing.length === 0) && <span className="text-[11px] font-medium opacity-75 leading-none shrink-0 ml-0.5">⌘↵</span>}
             </button>
 
             {isEditing && (
