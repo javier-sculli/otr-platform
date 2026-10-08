@@ -1055,6 +1055,8 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
     ? (formData.subEstado || 'Pendiente')
     : (STATUS_OPTIONS.find(s => s.value === formData.status)?.label ?? formData.status);
 
+  const isPendienteORedaccion = ['PENDIENTE', 'REDACCION', 'Pendiente', 'Redacción', 'Redaccion'].includes(formData.status);
+
   const isCollapsibleBrief = isEditing && ['REVISION_INTERNA', 'CLIENTE', 'ESPERANDO_FEEDBACK', 'LISTO_PARA_PUBLICAR', 'PUBLICADO', 'LISTO'].includes(formData.status);
   const showBriefContent = !isCollapsibleBrief || briefOpen;
 
@@ -1062,9 +1064,18 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
   const isCollapsibleCopy = isPieza && isEditing && ['DISENO', 'EDICION', 'REVISION_INTERNA', 'CLIENTE', 'ESPERANDO_FEEDBACK', 'LISTO_PARA_PUBLICAR', 'PUBLICADO', 'LISTO'].includes(formData.status);
   const showCopyContent = !isCollapsibleCopy || copyOpen;
 
-  // Notas de diseño se muestran en Diseño y estados posteriores. A partir de estados posteriores a diseño (Revisión interna en adelante), aparecen colapsadas
-  const showNotas = isPieza && isEditing && (DESIGN_STATES.includes(formData.status) || ['REVISION_INTERNA', 'CLIENTE', 'ESPERANDO_FEEDBACK', 'LISTO_PARA_PUBLICAR', 'PUBLICADO', 'LISTO'].includes(formData.status) || !!formData.notasAudiovisual?.trim());
-  const isCollapsibleNotas = isPieza && isEditing && ['REVISION_INTERNA', 'CLIENTE', 'ESPERANDO_FEEDBACK', 'LISTO_PARA_PUBLICAR', 'PUBLICADO', 'LISTO'].includes(formData.status);
+  // Notas de diseño se muestran en Pendiente, Redacción, Diseño y estados posteriores.
+  // En Pendiente y Redacción son colapsables (y el copy aparece antes). En Diseño y Edición aparecen abiertas. De Revisión interna en adelante, también aparecen colapsadas.
+  const showNotas = isPieza && (
+    isPendienteORedaccion ||
+    DESIGN_STATES.includes(formData.status) ||
+    ['REVISION_INTERNA', 'CLIENTE', 'ESPERANDO_FEEDBACK', 'LISTO_PARA_PUBLICAR', 'PUBLICADO', 'LISTO'].includes(formData.status) ||
+    !!formData.notasAudiovisual?.trim()
+  );
+  const isCollapsibleNotas = isPieza && (
+    isPendienteORedaccion ||
+    ['REVISION_INTERNA', 'CLIENTE', 'ESPERANDO_FEEDBACK', 'LISTO_PARA_PUBLICAR', 'PUBLICADO', 'LISTO'].includes(formData.status)
+  );
   const showNotasContent = !isCollapsibleNotas || notasOpen;
 
   const teamList = (users?.data ?? []) as any[];
@@ -1443,181 +1454,198 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
               </div>
             </div>
 
-            {/* Notas de diseño */}
-            {showNotas && (
-              <div className="flex flex-col gap-2">
-                {isCollapsibleNotas && (
-                  <button
-                    type="button"
-                    onClick={() => setNotasOpen(!notasOpen)}
-                    className="flex items-center gap-3 w-full p-3 px-3.5 border border-[#d6dde5] rounded-[10px] bg-[#f7fafc] hover:bg-[#eef3f7] cursor-pointer font-anek text-left transition-colors"
-                  >
-                    <div className="flex-1 min-w-0 flex flex-col gap-0.5">
-                      <span className="text-[11px] font-bold tracking-[0.06em] uppercase text-[#5b6675]">
-                        Notas de diseño
-                      </span>
-                      {!notasOpen && (
-                        <span className="text-[14px] text-[#1d2a3a] truncate block">
-                          {formData.notasAudiovisual?.replace(/<[^>]+>/g, '').trim().split('\n')[0] || 'Sin notas de diseño'}
-                        </span>
-                      )}
-                    </div>
-                    <span className="shrink-0 whitespace-nowrap flex items-center gap-1 text-[13px] font-bold text-[#024fff]">
-                      {notasOpen ? 'Ocultar' : 'Ver notas'}
-                      <ChevronDown className={`w-3.5 h-3.5 transition-transform ${notasOpen ? 'rotate-180' : ''}`} />
-                    </span>
-                  </button>
-                )}
-
-                {showNotasContent && (
-                  <div className="flex flex-col gap-1.5">
-                    {!isCollapsibleNotas && (
-                      <div className="flex flex-col gap-0.5">
-                        <label className="text-[11px] font-bold tracking-[0.06em] uppercase text-[#5b6675]">
+            {/* Notas de diseño y Copy (en Pendiente y Redacción el copy aparece primero) */}
+            {(() => {
+              const notasNode = showNotas && (
+                <div className="flex flex-col gap-2">
+                  {isCollapsibleNotas && (
+                    <button
+                      type="button"
+                      onClick={() => setNotasOpen(!notasOpen)}
+                      className="flex items-center gap-3 w-full p-3 px-3.5 border border-[#d6dde5] rounded-[10px] bg-[#f7fafc] hover:bg-[#eef3f7] cursor-pointer font-anek text-left transition-colors"
+                    >
+                      <div className="flex-1 min-w-0 flex flex-col gap-0.5">
+                        <span className="text-[11px] font-bold tracking-[0.06em] uppercase text-[#5b6675]">
                           Notas de diseño
-                        </label>
-                        <span className="text-[13px] text-[#5b6675]">
-                          Indicaciones para quien diseña o edita: estilo, referencias, textos que van en la pieza.
                         </span>
+                        {!notasOpen && (
+                          <span className="text-[14px] text-[#1d2a3a] truncate block">
+                            {formData.notasAudiovisual?.replace(/<[^>]+>/g, '').trim().split('\n')[0] || 'Sin notas de diseño'}
+                          </span>
+                        )}
                       </div>
-                    )}
-                    <div className="border border-[#d6dde5] rounded-[10px] overflow-hidden bg-white">
-                      <TextFormatToolbar
-                        editorRef={notasRef}
-                        value={formData.notasAudiovisual || ''}
-                        onChange={val => handleChange('notasAudiovisual', val)}
-                        onComment={() => triggerCommentForEditor(notasRef)}
-                      />
-                      <RichTextEditor
-                        ref={notasRef}
-                        value={formData.notasAudiovisual || ''}
-                        onChange={val => handleChange('notasAudiovisual', val)}
-                        onBlur={() => triggerImmediateAutoSave()}
-                        onMarkClick={handleMarkClick}
-                        onMarkHover={handleMarkHover}
-                        placeholder="Ej.: placa estilo «en medios», usar logos de los medios, foto del vocero…"
-                        minHeight="110px"
-                        className="p-3.5"
-                      />
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
+                      <span className="shrink-0 whitespace-nowrap flex items-center gap-1 text-[13px] font-bold text-[#024fff]">
+                        {notasOpen ? 'Ocultar' : 'Ver notas'}
+                        <ChevronDown className={`w-3.5 h-3.5 transition-transform ${notasOpen ? 'rotate-180' : ''}`} />
+                      </span>
+                    </button>
+                  )}
 
-            {/* Copy section (for pieces) */}
-            {isPieza && formData.canales.length === 0 && (
-              <div className="flex flex-col gap-1.5">
-                <label className="text-[11px] font-bold tracking-[0.06em] uppercase text-[#5b6675]">Copy</label>
-                <div className="flex items-center gap-3 flex-wrap p-4 border border-dashed border-[#b9c2cd] rounded-[10px] bg-[#f7fafc]">
-                  <span className="flex-1 text-[14px] text-[#5b6675]">Elegí para qué red es el copy.</span>
-                  <div className="flex gap-1.5 flex-wrap">
-                    {redesDisponibles.map(rd => (
-                      <button
-                        key={rd}
-                        type="button"
-                        onClick={() => toggleRed(rd)}
-                        className="border border-[#024fff] bg-white text-[#024fff] cursor-pointer font-anek text-[13px] font-bold px-3 py-1.5 rounded-full hover:bg-[#024fff]/8 transition-colors"
-                      >
-                        + {rd}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {isPieza && formData.canales.length > 0 && (
-              <div className="flex flex-col gap-2">
-                {isCollapsibleCopy && (
-                  <button
-                    type="button"
-                    onClick={() => setCopyOpen(!copyOpen)}
-                    className="flex items-center gap-3 w-full p-3 px-3.5 border border-[#d6dde5] rounded-[10px] bg-[#f7fafc] hover:bg-[#eef3f7] cursor-pointer font-anek text-left transition-colors"
-                  >
-                    <div className="flex-1 min-w-0 flex flex-col gap-0.5">
-                      <div className="flex items-center gap-2">
-                        <span className="text-[11px] font-bold tracking-[0.06em] uppercase text-[#5b6675]">Copy</span>
-                        <span className="text-[11px] text-[#8c96a3]">({formData.canales.join(', ')})</span>
-                      </div>
-                      {!copyOpen && (
-                        <span className="text-[14px] text-[#1d2a3a] truncate block">
-                          {currentCopyText?.replace(/<[^>]+>/g, '').trim().split('\n')[0] || 'Sin copy redactado'}
-                        </span>
+                  {showNotasContent && (
+                    <div className="flex flex-col gap-1.5">
+                      {!isCollapsibleNotas && (
+                        <div className="flex flex-col gap-0.5">
+                          <label className="text-[11px] font-bold tracking-[0.06em] uppercase text-[#5b6675]">
+                            Notas de diseño
+                          </label>
+                          <span className="text-[13px] text-[#5b6675]">
+                            Indicaciones para quien diseña o edita: estilo, referencias, textos que van en la pieza.
+                          </span>
+                        </div>
                       )}
-                    </div>
-                    <span className="shrink-0 whitespace-nowrap flex items-center gap-1 text-[13px] font-bold text-[#024fff]">
-                      {copyOpen ? 'Ocultar' : 'Ver copy'}
-                      <ChevronDown className={`w-3.5 h-3.5 transition-transform ${copyOpen ? 'rotate-180' : ''}`} />
-                    </span>
-                  </button>
-                )}
-
-                {showCopyContent && (
-                  <div className="flex flex-col gap-1.5">
-                    {!isCollapsibleCopy && (
-                      <div className="flex items-center justify-between">
-                        <label className="text-[11px] font-bold tracking-[0.06em] uppercase text-[#5b6675]">Copy</label>
+                      <div className="border border-[#d6dde5] rounded-[10px] overflow-hidden bg-white">
+                        <TextFormatToolbar
+                          editorRef={notasRef}
+                          value={formData.notasAudiovisual || ''}
+                          onChange={val => handleChange('notasAudiovisual', val)}
+                          onComment={() => triggerCommentForEditor(notasRef)}
+                        />
+                        <RichTextEditor
+                          ref={notasRef}
+                          value={formData.notasAudiovisual || ''}
+                          onChange={val => handleChange('notasAudiovisual', val)}
+                          onBlur={() => triggerImmediateAutoSave()}
+                          onMarkClick={handleMarkClick}
+                          onMarkHover={handleMarkHover}
+                          placeholder="Ej.: placa estilo «en medios», usar logos de los medios, foto del vocero…"
+                          minHeight="110px"
+                          className="p-3.5"
+                        />
                       </div>
-                    )}
-                    <div className="border border-[#d6dde5] rounded-[10px] overflow-hidden bg-white">
-                      {/* Network tabs row */}
-                      <div className="flex items-center justify-between gap-2 p-1.5 px-2 bg-[#f7fafc] border-b border-[#d6dde5] flex-wrap">
-                        <div className="flex items-center gap-1 p-0.5 bg-[#eef3f7] rounded-lg">
-                          {formData.canales.map((r: string) => (
+                    </div>
+                  )}
+                </div>
+              );
+
+              const copyNode = isPieza && (
+                <>
+                  {formData.canales.length === 0 && (
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-[11px] font-bold tracking-[0.06em] uppercase text-[#5b6675]">Copy</label>
+                      <div className="flex items-center gap-3 flex-wrap p-4 border border-dashed border-[#b9c2cd] rounded-[10px] bg-[#f7fafc]">
+                        <span className="flex-1 text-[14px] text-[#5b6675]">Elegí para qué red es el copy.</span>
+                        <div className="flex gap-1.5 flex-wrap">
+                          {redesDisponibles.map(rd => (
                             <button
-                              key={r}
+                              key={rd}
                               type="button"
-                              onClick={() => setActiveCopyTab(r)}
-                              className={`border-0 cursor-pointer font-anek text-[13px] font-bold px-3 py-1 rounded-md transition-all ${
-                                activeCopyTab === r ? 'bg-white text-[#024fff] shadow-sm' : 'bg-transparent text-[#5b6675] hover:bg-white/50'
-                              }`}
+                              onClick={() => toggleRed(rd)}
+                              className="border border-[#024fff] bg-white text-[#024fff] cursor-pointer font-anek text-[13px] font-bold px-3 py-1.5 rounded-full hover:bg-[#024fff]/8 transition-colors"
                             >
-                              {r}
+                              + {rd}
                             </button>
                           ))}
                         </div>
                       </div>
-
-                      {/* Standard consistent toolbar */}
-                      <TextFormatToolbar
-                        editorRef={copyRef}
-                        value={currentCopyText}
-                        onChange={val => {
-                          const nextPerCanal = { ...formData.contentPerCanal, [activeCopyTab]: val };
-                          handleChange('contentPerCanal', nextPerCanal);
-                        }}
-                        onComment={() => triggerCommentForEditor(copyRef)}
-                      />
-
-                      {/* RichTextEditor */}
-                      <RichTextEditor
-                        ref={copyRef}
-                        value={currentCopyText}
-                        onChange={val => {
-                          const nextPerCanal = { ...formData.contentPerCanal, [activeCopyTab]: val };
-                          handleChange('contentPerCanal', nextPerCanal);
-                        }}
-                        onBlur={() => triggerImmediateAutoSave()}
-                        onMarkClick={handleMarkClick}
-                        onMarkHover={handleMarkHover}
-                        placeholder={`Copy para ${activeCopyTab}…`}
-                        minHeight="140px"
-                        className="p-3.5 sm:p-4"
-                      />
-
-                      <div className="flex justify-end p-2 px-3 border-t border-[#eef3f7] text-[12px] text-[#8c96a3]">
-                        <span className={isCopyOver ? 'text-[#d4380d] font-bold' : ''}>
-                          {copyLimit > 0
-                            ? `${visibleCopyLength.toLocaleString('es-AR')} / ${copyLimit.toLocaleString('es-AR')}`
-                            : `${visibleCopyLength} caracteres`}
-                        </span>
-                      </div>
                     </div>
-                  </div>
-                )}
-              </div>
-            )}
+                  )}
+
+                  {formData.canales.length > 0 && (
+                    <div className="flex flex-col gap-2">
+                      {isCollapsibleCopy && (
+                        <button
+                          type="button"
+                          onClick={() => setCopyOpen(!copyOpen)}
+                          className="flex items-center gap-3 w-full p-3 px-3.5 border border-[#d6dde5] rounded-[10px] bg-[#f7fafc] hover:bg-[#eef3f7] cursor-pointer font-anek text-left transition-colors"
+                        >
+                          <div className="flex-1 min-w-0 flex flex-col gap-0.5">
+                            <div className="flex items-center gap-2">
+                              <span className="text-[11px] font-bold tracking-[0.06em] uppercase text-[#5b6675]">Copy</span>
+                              <span className="text-[11px] text-[#8c96a3]">({formData.canales.join(', ')})</span>
+                            </div>
+                            {!copyOpen && (
+                              <span className="text-[14px] text-[#1d2a3a] truncate block">
+                                {currentCopyText?.replace(/<[^>]+>/g, '').trim().split('\n')[0] || 'Sin copy redactado'}
+                              </span>
+                            )}
+                          </div>
+                          <span className="shrink-0 whitespace-nowrap flex items-center gap-1 text-[13px] font-bold text-[#024fff]">
+                            {copyOpen ? 'Ocultar' : 'Ver copy'}
+                            <ChevronDown className={`w-3.5 h-3.5 transition-transform ${copyOpen ? 'rotate-180' : ''}`} />
+                          </span>
+                        </button>
+                      )}
+
+                      {showCopyContent && (
+                        <div className="flex flex-col gap-1.5">
+                          {!isCollapsibleCopy && (
+                            <div className="flex items-center justify-between">
+                              <label className="text-[11px] font-bold tracking-[0.06em] uppercase text-[#5b6675]">Copy</label>
+                            </div>
+                          )}
+                          <div className="border border-[#d6dde5] rounded-[10px] overflow-hidden bg-white">
+                            {/* Network tabs row */}
+                            <div className="flex items-center justify-between gap-2 p-1.5 px-2 bg-[#f7fafc] border-b border-[#d6dde5] flex-wrap">
+                              <div className="flex items-center gap-1 p-0.5 bg-[#eef3f7] rounded-lg">
+                                {formData.canales.map((r: string) => (
+                                  <button
+                                    key={r}
+                                    type="button"
+                                    onClick={() => setActiveCopyTab(r)}
+                                    className={`border-0 cursor-pointer font-anek text-[13px] font-bold px-3 py-1 rounded-md transition-all ${
+                                      activeCopyTab === r ? 'bg-white text-[#024fff] shadow-sm' : 'bg-transparent text-[#5b6675] hover:bg-white/50'
+                                    }`}
+                                  >
+                                    {r}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+
+                            {/* Standard consistent toolbar */}
+                            <TextFormatToolbar
+                              editorRef={copyRef}
+                              value={currentCopyText}
+                              onChange={val => {
+                                const nextPerCanal = { ...formData.contentPerCanal, [activeCopyTab]: val };
+                                handleChange('contentPerCanal', nextPerCanal);
+                              }}
+                              onComment={() => triggerCommentForEditor(copyRef)}
+                            />
+
+                            {/* RichTextEditor */}
+                            <RichTextEditor
+                              ref={copyRef}
+                              value={currentCopyText}
+                              onChange={val => {
+                                const nextPerCanal = { ...formData.contentPerCanal, [activeCopyTab]: val };
+                                handleChange('contentPerCanal', nextPerCanal);
+                              }}
+                              onBlur={() => triggerImmediateAutoSave()}
+                              onMarkClick={handleMarkClick}
+                              onMarkHover={handleMarkHover}
+                              placeholder={`Copy para ${activeCopyTab}…`}
+                              minHeight="140px"
+                              className="p-3.5 sm:p-4"
+                            />
+
+                            <div className="flex justify-end p-2 px-3 border-t border-[#eef3f7] text-[12px] text-[#8c96a3]">
+                              <span className={isCopyOver ? 'text-[#d4380d] font-bold' : ''}>
+                                {copyLimit > 0
+                                  ? `${visibleCopyLength.toLocaleString('es-AR')} / ${copyLimit.toLocaleString('es-AR')}`
+                                  : `${visibleCopyLength} caracteres`}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </>
+              );
+
+              return isPendienteORedaccion ? (
+                <>
+                  {copyNode}
+                  {notasNode}
+                </>
+              ) : (
+                <>
+                  {notasNode}
+                  {copyNode}
+                </>
+              );
+            })()}
 
             {/* Link a la Publicación (a partir de listo para publicar en adelante) */}
             {['LISTO_PARA_PUBLICAR', 'PUBLICADO', 'LISTO'].includes(formData.status) && (

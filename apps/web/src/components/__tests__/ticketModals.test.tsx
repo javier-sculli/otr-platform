@@ -389,6 +389,101 @@ describe('CreateTicketModal', () => {
     });
     expect(onClose).toHaveBeenCalled();
   });
+
+  it('en PENDIENTE o REDACCION, el copy aparece antes que las notas de diseño y las notas son colapsables', async () => {
+    const mockTicket = {
+      id: 'ticket-redaccion-1',
+      title: 'Pieza en redacción',
+      client: { id: 'c1', name: 'Cliente 1' },
+      owner: { id: 'user-1', name: 'Tester' },
+      status: 'REDACCION',
+      prioridad: 'MEDIA',
+      canales: ['LinkedIn'],
+      tiposContenido: ['Post'],
+      notasAudiovisual: 'Notas para cuando pase a diseño',
+      contentPerCanal: { LinkedIn: 'Borrador de copy' },
+    };
+
+    (api.getTicket as any).mockResolvedValue({
+      data: mockTicket,
+    });
+
+    render(
+      <CreateTicketModal
+        isOpen={true}
+        onClose={vi.fn()}
+        ticket={mockTicket as any}
+      />,
+      { wrapper: createWrapper() }
+    );
+
+    // Esperar a que cargue el ticket
+    await waitFor(() => {
+      expect(screen.getByText('Borrador de copy')).toBeInTheDocument();
+    });
+
+    // Encontrar elemento Copy y botón colapsable de Notas de diseño
+    const copyLabel = screen.getByText('Copy');
+    const notasBtn = screen.getByRole('button', { name: /notas de diseño/i });
+
+    expect(copyLabel).toBeInTheDocument();
+    expect(notasBtn).toBeInTheDocument();
+
+    // Validar orden: Copy aparece antes que Notas de diseño
+    expect(copyLabel.compareDocumentPosition(notasBtn) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+    // Validar que las notas son colapsables: muestran "Ver notas" y no el editor completo
+    expect(screen.getByText('Ver notas')).toBeInTheDocument();
+    expect(screen.queryByPlaceholderText(/placa estilo «en medios»/i)).not.toBeInTheDocument();
+
+    // Al hacer clic en "Ver notas", se expanden
+    fireEvent.click(notasBtn);
+    expect(screen.getByText('Ocultar')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText(/placa estilo «en medios»/i)).toBeInTheDocument();
+  });
+
+  it('en DISENO, las notas de diseño aparecen antes que el copy y están abiertas', async () => {
+    const mockTicket = {
+      id: 'ticket-diseno-1',
+      title: 'Pieza en diseño',
+      client: { id: 'c1', name: 'Cliente 1' },
+      owner: { id: 'user-1', name: 'Tester' },
+      status: 'DISENO',
+      prioridad: 'MEDIA',
+      canales: ['LinkedIn'],
+      tiposContenido: ['Post'],
+      notasAudiovisual: 'Notas para el diseñador',
+      contentPerCanal: { LinkedIn: 'Copy ya terminado' },
+    };
+
+    (api.getTicket as any).mockResolvedValue({
+      data: mockTicket,
+    });
+
+    render(
+      <CreateTicketModal
+        isOpen={true}
+        onClose={vi.fn()}
+        ticket={mockTicket as any}
+      />,
+      { wrapper: createWrapper() }
+    );
+
+    // Esperar a que cargue el ticket
+    await waitFor(() => {
+      expect(screen.getByText('Copy ya terminado')).toBeInTheDocument();
+    });
+
+    // Encontrar elementos
+    const copySection = screen.getByRole('button', { name: /copy/i });
+    const notasEditor = screen.getByPlaceholderText(/placa estilo «en medios»/i);
+
+    expect(copySection).toBeInTheDocument();
+    expect(notasEditor).toBeInTheDocument();
+
+    // Validar orden: Notas de diseño aparece antes que Copy
+    expect(notasEditor.compareDocumentPosition(copySection) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
 });
 
 

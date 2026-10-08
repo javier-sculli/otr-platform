@@ -141,6 +141,7 @@ export function TicketDetallePage() {
   const ownersOpenRef = useRef(ownersOpen);
   ownersOpenRef.current = ownersOpen;
   const [briefOpen, setBriefOpen] = useState(false);
+  const [notasOpen, setNotasOpen] = useState(false);
 
   const [recursoInput, setRecursoInput] = useState('');
   const [activeCopyTab, setActiveCopyTab] = useState<string>('LinkedIn');
@@ -662,6 +663,7 @@ export function TicketDetallePage() {
   const subEstadoLabel = ticket.subEstado ? (SUB_DEF[ticket.subEstado as SubEstado]?.label ?? ticket.subEstado) : 'Pendiente';
   const statusLabel = esPrensa ? subEstadoLabel : (STATUS_OPTIONS.find(s => s.value === ticket.status)?.label ?? ticket.status);
   const nextInfo = getNextStatusInfo(ticket.status, esPrensa, ticket.subEstado, (ticket as any).tiposContenido, (ticket as any).ticketType, ticket.title);
+  const isPendienteORedaccion = ['PENDIENTE', 'REDACCION', 'Pendiente', 'Redacción', 'Redaccion'].includes(ticket.status);
 
   const formatList = isPieza ? FORMATOS_PIEZA : TIPOS_TAREA;
   const currentCopy = copyPerCanal[activeCopyTab] || '';
@@ -1164,137 +1166,209 @@ export function TicketDetallePage() {
             </div>
           )}
 
-          {/* 3. [if Pieza] Copy */}
-          {isPieza && (
-            <div className="flex flex-col gap-3.5">
-              <div className="flex items-center gap-3 flex-wrap">
-                <span className="text-[13px] font-[800] tracking-[0.07em] uppercase text-[#0d0d0d]">Copy</span>
-                <span className="flex-1" />
-                <button
-                  type="button"
-                  onClick={() => navigate(`/content/${ticket.id}`)}
-                  className="shrink-0 whitespace-nowrap h-[40px] px-3.5 border border-[#024fff] bg-white rounded-lg cursor-pointer font-anek text-[15px] font-bold text-[#024fff] flex items-center gap-2 hover:bg-[#024fff]/8 transition-colors"
-                >
-                  <Sparkles className="w-4 h-4" />
-                  <span>Redactar con IA</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={copiarCopy}
-                  className="shrink-0 whitespace-nowrap h-[40px] px-3.5 border border-[#d6dde5] bg-white rounded-lg cursor-pointer font-anek text-[15px] font-bold text-[#0d0d0d] flex items-center gap-2 hover:bg-[#eef3f7] transition-colors"
-                >
-                  <CopyIcon className="w-4 h-4" />
-                  <span>{copyCopiado ? 'Copiado' : 'Copiar'}</span>
-                </button>
-              </div>
+          {/* Notas de diseño y Copy (en Pendiente y Redacción el copy aparece primero y las notas son colapsables) */}
+          {(() => {
+            const copyNode = isPieza && (
+              <div className="flex flex-col gap-3.5">
+                <div className="flex items-center gap-3 flex-wrap">
+                  <span className="text-[13px] font-[800] tracking-[0.07em] uppercase text-[#0d0d0d]">Copy</span>
+                  <span className="flex-1" />
+                  <button
+                    type="button"
+                    onClick={() => navigate(`/content/${ticket.id}`)}
+                    className="shrink-0 whitespace-nowrap h-[40px] px-3.5 border border-[#024fff] bg-white rounded-lg cursor-pointer font-anek text-[15px] font-bold text-[#024fff] flex items-center gap-2 hover:bg-[#024fff]/8 transition-colors"
+                  >
+                    <Sparkles className="w-4 h-4" />
+                    <span>Redactar con IA</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={copiarCopy}
+                    className="shrink-0 whitespace-nowrap h-[40px] px-3.5 border border-[#d6dde5] bg-white rounded-lg cursor-pointer font-anek text-[15px] font-bold text-[#0d0d0d] flex items-center gap-2 hover:bg-[#eef3f7] transition-colors"
+                  >
+                    <CopyIcon className="w-4 h-4" />
+                    <span>{copyCopiado ? 'Copiado' : 'Copiar'}</span>
+                  </button>
+                </div>
 
-              <div className="border border-[#d6dde5] rounded-[12px] overflow-hidden bg-white shadow-xs">
-                {/* Redes tabs */}
-                <div className="flex items-center gap-1.5 p-2 border-b border-[#eef3f7] bg-[#f7fafc] flex-wrap">
-                  {(ticket.canales?.length > 0 ? ticket.canales : ['LinkedIn']).map((r: string) => (
-                    <button
-                      key={r}
-                      type="button"
-                      onClick={() => setActiveCopyTab(r)}
-                      className={`shrink-0 whitespace-nowrap border-0 cursor-pointer font-anek text-[15px] font-bold h-[36px] px-3.5 rounded-md transition-colors ${
-                        activeCopyTab === r
-                          ? 'bg-white text-[#024fff] shadow-[0_1px_2px_rgba(0,14,31,.12)]'
-                          : 'bg-transparent text-[#5b6675] hover:bg-[#eef3f7]'
-                      }`}
-                    >
-                      {r}
-                    </button>
-                  ))}
-                  {['LinkedIn', 'Instagram', 'Twitter/X']
-                    .filter(rd => !(ticket.canales || []).includes(rd))
-                    .map(ar => (
+                <div className="border border-[#d6dde5] rounded-[12px] overflow-hidden bg-white shadow-xs">
+                  {/* Redes tabs */}
+                  <div className="flex items-center gap-1.5 p-2 border-b border-[#eef3f7] bg-[#f7fafc] flex-wrap">
+                    {(ticket.canales?.length > 0 ? ticket.canales : ['LinkedIn']).map((r: string) => (
                       <button
-                        key={ar}
+                        key={r}
                         type="button"
-                        onClick={() => toggleRed(ar)}
-                        className="shrink-0 whitespace-nowrap border border-dashed border-[#b9c2cd] bg-transparent cursor-pointer font-anek text-[14px] font-medium h-[34px] px-3 rounded-md text-[#3a4655] hover:border-[#024fff] hover:text-[#024fff] transition-colors"
+                        onClick={() => setActiveCopyTab(r)}
+                        className={`shrink-0 whitespace-nowrap border-0 cursor-pointer font-anek text-[15px] font-bold h-[36px] px-3.5 rounded-md transition-colors ${
+                          activeCopyTab === r
+                            ? 'bg-white text-[#024fff] shadow-[0_1px_2px_rgba(0,14,31,.12)]'
+                            : 'bg-transparent text-[#5b6675] hover:bg-[#eef3f7]'
+                        }`}
                       >
-                        + {ar}
+                        {r}
                       </button>
                     ))}
+                    {['LinkedIn', 'Instagram', 'Twitter/X']
+                      .filter(rd => !(ticket.canales || []).includes(rd))
+                      .map(ar => (
+                        <button
+                          key={ar}
+                          type="button"
+                          onClick={() => toggleRed(ar)}
+                          className="shrink-0 whitespace-nowrap border border-dashed border-[#b9c2cd] bg-transparent cursor-pointer font-anek text-[14px] font-medium h-[34px] px-3 rounded-md text-[#3a4655] hover:border-[#024fff] hover:text-[#024fff] transition-colors"
+                        >
+                          + {ar}
+                        </button>
+                      ))}
+                  </div>
+
+                  {/* Toolbar */}
+                  <TextFormatToolbar
+                    editorRef={copyRef}
+                    value={currentCopy}
+                    onChange={val => {
+                      setCopyPerCanal(prev => ({ ...prev, [activeCopyTab]: val }));
+                      saveCopyTab(activeCopyTab, val);
+                    }}
+                    onComment={() => startInline(copyRef)}
+                  />
+
+                  <RichTextEditor
+                    ref={copyRef}
+                    value={currentCopy}
+                    onChange={val => {
+                      setCopyPerCanal(prev => ({ ...prev, [activeCopyTab]: val }));
+                    }}
+                    onBlur={() => saveCopyTab(activeCopyTab, currentCopy)}
+                    onMarkClick={handleMarkClick}
+                    onMarkHover={handleMarkHover}
+                    placeholder={`Copy para ${activeCopyTab}…`}
+                    minHeight="260px"
+                    className="p-5 sm:p-6 text-[16px] leading-[1.65]"
+                  />
+
+                  <div className="flex justify-between items-center gap-3 p-2.5 px-4 border-t border-[#eef3f7] text-[14px] text-[#5b6675]">
+                    <span>{pickedSpeaker ? `Voz: ${getSpeakerName(pickedSpeaker)}` : 'Voz de marca'}</span>
+                    <span className={isCopyOver ? 'text-[#d4380d] font-bold' : 'text-[#8c96a3]'}>
+                      {copyLimit > 0
+                        ? `${visibleCopyLength.toLocaleString('es-AR')} / ${copyLimit.toLocaleString('es-AR')}`
+                        : `${visibleCopyLength} caracteres`}
+                    </span>
+                  </div>
                 </div>
-
-                {/* Toolbar */}
-                <TextFormatToolbar
-                  editorRef={copyRef}
-                  value={currentCopy}
-                  onChange={val => {
-                    setCopyPerCanal(prev => ({ ...prev, [activeCopyTab]: val }));
-                    saveCopyTab(activeCopyTab, val);
-                  }}
-                  onComment={() => startInline(copyRef)}
-                />
-
-                <RichTextEditor
-                  ref={copyRef}
-                  value={currentCopy}
-                  onChange={val => {
-                    setCopyPerCanal(prev => ({ ...prev, [activeCopyTab]: val }));
-                  }}
-                  onBlur={() => saveCopyTab(activeCopyTab, currentCopy)}
-                  onMarkClick={handleMarkClick}
-                  onMarkHover={handleMarkHover}
-                  placeholder={`Copy para ${activeCopyTab}…`}
-                  minHeight="260px"
-                  className="p-5 sm:p-6 text-[16px] leading-[1.65]"
-                />
-
-                <div className="flex justify-between items-center gap-3 p-2.5 px-4 border-t border-[#eef3f7] text-[14px] text-[#5b6675]">
-                  <span>{pickedSpeaker ? `Voz: ${getSpeakerName(pickedSpeaker)}` : 'Voz de marca'}</span>
-                  <span className={isCopyOver ? 'text-[#d4380d] font-bold' : 'text-[#8c96a3]'}>
-                    {copyLimit > 0
-                      ? `${visibleCopyLength.toLocaleString('es-AR')} / ${copyLimit.toLocaleString('es-AR')}`
-                      : `${visibleCopyLength} caracteres`}
-                  </span>
-                </div>
               </div>
-            </div>
-          )}
+            );
 
-          {/* 4. [if Pieza] Notas de diseño */}
-          {isPieza && (
-            <div className="flex flex-col gap-3.5">
-              <div className="flex flex-col gap-1.5">
-                <span className="text-[13px] font-[800] tracking-[0.07em] uppercase text-[#0d0d0d]">Notas de diseño</span>
-                <span className="text-[14px] text-[#5b6675]">Indicaciones para quien diseña: estilo, referencias, textos que van en la pieza.</span>
+            const notasNode = isPieza && (
+              <div className="flex flex-col gap-3.5">
+                {isPendienteORedaccion ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => setNotasOpen(!notasOpen)}
+                      className="flex items-center gap-3 w-full p-3.5 px-4 border border-[#d6dde5] rounded-[12px] bg-[#f7fafc] hover:bg-[#eef3f7] cursor-pointer font-anek text-left transition-colors"
+                    >
+                      <div className="flex-1 min-w-0 flex flex-col gap-0.5">
+                        <span className="text-[12px] font-bold tracking-[0.06em] uppercase text-[#5b6675]">
+                          Notas de diseño
+                        </span>
+                        {!notasOpen && (
+                          <span className="text-[14px] text-[#1d2a3a] truncate block">
+                            {notasAudiovisual?.replace(/<[^>]+>/g, '').trim().split('\n')[0] || 'Sin notas de diseño'}
+                          </span>
+                        )}
+                      </div>
+                      <span className="shrink-0 whitespace-nowrap flex items-center gap-1.5 text-[14px] font-bold text-[#024fff]">
+                        {notasOpen ? 'Ocultar' : 'Ver notas'}
+                        <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${notasOpen ? 'rotate-180' : ''}`} />
+                      </span>
+                    </button>
+
+                    {notasOpen && (
+                      <div className="border border-[#d6dde5] rounded-[12px] overflow-hidden bg-white shadow-xs">
+                        <TextFormatToolbar
+                          editorRef={notasRef}
+                          value={notasAudiovisual}
+                          onChange={val => {
+                            setNotasAudiovisual(val);
+                            updateMutation.mutate({ notasAudiovisual: val || null });
+                          }}
+                          onComment={() => startInline(notasRef)}
+                        />
+
+                        <RichTextEditor
+                          ref={notasRef}
+                          value={notasAudiovisual}
+                          onChange={val => {
+                            setNotasAudiovisual(val);
+                          }}
+                          onBlur={() => {
+                            if (notasAudiovisual !== (ticket.notasAudiovisual ?? '')) {
+                              updateMutation.mutate({ notasAudiovisual: notasAudiovisual || null });
+                            }
+                          }}
+                          onMarkClick={handleMarkClick}
+                          onMarkHover={handleMarkHover}
+                          placeholder="Ej.: placa estilo «Newtopia en medios», usar logos de los medios…"
+                          minHeight="140px"
+                          className="p-5 sm:p-6 text-[16px] leading-[1.65]"
+                        />
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <div className="flex flex-col gap-1.5">
+                      <span className="text-[13px] font-[800] tracking-[0.07em] uppercase text-[#0d0d0d]">Notas de diseño</span>
+                      <span className="text-[14px] text-[#5b6675]">Indicaciones para quien diseña: estilo, referencias, textos que van en la pieza.</span>
+                    </div>
+
+                    <div className="border border-[#d6dde5] rounded-[12px] overflow-hidden bg-white shadow-xs">
+                      <TextFormatToolbar
+                        editorRef={notasRef}
+                        value={notasAudiovisual}
+                        onChange={val => {
+                          setNotasAudiovisual(val);
+                          updateMutation.mutate({ notasAudiovisual: val || null });
+                        }}
+                        onComment={() => startInline(notasRef)}
+                      />
+
+                      <RichTextEditor
+                        ref={notasRef}
+                        value={notasAudiovisual}
+                        onChange={val => {
+                          setNotasAudiovisual(val);
+                        }}
+                        onBlur={() => {
+                          if (notasAudiovisual !== (ticket.notasAudiovisual ?? '')) {
+                            updateMutation.mutate({ notasAudiovisual: notasAudiovisual || null });
+                          }
+                        }}
+                        onMarkClick={handleMarkClick}
+                        onMarkHover={handleMarkHover}
+                        placeholder="Ej.: placa estilo «Newtopia en medios», usar logos de los medios…"
+                        minHeight="140px"
+                        className="p-5 sm:p-6 text-[16px] leading-[1.65]"
+                      />
+                    </div>
+                  </>
+                )}
               </div>
+            );
 
-              <div className="border border-[#d6dde5] rounded-[12px] overflow-hidden bg-white shadow-xs">
-                <TextFormatToolbar
-                  editorRef={notasRef}
-                  value={notasAudiovisual}
-                  onChange={val => {
-                    setNotasAudiovisual(val);
-                    updateMutation.mutate({ notasAudiovisual: val || null });
-                  }}
-                  onComment={() => startInline(notasRef)}
-                />
-
-                <RichTextEditor
-                  ref={notasRef}
-                  value={notasAudiovisual}
-                  onChange={val => {
-                    setNotasAudiovisual(val);
-                  }}
-                  onBlur={() => {
-                    if (notasAudiovisual !== (ticket.notasAudiovisual ?? '')) {
-                      updateMutation.mutate({ notasAudiovisual: notasAudiovisual || null });
-                    }
-                  }}
-                  onMarkClick={handleMarkClick}
-                  onMarkHover={handleMarkHover}
-                  placeholder="Ej.: placa estilo «Newtopia en medios», usar logos de los medios…"
-                  minHeight="140px"
-                  className="p-5 sm:p-6 text-[16px] leading-[1.65]"
-                />
-              </div>
-            </div>
-          )}
+            return isPendienteORedaccion ? (
+              <>
+                {copyNode}
+                {notasNode}
+              </>
+            ) : (
+              <>
+                {notasNode}
+                {copyNode}
+              </>
+            );
+          })()}
 
         </div>
 
