@@ -4,6 +4,18 @@
 > 
 > 🎯 **BACKLOG OFICIAL Y PRIORIDADES (FUENTE DE VERDAD):** [Notion Backlog Oficial](https://app.notion.com/p/Backlog-3ba617fc369281048bfdfc89c5041d9c?source=copy_link). Todas las prioridades y tareas activas se gestionan directamente allí.
 
+### [2026-10-08] — Avance Fluido de Estado en Tickets sin Formato Predefinido
+- **Desarrollador:** Antigravity (Pair Programming con Javier Sculli)
+- **Resumen de Avances:**
+  1. **Fallback Secuencial en Workflow (`workflow.ts`):**
+     - Al calcular el siguiente estado mediante `getNextStatusForTicket`, si el ticket no cuenta con formatos predefinidos (`tiposContenido` vacío o nulo), ahora avanza fluidamente al siguiente estado estándar (`REDACCION` -> `DISENO` -> `EDICION` -> `REVISION_INTERNA` -> `CLIENTE` -> etc.) en lugar de quedar trabado o devolver `undefined`.
+     - Se añadió `PUBLICADO -> LISTO` en el mapeo estándar.
+  2. **Desbloqueo de Botón Principal en Modal de Edición (`CreateTicketModal.tsx`):**
+     - En tickets existentes en modo edición (`isEditing`), la ausencia de un formato seleccionado ya no bloquea el botón "Pasar a [Estado]", permitiendo avanzar de fase sin trabas innecesarias.
+- **Suite de Tests:**
+  - Nuevos tests en `workflow.test.ts` y `ticketModals.test.tsx` verificando la progresión completa del workflow sin formato y el avance desde el modal de edición.
+- **Verificación:** 88 tests pasando al 100% y build limpio del monorepo.
+
 ### [2026-10-08] — Posicionamiento de Notas de Diseño Abajo del Copy (Excepto Diseño/Edición)
 - **Desarrollador:** Antigravity (Pair Programming con Javier Sculli)
 - **Resumen de Avances:**
