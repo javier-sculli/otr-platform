@@ -4,6 +4,24 @@
 > 
 > 🎯 **BACKLOG OFICIAL Y PRIORIDADES (FUENTE DE VERDAD):** [Notion Backlog Oficial](https://app.notion.com/p/Backlog-3ba617fc369281048bfdfc89c5041d9c?source=copy_link). Todas las prioridades y tareas activas se gestionan directamente allí.
 
+### [2026-10-08] — Refactorización Modular de Tickets (Fase 3: CommentsThread, Resources, FormatPicker)
+- **Desarrollador:** Antigravity (Pair Programming con Javier Sculli)
+- **Resumen de Avances:**
+  1. **Componente de Hilo de Comentarios (`TicketCommentsThread.tsx`):**
+     - Se encapsuló el listado completo de comentarios generales, soporte de menciones (`MentionTextarea`), avatar y nombre de autor, fecha relativa y botón de borrado/eliminar comentario.
+     - Manejo de estado interno de input de comentarios e integración reactiva con `CreateTicketModal.tsx` y `TicketDetallePage.tsx`.
+  2. **Componente de Recursos y Adjuntos (`TicketResources.tsx`):**
+     - Se modularizó la sección de links externos/recursos (URL, título opcional), renderizado de items con opción de abrir enlace externo o eliminar, y formulario desplegable con validación de URL (`http/https`).
+  3. **Componente Selector de Formato de Ticket (`TicketFormatPicker.tsx`):**
+     - Se extrajo el selector visual de tipo de contenido/formato (Post, Reel, Carousel, Story, TikTok, etc.) con sus correspondientes badges, iconografía y soporte para selector múltiple o único (`value` como string o array).
+  4. **Corrección de Salto de Cursor en Editor de Texto Enriquecido (`RichTextEditor.tsx`):**
+     - Se evitó la sincronización destructiva del DOM al escribir en `RichTextEditor`, eliminando el problema de salto del cursor hacia el final del texto durante la edición continua.
+  5. **Reducción Drástica de Código Duplicado:**
+     - Se consolidaron más de 1,330 líneas de UI redundante entre `CreateTicketModal.tsx` y `TicketDetallePage.tsx` a través de las Fases 1, 2 y 3.
+- **Suite de Tests:**
+  - 140 tests pasando exitosamente al 100% en Vitest across 17 test suites (incluyendo unitarios para `TicketCommentsThread`, `TicketResources` y `TicketFormatPicker`).
+- **Verificación:** TypeScript check (`tsc`) sin errores y build de producción (`pnpm build`) 100% exitoso.
+
 ### [2026-10-08] — Botón "Copiar" del Copy dentro de la Caja a la Altura de las Redes (Popup y Ticket)
 - **Desarrollador:** Antigravity (Pair Programming con Javier Sculli)
 - **Resumen de Avances:**

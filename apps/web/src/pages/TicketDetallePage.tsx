@@ -11,7 +11,6 @@ import {
   X as XIcon,
   Copy as CopyIcon,
   Check,
-  Paperclip,
   ChevronDown,
   Loader2,
   Trash2,
@@ -22,14 +21,18 @@ import { api } from '../lib/api';
 import { TicketsReferencia } from '../components/TicketsReferencia';
 import { TextFormatToolbar } from '../components/TextFormatToolbar';
 import { RichTextEditor } from '../components/RichTextEditor';
-import { MentionTextarea, formatCommentWithMentions } from '../components/MentionTextarea';
-import { TicketPublishLinks } from '../components/ticket/TicketPublishLinks';
-import { TicketCopyButton } from '../components/ticket/TicketCopyButton';
-import { InlineCommentHoverTooltip } from '../components/ticket/InlineCommentHoverTooltip';
-import { InlineCommentPopover } from '../components/ticket/InlineCommentPopover';
-import { TicketOwnersPicker } from '../components/ticket/TicketOwnersPicker';
-import { TicketStatusPicker } from '../components/ticket/TicketStatusPicker';
-import { useInlineComments } from '../components/ticket/useInlineComments';
+import {
+  TicketPublishLinks,
+  TicketCopyButton,
+  InlineCommentHoverTooltip,
+  InlineCommentPopover,
+  TicketOwnersPicker,
+  TicketStatusPicker,
+  useInlineComments,
+  TicketCommentsThread,
+  TicketResources,
+  TicketFormatPicker,
+} from '../components/ticket';
 import { SUB_DEF, STATUS_OPTIONS, PRENSA_STATUS_OPTIONS, getNextStatusInfo, type SubEstado } from '../lib/estados';
 
 type AttachedFile = {
@@ -106,7 +109,6 @@ export function TicketDetallePage() {
   });
 
   // Comments
-  const [commentText, setCommentText] = useState('');
   const { data: commentsData } = useQuery({
     queryKey: ['comments', ticketId],
     queryFn: () => api.getComments(ticketId!),
@@ -123,7 +125,6 @@ export function TicketDetallePage() {
     mutationFn: (content: string) => api.createComment(ticketId!, content),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['comments', ticketId] });
-      setCommentText('');
     },
   });
 
@@ -159,11 +160,9 @@ export function TicketDetallePage() {
   const [moreOpen, setMoreOpen] = useState(false);
   const [linkCopiado, setLinkCopiado] = useState(false);
   const [tituloTemp, setTituloTemp] = useState('');
-  const [fmtOpen, setFmtOpen] = useState(false);
   const [briefOpen, setBriefOpen] = useState(false);
   const [notasOpen, setNotasOpen] = useState(false);
 
-  const [recursoInput, setRecursoInput] = useState('');
   const [activeCopyTab, setActiveCopyTab] = useState<string>('LinkedIn');
   const [copyPerCanal, setCopyPerCanal] = useState<Record<string, string>>({});
   const [notasAudiovisual, setNotasAudiovisual] = useState('');
@@ -175,7 +174,6 @@ export function TicketDetallePage() {
     const saved = sessionStorage.getItem(`ticket-files-${ticketId}`);
     return saved ? JSON.parse(saved) : [];
   });
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
 
   const briefRef = useRef<HTMLDivElement>(null);
@@ -276,19 +274,6 @@ export function TicketDetallePage() {
     }
   };
 
-  const addRecurso = () => {
-    const v = recursoInput.trim();
-    if (!v) return;
-    const next = [...(ticket?.links || []), ensureAbsoluteUrl(v)];
-    setRecursoInput('');
-    updateMutation.mutate({ links: next });
-  };
-
-  const removeRecurso = (index: number) => {
-    const next = (ticket?.links || []).filter((_: string, i: number) => i !== index);
-    updateMutation.mutate({ links: next });
-  };
-
   const addEntregableLink = () => {
     const v = entregableInput.trim();
     if (!v) return;
@@ -302,32 +287,6 @@ export function TicketDetallePage() {
     const current = parseDeliverableLinks(ticket?.linkEntregable);
     const next = current.filter((_, i) => i !== index);
     updateMutation.mutate({ linkEntregable: serializeDeliverableLinks(next) });
-  };
-
-  const handleFiles = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!e.target.files?.length) return;
-    const newFiles: AttachedFile[] = [];
-    Array.from(e.target.files).forEach(file => {
-      const id = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-      const isImg = file.type.startsWith('image/');
-      const isTxt = file.type.startsWith('text/') || file.name.endsWith('.md') || file.name.endsWith('.txt');
-      newFiles.push({
-        id,
-        name: file.name,
-        type: file.type,
-        size: file.size,
-        content: null,
-        contentType: isImg ? 'image' : isTxt ? 'text' : 'other',
-      });
-    });
-    setAttachedFiles(prev => [...prev, ...newFiles]);
-    e.target.value = '';
-  };
-
-  const toggleFormato = (f: string) => {
-    const list = (ticket as any)?.tiposContenido || [];
-    const next = list.includes(f) ? list.filter((x: string) => x !== f) : [...list, f];
-    updateMutation.mutate({ tiposContenido: next });
   };
 
   const toggleRed = (r: string) => {
@@ -765,92 +724,38 @@ export function TicketDetallePage() {
                   className="p-5 sm:p-6 text-[16px] leading-[1.65]"
                 />
 
-                {/* Resources chips */}
-                {((ticket.links || []).length > 0 || attachedFiles.length > 0) && (
-                  <div className="flex flex-wrap gap-2 px-5 pb-3.5">
-                    {(ticket.links || []).map((link: string, idx: number) => (
-                      <span
-                        key={`link-${idx}`}
-                        className="flex items-center gap-2 max-w-full py-1.5 pl-3 pr-1.5 border border-[#d6dde5] rounded-full bg-[#f7fafc] box-border text-[14px] text-[#1d2a3a]"
-                      >
-                        <Link2 className="w-[15px] h-[15px] text-[#024fff] shrink-0" />
-                        <a
-                          href={ensureAbsoluteUrl(link)}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="max-w-[320px] truncate text-[#1d2a3a] hover:text-[#024fff]"
-                        >
-                          {link}
-                        </a>
-                        <button
-                          type="button"
-                          onClick={() => removeRecurso(idx)}
-                          title="Quitar"
-                          className="border-0 bg-transparent cursor-pointer text-[#8c96a3] w-6 h-6 shrink-0 rounded-full flex items-center justify-center hover:bg-[#d6dde5] hover:text-[#0d0d0d]"
-                        >
-                          <XIcon className="w-3 h-3" />
-                        </button>
-                      </span>
-                    ))}
-                    {attachedFiles.map(file => (
-                      <span
-                        key={`file-${file.id}`}
-                        className="flex items-center gap-2 max-w-full py-1.5 pl-3 pr-1.5 border border-[#d6dde5] rounded-full bg-[#f7fafc] box-border text-[14px] text-[#1d2a3a]"
-                      >
-                        <Paperclip className="w-[15px] h-[15px] text-[#024fff] shrink-0" />
-                        <span className="max-w-[240px] truncate text-[#1d2a3a]">{file.name}</span>
-                        <button
-                          type="button"
-                          onClick={() => setAttachedFiles(prev => prev.filter(f => f.id !== file.id))}
-                          title="Quitar"
-                          className="border-0 bg-transparent cursor-pointer text-[#8c96a3] w-6 h-6 shrink-0 rounded-full flex items-center justify-center hover:bg-[#d6dde5] hover:text-[#0d0d0d]"
-                        >
-                          <XIcon className="w-3 h-3" />
-                        </button>
-                      </span>
-                    ))}
-                  </div>
-                )}
-
-                {/* Input row */}
-                <div className="flex items-center gap-2 p-2 px-3 border-t border-[#eef3f7] bg-[#f7fafc]">
-                  <button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    title="Adjuntar archivo"
-                    className="w-9 h-9 shrink-0 border-0 bg-transparent rounded-md cursor-pointer text-[#3a4655] flex items-center justify-center hover:bg-[#eef3f7]"
-                  >
-                    <Paperclip className="w-[18px] h-[18px]" />
-                  </button>
-                  <input
-                    value={recursoInput}
-                    onChange={e => setRecursoInput(e.target.value)}
-                    onKeyDown={e => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        addRecurso();
-                      }
-                    }}
-                    placeholder={isPieza ? 'Pegá un link a fotos, logos o documentos y presioná Enter' : 'Pegá un link a documentos o ejemplos y presioná Enter'}
-                    className="flex-1 min-w-0 h-9 font-anek text-[15px] px-2 border-0 outline-none bg-transparent placeholder:text-[#8c96a3]"
-                  />
-                  {recursoInput.trim().length > 0 && (
-                    <button
-                      type="button"
-                      onClick={addRecurso}
-                      className="h-[34px] px-3.5 border-0 bg-[#024fff] rounded-md cursor-pointer font-anek text-[14px] font-bold text-white hover:bg-[#0c57d3]"
-                    >
-                      Agregar
-                    </button>
-                  )}
-                  <input
-                    type="file"
-                    multiple
-                    ref={fileInputRef}
-                    onChange={handleFiles}
-                    className="hidden"
-                  />
-                </div>
+                {/* Resources */}
+                <TicketResources
+                  links={ticket.links || []}
+                  attachedFiles={attachedFiles}
+                  onAddLink={(url) => {
+                    const next = [...(ticket.links || []), url];
+                    updateMutation.mutate({ links: next });
+                  }}
+                  onRemoveLink={(idx) => {
+                    const next = (ticket.links || []).filter((_: string, i: number) => i !== idx);
+                    updateMutation.mutate({ links: next });
+                  }}
+                  onAddFiles={(files) => {
+                    const newFiles: AttachedFile[] = files.map(file => {
+                      const id = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+                      const isImg = file.type.startsWith('image/');
+                      const isTxt = file.type.startsWith('text/') || file.name.endsWith('.md') || file.name.endsWith('.txt');
+                      return {
+                        id,
+                        name: file.name,
+                        type: file.type,
+                        size: file.size,
+                        content: null,
+                        contentType: isImg ? 'image' : isTxt ? 'text' : 'other',
+                      };
+                    });
+                    setAttachedFiles(prev => [...prev, ...newFiles]);
+                  }}
+                  onRemoveFile={(fileId) => setAttachedFiles(prev => prev.filter(f => f.id !== fileId))}
+                  placeholder={isPieza ? 'Pegá un link a fotos, logos o documentos y presioná Enter' : 'Pegá un link a documentos o ejemplos y presioná Enter'}
+                  variant="page"
+                />
               </div>
             )}
           </div>
@@ -1156,101 +1061,23 @@ export function TicketDetallePage() {
             )}
 
             {/* 0 Comentarios */}
-            <div className="flex flex-col gap-3.5">
-              <div className="flex items-baseline gap-2">
-                <span className="text-[13px] font-[800] tracking-[0.07em] uppercase text-[#0d0d0d]">Comentarios</span>
-                <span className="text-[14px] text-[#8c96a3]">{comments.length || ''}</span>
-              </div>
-
-              {/* Comments list */}
-              {comments.map((cm: any) => {
-                const isMyComment = (cm.userId && cm.userId === currentUser?.id) || (cm.user?.id && cm.user?.id === currentUser?.id);
-                const rawContent = cm.content || cm.text || '';
-                const quoteMatch = rawContent.match(/^«([^»]+)»:\s*([\s\S]*)$/);
-                const quote = cm.quote || (quoteMatch ? quoteMatch[1] : null);
-                const mainContent = quoteMatch ? quoteMatch[2] : rawContent;
-
-                return (
-                  <div key={cm.id} className="flex gap-2.5 group">
-                    <span className="w-[30px] h-[30px] shrink-0 rounded-full bg-[#eef3f7] text-[#024fff] text-[11px] font-bold flex items-center justify-center">
-                      <span className="translate-y-[0.5px] leading-none select-none">{ini(cm.user?.name || cm.author)}</span>
-                    </span>
-                    <div className="flex-1 min-w-0 flex flex-col gap-0.5">
-                      <div className="flex gap-2 items-baseline">
-                        <span className="text-[15px] font-bold text-[#0d0d0d]">{cm.user?.name || cm.author || 'Usuario'}</span>
-                        <span className="text-[13px] text-[#8c96a3]">
-                          {cm.createdAt ? new Date(cm.createdAt).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : cm.when}
-                        </span>
-                        {isMyComment && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              if (window.confirm('¿Eliminar este comentario?')) {
-                                deleteCommentMutation.mutate(cm.id);
-                              }
-                            }}
-                            title="Eliminar comentario"
-                            className="p-1 text-[#8c96a3] hover:text-red-600 rounded transition-colors ml-auto cursor-pointer border-0 bg-transparent flex items-center justify-center opacity-0 group-hover:opacity-100"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        )}
-                      </div>
-                      {quote && (
-                        <button
-                          type="button"
-                          onClick={() => locateMark(quote)}
-                          title="Ver fragmento en el texto"
-                          className="text-[13px] text-[#5b6675] hover:text-[#024fff] p-1 pl-2.5 border-0 border-l-2 border-[#00e39c] my-0.5 bg-[#00ff99]/5 hover:bg-[#00ff99]/15 rounded-r truncate block text-left w-fit max-w-full cursor-pointer transition-colors"
-                        >
-                          «{quote}»
-                        </button>
-                      )}
-                      <span className="text-[15px] leading-[1.5] text-[#1d2a3a] whitespace-pre-wrap">
-                        {formatCommentWithMentions(mainContent)}
-                      </span>
-                    </div>
-                  </div>
-                );
-              })}
-
-              {comments.length === 0 && Object.keys(threads).length === 0 && (
-                <span className="text-[14px] leading-[1.45] text-[#8c96a3]">
-                  Sin comentarios. Para comentar un fragmento del copy o de las notas, seleccioná el texto.
-                </span>
-              )}
-
-              {/* Comment input */}
-              <div className="flex flex-col gap-2 mt-1">
-                <MentionTextarea
-                  value={commentText}
-                  onChange={setCommentText}
-                  placeholder="Comentario general del ticket (@ para mencionar)"
-                  rows={2}
-                  users={allUsers}
-                  className="w-full font-anek text-[15px] leading-[1.5] p-2.5 px-3 border border-[#d6dde5] rounded-[10px] outline-none resize-y min-h-[64px] bg-white focus:border-[#024fff] focus:ring-2 focus:ring-[#024fff]/12 transition-all placeholder:text-[#8c96a3]"
-                />
-                {commentText.trim().length > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (commentText.trim()) {
-                        createCommentMutation.mutate(commentText.trim());
-                      }
-                    }}
-                    disabled={createCommentMutation.isPending}
-                    className="self-end shrink-0 whitespace-nowrap h-[38px] px-4 border-0 bg-[#024fff] rounded-lg cursor-pointer font-anek text-[14px] font-bold text-white hover:bg-[#0c57d3] transition-colors"
-                  >
-                    {createCommentMutation.isPending ? 'Comentando…' : 'Comentar'}
-                  </button>
-                )}
-              </div>
-
-              <span className="text-[13px] text-[#8c96a3]">
-                {ticket.createdAt ? `Creado el ${new Date(ticket.createdAt).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })}` : ''}
-                {ticket.updatedAt ? ` · Última edición ${new Date(ticket.updatedAt).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })}` : ''}
-              </span>
-            </div>
+            <TicketCommentsThread
+              comments={comments}
+              currentUserId={currentUser?.id}
+              currentUserName={currentUser?.name || currentUser?.email || 'YO'}
+              teamList={allUsers}
+              onAddComment={(content) => {
+                createCommentMutation.mutate(content);
+              }}
+              onDeleteComment={(commentId) => {
+                deleteCommentMutation.mutate(commentId);
+              }}
+              onLocateQuote={locateMark}
+              isPendingAdd={createCommentMutation.isPending}
+              variant="page"
+              createdDate={ticket.createdAt}
+              updatedDate={ticket.updatedAt}
+            />
 
             <div className="h-px bg-[#d6dde5]" />
 
@@ -1411,56 +1238,14 @@ export function TicketDetallePage() {
                   <span className="text-[12px] font-bold tracking-[0.06em] uppercase text-[#5b6675]">
                     {isPieza ? 'Formato' : 'Tipo'}
                   </span>
-                  <div className="relative min-w-0">
-                    <button
-                      type="button"
-                      data-menu="1"
-                      onClick={() => setFmtOpen(!fmtOpen)}
-                      className="w-full h-[42px] box-border flex items-center gap-2 px-3 border border-[#d6dde5] rounded-lg bg-white cursor-pointer font-anek text-[15px] text-left text-[#0d0d0d]"
-                    >
-                      <span className="flex-1 truncate leading-none">
-                        {((ticket as any).tiposContenido || []).length > 0 ? (ticket as any).tiposContenido.join(', ') : 'Seleccionar…'}
-                      </span>
-                      <ChevronDown className="w-3.5 h-3.5 text-[#5b6675] shrink-0" />
-                    </button>
-
-                    {fmtOpen && (
-                      <div
-                        data-menu="1"
-                        className="absolute top-[48px] left-0 right-0 min-w-[220px] max-h-[320px] overflow-y-auto bg-white border border-[#d6dde5] rounded-[10px] shadow-[0_12px_32px_rgba(0,14,31,.16)] p-1.5 z-40 flex flex-col gap-0.5"
-                      >
-                        <div className="flex items-center justify-between p-1.5 px-2.5 border-b border-[#eef3f7] mb-1">
-                          <span className="text-[11px] font-bold tracking-[0.08em] uppercase text-[#8c96a3]">Elegí 1 o más</span>
-                          <button
-                            type="button"
-                            onClick={() => setFmtOpen(false)}
-                            className="border-0 bg-transparent cursor-pointer font-anek text-[14px] font-bold text-[#024fff] p-0.5"
-                          >
-                            Listo
-                          </button>
-                        </div>
-                        {formatList.map(f => {
-                          const on = ((ticket as any).tiposContenido || []).includes(f);
-                          return (
-                            <label
-                              key={f}
-                              className={`flex items-center gap-2.5 p-2 px-2.5 rounded-md cursor-pointer text-[15px] text-[#0d0d0d] hover:bg-[#eef3f7] ${
-                                on ? 'bg-[#024fff]/6' : ''
-                              }`}
-                            >
-                              <input
-                                type="checkbox"
-                                checked={on}
-                                onChange={() => toggleFormato(f)}
-                                className="w-4 h-4 m-0 accent-[#024fff] shrink-0"
-                              />
-                              <span>{f}</span>
-                            </label>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
+                  <TicketFormatPicker
+                    selectedFormats={(ticket as any).tiposContenido || []}
+                    availableFormats={formatList}
+                    onChange={(next) => {
+                      updateMutation.mutate({ tiposContenido: next });
+                    }}
+                    label={isPieza ? 'Formato' : 'Tipo'}
+                  />
                 </div>
 
                 {/* Voz (para Piezas) */}

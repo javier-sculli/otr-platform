@@ -2,8 +2,8 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import {
-  X, ChevronDown, Check, Loader2, Trash2,
-  Paperclip, Copy as CopyIcon, Link2, ExternalLink
+  X, ChevronDown, Check, Loader2,
+  Copy as CopyIcon, Link2, ExternalLink
 } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
@@ -11,14 +11,18 @@ import { STATUS_OPTIONS, PRENSA_STATUS_OPTIONS, getNextStatusInfo } from '../lib
 import { ensureAbsoluteUrl, formatDateISO, getRedesObjetivoForClient, parseDeliverableLinks, serializeDeliverableLinks, highlightQuotesInHtml } from '../lib/utils';
 import { TextFormatToolbar } from './TextFormatToolbar';
 import { RichTextEditor } from './RichTextEditor';
-import { MentionTextarea, formatCommentWithMentions } from './MentionTextarea';
-import { TicketPublishLinks } from './ticket/TicketPublishLinks';
-import { TicketCopyButton } from './ticket/TicketCopyButton';
-import { InlineCommentHoverTooltip } from './ticket/InlineCommentHoverTooltip';
-import { InlineCommentPopover } from './ticket/InlineCommentPopover';
-import { TicketOwnersPicker } from './ticket/TicketOwnersPicker';
-import { TicketStatusPicker } from './ticket/TicketStatusPicker';
-import { useInlineComments } from './ticket/useInlineComments';
+import {
+  TicketPublishLinks,
+  TicketCopyButton,
+  InlineCommentHoverTooltip,
+  InlineCommentPopover,
+  TicketOwnersPicker,
+  TicketStatusPicker,
+  useInlineComments,
+  TicketCommentsThread,
+  TicketResources,
+  TicketFormatPicker,
+} from './ticket';
 
 export type AttachedFile = {
   id: string;
@@ -225,20 +229,13 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
   const esPrensa = tipoTicket === 'PRENSA';
   const noContenido = esTarea || esPrensa;
 
-  const [recursoInput, setRecursoInput] = useState('');
   const [activeCopyTab, setActiveCopyTab] = useState<string>('LinkedIn');
   const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([]);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const [fmtOpen, setFmtOpen] = useState(false);
-  const fmtMenuRef = useRef<HTMLDivElement>(null);
-
   const [linkCopiado, setLinkCopiado] = useState(false);
 
   const [briefOpen, setBriefOpen] = useState(false);
   const [copyOpen, setCopyOpen] = useState(false);
   const [notasOpen, setNotasOpen] = useState(false);
-  const [commentInput, setCommentInput] = useState('');
   const [entregableInput, setEntregableInput] = useState('');
 
 
@@ -321,7 +318,6 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
     mutationFn: (text: string) => api.createComment(ticket!.id, text),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['comments', ticket?.id] });
-      setCommentInput('');
     },
   });
 
@@ -462,7 +458,6 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
   useEffect(() => {
     const handleOutside = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
-      if (fmtMenuRef.current && !fmtMenuRef.current.contains(target)) setFmtOpen(false);
       const path = (e.composedPath ? e.composedPath() : []) as HTMLElement[];
       const isInsidePop = Boolean(
         target.closest?.('[data-inline-pop]') ||
@@ -639,21 +634,20 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
       }
       if (e.key === 'Escape') {
         if (pop) closePop();
-        else if (fmtOpen) setFmtOpen(false);
         else handleClose();
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, pop, fmtOpen, formData]);
+  }, [isOpen, pop, formData]);
 
   // Formats handling
-  const toggleFormato = (f: string) => {
-    const list = formData.tiposContenido || [];
-    const next = list.includes(f) ? list.filter((x: string) => x !== f) : [...list, f];
+  const handleFormatChange = (next: string[]) => {
     let briefUpdate: any = {};
-    if (esTarea && !list.includes(f) && list.length === 0 && (!formData.brief.trim() || Object.values(TPL_TAREA).includes(formData.brief))) {
-      briefUpdate.brief = TPL_TAREA[f] || '';
+    const list = formData.tiposContenido || [];
+    const added = next.find(x => !list.includes(x));
+    if (esTarea && added && list.length === 0 && (!formData.brief.trim() || Object.values(TPL_TAREA).includes(formData.brief))) {
+      briefUpdate.brief = TPL_TAREA[added] || '';
     }
     const updated = { ...formData, tiposContenido: next, ...briefUpdate };
     dirtyFieldsRef.current.add('tiposContenido');
@@ -672,41 +666,6 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
       setActiveCopyTab(next[0] || 'LinkedIn');
     }
     triggerImmediateAutoSave(updated);
-  };
-
-  // Add resource link
-  const addRecurso = () => {
-    const v = recursoInput.trim();
-    if (!v) return;
-    const next = [...formData.links, ensureAbsoluteUrl(v)];
-    setRecursoInput('');
-    handleChange('links', next, true);
-  };
-
-  const removeRecurso = (index: number) => {
-    const next = formData.links.filter((_, i) => i !== index);
-    handleChange('links', next, true);
-  };
-
-  // Add files
-  const handleFiles = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!e.target.files?.length) return;
-    const newFiles: AttachedFile[] = [];
-    Array.from(e.target.files).forEach(file => {
-      const id = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-      const isImg = file.type.startsWith('image/');
-      const isTxt = file.type.startsWith('text/') || file.name.endsWith('.md') || file.name.endsWith('.txt');
-      newFiles.push({
-        id,
-        name: file.name,
-        type: file.type,
-        size: file.size,
-        content: null,
-        contentType: isImg ? 'image' : isTxt ? 'text' : 'other',
-      });
-    });
-    setAttachedFiles(prev => [...prev, ...newFiles]);
-    e.target.value = '';
   };
 
   // Inline Comment Balloon logic
@@ -1116,94 +1075,32 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
                     className="p-3 sm:p-3.5"
                   />
 
-                  {/* Attached resources chips */}
-                  {(formData.links.length > 0 || attachedFiles.length > 0) && (
-                    <div className="flex flex-wrap gap-1.5 p-3 pt-0">
-                      {formData.links.map((link, idx) => (
-                        <span
-                          key={`link-${idx}`}
-                          className="flex items-center gap-1.5 max-w-full py-1 pl-2.5 pr-1 border border-[#d6dde5] rounded-full bg-[#f7fafc] box-border text-[13px] text-[#1d2a3a]"
-                        >
-                          <Link2 className="w-3.5 h-3.5 text-[#024fff] shrink-0" />
-                          <a
-                            href={link}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="max-w-[260px] truncate text-[#1d2a3a] hover:text-[#024fff]"
-                          >
-                            {link}
-                          </a>
-                          <button
-                            type="button"
-                            onClick={() => removeRecurso(idx)}
-                            title="Quitar"
-                            className="border-0 bg-transparent cursor-pointer text-[#8c96a3] w-5 h-5 shrink-0 rounded-full flex items-center justify-center hover:bg-[#d6dde5] hover:text-[#0d0d0d]"
-                          >
-                            <X className="w-3 h-3" />
-                          </button>
-                        </span>
-                      ))}
-                      {attachedFiles.map(file => (
-                        <span
-                          key={`file-${file.id}`}
-                          className="flex items-center gap-1.5 max-w-full py-1 pl-2.5 pr-1 border border-[#d6dde5] rounded-full bg-[#f7fafc] box-border text-[13px] text-[#1d2a3a]"
-                        >
-                          <Paperclip className="w-3.5 h-3.5 text-[#024fff] shrink-0" />
-                          <span className="max-w-[200px] truncate text-[#1d2a3a]">
-                            {file.name}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => setAttachedFiles(prev => prev.filter(f => f.id !== file.id))}
-                            title="Quitar"
-                            className="border-0 bg-transparent cursor-pointer text-[#8c96a3] w-5 h-5 shrink-0 rounded-full flex items-center justify-center hover:bg-[#d6dde5] hover:text-[#0d0d0d]"
-                          >
-                            <X className="w-3 h-3" />
-                          </button>
-                        </span>
-                      ))}
-                    </div>
-                  )}
-
-                  {/* Resource input row */}
-                  <div className="flex items-center gap-1.5 p-1.5 px-2 border-t border-[#eef3f7] bg-[#f7fafc]">
-                    <button
-                      type="button"
-                      onClick={() => fileInputRef.current?.click()}
-                      title="Adjuntar archivo"
-                      className="w-7 h-7 shrink-0 border-0 bg-transparent rounded-md cursor-pointer text-[#3a4655] flex items-center justify-center hover:bg-[#eef3f7]"
-                    >
-                      <Paperclip className="w-4 h-4" />
-                    </button>
-                    <input
-                      value={recursoInput}
-                      onChange={e => setRecursoInput(e.target.value)}
-                      onKeyDown={e => {
-                        if (e.key === 'Enter') {
-                          e.preventDefault();
-                          addRecurso();
-                        }
-                      }}
-                      placeholder={isPieza ? 'Pegá un link a fotos, logos o documentos y presioná Enter' : 'Pegá un link a documentos o ejemplos y presioná Enter'}
-                      className="flex-1 min-w-0 h-7 font-anek text-[13px] px-1.5 border-0 outline-none bg-transparent placeholder:text-[#8c96a3]"
-                    />
-                    {recursoInput.trim().length > 0 && (
-                      <button
-                        type="button"
-                        onClick={addRecurso}
-                        className="h-7 px-3 border-0 bg-[#024fff] rounded-md cursor-pointer font-anek text-[12px] font-bold text-white hover:bg-[#0c57d3]"
-                      >
-                        Agregar
-                      </button>
-                    )}
-                    <input
-                      type="file"
-                      multiple
-                      ref={fileInputRef}
-                      onChange={handleFiles}
-                      className="hidden"
-                    />
-                  </div>
+                  {/* Resources */}
+                  <TicketResources
+                    links={formData.links}
+                    attachedFiles={attachedFiles}
+                    onAddLink={(url) => handleChange('links', [...formData.links, url], true)}
+                    onRemoveLink={(idx) => handleChange('links', formData.links.filter((_, i) => i !== idx), true)}
+                    onAddFiles={(files) => {
+                      const newFiles: AttachedFile[] = files.map(file => {
+                        const id = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+                        const isImg = file.type.startsWith('image/');
+                        const isTxt = file.type.startsWith('text/') || file.name.endsWith('.md') || file.name.endsWith('.txt');
+                        return {
+                          id,
+                          name: file.name,
+                          type: file.type,
+                          size: file.size,
+                          content: null,
+                          contentType: isImg ? 'image' : isTxt ? 'text' : 'other',
+                        };
+                      });
+                      setAttachedFiles(prev => [...prev, ...newFiles]);
+                    }}
+                    onRemoveFile={(fileId) => setAttachedFiles(prev => prev.filter(f => f.id !== fileId))}
+                    placeholder={isPieza ? 'Pegá un link a fotos, logos o documentos y presioná Enter' : 'Pegá un link a documentos o ejemplos y presioná Enter'}
+                    variant="modal"
+                  />
                 </div>
               </div>
             )}
@@ -1505,97 +1402,23 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
             )}
 
             {/* Comments list & input */}
-            <div className="flex flex-col gap-2.5 pt-5 border-t border-[#eef3f7]">
-              <label className="text-[11px] font-bold tracking-[0.06em] uppercase text-[#5b6675]">
-                Comentarios {comments.length > 0 && <span className="text-[#8c96a3] font-normal tracking-normal lowercase">({comments.length})</span>}
-              </label>
-
-              {comments.map((cm: any) => {
-                const isMyComment = (cm.userId && cm.userId === user?.id) || (cm.user?.id && cm.user?.id === user?.id);
-                const rawContent = cm.content || cm.text || '';
-                const quoteMatch = rawContent.match(/^«([^»]+)»:\s*([\s\S]*)$/);
-                const quote = cm.quote || (quoteMatch ? quoteMatch[1] : null);
-                const mainContent = quoteMatch ? quoteMatch[2] : rawContent;
-
-                return (
-                  <div key={cm.id} className="flex gap-2.5 group">
-                    <span className="w-7 h-7 shrink-0 rounded-full bg-[#eef3f7] text-[#024fff] text-[10px] font-bold flex items-center justify-center">
-                      <span className="translate-y-[0.5px] leading-none select-none">{ini(cm.user?.name || cm.author)}</span>
-                    </span>
-                    <div className="flex-1 min-w-0 flex flex-col gap-0.5">
-                      <div className="flex gap-2 items-center">
-                        <span className="text-[13px] font-bold text-[#0d0d0d]">{cm.user?.name || cm.author || 'Usuario'}</span>
-                        <span className="text-[12px] text-[#8c96a3]">
-                          {cm.createdAt ? new Date(cm.createdAt).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : cm.when}
-                        </span>
-                        {isMyComment && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              if (window.confirm('¿Eliminar este comentario?')) {
-                                deleteCommentMutation.mutate(cm.id);
-                              }
-                            }}
-                            title="Eliminar comentario"
-                            className="p-1 text-[#8c96a3] hover:text-red-600 hover:bg-red-50 rounded transition-colors ml-auto cursor-pointer border-0 bg-transparent flex items-center justify-center"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        )}
-                      </div>
-                      {quote && (
-                        <button
-                          type="button"
-                          onClick={() => locateMark(quote)}
-                          title="Ver fragmento en el texto"
-                          className="text-[13px] text-[#5b6675] hover:text-[#024fff] p-1 pl-2.5 border-0 border-l-2 border-[#00e39c] my-0.5 bg-[#00ff99]/5 hover:bg-[#00ff99]/15 rounded-r truncate block text-left w-fit max-w-full cursor-pointer transition-colors"
-                        >
-                          «{quote}»
-                        </button>
-                      )}
-                      <span className="text-[14px] leading-relaxed text-[#1d2a3a] whitespace-pre-wrap">
-                        {formatCommentWithMentions(mainContent)}
-                      </span>
-                    </div>
-                  </div>
-                );
-              })}
-
-              <div className="flex gap-2.5 items-start mt-3 mb-8">
-                <span className="w-7 h-7 shrink-0 rounded-full bg-[#024fff] text-white text-[10px] font-bold flex items-center justify-center">
-                  <span className="translate-y-[0.5px] leading-none select-none">{ini(user?.name || user?.email || 'YO')}</span>
-                </span>
-                <div className="flex-1 min-w-0 flex flex-col gap-2.5">
-                  <MentionTextarea
-                    value={commentInput}
-                    onChange={setCommentInput}
-                    placeholder="Escribí un comentario para el equipo (usá @ para mencionar)…"
-                    rows={3}
-                    users={teamList}
-                    className="w-full font-anek text-[14px] p-2.5 px-3 border border-[#d6dde5] rounded-lg outline-none resize-y min-h-[64px] focus:border-[#024fff] focus:ring-2 focus:ring-[#024fff]/12 transition-all placeholder:text-[#8c96a3]"
-                  />
-                  <div className="flex items-center justify-end gap-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (ticket?.id && commentInput.trim()) {
-                          createCommentMutation.mutate(commentInput.trim());
-                        }
-                      }}
-                      disabled={!commentInput.trim() || createCommentMutation.isPending}
-                      className={`h-8 px-4 rounded-lg font-anek text-[13px] font-bold transition-all flex items-center gap-1.5 ${
-                        commentInput.trim() && !createCommentMutation.isPending
-                          ? 'bg-[#024fff] hover:bg-[#0c57d3] text-white cursor-pointer shadow-sm'
-                          : 'bg-[#eef3f7] text-[#8c96a3] cursor-not-allowed border border-[#d6dde5]'
-                      }`}
-                    >
-                      {createCommentMutation.isPending && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                      <span>Comentar</span>
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
+            <TicketCommentsThread
+              comments={comments}
+              currentUserId={user?.id}
+              currentUserName={user?.name || user?.email || 'YO'}
+              teamList={teamList}
+              onAddComment={(content) => {
+                if (ticket?.id) {
+                  createCommentMutation.mutate(content);
+                }
+              }}
+              onDeleteComment={(commentId) => {
+                deleteCommentMutation.mutate(commentId);
+              }}
+              onLocateQuote={locateMark}
+              isPendingAdd={createCommentMutation.isPending}
+              variant="modal"
+            />
 
           </div>
 
@@ -1623,54 +1446,13 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
               <label className="text-[11px] font-bold tracking-[0.06em] uppercase text-[#5b6675] mt-2">
                 {isPieza ? 'Formato' : 'Tipo de entregable'} <span className="text-[#024fff]">*</span>
               </label>
-              <div ref={fmtMenuRef} className="relative min-w-0 mt-2">
-                <button
-                  type="button"
-                  onClick={() => setFmtOpen(!fmtOpen)}
-                  className={`w-full h-[36px] flex items-center gap-2 px-2.5 border rounded-lg bg-white cursor-pointer font-anek text-[14px] text-left transition-colors ${
-                    formData.tiposContenido.length > 0 ? 'text-[#0d0d0d] border-[#d6dde5]' : 'text-[#8c96a3] border-[#b9c2cd]'
-                  }`}
-                >
-                  <span className="flex-1 min-w-0 truncate leading-none flex items-center">
-                    {formData.tiposContenido.length > 0 ? formData.tiposContenido.join(', ') : 'Seleccionar…'}
-                  </span>
-                  <ChevronDown className="w-3.5 h-3.5 text-[#5b6675] shrink-0" />
-                </button>
-
-                {fmtOpen && (
-                  <div className="absolute top-[42px] left-0 right-0 min-w-[220px] max-h-[300px] overflow-auto bg-white border border-[#d6dde5] rounded-[10px] shadow-[0_12px_32px_rgba(0,14,31,.16)] p-1.5 z-40 flex flex-col gap-0.5">
-                    <div className="flex items-center justify-between p-1.5 px-2 border-b border-[#eef3f7] mb-1">
-                      <span className="text-[11px] font-bold tracking-[0.08em] uppercase text-[#8c96a3]">Elegí 1 o más</span>
-                      <button
-                        type="button"
-                        onClick={() => setFmtOpen(false)}
-                        className="border-0 bg-transparent cursor-pointer font-anek text-[13px] font-bold text-[#024fff] p-1"
-                      >
-                        Listo
-                      </button>
-                    </div>
-                    {formatList.map(f => {
-                      const on = formData.tiposContenido.includes(f);
-                      return (
-                        <label
-                          key={f}
-                          className={`flex items-center gap-2.5 p-1.5 px-2 rounded-md cursor-pointer text-[14px] text-[#0d0d0d] hover:bg-[#eef3f7] ${
-                            on ? 'bg-[#024fff]/5' : ''
-                          }`}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={on}
-                            onChange={() => toggleFormato(f)}
-                            className="w-4 h-4 rounded accent-[#024fff] shrink-0 m-0"
-                          />
-                          {f}
-                        </label>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
+              <TicketFormatPicker
+                selectedFormats={formData.tiposContenido}
+                availableFormats={formatList}
+                onChange={handleFormatChange}
+                label={isPieza ? 'Formato' : 'Tipo de entregable'}
+                className="mt-2"
+              />
 
               {/* Fecha de entrega */}
               <label className="text-[11px] font-bold tracking-[0.06em] uppercase text-[#5b6675] mt-2">
