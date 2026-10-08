@@ -246,10 +246,14 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
   const [entregableInput, setEntregableInput] = useState('');
 
   // Inline comment popover state
-  const [pop, setPop] = useState<{ id: string; x: number; y: number } | null>(null);
+  const [pop, setPop] = useState<{ id: string; x: number; y: number; isDraft?: boolean } | null>(null);
   const [popInput, setPopInput] = useState('');
   const [threads, setThreads] = useState<Record<string, { quote: string; items: { author: string; when: string; text: string }[] }>>({});
   const popRef = useRef<HTMLTextAreaElement>(null);
+  const popRefVal = useRef(pop);
+  popRefVal.current = pop;
+  const threadsRefVal = useRef(threads);
+  threadsRefVal.current = threads;
 
   const [isChangingSpeaker, setIsChangingSpeaker] = useState(false);
 
@@ -720,6 +724,19 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
     }
     const quote = sel.toString().trim();
     if (!quote) return;
+    if (popRefVal.current?.isDraft) {
+      const prevT = threadsRefVal.current[popRefVal.current.id];
+      if (!prevT || !prevT.items || !prevT.items.length) {
+        const prevMark = document.querySelector(`mark[data-c="${popRefVal.current.id}"]`);
+        if (prevMark) prevMark.replaceWith(...Array.from(prevMark.childNodes));
+        setThreads(prev => {
+          const c = { ...prev };
+          delete c[popRefVal.current!.id];
+          return c;
+        });
+      }
+    }
+
     const id = 'c' + Date.now();
     const range = sel.getRangeAt(0);
     const m = document.createElement('mark');
@@ -749,7 +766,7 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
     }
 
     setThreads(prev => ({ ...prev, [id]: { quote, items: [] } }));
-    setPop({ id, ...posFor(m) });
+    setPop({ id, ...posFor(m), isDraft: true });
     setPopInput('');
     setTimeout(() => popRef.current?.focus(), 50);
   };
@@ -770,7 +787,7 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
     // If pop is open for this or another mark, let user interact with pop without distraction
     if (pop) return;
 
-    const quoteText = m.innerText?.trim() || '';
+    const quoteText = (m.innerText || m.textContent || '').trim();
     const threadItems = threads[id]?.items || [];
 
     // Also look up any persisted comments matching this quote
@@ -807,10 +824,63 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
 
   const handleMarkClick = (id: string, m: HTMLElement) => {
     setHoverComment(null);
-    if (!threads[id]) {
-      setThreads(prev => ({ ...prev, [id]: { quote: m.innerText, items: [] } }));
+
+    if (popRefVal.current?.isDraft && popRefVal.current.id !== id) {
+      const prevT = threadsRefVal.current[popRefVal.current.id];
+      if (!prevT || !prevT.items || !prevT.items.length) {
+        const prevMark = document.querySelector(`mark[data-c="${popRefVal.current.id}"]`);
+        if (prevMark) prevMark.replaceWith(...Array.from(prevMark.childNodes));
+        setThreads(prev => {
+          const c = { ...prev };
+          delete c[popRefVal.current!.id];
+          return c;
+        });
+      }
     }
-    setPop({ id, ...posFor(m) });
+
+    const quoteText = (m.innerText || m.textContent || '').trim();
+
+    // Also look up any persisted comments matching this quote or id
+    const matchedComments = comments.filter((cm: any) => {
+      const rawContent = cm.content || cm.text || '';
+      const quoteMatch = rawContent.match(/^«([^»]+)»:\s*([\s\S]*)$/);
+      const q = cm.quote || (quoteMatch ? quoteMatch[1] : null);
+      const matchById = id && (id === `c_${cm.id}` || id === String(cm.id));
+      const matchByQuote = q && (q.trim() === quoteText || quoteText.includes(q.trim()) || q.trim().includes(quoteText));
+      return matchById || matchByQuote;
+    });
+
+    const persistedItems = matchedComments.map((cm: any) => {
+      const rawContent = cm.content || cm.text || '';
+      const quoteMatch = rawContent.match(/^«([^»]+)»:\s*([\s\S]*)$/);
+      const mainContent = quoteMatch ? quoteMatch[2] : rawContent;
+      const when = cm.createdAt
+        ? new Date(cm.createdAt).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+        : (cm.when || '');
+      return {
+        author: cm.user?.name || cm.author || 'Usuario',
+        when,
+        text: mainContent,
+      };
+    });
+
+    const existingLocalItems = threads[id]?.items || [];
+    const combinedItems = [...persistedItems];
+    for (const localItem of existingLocalItems) {
+      if (!combinedItems.some(p => p.text === localItem.text && p.author === localItem.author)) {
+        combinedItems.push(localItem);
+      }
+    }
+
+    setThreads(prev => ({
+      ...prev,
+      [id]: {
+        quote: quoteText || prev[id]?.quote || '',
+        items: combinedItems,
+      },
+    }));
+
+    setPop({ id, ...posFor(m), isDraft: false });
     setPopInput('');
     setTimeout(() => popRef.current?.focus(), 50);
   };
@@ -838,9 +908,12 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
 
     setTimeout(() => {
       const allMarks = Array.from(document.querySelectorAll('mark[data-c]')) as HTMLElement[];
-      const found = allMarks.find(el => el.innerText.trim() === cleanQ || el.innerText.trim().includes(cleanQ) || cleanQ.includes(el.innerText.trim()));
+      const found = allMarks.find(el => {
+        const text = (el.innerText || el.textContent || '').trim();
+        return text === cleanQ || text.includes(cleanQ) || cleanQ.includes(text);
+      });
       if (found) {
-        found.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        found.scrollIntoView?.({ behavior: 'smooth', block: 'center' });
         found.style.transition = 'box-shadow 0.3s ease, background-color 0.3s ease';
         const origBg = found.style.backgroundColor;
         found.style.backgroundColor = '#00ff99';
@@ -860,16 +933,20 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
 
 
   const closePop = () => {
-    if (!pop) return;
-    const t = threads[pop.id];
-    if (t && !t.items.length) {
-      const mark = document.querySelector(`mark[data-c="${pop.id}"]`);
-      if (mark) mark.replaceWith(...Array.from(mark.childNodes));
-      setThreads(prev => {
-        const c = { ...prev };
-        delete c[pop.id];
-        return c;
-      });
+    const currentPop = popRefVal.current;
+    if (!currentPop) return;
+    if (currentPop.isDraft) {
+      const currentThreads = threadsRefVal.current;
+      const t = currentThreads[currentPop.id];
+      if (!t || !t.items || !t.items.length) {
+        const mark = document.querySelector(`mark[data-c="${currentPop.id}"]`);
+        if (mark) mark.replaceWith(...Array.from(mark.childNodes));
+        setThreads(prev => {
+          const c = { ...prev };
+          delete c[currentPop.id];
+          return c;
+        });
+      }
     }
     setPop(null);
     setPopInput('');
@@ -889,6 +966,7 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
         items: [...(prev[pop.id]?.items || []), item],
       },
     }));
+    setPop(prev => (prev ? { ...prev, isDraft: false } : null));
     if (ticket?.id) {
       const payload = quote ? `«${quote}»: ${text}` : text;
       createCommentMutation.mutate(payload);

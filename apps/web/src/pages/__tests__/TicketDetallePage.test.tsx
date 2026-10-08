@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import { TicketDetallePage } from '../TicketDetallePage';
@@ -206,4 +206,57 @@ describe('TicketDetallePage (Smoke / Montaje)', () => {
     // En REVISION_INTERNA: copy aparece antes que notas (notas abajo del copy)
     expect(copyEditor.compareDocumentPosition(notasHeader) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
+
+  it('al hacer click en un comentario resaltado y luego clickear afuera, el popover se cierra pero NO elimina la marca verde', async () => {
+    (api.getTicket as any).mockResolvedValue({
+      data: {
+        ...mockFullTicket,
+        contentPerCanal: {
+          LinkedIn: '<p>Este es un <mark data-c="c_cm-1" style="background-color: rgba(0, 255, 178, 0.35);">texto resaltado</mark> con comentario</p>',
+        },
+      },
+    });
+
+    (api.getComments as any).mockResolvedValue({
+      data: [
+        {
+          id: 'cm-1',
+          content: '«texto resaltado»: Por favor revisar esta parte',
+          user: { id: 'u1', name: 'Martín Revisor' },
+          createdAt: new Date().toISOString(),
+        },
+      ],
+    });
+
+    renderTicketDetalle('ticket-999');
+
+    await waitFor(() => {
+      expect(screen.getByText('Martín Revisor')).toBeInTheDocument();
+      expect(screen.getByText('«texto resaltado»')).toBeInTheDocument();
+      expect(document.querySelector('mark[data-c="c_cm-1"]')).toBeInTheDocument();
+    });
+
+    const mark = document.querySelector('mark[data-c="c_cm-1"]') as HTMLElement;
+    fireEvent.click(mark);
+
+    // El popover debe abrirse y mostrar el hilo de comentarios
+    await waitFor(() => {
+      const popover = screen.getByTestId('inline-comment-popover');
+      expect(popover).toBeInTheDocument();
+      expect(within(popover).getByText('Por favor revisar esta parte')).toBeInTheDocument();
+    });
+
+    // Simular click afuera
+    fireEvent.mouseDown(document.body);
+
+    // El popover debe cerrarse
+    await waitFor(() => {
+      expect(screen.queryByTestId('inline-comment-popover')).not.toBeInTheDocument();
+    });
+
+    // La marca verde NO debe ser eliminada del DOM
+    expect(document.querySelector('mark[data-c="c_cm-1"]')).toBeInTheDocument();
+    expect(document.querySelector('mark[data-c="c_cm-1"]')?.textContent).toBe('texto resaltado');
+  });
 });
+

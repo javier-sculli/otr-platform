@@ -112,7 +112,8 @@ export const RichTextEditor = forwardRef<HTMLDivElement, RichTextEditorProps>(
     };
 
     const handleClick = (e: React.MouseEvent<HTMLDivElement>) => {
-      const target = e.target as HTMLElement | null;
+      const rawTarget = e.target as Node | null;
+      const target = (rawTarget instanceof Element ? rawTarget : rawTarget?.parentElement) as HTMLElement | null;
       const mark = target?.closest('mark[data-c]') as HTMLElement | null;
       if (mark && onMarkClick) {
         const id = mark.dataset.c;
@@ -224,7 +225,8 @@ export const RichTextEditor = forwardRef<HTMLDivElement, RichTextEditorProps>(
 
     const handleMouseOver = (e: React.MouseEvent<HTMLDivElement>) => {
       if (!onMarkHover) return;
-      const target = e.target as HTMLElement | null;
+      const rawTarget = e.target as Node | null;
+      const target = (rawTarget instanceof Element ? rawTarget : rawTarget?.parentElement) as HTMLElement | null;
       const mark = target?.closest('mark[data-c]') as HTMLElement | null;
       if (mark) {
         const id = mark.dataset.c || '';
