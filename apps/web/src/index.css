@@ -2,17 +2,54 @@
 @tailwind components;
 @tailwind utilities;
 
+@font-face { font-family: "Anek"; src: url("/fonts/anek/Anek-100.ttf") format("truetype"); font-weight: 100; font-style: normal; font-display: swap; ascent-override: 85%; descent-override: 20%; line-gap-override: 0%; }
+@font-face { font-family: "Anek"; src: url("/fonts/anek/Anek-200.ttf") format("truetype"); font-weight: 200; font-style: normal; font-display: swap; ascent-override: 85%; descent-override: 20%; line-gap-override: 0%; }
+@font-face { font-family: "Anek"; src: url("/fonts/anek/Anek-300.ttf") format("truetype"); font-weight: 300; font-style: normal; font-display: swap; ascent-override: 85%; descent-override: 20%; line-gap-override: 0%; }
+@font-face { font-family: "Anek"; src: url("/fonts/anek/Anek-400.ttf") format("truetype"); font-weight: 400; font-style: normal; font-display: swap; ascent-override: 85%; descent-override: 20%; line-gap-override: 0%; }
+@font-face { font-family: "Anek"; src: url("/fonts/anek/Anek-500.ttf") format("truetype"); font-weight: 500; font-style: normal; font-display: swap; ascent-override: 85%; descent-override: 20%; line-gap-override: 0%; }
+@font-face { font-family: "Anek"; src: url("/fonts/anek/Anek-600.ttf") format("truetype"); font-weight: 600; font-style: normal; font-display: swap; ascent-override: 85%; descent-override: 20%; line-gap-override: 0%; }
+@font-face { font-family: "Anek"; src: url("/fonts/anek/Anek-700.ttf") format("truetype"); font-weight: 700; font-style: normal; font-display: swap; ascent-override: 85%; descent-override: 20%; line-gap-override: 0%; }
+@font-face { font-family: "Anek"; src: url("/fonts/anek/Anek-800.ttf") format("truetype"); font-weight: 800; font-style: normal; font-display: swap; ascent-override: 85%; descent-override: 20%; line-gap-override: 0%; }
+
+:root {
+  --otr-blue: #024fff;
+  --otr-blue-press: #0c57d3;
+  --otr-mint: #00ffb2;
+  --otr-mint-alt: #00ff99;
+  --otr-navy: #000e1f;
+  --otr-ink: #0d0d0d;
+  --otr-paper: #eef3f7;
+  --otr-white: #ffffff;
+  --otr-black: #000000;
+  --otr-amber: #ff9e22;
+
+  --otr-n900: #000e1f;
+  --otr-n800: #0d1a2b;
+  --otr-n700: #1d2a3a;
+  --otr-n600: #3a4655;
+  --otr-n500: #5b6675;
+  --otr-n400: #8c96a3;
+  --otr-n300: #b9c2cd;
+  --otr-n200: #d6dde5;
+  --otr-n100: #eef3f7;
+  --otr-n050: #f7fafc;
+}
+
 html {
   font-size: 80%;
 }
 
 body {
   margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+  font-family: 'Anek', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
     'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+.font-anek {
+  font-family: 'Anek', -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
 .resizable-img-container {
@@ -28,3 +65,35 @@ body {
   box-shadow: 0 0 0 2px rgba(2, 79, 255, 0.2);
 }
 
+/* Rich Text / contenteditable styles */
+[contenteditable]:empty:before {
+  content: attr(data-ph);
+  color: #8c96a3;
+  pointer-events: none;
+  cursor: text;
+}
+[contenteditable] ul,
+[contenteditable] ol {
+  margin: 0;
+  padding-left: 24px;
+}
+[contenteditable] ul {
+  list-style-type: disc;
+}
+[contenteditable] ol {
+  list-style-type: decimal;
+}
+[contenteditable] a {
+  color: #024fff;
+  text-decoration: underline;
+  cursor: pointer;
+}
+[contenteditable] a:hover {
+  color: #0c57d3;
+}
+[contenteditable] mark {
+  background-color: rgba(0, 255, 178, 0.35);
+  border-radius: 2px;
+  padding: 1px 2px;
+  cursor: pointer;
+}

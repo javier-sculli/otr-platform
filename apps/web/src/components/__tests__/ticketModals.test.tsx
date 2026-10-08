@@ -11,6 +11,7 @@ vi.mock('../../lib/api', () => ({
   api: {
     getTicket: vi.fn(),
     updateTicket: vi.fn(),
+    createTicket: vi.fn(),
     getClients: vi.fn().mockResolvedValue({ data: [] }),
     getUsers: vi.fn().mockResolvedValue({ data: [] }),
     getTicketTypes: vi.fn().mockResolvedValue({ data: [] }),
@@ -333,6 +334,56 @@ describe('CreateTicketModal', () => {
         'ticket-task-2',
         expect.objectContaining({
           objetivo: 'Brief previo - texto sin salir del campo',
+        })
+      );
+    });
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  it('al hacer clic en Duplicar crea un nuevo ticket independiente vía api.createTicket', async () => {
+    const mockTicket = {
+      id: 'ticket-orig-1',
+      title: 'posteo Lanzamiento Kombucha',
+      status: 'EN_PROCESO',
+      prioridad: 'MEDIA',
+      clientId: 'client-1',
+      ownerId: 'user-1',
+      assigneeIds: ['user-1'],
+      canales: ['LinkedIn'],
+      tiposContenido: ['Post'],
+      objetivo: 'Contando beneficios',
+      contentPerCanal: { LinkedIn: 'Texto del post' },
+      links: [],
+    };
+
+    (api.getTicket as any).mockResolvedValue({
+      data: mockTicket,
+    });
+    (api.createTicket as any).mockResolvedValue({
+      data: { ...mockTicket, id: 'ticket-copy-2', title: 'Copia de posteo Lanzamiento Kombucha', status: 'PENDIENTE' },
+    });
+
+    const onClose = vi.fn();
+
+    render(
+      <CreateTicketModal
+        isOpen={true}
+        onClose={onClose}
+        ticket={mockTicket as any}
+      />,
+      { wrapper: createWrapper() }
+    );
+
+    const dupButton = await screen.findByRole('button', { name: /duplicar/i });
+    fireEvent.click(dupButton);
+
+    await waitFor(() => {
+      expect(api.createTicket).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: 'Copia de posteo Lanzamiento Kombucha',
+          status: 'PENDIENTE',
+          clientId: 'client-1',
+          contentPerCanal: { LinkedIn: 'Texto del post' },
         })
       );
     });

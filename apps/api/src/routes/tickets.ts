@@ -386,6 +386,14 @@ export async function ticketsRoutes(fastify: FastifyInstance) {
     let assignees: any[] = [];
     if (rawAssigneeIds.length > 0) {
       const catalogs = await getCatalogs();
+      const missingIds = rawAssigneeIds.filter(uid => !catalogs.users.has(uid) && ticket.owner?.id !== uid);
+      if (missingIds.length > 0) {
+        const foundUsers = await prisma.user.findMany({
+          where: { id: { in: missingIds } },
+          select: { id: true, name: true, email: true },
+        });
+        foundUsers.forEach(u => catalogs.users.set(u.id, u));
+      }
       assignees = rawAssigneeIds
         .map(uid => catalogs.users.get(uid) || (ticket.owner?.id === uid ? ticket.owner : null))
         .filter(Boolean);
@@ -439,10 +447,12 @@ export async function ticketsRoutes(fastify: FastifyInstance) {
         isDraftPlan: data.isDraftPlan !== undefined ? data.isDraftPlan : false,
         estadoAprobacionCliente: data.estadoAprobacionCliente || 'BORRADOR',
         linkEntregable: data.linkPublicacionReal !== undefined ? data.linkPublicacionReal : data.linkEntregable,
+        linkPublicacion: data.linkPublicacion !== undefined ? data.linkPublicacion : null,
         links: data.links || [],
         tiposContenido: data.tiposContenido || [],
         notasAudiovisual: data.notasAudiovisual !== undefined ? data.notasAudiovisual : null,
         referenciasGraficas: data.referenciasGraficas || null,
+        contentPerCanal: (data.contentPerCanal && typeof data.contentPerCanal === 'object') ? data.contentPerCanal : {},
       },
       include: {
         client: true,
@@ -529,10 +539,14 @@ export async function ticketsRoutes(fastify: FastifyInstance) {
     if (data.prioridad !== undefined) updateData.prioridad = data.prioridad;
     if (data.ownerId !== undefined) updateData.ownerId = data.ownerId;
     if (data.assigneeIds !== undefined) {
-      const arr = Array.isArray(data.assigneeIds) ? data.assigneeIds : [];
+      const arr = Array.isArray(data.assigneeIds)
+        ? [...new Set((data.assigneeIds as string[]).filter(Boolean))]
+        : [];
       updateData.assigneeIds = arr;
       if (arr.length > 0) {
         updateData.ownerId = arr[0];
+      } else {
+        updateData.ownerId = null;
       }
     }
     if (data.ticketTypeId !== undefined) updateData.ticketTypeId = data.ticketTypeId;
@@ -556,6 +570,7 @@ export async function ticketsRoutes(fastify: FastifyInstance) {
     if (data.links !== undefined) updateData.links = data.links;
     if (data.linkEntregable !== undefined) updateData.linkEntregable = data.linkEntregable;
     if (data.linkPublicacionReal !== undefined) updateData.linkEntregable = data.linkPublicacionReal;
+    if (data.linkPublicacion !== undefined) updateData.linkPublicacion = data.linkPublicacion;
     if (data.keywords !== undefined) updateData.keywords = data.keywords;
     if (data.copyFinal !== undefined) updateData.copyFinal = data.copyFinal;
     if (data.notasAudiovisual !== undefined) updateData.notasAudiovisual = data.notasAudiovisual;
@@ -585,6 +600,7 @@ export async function ticketsRoutes(fastify: FastifyInstance) {
         keywords: true, links: true, linkEntregable: true, tiposContenido: true,
         referenciasGraficas: true, contentPerCanal: true, versionsPerCanal: true,
         notasAudiovisual: true, createdAt: true, updatedAt: true,
+        owner: { select: { id: true, name: true, email: true } },
       },
     });
 
@@ -656,15 +672,41 @@ export async function ticketsRoutes(fastify: FastifyInstance) {
       });
     }
 
-    return { data: ticket };
+    const rawAssigneeIds: string[] = (Array.isArray(ticket.assigneeIds) && ticket.assigneeIds.length > 0)
+      ? ticket.assigneeIds
+      : (ticket.ownerId ? [ticket.ownerId] : []);
+
+    let assignees: any[] = [];
+    if (rawAssigneeIds.length > 0) {
+      const catalogs = await getCatalogs();
+      const missingIds = rawAssigneeIds.filter(uid => !catalogs.users.has(uid) && ticket.owner?.id !== uid);
+      if (missingIds.length > 0) {
+        const foundUsers = await prisma.user.findMany({
+          where: { id: { in: missingIds } },
+          select: { id: true, name: true, email: true },
+        });
+        foundUsers.forEach(u => catalogs.users.set(u.id, u));
+      }
+      assignees = rawAssigneeIds
+        .map(uid => catalogs.users.get(uid) || (ticket.owner?.id === uid ? ticket.owner : null))
+        .filter(Boolean);
+    }
+
+    const enriched = {
+      ...ticket,
+      assigneeIds: rawAssigneeIds,
+      assignees,
+    };
+
+    return { data: enriched };
   });
 
   // Delete ticket
   fastify.delete('/:id', async (request) => {
     const { id } = request.params as { id: string };
 
-    clearTicketsCache(id);
     await prisma.ticket.delete({ where: { id } });
+    clearTicketsCache(id);
 
     return { message: 'Ticket deleted successfully' };
   });
@@ -792,10 +834,10 @@ export async function ticketsRoutes(fastify: FastifyInstance) {
       return { count: 0 };
     }
 
-    clearTicketsCache();
     const result = await prisma.ticket.deleteMany({
       where: { id: { in: ids } },
     });
+    clearTicketsCache();
 
     return { count: result.count };
   });

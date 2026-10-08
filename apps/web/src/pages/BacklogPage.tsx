@@ -69,7 +69,7 @@ const loadSavedBacklogFilters = () => {
 
 export function BacklogPage() {
   const queryClient = useQueryClient();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { user } = useAuth();
   const savedFilters = useRef(loadSavedBacklogFilters()).current;
   const preferredIds = user?.preferredClientIds ?? [];
@@ -97,6 +97,8 @@ export function BacklogPage() {
   const [showModalNueva, setShowModalNueva] = useState(false);
   const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
   const [draggedId, setDraggedId] = useState<string | null>(null);
+
+  const queryTicketId = searchParams.get('ticketId');
 
   const effectiveClientIds = useMemo(() => {
     if (clientesSeleccionados.length > 0) {
@@ -136,6 +138,50 @@ export function BacklogPage() {
   const allTickets: Ticket[] = ticketsData?.data ?? [];
   const clientes: Cliente[] = clientesData?.data ?? [];
   const clientesDisponibles = clientes;
+
+  // Sync ticketId from URL query param to open modal (deep linking / back/forward)
+  useEffect(() => {
+    if (!queryTicketId) {
+      if (selectedTicket) {
+        setSelectedTicket(null);
+      }
+      return;
+    }
+
+    if (selectedTicket?.id === queryTicketId) return;
+
+    const found = allTickets.find(t => t.id === queryTicketId);
+    if (found) {
+      setSelectedTicket(found);
+    } else {
+      api.getTicket(queryTicketId)
+        .then(res => {
+          if (res?.data) setSelectedTicket(res.data);
+        })
+        .catch(err => {
+          console.error('Error fetching ticket from URL param:', err);
+        });
+    }
+  }, [queryTicketId, allTickets]);
+
+  const handleOpenTicket = (ticket: Ticket) => {
+    setSelectedTicket(ticket);
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev);
+      next.set('ticketId', ticket.id);
+      return next;
+    }, { replace: true });
+  };
+
+  const handleCloseModal = () => {
+    setShowModalNueva(false);
+    setSelectedTicket(null);
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev);
+      next.delete('ticketId');
+      return next;
+    }, { replace: true });
+  };
 
   const updateStatusMutation = useMutation({
     mutationFn: ({ id, status }: { id: string; status: string }) =>
@@ -552,7 +598,7 @@ export function BacklogPage() {
       {vista === 'calendario' && (
         <CalendarioBacklog
           tickets={ticketsFiltrados}
-          onTicketClick={ticket => setSelectedTicket(ticket)}
+          onTicketClick={ticket => handleOpenTicket(ticket)}
         />
       )}
 
@@ -592,7 +638,7 @@ export function BacklogPage() {
                         isDragging={draggedId === ticket.id}
                         onDragStart={e => handleDragStart(e, ticket.id)}
                         onDragEnd={() => setDraggedId(null)}
-                        onClick={() => setSelectedTicket(ticket)}
+                        onClick={() => handleOpenTicket(ticket)}
                       />
                     ))}
 
@@ -638,7 +684,7 @@ export function BacklogPage() {
       <CreateTicketModal
         isOpen={showModalNueva || !!selectedTicket}
         ticket={selectedTicket}
-        onClose={() => { setShowModalNueva(false); setSelectedTicket(null); }}
+        onClose={handleCloseModal}
         defaultClientId={effectiveClientIds.length === 1 ? effectiveClientIds[0] : (clientesSeleccionados.length === 1 ? clientesSeleccionados[0] : undefined)}
       />
 

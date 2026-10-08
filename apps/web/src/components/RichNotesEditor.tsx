@@ -598,8 +598,9 @@ export function RichNotesEditor({
             }
           }
         }
-      } else if (/^https?:\/\/[^\s]+$/i.test(trimmed)) {
-        const linkHtml = `<a href="${trimmed}" target="_blank" rel="noopener noreferrer" class="text-[#024fff] underline font-medium">${trimmed}</a>`;
+      } else if (/^(https?:\/\/[^\s]+|www\.[^\s]+)$/i.test(trimmed)) {
+        const href = trimmed.startsWith('http://') || trimmed.startsWith('https://') ? trimmed : `https://${trimmed}`;
+        const linkHtml = `<a href="${href}" target="_blank" rel="noopener noreferrer" class="text-[#024fff] underline font-medium">${trimmed}</a>`;
         document.execCommand('insertHTML', false, linkHtml);
         handleInput();
       } else {

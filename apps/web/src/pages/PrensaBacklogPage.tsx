@@ -122,7 +122,7 @@ const loadSavedPrensaFilters = () => {
 
 export function PrensaBacklogPage() {
   const queryClient = useQueryClient();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { user } = useAuth();
   const savedFilters = useRef(loadSavedPrensaFilters()).current;
   const preferredIds = user?.preferredClientIds ?? [];
@@ -149,6 +149,8 @@ export function PrensaBacklogPage() {
   const [showModalNueva, setShowModalNueva] = useState(false);
   const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
   const [draggedId, setDraggedId] = useState<string | null>(null);
+
+  const queryTicketId = searchParams.get('ticketId');
 
   // new layout states
   const [agruparPor, setAgruparPor] = useState<'Estado' | 'Cliente'>(() => savedFilters?.agruparPor ?? 'Estado');
@@ -191,6 +193,50 @@ export function PrensaBacklogPage() {
   const clientesDisponibles = preferredIds.length > 0
     ? clientes.filter(c => preferredIds.includes(c.id))
     : clientes;
+
+  // Sync ticketId from URL query param to open modal (deep linking / back/forward)
+  useEffect(() => {
+    if (!queryTicketId) {
+      if (selectedTicket) {
+        setSelectedTicket(null);
+      }
+      return;
+    }
+
+    if (selectedTicket?.id === queryTicketId) return;
+
+    const found = allTickets.find(t => t.id === queryTicketId);
+    if (found) {
+      setSelectedTicket(found);
+    } else {
+      api.getTicket(queryTicketId)
+        .then(res => {
+          if (res?.data) setSelectedTicket(res.data);
+        })
+        .catch(err => {
+          console.error('Error fetching ticket from URL param:', err);
+        });
+    }
+  }, [queryTicketId, allTickets]);
+
+  const handleOpenTicket = (ticket: Ticket) => {
+    setSelectedTicket(ticket);
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev);
+      next.set('ticketId', ticket.id);
+      return next;
+    }, { replace: true });
+  };
+
+  const handleCloseModal = () => {
+    setShowModalNueva(false);
+    setSelectedTicket(null);
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev);
+      next.delete('ticketId');
+      return next;
+    }, { replace: true });
+  };
 
   const updateSubEstadoMutation = useMutation({
     mutationFn: ({ id, subEstado }: { id: string; subEstado: SubEstado }) =>
@@ -652,7 +698,7 @@ export function PrensaBacklogPage() {
                                       isDragging={draggedId === ticket.id}
                                       onDragStart={() => setDraggedId(ticket.id)}
                                       onDragEnd={() => setDraggedId(null)}
-                                      onClick={() => setSelectedTicket(ticket)}
+                                      onClick={() => handleOpenTicket(ticket)}
                                     />
                                   ))
                                 )}
@@ -739,7 +785,7 @@ export function PrensaBacklogPage() {
                                 isDragging={draggedId === ticket.id}
                                 onDragStart={() => setDraggedId(ticket.id)}
                                 onDragEnd={() => setDraggedId(null)}
-                                onClick={() => setSelectedTicket(ticket)}
+                                onClick={() => handleOpenTicket(ticket)}
                               />
                             ))
                           )}
@@ -842,7 +888,7 @@ export function PrensaBacklogPage() {
                                                 isDragging={draggedId === ticket.id}
                                                 onDragStart={() => setDraggedId(ticket.id)}
                                                 onDragEnd={() => setDraggedId(null)}
-                                                onClick={() => setSelectedTicket(ticket)}
+                                                onClick={() => handleOpenTicket(ticket)}
                                               />
                                             ))
                                           )}
@@ -930,7 +976,7 @@ export function PrensaBacklogPage() {
                                             isDragging={draggedId === ticket.id}
                                             onDragStart={() => setDraggedId(ticket.id)}
                                             onDragEnd={() => setDraggedId(null)}
-                                            onClick={() => setSelectedTicket(ticket)}
+                                            onClick={() => handleOpenTicket(ticket)}
                                           />
                                         ))
                                       )}
@@ -964,7 +1010,7 @@ export function PrensaBacklogPage() {
         isOpen={showModalNueva || !!selectedTicket}
         area="PRENSA"
         ticket={selectedTicket as any}
-        onClose={() => { setShowModalNueva(false); setSelectedTicket(null); }}
+        onClose={handleCloseModal}
         defaultClientId={effectiveClientIds.length === 1 ? effectiveClientIds[0] : (clientesSeleccionados.length === 1 ? clientesSeleccionados[0] : undefined)}
       />
 
@@ -972,7 +1018,7 @@ export function PrensaBacklogPage() {
         isOpen={showHistorialModal}
         onClose={() => setShowHistorialModal(false)}
         tickets={allTickets.filter(t => t.subEstado === 'LISTO' || t.subEstado === 'CANCELADO')}
-        onSelectTicket={(t) => setSelectedTicket(t)}
+        onSelectTicket={(t) => handleOpenTicket(t)}
       />
     </div>
   );

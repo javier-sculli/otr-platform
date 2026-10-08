@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseLocalDate, formatDateSpan, formatDateISO, ensureAbsoluteUrl, mergeContentPerCanal, getRedesObjetivoForClient, stripHtmlToPlainText, recordCopyVersion, filterPilaresBySpeaker, shouldOmitTemperature } from '../utils';
+import { parseLocalDate, formatDateSpan, formatDateISO, ensureAbsoluteUrl, mergeContentPerCanal, getRedesObjetivoForClient, stripHtmlToPlainText, recordCopyVersion, filterPilaresBySpeaker, shouldOmitTemperature, parseDeliverableLinks, serializeDeliverableLinks } from '../utils';
 
 describe('lib/utils', () => {
   describe('parseLocalDate & Date shift prevention', () => {
@@ -234,6 +234,39 @@ describe('lib/utils', () => {
       expect(shouldOmitTemperature('')).toBe(false);
       expect(shouldOmitTemperature(null)).toBe(false);
       expect(shouldOmitTemperature(undefined)).toBe(false);
+    });
+  });
+
+  describe('parseDeliverableLinks & serializeDeliverableLinks', () => {
+    it('parsea correctamente URLs individuales de compatibilidad previa', () => {
+      expect(parseDeliverableLinks('https://figma.com/file/123')).toEqual(['https://figma.com/file/123']);
+    });
+
+    it('parsea URLs separadas por saltos de línea', () => {
+      const input = 'https://figma.com/file/123\nhttps://drive.google.com/folder/abc\nhttps://loom.com/share/xyz';
+      expect(parseDeliverableLinks(input)).toEqual([
+        'https://figma.com/file/123',
+        'https://drive.google.com/folder/abc',
+        'https://loom.com/share/xyz',
+      ]);
+    });
+
+    it('parsea JSON array string si existiera', () => {
+      const input = JSON.stringify(['https://link1.com', 'https://link2.com']);
+      expect(parseDeliverableLinks(input)).toEqual(['https://link1.com', 'https://link2.com']);
+    });
+
+    it('maneja strings vacíos o nulos', () => {
+      expect(parseDeliverableLinks('')).toEqual([]);
+      expect(parseDeliverableLinks('   ')).toEqual([]);
+      expect(parseDeliverableLinks(null)).toEqual([]);
+      expect(parseDeliverableLinks(undefined)).toEqual([]);
+    });
+
+    it('serializa arrays a string separado por saltos de línea y retorna null si está vacío', () => {
+      expect(serializeDeliverableLinks(['https://a.com', 'https://b.com'])).toBe('https://a.com\nhttps://b.com');
+      expect(serializeDeliverableLinks([])).toBeNull();
+      expect(serializeDeliverableLinks(['  ', ''])).toBeNull();
     });
   });
 });

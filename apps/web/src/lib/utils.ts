@@ -1,4 +1,29 @@
 /**
+ * Parses deliverable links stored as single URL, newline-separated URLs, or JSON array string.
+ */
+export function parseDeliverableLinks(raw?: string | null): string[] {
+  if (!raw) return [];
+  const trimmed = raw.trim();
+  if (!trimmed) return [];
+  if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (Array.isArray(parsed)) return parsed.map(s => String(s).trim()).filter(Boolean);
+    } catch {}
+  }
+  return trimmed.split(/\r?\n+/).map(s => s.trim()).filter(Boolean);
+}
+
+/**
+ * Serializes deliverable links to newline-separated URLs (or null if empty).
+ */
+export function serializeDeliverableLinks(links: string[]): string | null {
+  const cleaned = links.map(l => l.trim()).filter(Boolean);
+  if (cleaned.length === 0) return null;
+  return cleaned.join('\n');
+}
+
+/**
  * Ensures a URL string is absolute (starts with http:// or https:// or mailto: or tel:).
  * If a domain like "infobae.com" or "www.infobae.com" is passed, it prepends "https://".
  */
@@ -263,4 +288,92 @@ export function shouldOmitTemperature(model: string | null | undefined): boolean
   const m = model.toLowerCase().trim();
   return m.startsWith('claude-') || m.startsWith('o1') || m.startsWith('o3');
 }
+
+/**
+ * Highlights quoted strings in an HTML string by wrapping matching un-marked text nodes
+ * in <mark data-c="..."> tags.
+ */
+export function highlightQuotesInHtml(
+  html: string,
+  quotesWithIds: { quote: string; id: string }[]
+): string {
+  if (!html || !quotesWithIds || quotesWithIds.length === 0) return html;
+  if (typeof document === 'undefined') return html;
+
+  const validQuotes = quotesWithIds
+    .map(q => ({ id: q.id, quote: q.quote ? q.quote.trim() : '' }))
+    .filter(q => q.quote.length > 0);
+
+  if (validQuotes.length === 0) return html;
+
+  // Use DOMParser or temp container
+  const container = document.createElement('div');
+  container.innerHTML = html;
+
+  for (const { id, quote } of validQuotes) {
+    // If quote is already inside a mark with data-c, skip
+    const existingMarks = Array.from(container.querySelectorAll('mark[data-c]'));
+    const alreadyMarked = existingMarks.some(
+      m => m.textContent?.trim() === quote || m.textContent?.includes(quote)
+    );
+    if (alreadyMarked) continue;
+
+    // Traverse all text nodes not inside a mark
+    const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, {
+      acceptNode(node) {
+        if (!node.nodeValue || !node.nodeValue.includes(quote)) {
+          return NodeFilter.FILTER_SKIP;
+        }
+        let parent = node.parentElement;
+        while (parent && parent !== container) {
+          if (parent.tagName.toLowerCase() === 'mark') {
+            return NodeFilter.FILTER_REJECT;
+          }
+          parent = parent.parentElement;
+        }
+        return NodeFilter.FILTER_ACCEPT;
+      },
+    });
+
+    const matchingNodes: Text[] = [];
+    let currentNode = walker.nextNode();
+    while (currentNode) {
+      matchingNodes.push(currentNode as Text);
+      currentNode = walker.nextNode();
+    }
+
+    // Wrap only the first occurrence found per quote to avoid runaway duplicates
+    if (matchingNodes.length > 0) {
+      const textNode = matchingNodes[0];
+      const textVal = textNode.nodeValue || '';
+      const idx = textVal.indexOf(quote);
+      if (idx !== -1) {
+        const before = textVal.slice(0, idx);
+        const match = textVal.slice(idx, idx + quote.length);
+        const after = textVal.slice(idx + quote.length);
+
+        const parent = textNode.parentNode;
+        if (parent) {
+          const mark = document.createElement('mark');
+          mark.dataset.c = id;
+          mark.style.backgroundColor = 'rgba(0, 255, 178, 0.35)';
+          mark.style.borderRadius = '2px';
+          mark.style.padding = '1px 2px';
+          mark.style.cursor = 'pointer';
+          mark.textContent = match;
+
+          const frag = document.createDocumentFragment();
+          if (before) frag.appendChild(document.createTextNode(before));
+          frag.appendChild(mark);
+          if (after) frag.appendChild(document.createTextNode(after));
+
+          parent.replaceChild(frag, textNode);
+        }
+      }
+    }
+  }
+
+  return container.innerHTML;
+}
+
 
