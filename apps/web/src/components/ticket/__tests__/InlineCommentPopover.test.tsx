@@ -116,4 +116,30 @@ describe('InlineCommentPopover', () => {
     await userEvent.type(textarea, '{escape}');
     expect(onClose).toHaveBeenCalledTimes(2);
   });
+
+  it('permite arrobar a un usuario haciendo click en la lista desplegada hacia abajo sin cerrar el popover', async () => {
+    const pop = { id: 'c1', x: 100, y: 150 };
+    const onClose = vi.fn();
+    const users = [{ id: 'u1', name: 'Javier Sculli', email: 'javier@otr.com' }];
+
+    render(
+      <InlineCommentPopover
+        pop={pop}
+        users={users}
+        onSend={vi.fn()}
+        onClose={onClose}
+      />
+    );
+
+    const textarea = screen.getByPlaceholderText(/escribí un comentario/i);
+    await userEvent.type(textarea, '@Jav');
+
+    const userOption = screen.getByText('Javier Sculli');
+    expect(userOption).toBeInTheDocument();
+
+    await userEvent.click(userOption);
+
+    expect(onClose).not.toHaveBeenCalled();
+    expect(textarea).toHaveValue('@Javier Sculli ');
+  });
 });

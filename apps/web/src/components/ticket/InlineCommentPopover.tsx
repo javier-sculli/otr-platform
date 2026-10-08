@@ -63,7 +63,7 @@ export function InlineCommentPopover({
       data-inline-pop="1"
       data-testid="inline-comment-popover"
       style={{ position: 'fixed', left: `${pop.x}px`, top: `${pop.y}px` }}
-      className="w-[300px] bg-white border border-[#d6dde5] rounded-[10px] shadow-[0_12px_32px_rgba(0,14,31,.18)] z-50 flex flex-col overflow-hidden animate-in fade-in zoom-in-95"
+      className="w-[300px] bg-white border border-[#d6dde5] rounded-[10px] shadow-[0_12px_32px_rgba(0,14,31,.18)] z-50 flex flex-col overflow-visible animate-in fade-in zoom-in-95"
     >
       {thread?.quote && (
         <div className="p-2.5 px-3 text-[12px] text-[#5b6675] truncate border-l-2 border-[#00e39c] m-2.5 mb-0 pl-2 bg-[#00ff99]/5 rounded-r">

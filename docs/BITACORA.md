@@ -4,6 +4,19 @@
 > 
 > 🎯 **BACKLOG OFICIAL Y PRIORIDADES (FUENTE DE VERDAD):** [Notion Backlog Oficial](https://app.notion.com/p/Backlog-3ba617fc369281048bfdfc89c5041d9c?source=copy_link). Todas las prioridades y tareas activas se gestionan directamente allí.
 
+### [2026-10-08] — Corrección en Menciones (@) en Popover de Comentarios de Brief y Selección
+- **Desarrollador:** Antigravity (Pair Programming con Javier Sculli)
+- **Resumen de Avances:**
+  1. **Despliegue Hacia Abajo de Menciones (`MentionTextarea.tsx`):**
+     - El listado desplegable de sugerencias de mención (`@`) ahora se despliega siempre hacia abajo (`top-full mt-1.5`) con alta prioridad visual (`z-[60]`).
+     - En `InlineCommentPopover.tsx`, se cambió el contenedor raíz a `overflow-visible` para que el listado inferior no sea recortado por los límites del popover.
+  2. **Prevención de Cierre Involuntario del Popover al Clickear Personas (`MentionTextarea.tsx`, `TicketDetallePage.tsx`, `CreateTicketModal.tsx`):**
+     - Se añadió detención de propagación nativa (`stopPropagation`, `stopImmediatePropagation`) en los eventos de mouse del menú de menciones.
+     - En los listeners globales de click externo (`TicketDetallePage` y `CreateTicketModal`), se incorporó validación vía `e.composedPath()` y el atributo `[data-mention-dropdown]`, evitando que el desmontaje del menú al seleccionar usuario sea malinterpretado como click exterior.
+- **Suite de Tests:**
+  - Tests unitarios en `MentionTextarea.test.tsx` y `InlineCommentPopover.test.tsx` validando el despliegue inferior y la selección con click sin cierre del popover.
+- **Verificación:** 89 tests aprobados en Vitest (`pnpm --filter web test`) y build exitoso.
+
 ### [2026-10-08] — Avance Fluido de Estado en Tickets sin Formato Predefinido
 - **Desarrollador:** Antigravity (Pair Programming con Javier Sculli)
 - **Resumen de Avances:**

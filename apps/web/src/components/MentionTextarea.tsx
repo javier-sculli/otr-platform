@@ -186,7 +186,15 @@ export const MentionTextarea: React.FC<MentionTextareaProps> = ({
       {isOpen && filteredUsers.length > 0 && (
         <div
           ref={menuRef}
-          className="absolute bottom-full left-0 mb-1.5 w-[260px] max-h-[220px] bg-white border border-[#d6dde5] rounded-[10px] shadow-[0_12px_32px_rgba(0,14,31,.16)] overflow-y-auto z-50 p-1 flex flex-col gap-0.5 animate-in fade-in zoom-in-95 duration-100"
+          data-mention-dropdown="1"
+          onMouseDown={(e) => {
+            e.stopPropagation();
+            e.nativeEvent.stopImmediatePropagation();
+          }}
+          onClick={(e) => {
+            e.stopPropagation();
+          }}
+          className="absolute top-full left-0 mt-1.5 w-[260px] max-h-[220px] bg-white border border-[#d6dde5] rounded-[10px] shadow-[0_12px_32px_rgba(0,14,31,.24)] overflow-y-auto z-[60] p-1 flex flex-col gap-0.5 animate-in fade-in zoom-in-95 duration-100"
         >
           <div className="px-2 py-1 text-[10px] font-bold text-[#8c96a3] uppercase tracking-[0.08em] border-b border-[#eef3f7] mb-0.5 flex items-center justify-between">
             <span>Mencionar a:</span>
@@ -201,7 +209,12 @@ export const MentionTextarea: React.FC<MentionTextareaProps> = ({
                 type="button"
                 onMouseDown={e => {
                   e.preventDefault();
+                  e.stopPropagation();
+                  e.nativeEvent.stopImmediatePropagation();
                   handleSelectUser(u);
+                }}
+                onClick={e => {
+                  e.stopPropagation();
                 }}
                 className={`flex items-center gap-2 p-1.5 px-2 rounded-md cursor-pointer text-left transition-colors border-0 font-anek ${
                   isSelected ? 'bg-[#024fff]/10 text-[#024fff]' : 'hover:bg-[#eef3f7] text-[#0d0d0d] bg-transparent'

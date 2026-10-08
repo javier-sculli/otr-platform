@@ -446,7 +446,14 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
       if (fmtMenuRef.current && !fmtMenuRef.current.contains(target)) setFmtOpen(false);
       if (ownersMenuRef.current && !ownersMenuRef.current.contains(target)) setOwnersOpen(false);
       if (statesMenuRef.current && !statesMenuRef.current.contains(target)) setStatesOpen(false);
-      if (pop && !target.closest('[data-inline-pop]') && !target.closest('mark[data-c]') && !target.closest('[data-comment-trigger]')) {
+      const path = (e.composedPath ? e.composedPath() : []) as HTMLElement[];
+      const isInsidePop = Boolean(
+        target.closest?.('[data-inline-pop]') ||
+        target.closest?.('[data-mention-dropdown]') ||
+        path.some((el) => el instanceof HTMLElement && (el.hasAttribute?.('data-inline-pop') || el.hasAttribute?.('data-mention-dropdown')))
+      );
+
+      if (pop && !isInsidePop && !target.closest?.('mark[data-c]') && !target.closest?.('[data-comment-trigger]')) {
         closePop();
       }
     };

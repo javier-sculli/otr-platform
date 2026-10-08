@@ -25,13 +25,15 @@ describe('MentionTextarea', () => {
     );
   }
 
-  it('abre el menú de menciones al tipear @ y filtra por nombre', () => {
+  it('abre el menú de menciones al tipear @ y filtra por nombre desplegando hacia abajo', () => {
     render(<TestWrapper />);
 
     const textarea = screen.getByPlaceholderText('Comentar...');
     fireEvent.change(textarea, { target: { value: '@sh' } });
 
-    expect(screen.getByText('Mencionar a:')).toBeInTheDocument();
+    const menu = screen.getByText('Mencionar a:').closest('[data-mention-dropdown]');
+    expect(menu).toBeInTheDocument();
+    expect(menu).toHaveClass('top-full');
     expect(screen.getByText('Shaiel Terán')).toBeInTheDocument();
     expect(screen.queryByText('Javier Sculli')).not.toBeInTheDocument();
   });

@@ -445,11 +445,18 @@ export function TicketDetallePage() {
         setOwnersOpen(false);
       }
 
+      const path = (e.composedPath ? e.composedPath() : []) as HTMLElement[];
+      const isInsidePop = Boolean(
+        target.closest?.('[data-inline-pop]') ||
+        target.closest?.('[data-mention-dropdown]') ||
+        path.some((el) => el instanceof HTMLElement && (el.hasAttribute?.('data-inline-pop') || el.hasAttribute?.('data-mention-dropdown')))
+      );
+
       if (
         popRefVal.current &&
-        !target.closest('[data-inline-pop]') &&
-        !target.closest('mark[data-c]') &&
-        !target.closest('[data-comment-trigger]')
+        !isInsidePop &&
+        !target.closest?.('mark[data-c]') &&
+        !target.closest?.('[data-comment-trigger]')
       ) {
         closePop();
       }
