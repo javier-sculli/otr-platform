@@ -4,6 +4,7 @@ export interface RichTextEditorProps {
   value: string;
   onChange: (val: string) => void;
   onBlur?: () => void;
+  onFocus?: (e: React.FocusEvent<HTMLDivElement>) => void;
   placeholder?: string;
   minHeight?: string;
   maxHeight?: string;
@@ -55,6 +56,7 @@ export const RichTextEditor = forwardRef<HTMLDivElement, RichTextEditorProps>(
       value,
       onChange,
       onBlur,
+      onFocus,
       placeholder = '',
       minHeight = '110px',
       maxHeight,
@@ -87,7 +89,7 @@ export const RichTextEditor = forwardRef<HTMLDivElement, RichTextEditorProps>(
         });
       }
 
-      if (document.activeElement !== el) {
+      if (document.activeElement !== el && !el.contains(document.activeElement)) {
         const nextVal = value || '';
         if (el.innerHTML !== nextVal) {
           el.innerHTML = nextVal;
@@ -96,19 +98,7 @@ export const RichTextEditor = forwardRef<HTMLDivElement, RichTextEditorProps>(
     }, [value, activeRef]);
 
     const handleFocus = (e: React.FocusEvent<HTMLDivElement>) => {
-      const el = e.currentTarget;
-      if (el && typeof window !== 'undefined' && window.getSelection) {
-        try {
-          const range = document.createRange();
-          const sel = window.getSelection();
-          range.selectNodeContents(el);
-          range.collapse(false);
-          sel?.removeAllRanges();
-          sel?.addRange(range);
-        } catch {
-          // ignore
-        }
-      }
+      onFocus?.(e);
     };
 
     const handleClick = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -130,18 +120,19 @@ export const RichTextEditor = forwardRef<HTMLDivElement, RichTextEditorProps>(
         return;
       }
 
-      if (typeof window !== 'undefined' && window.getSelection) {
-        const sel = window.getSelection();
-        if (sel && sel.isCollapsed && sel.anchorOffset === 0 && e.currentTarget.textContent) {
-          try {
-            const range = document.createRange();
-            range.selectNodeContents(e.currentTarget);
-            range.collapse(false);
-            sel.removeAllRanges();
-            sel.addRange(range);
-          } catch {
-            // ignore
-          }
+      // Si el usuario hace click específicamente en el contenedor vacío
+      // (por ejemplo, en el espacio en blanco inferior del editor), colocar el cursor al final.
+      // Si hizo click sobre el contenido (un párrafo, línea o palabra), respetar la posición del click.
+      if (e.target === e.currentTarget && typeof window !== 'undefined' && window.getSelection) {
+        try {
+          const range = document.createRange();
+          const sel = window.getSelection();
+          range.selectNodeContents(e.currentTarget);
+          range.collapse(false);
+          sel?.removeAllRanges();
+          sel?.addRange(range);
+        } catch {
+          // ignore
         }
       }
     };
