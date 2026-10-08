@@ -4,22 +4,23 @@
 > 
 > 🎯 **BACKLOG OFICIAL Y PRIORIDADES (FUENTE DE VERDAD):** [Notion Backlog Oficial](https://app.notion.com/p/Backlog-3ba617fc369281048bfdfc89c5041d9c?source=copy_link). Todas las prioridades y tareas activas se gestionan directamente allí.
 
-### [2026-10-08] — Visibilidad y Reordenamiento de Copy y Notas de Diseño en Redacción y Pendiente
+### [2026-10-08] — Posicionamiento de Notas de Diseño Abajo del Copy (Excepto Diseño/Edición)
 - **Desarrollador:** Antigravity (Pair Programming con Javier Sculli)
 - **Resumen de Avances:**
-  1. **Orden Dinámico en Detalle y Modal de Ticket (`CreateTicketModal.tsx` y `TicketDetallePage.tsx`):**
-     - Si el ticket se encuentra en estado **Pendiente** (`PENDIENTE`) o **Redacción** (`REDACCION`), el bloque de **Copy** se renderiza prioritariamente antes que las **Notas de diseño**.
-     - En etapas de **Diseño** (`DISENO`) o **Edición** (`EDICION`), las Notas de diseño se posicionan al inicio para priorizar las instrucciones gráficas al diseñador.
+  1. **Regla de Posicionamiento Global (`CreateTicketModal.tsx` y `TicketDetallePage.tsx`):**
+     - Las **Notas de diseño** ahora quedan siempre posicionadas **debajo del copy** en todos los estados (`PENDIENTE`, `REDACCION`, `REVISION_INTERNA`, `CLIENTE`, `ESPERANDO_FEEDBACK`, `LISTO_PARA_PUBLICAR`, `PUBLICADO`, etc.).
+     - La **única excepción** donde las Notas de diseño se muestran **arriba del copy** es en los estados de **Diseño** o **Edición** (`DISENO`, `EDICION`), para priorizar las instrucciones gráficas al diseñador/editor.
   2. **Comportamiento y Visibilidad de Notas de Diseño según Estado:**
-     - En **Redacción** (`REDACCION`), las notas de diseño aparecen **directamente abiertas y visibles** debajo del copy para que el redactor pueda redactar o consultar las directivas visuales sin clics adicionales.
-     - En **Pendiente** (`PENDIENTE`), las notas de diseño se muestran **colapsables y cerradas por defecto** (con vista previa y botón de alternancia `Ver notas` / `Ocultar`), manteniendo limpia la interfaz inicial.
-     - En **Diseño** (`DISENO`), las notas de diseño se mantienen abiertas y situadas antes del copy.
+     - En **Redacción** (`REDACCION`), las notas de diseño aparecen **directamente abiertas y visibles** debajo del copy.
+     - En **Pendiente** (`PENDIENTE`) y estados de revisión/post-diseño, las notas de diseño se muestran **colapsables y cerradas por defecto** (con vista previa y botón de alternancia `Ver notas` / `Ocultar`), manteniendo limpia la interfaz.
+     - En **Diseño** y **Edición**, las notas se mantienen abiertas y arriba del copy.
 - **Suite de Tests:**
   - Se actualizaron y expandieron tests unitarios en `ticketModals.test.tsx` y `TicketDetallePage.test.tsx` que verifican:
-    1. En `PENDIENTE`: Copy precede a las notas de diseño y las notas están colapsadas por defecto con botón "Ver notas".
-    2. En `REDACCION`: Copy precede a las notas de diseño y las notas aparecen directamente abiertas (con su editor visible de inmediato).
-    3. En `DISENO`: Notas de diseño preceden al copy y se muestran abiertas.
-- **Verificación:** 79 tests aprobados en Vitest (`npm test`) y compilación exitosa del monorepo (`npm run build`).
+    1. En `PENDIENTE`: Copy precede a notas de diseño y notas colapsadas.
+    2. En `REDACCION`: Copy precede a notas de diseño y notas abiertas.
+    3. En `DISENO` y `EDICION`: Notas de diseño preceden al copy y están abiertas.
+    4. En estados de revisión y posteriores (`REVISION_INTERNA`, etc.): Copy precede a notas de diseño (notas abajo del copy).
+- **Verificación:** 86 tests aprobados en Vitest (`npm test`) y compilación exitosa del monorepo (`npm run build`).
 
 ### [2026-09-28] — Corrección de Error 'temperature' is deprecated en Módulo de Redacción IA
 - **Desarrollador:** Antigravity (Pair Programming con Javier Sculli)

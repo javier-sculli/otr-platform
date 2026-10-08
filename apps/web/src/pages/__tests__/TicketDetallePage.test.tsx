@@ -59,9 +59,9 @@ function renderTicketDetalle(ticketId = 'ticket-999') {
 
   return render(
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter initialEntries={[`/tickets/${ticketId}`]}>
+      <MemoryRouter initialEntries={[`/piezas/${ticketId}`]}>
         <Routes>
-          <Route path="/tickets/:ticketId" element={<TicketDetallePage />} />
+          <Route path="/piezas/:ticketId" element={<TicketDetallePage />} />
         </Routes>
       </MemoryRouter>
     </QueryClientProvider>
@@ -73,7 +73,7 @@ describe('TicketDetallePage (Smoke / Montaje)', () => {
     vi.clearAllMocks();
   });
 
-  it('monta correctamente y renderiza el ticket completo sin romper ni lanzar errores', async () => {
+  it('monta correctamente y renderiza el ticket completo con ruta /piezas/:ticketId', async () => {
     (api.getTicket as any).mockResolvedValue({
       data: mockFullTicket,
     });
@@ -94,6 +94,62 @@ describe('TicketDetallePage (Smoke / Montaje)', () => {
     expect(screen.getByText('https://linkedin.com/feed/post/1')).toBeInTheDocument();
   });
 
+  it('monta sin romper cuando el ticket tiene campos nulos o vacíos', async () => {
+    const minimalTicket = {
+      id: 'ticket-min',
+      title: 'Ticket Mínimo',
+      status: 'PENDIENTE',
+      canales: null,
+      links: null,
+      linkPublicacion: null,
+      linkEntregable: null,
+      contentPerCanal: null,
+      notasAudiovisual: null,
+      objetivo: null,
+      client: null,
+      owner: null,
+      references: null,
+    };
+
+    (api.getTicket as any).mockResolvedValue({
+      data: minimalTicket,
+    });
+
+    renderTicketDetalle('ticket-min');
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('Ticket Mínimo')).toBeInTheDocument();
+    });
+
+    // Link a la publicación no debe aparecer en PENDIENTE
+    expect(screen.queryByText('Link a la Publicación')).not.toBeInTheDocument();
+  });
+
+  it('renderiza comentarios persistidos incluyendo citas con comillas latinas', async () => {
+    (api.getTicket as any).mockResolvedValue({
+      data: mockFullTicket,
+    });
+
+    (api.getComments as any).mockResolvedValue({
+      data: [
+        {
+          id: 'cm-1',
+          content: '«Texto con cita»: Corregir esto por favor',
+          user: { id: 'u1', name: 'Martín Revisor' },
+          createdAt: new Date().toISOString(),
+        },
+      ],
+    });
+
+    renderTicketDetalle('ticket-999');
+
+    await waitFor(() => {
+      expect(screen.getByText('Martín Revisor')).toBeInTheDocument();
+      expect(screen.getByText('«Texto con cita»')).toBeInTheDocument();
+      expect(screen.getByText(/Corregir esto por favor/)).toBeInTheDocument();
+    });
+  });
+
   it('renderiza vista de error o no encontrado si la API falla sin explotar', async () => {
     (api.getTicket as any).mockRejectedValue(new Error('Network error'));
 
@@ -103,5 +159,51 @@ describe('TicketDetallePage (Smoke / Montaje)', () => {
       expect(screen.getByText(/no se pudo cargar el ticket/i)).toBeInTheDocument();
       expect(screen.getByRole('button', { name: /volver al backlog/i })).toBeInTheDocument();
     });
+  });
+
+  it('en DISENO o EDICION, las notas de diseño aparecen antes que el copy en TicketDetallePage', async () => {
+    (api.getTicket as any).mockResolvedValue({
+      data: {
+        ...mockFullTicket,
+        id: 'ticket-diseno-page',
+        status: 'DISENO',
+        notasAudiovisual: '<p>Directivas de diseño</p>',
+      },
+    });
+
+    renderTicketDetalle('ticket-diseno-page');
+
+    await waitFor(() => {
+      expect(screen.getByText('Directivas de diseño')).toBeInTheDocument();
+    });
+
+    const notasHeader = screen.getAllByText('Notas de diseño')[0];
+    const copyEditor = screen.getByText('Texto de copy para LinkedIn');
+
+    // En DISENO: notas aparece antes que copy
+    expect(notasHeader.compareDocumentPosition(copyEditor) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('en estados que no son DISENO ni EDICION, las notas de diseño aparecen abajo del copy en TicketDetallePage', async () => {
+    (api.getTicket as any).mockResolvedValue({
+      data: {
+        ...mockFullTicket,
+        id: 'ticket-revision-page',
+        status: 'REVISION_INTERNA',
+        notasAudiovisual: '<p>Directivas de diseño</p>',
+      },
+    });
+
+    renderTicketDetalle('ticket-revision-page');
+
+    await waitFor(() => {
+      expect(screen.getByText('Texto de copy para LinkedIn')).toBeInTheDocument();
+    });
+
+    const copyEditor = screen.getByText('Texto de copy para LinkedIn');
+    const notasHeader = screen.getAllByText('Notas de diseño')[0];
+
+    // En REVISION_INTERNA: copy aparece antes que notas (notas abajo del copy)
+    expect(copyEditor.compareDocumentPosition(notasHeader) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 });

@@ -1060,6 +1060,7 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
   const isPendiente = ['PENDIENTE', 'Pendiente'].includes(formData.status);
   const isRedaccion = ['REDACCION', 'Redacción', 'Redaccion'].includes(formData.status);
   const isPendienteORedaccion = isPendiente || isRedaccion;
+  const isDisenoOEdicion = DESIGN_STATES.includes(formData.status);
 
   const isCollapsibleBrief = isEditing && ['REVISION_INTERNA', 'CLIENTE', 'ESPERANDO_FEEDBACK', 'LISTO_PARA_PUBLICAR', 'PUBLICADO', 'LISTO'].includes(formData.status);
   const showBriefContent = !isCollapsibleBrief || briefOpen;
@@ -1639,15 +1640,16 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
                 </>
               );
 
-              return isPendienteORedaccion ? (
+              // Las notas de diseño quedan siempre abajo del copy, excepto en Diseño/Edición donde van arriba
+              return isDisenoOEdicion ? (
                 <>
-                  {copyNode}
                   {notasNode}
+                  {copyNode}
                 </>
               ) : (
                 <>
-                  {notasNode}
                   {copyNode}
+                  {notasNode}
                 </>
               );
             })()}

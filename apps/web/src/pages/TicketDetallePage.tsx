@@ -651,8 +651,7 @@ export function TicketDetallePage() {
   const statusLabel = esPrensa ? subEstadoLabel : (STATUS_OPTIONS.find(s => s.value === ticket.status)?.label ?? ticket.status);
   const nextInfo = getNextStatusInfo(ticket.status, esPrensa, ticket.subEstado, (ticket as any).tiposContenido, (ticket as any).ticketType, ticket.title);
   const isPendiente = ['PENDIENTE', 'Pendiente'].includes(ticket.status);
-  const isRedaccion = ['REDACCION', 'Redacción', 'Redaccion'].includes(ticket.status);
-  const isPendienteORedaccion = isPendiente || isRedaccion;
+  const isDisenoOEdicion = ['DISENO', 'EDICION', 'Diseño', 'Edición'].includes(ticket.status);
 
   const formatList = isPieza ? FORMATOS_PIEZA : TIPOS_TAREA;
   const currentCopy = copyPerCanal[activeCopyTab] || '';
@@ -1346,15 +1345,16 @@ export function TicketDetallePage() {
               </div>
             );
 
-            return isPendienteORedaccion ? (
+            // Las notas de diseño quedan siempre abajo del copy, excepto en Diseño/Edición donde van arriba
+            return isDisenoOEdicion ? (
               <>
-                {copyNode}
                 {notasNode}
+                {copyNode}
               </>
             ) : (
               <>
-                {notasNode}
                 {copyNode}
+                {notasNode}
               </>
             );
           })()}
