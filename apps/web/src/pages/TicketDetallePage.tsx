@@ -3,7 +3,6 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState, useEffect, useRef } from 'react';
 import {
   ChevronLeft,
-  ArrowRight,
   Archive,
   MoreHorizontal,
   Link2,
@@ -25,8 +24,12 @@ import { TextFormatToolbar } from '../components/TextFormatToolbar';
 import { RichTextEditor } from '../components/RichTextEditor';
 import { MentionTextarea, formatCommentWithMentions } from '../components/MentionTextarea';
 import { TicketPublishLinks } from '../components/ticket/TicketPublishLinks';
+import { TicketCopyButton } from '../components/ticket/TicketCopyButton';
 import { InlineCommentHoverTooltip } from '../components/ticket/InlineCommentHoverTooltip';
 import { InlineCommentPopover } from '../components/ticket/InlineCommentPopover';
+import { TicketOwnersPicker } from '../components/ticket/TicketOwnersPicker';
+import { TicketStatusPicker } from '../components/ticket/TicketStatusPicker';
+import { useInlineComments } from '../components/ticket/useInlineComments';
 import { SUB_DEF, STATUS_OPTIONS, PRENSA_STATUS_OPTIONS, getNextStatusInfo, type SubEstado } from '../lib/estados';
 
 type AttachedFile = {
@@ -131,18 +134,32 @@ export function TicketDetallePage() {
     },
   });
 
+  const {
+    pop,
+    threads,
+    hoverComment,
+    popRefVal,
+    handleMarkHover,
+    handleMarkClick,
+    closePop,
+    sendPop,
+    startInlineComment,
+    locateMark: locateMarkBase,
+  } = useInlineComments({
+    comments: commentsData?.data || [],
+    currentUser,
+    onSubmitComment: ({ fullContent }) => {
+      if (ticketId) {
+        createCommentMutation.mutate(fullContent);
+      }
+    },
+  });
+
   const [delOpen, setDelOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   const [linkCopiado, setLinkCopiado] = useState(false);
-  const [copyCopiado, setCopyCopiado] = useState(false);
   const [tituloTemp, setTituloTemp] = useState('');
-  const [showStatusDropdown, setShowStatusDropdown] = useState(false);
   const [fmtOpen, setFmtOpen] = useState(false);
-  const [ownersOpen, setOwnersOpen] = useState(false);
-  const [ownerQuery, setOwnerQuery] = useState('');
-  const [selectedOwnerIndex, setSelectedOwnerIndex] = useState(0);
-  const ownersOpenRef = useRef(ownersOpen);
-  ownersOpenRef.current = ownersOpen;
   const [briefOpen, setBriefOpen] = useState(false);
   const [notasOpen, setNotasOpen] = useState(false);
 
@@ -160,11 +177,6 @@ export function TicketDetallePage() {
   });
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Inline comment balloon
-  const [pop, setPop] = useState<{ id: string; x: number; y: number; isDraft?: boolean } | null>(null);
-  const [popInput, setPopInput] = useState('');
-  const [threads, setThreads] = useState<Record<string, { quote: string; items: { author: string; when: string; text: string }[] }>>({});
-  const popRef = useRef<HTMLTextAreaElement>(null);
 
   const briefRef = useRef<HTMLDivElement>(null);
   const copyRef = useRef<HTMLDivElement>(null);
@@ -237,7 +249,6 @@ export function TicketDetallePage() {
   }, [attachedFiles, ticketId]);
 
   const handleSelectStatus = (targetStatus: string, isSubEstado?: boolean) => {
-    setShowStatusDropdown(false);
     if (isSubEstado) {
       updateMutation.mutate({ subEstado: targetStatus });
       return;
@@ -391,18 +402,6 @@ export function TicketDetallePage() {
     }
   };
 
-  const copiarCopy = () => {
-    const textToCopy = (copyRef.current?.innerText ?? currentCopy.replace(/<[^>]*>/g, '')).trim();
-    if (!textToCopy) return;
-    try {
-      navigator.clipboard.writeText(textToCopy);
-      setCopyCopiado(true);
-      setTimeout(() => setCopyCopiado(false), 2000);
-    } catch (err) {
-      console.error('Error al copiar copy:', err);
-    }
-  };
-
   const isArchived = ticket?.status === 'LISTO' || ticket?.status === 'CANCELADO';
   const handleArchivar = () => {
     if (isArchived) {
@@ -412,25 +411,6 @@ export function TicketDetallePage() {
     }
   };
 
-  const popRefVal = useRef(pop);
-  popRefVal.current = pop;
-  const threadsRefVal = useRef(threads);
-  threadsRefVal.current = threads;
-
-  const closePop = () => {
-    const currentPop = popRefVal.current;
-    if (!currentPop) return;
-    if (currentPop.isDraft) {
-      const currentThreads = threadsRefVal.current;
-      const t = currentThreads[currentPop.id];
-      if (!t || !t.items || t.items.length === 0) {
-        const mark = document.querySelector(`mark[data-c="${currentPop.id}"]`);
-        if (mark) mark.replaceWith(...Array.from(mark.childNodes));
-      }
-    }
-    setPop(null);
-    setPopInput('');
-  };
 
   useEffect(() => {
     const handleDocClick = (e: MouseEvent) => {
@@ -440,11 +420,6 @@ export function TicketDetallePage() {
       if (!target.closest('[data-menu]')) {
         setDelOpen(false);
         setMoreOpen(false);
-        setShowStatusDropdown(false);
-      }
-
-      if (ownersOpenRef.current && !target.closest('[data-owners-menu]')) {
-        setOwnersOpen(false);
       }
 
       const path = (e.composedPath ? e.composedPath() : []) as HTMLElement[];
@@ -467,7 +442,6 @@ export function TicketDetallePage() {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         if (popRefVal.current) closePop();
-        if (ownersOpenRef.current) setOwnersOpen(false);
       }
     };
 
@@ -480,218 +454,21 @@ export function TicketDetallePage() {
   }, []);
 
   // Inline comment balloon methods
-  const posFor = (mark: HTMLElement) => {
-    const b = mark.getBoundingClientRect();
-    const x = Math.max(8, Math.min(b.left, window.innerWidth - 308));
-    const below = b.bottom + 8;
-    const y = below + 260 > window.innerHeight ? Math.max(8, b.top - 268) : below;
-    return { x, y };
-  };
-
   const startInline = (ref: React.RefObject<HTMLDivElement | null>, e?: React.MouseEvent) => {
-    if (e) e.preventDefault();
-    const root = ref.current;
-    const sel = window.getSelection();
-    if (!root || !sel || !sel.rangeCount || sel.isCollapsed || !root.contains(sel.anchorNode)) {
-      alert('Seleccioná un fragmento del texto para comentarlo.');
-      return;
-    }
-    const quote = sel.toString().trim();
-    if (!quote) return;
-
-    if (popRefVal.current?.isDraft) {
-      const prevT = threadsRefVal.current[popRefVal.current.id];
-      if (!prevT || !prevT.items || prevT.items.length === 0) {
-        const prevMark = document.querySelector(`mark[data-c="${popRefVal.current.id}"]`);
-        if (prevMark) prevMark.replaceWith(...Array.from(prevMark.childNodes));
-      }
-    }
-
-    const id = 'c' + Date.now();
-    const range = sel.getRangeAt(0);
-    const m = document.createElement('mark');
-    m.dataset.c = id;
-    m.style.backgroundColor = 'rgba(0, 255, 178, 0.35)';
-    m.style.borderRadius = '2px';
-    m.style.padding = '1px 2px';
-    m.style.cursor = 'pointer';
-    try {
-      m.appendChild(range.extractContents());
-      range.insertNode(m);
-    } catch {
-      return;
-    }
-    sel.removeAllRanges();
-
-    setThreads(prev => ({ ...prev, [id]: { quote, items: [] } }));
-    setPop({ id, ...posFor(m), isDraft: true });
-    setPopInput('');
-    setTimeout(() => popRef.current?.focus(), 50);
-  };
-
-  const [hoverComment, setHoverComment] = useState<{
-    id: string;
-    x: number;
-    y: number;
-    quote: string;
-    items: { author: string; when: string; text: string }[];
-  } | null>(null);
-
-  const handleMarkHover = (id: string | null, m: HTMLElement | null) => {
-    if (!id || !m) {
-      setHoverComment(null);
-      return;
-    }
-    if (pop) return;
-
-    const quoteText = (m.innerText || m.textContent || '').trim();
-    const threadItems = threads[id]?.items || [];
-
-    const matchedComments = (commentsData?.data || []).filter((cm: any) => {
-      const rawContent = cm.content || cm.text || '';
-      const quoteMatch = rawContent.match(/^«([^»]+)»:\s*([\s\S]*)$/);
-      const q = cm.quote || (quoteMatch ? quoteMatch[1] : null);
-      return q && (q.trim() === quoteText || quoteText.includes(q.trim()) || q.trim().includes(quoteText));
-    });
-
-    const persistedItems = matchedComments.map((cm: any) => {
-      const rawContent = cm.content || cm.text || '';
-      const quoteMatch = rawContent.match(/^«([^»]+)»:\s*([\s\S]*)$/);
-      const mainContent = quoteMatch ? quoteMatch[2] : rawContent;
-      const when = cm.createdAt
-        ? new Date(cm.createdAt).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
-        : (cm.when || '');
-      return {
-        author: cm.user?.name || cm.author || 'Usuario',
-        when,
-        text: mainContent,
-      };
-    });
-
-    const allItems = [...threadItems, ...persistedItems];
-
-    setHoverComment({
-      id,
-      ...posFor(m),
-      quote: quoteText || threads[id]?.quote || '',
-      items: allItems,
-    });
-  };
-
-  const handleMarkClick = (id: string, m: HTMLElement) => {
-    setHoverComment(null);
-
-    if (popRefVal.current?.isDraft && popRefVal.current.id !== id) {
-      const prevT = threadsRefVal.current[popRefVal.current.id];
-      if (!prevT || !prevT.items || prevT.items.length === 0) {
-        const prevMark = document.querySelector(`mark[data-c="${popRefVal.current.id}"]`);
-        if (prevMark) prevMark.replaceWith(...Array.from(prevMark.childNodes));
-      }
-    }
-
-    const quoteText = (m.innerText || m.textContent || '').trim();
-
-    const matchedComments = (commentsData?.data || []).filter((cm: any) => {
-      const rawContent = cm.content || cm.text || '';
-      const quoteMatch = rawContent.match(/^«([^»]+)»:\s*([\s\S]*)$/);
-      const q = cm.quote || (quoteMatch ? quoteMatch[1] : null);
-      const matchById = id && (id === `c_${cm.id}` || id === String(cm.id));
-      const matchByQuote = q && (q.trim() === quoteText || quoteText.includes(q.trim()) || q.trim().includes(quoteText));
-      return matchById || matchByQuote;
-    });
-
-    const persistedItems = matchedComments.map((cm: any) => {
-      const rawContent = cm.content || cm.text || '';
-      const quoteMatch = rawContent.match(/^«([^»]+)»:\s*([\s\S]*)$/);
-      const mainContent = quoteMatch ? quoteMatch[2] : rawContent;
-      const when = cm.createdAt
-        ? new Date(cm.createdAt).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
-        : (cm.when || '');
-      return {
-        author: cm.user?.name || cm.author || 'Usuario',
-        when,
-        text: mainContent,
-      };
-    });
-
-    const existingLocalItems = threads[id]?.items || [];
-    const combinedItems = [...persistedItems];
-    for (const localItem of existingLocalItems) {
-      if (!combinedItems.some(p => p.text === localItem.text && p.author === localItem.author)) {
-        combinedItems.push(localItem);
-      }
-    }
-
-    setThreads(prev => ({
-      ...prev,
-      [id]: {
-        quote: quoteText || prev[id]?.quote || '',
-        items: combinedItems,
-      },
-    }));
-
-    setPop({ id, ...posFor(m), isDraft: false });
-    setPopInput('');
-    setTimeout(() => popRef.current?.focus(), 50);
+    startInlineComment(ref, undefined, e);
   };
 
   const locateMark = (quoteText: string) => {
-    if (!quoteText) return;
-    const cleanQ = quoteText.trim();
-
-    if (copyPerCanal) {
-      for (const [canal, text] of Object.entries(copyPerCanal)) {
-        if (text?.includes(cleanQ)) {
-          setActiveCopyTab(canal);
-          break;
+    locateMarkBase(quoteText, (cleanQ) => {
+      if (copyPerCanal) {
+        for (const [canal, text] of Object.entries(copyPerCanal)) {
+          if (text?.includes(cleanQ)) {
+            setActiveCopyTab(canal);
+            break;
+          }
         }
       }
-    }
-
-    setTimeout(() => {
-      const allMarks = Array.from(document.querySelectorAll('mark[data-c]')) as HTMLElement[];
-      const found = allMarks.find(el => {
-        const text = (el.innerText || el.textContent || '').trim();
-        return text === cleanQ || text.includes(cleanQ) || cleanQ.includes(text);
-      });
-      if (found) {
-        found.scrollIntoView?.({ behavior: 'smooth', block: 'center' });
-        found.style.transition = 'box-shadow 0.3s ease, background-color 0.3s ease';
-        const origBg = found.style.backgroundColor;
-        found.style.backgroundColor = '#00ff99';
-        found.style.boxShadow = '0 0 0 3px rgba(2, 79, 255, 0.4)';
-        setTimeout(() => {
-          found.style.backgroundColor = origBg;
-          found.style.boxShadow = '';
-        }, 1500);
-        const markId = found.dataset.c;
-        if (markId) {
-          handleMarkClick(markId, found);
-        }
-      }
-    }, 60);
-  };
-
-  const sendPop = (incomingText?: string) => {
-    const text = (incomingText ?? popInput).trim();
-    if (!pop || !text) return;
-    const d = new Date();
-    const when = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-    const quote = threads[pop.id]?.quote;
-    const item = { author: currentUser?.name || currentUser?.email || 'Usuario', when, text };
-    setThreads(prev => ({
-      ...prev,
-      [pop.id]: {
-        ...prev[pop.id],
-        items: [...(prev[pop.id]?.items || []), item],
-      },
-    }));
-    setPop(prev => (prev ? { ...prev, isDraft: false } : null));
-    if (ticketId) {
-      const payload = quote ? `«${quote}»: ${text}` : text;
-      createCommentMutation.mutate(payload);
-    }
-    setPopInput('');
+    });
   };
 
   if (isLoading) {
@@ -737,25 +514,6 @@ export function TicketDetallePage() {
     )
   );
 
-  const assignedList: any[] = (() => {
-    if (rawAssignedIds.length > 0) {
-      return rawAssignedIds.map(uid => {
-        const fromAllUsers = allUsers.find((u: any) => u.id === uid);
-        if (fromAllUsers) return fromAllUsers;
-        const fromAssignees = ((ticket as any)?.assignees || []).find((a: any) => a.id === uid);
-        if (fromAssignees) return fromAssignees;
-        if (ticket?.owner?.id === uid) return ticket.owner;
-        return { id: uid, name: 'Usuario' };
-      });
-    }
-    if (Array.isArray((ticket as any)?.assignees) && (ticket as any).assignees.length > 0) {
-      return (ticket as any).assignees;
-    }
-    if (ticket?.owner) {
-      return [ticket.owner];
-    }
-    return [];
-  })();
 
   return (
     <div className="min-h-[calc(100vh-64px)] bg-[#f7fafc] font-anek">
@@ -835,7 +593,6 @@ export function TicketDetallePage() {
                   onClick={() => {
                     setDelOpen(!delOpen);
                     setMoreOpen(false);
-                    setShowStatusDropdown(false);
                   }}
                   title="Eliminar ticket"
                   className="shrink-0 whitespace-nowrap h-[44px] px-3.5 border border-[#f1b5a3] bg-white rounded-lg cursor-pointer font-anek text-[15px] font-bold text-[#d4380d] flex items-center gap-2 hover:bg-[#d4380d]/[0.06] transition-colors"
@@ -884,7 +641,6 @@ export function TicketDetallePage() {
                   onClick={() => {
                     setMoreOpen(!moreOpen);
                     setDelOpen(false);
-                    setShowStatusDropdown(false);
                   }}
                   title="Más acciones"
                   className="w-[44px] h-[44px] border border-[#d6dde5] bg-white rounded-lg cursor-pointer text-[#3a4655] flex items-center justify-center hover:bg-[#eef3f7] transition-colors"
@@ -923,61 +679,15 @@ export function TicketDetallePage() {
               </div>
 
               {/* Split advance button: Pasar a [Estado] */}
-              <div className="flex relative ml-1 sm:ml-1.5">
-                <button
-                  type="button"
-                  onClick={handleNextStatusClick}
-                  className="shrink-0 whitespace-nowrap h-[44px] px-5 sm:px-6 bg-[#024fff] text-white rounded-l-lg cursor-pointer font-anek text-[15px] font-bold flex items-center gap-2.5 hover:bg-[#0c57d3] transition-colors shadow-sm"
-                >
-                  <ArrowRight className="w-4 h-4 shrink-0" />
-                  <span>Pasar a {nextInfo.label}</span>
-                </button>
-                <button
-                  type="button"
-                  data-menu="1"
-                  onClick={() => {
-                    setShowStatusDropdown(!showStatusDropdown);
-                    setMoreOpen(false);
-                    setDelOpen(false);
-                  }}
-                  title="Otros estados"
-                  className="h-[44px] w-[42px] border-0 border-l border-white/30 bg-[#024fff] text-white rounded-r-lg cursor-pointer flex items-center justify-center hover:bg-[#0c57d3] transition-colors shadow-sm"
-                >
-                  <ChevronDown className="w-4 h-4" />
-                </button>
-
-                {showStatusDropdown && (
-                  <div
-                    data-menu="1"
-                    className="absolute top-[52px] right-0 w-[240px] bg-white border border-[#d6dde5] rounded-[10px] shadow-[0_12px_32px_rgba(0,14,31,.16)] p-1.5 flex flex-col gap-0.5 z-40 text-left"
-                  >
-                    <span className="text-[11px] font-bold tracking-[0.08em] uppercase text-[#8c96a3] px-2.5 pt-2 pb-1">
-                      Mover a
-                    </span>
-                    {(esPrensa ? PRENSA_STATUS_OPTIONS : STATUS_OPTIONS).map(opt => {
-                      const isCurrent = esPrensa ? (ticket.subEstado ?? 'PENDIENTE') === opt.value : ticket.status === opt.value;
-                      const isNext = opt.value === nextInfo.next;
-                      return (
-                        <button
-                          key={opt.value}
-                          type="button"
-                          onClick={() => handleSelectStatus(opt.value, esPrensa)}
-                          className={`w-full border-0 bg-transparent cursor-pointer font-anek text-[15px] p-2.5 rounded-md text-left transition-colors flex items-center justify-between ${
-                            isCurrent
-                              ? 'text-[#8c96a3] font-normal hover:bg-[#eef3f7]'
-                              : isNext
-                              ? 'text-[#024fff] font-bold hover:bg-[#eef3f7]'
-                              : 'text-[#0d0d0d] font-normal hover:bg-[#eef3f7]'
-                          }`}
-                        >
-                          <span>{isCurrent ? `${opt.label} · actual` : opt.label}</span>
-                          {isCurrent && <Check className="w-3.5 h-3.5 text-[#8c96a3]" />}
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
+              <TicketStatusPicker
+                variant="page"
+                currentStatus={esPrensa ? (ticket.subEstado ?? 'PENDIENTE') : ticket.status}
+                nextStatusLabel={nextInfo.label}
+                nextStatusValue={nextInfo.next}
+                options={esPrensa ? PRENSA_STATUS_OPTIONS : STATUS_OPTIONS}
+                onAdvance={handleNextStatusClick}
+                onSelectStatus={(status) => handleSelectStatus(status, esPrensa)}
+              />
             </div>
           </div>
 
@@ -1238,45 +948,44 @@ export function TicketDetallePage() {
                     <Sparkles className="w-4 h-4" />
                     <span>Redactar con IA</span>
                   </button>
-                  <button
-                    type="button"
-                    onClick={copiarCopy}
-                    className="shrink-0 whitespace-nowrap h-[40px] px-3.5 border border-[#d6dde5] bg-white rounded-lg cursor-pointer font-anek text-[15px] font-bold text-[#0d0d0d] flex items-center gap-2 hover:bg-[#eef3f7] transition-colors"
-                  >
-                    <CopyIcon className="w-4 h-4" />
-                    <span>{copyCopiado ? 'Copiado' : 'Copiar'}</span>
-                  </button>
                 </div>
 
                 <div className="border border-[#d6dde5] rounded-[12px] overflow-hidden bg-white shadow-xs">
                   {/* Redes tabs */}
-                  <div className="flex items-center gap-1.5 p-2 border-b border-[#eef3f7] bg-[#f7fafc] flex-wrap">
-                    {(ticket.canales?.length > 0 ? ticket.canales : ['LinkedIn']).map((r: string) => (
-                      <button
-                        key={r}
-                        type="button"
-                        onClick={() => setActiveCopyTab(r)}
-                        className={`shrink-0 whitespace-nowrap border-0 cursor-pointer font-anek text-[15px] font-bold h-[36px] px-3.5 rounded-md transition-colors ${
-                          activeCopyTab === r
-                            ? 'bg-white text-[#024fff] shadow-[0_1px_2px_rgba(0,14,31,.12)]'
-                            : 'bg-transparent text-[#5b6675] hover:bg-[#eef3f7]'
-                        }`}
-                      >
-                        {r}
-                      </button>
-                    ))}
-                    {['LinkedIn', 'Instagram', 'Twitter/X']
-                      .filter(rd => !(ticket.canales || []).includes(rd))
-                      .map(ar => (
+                  <div className="flex items-center justify-between gap-2 p-2 border-b border-[#eef3f7] bg-[#f7fafc] flex-wrap">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      {(ticket.canales?.length > 0 ? ticket.canales : ['LinkedIn']).map((r: string) => (
                         <button
-                          key={ar}
+                          key={r}
                           type="button"
-                          onClick={() => toggleRed(ar)}
-                          className="shrink-0 whitespace-nowrap border border-dashed border-[#b9c2cd] bg-transparent cursor-pointer font-anek text-[14px] font-medium h-[34px] px-3 rounded-md text-[#3a4655] hover:border-[#024fff] hover:text-[#024fff] transition-colors"
+                          onClick={() => setActiveCopyTab(r)}
+                          className={`shrink-0 whitespace-nowrap border-0 cursor-pointer font-anek text-[15px] font-bold h-[36px] px-3.5 rounded-md transition-colors ${
+                            activeCopyTab === r
+                              ? 'bg-white text-[#024fff] shadow-[0_1px_2px_rgba(0,14,31,.12)]'
+                              : 'bg-transparent text-[#5b6675] hover:bg-[#eef3f7]'
+                          }`}
                         >
-                          + {ar}
+                          {r}
                         </button>
                       ))}
+                      {['LinkedIn', 'Instagram', 'Twitter/X']
+                        .filter(rd => !(ticket.canales || []).includes(rd))
+                        .map(ar => (
+                          <button
+                            key={ar}
+                            type="button"
+                            onClick={() => toggleRed(ar)}
+                            className="shrink-0 whitespace-nowrap border border-dashed border-[#b9c2cd] bg-transparent cursor-pointer font-anek text-[14px] font-medium h-[34px] px-3 rounded-md text-[#3a4655] hover:border-[#024fff] hover:text-[#024fff] transition-colors"
+                          >
+                            + {ar}
+                          </button>
+                        ))}
+                    </div>
+
+                    <TicketCopyButton
+                      text={currentCopy}
+                      editorRef={copyRef}
+                    />
                   </div>
 
                   {/* Toolbar */}
@@ -1550,141 +1259,18 @@ export function TicketDetallePage() {
               <span className="text-[13px] font-[800] tracking-[0.07em] uppercase text-[#0d0d0d]">Seguimiento</span>
 
               {/* Owners */}
-              <div data-owners-menu="1" className="flex flex-col gap-2 relative">
-                <div className="flex items-center justify-between">
-                  <span className="text-[12px] font-bold tracking-[0.06em] uppercase text-[#5b6675]">
-                    {isPieza ? 'Owners' : 'Responsables'}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setOwnersOpen(!ownersOpen);
-                      setOwnerQuery('');
-                      setSelectedOwnerIndex(0);
-                    }}
-                    className="shrink-0 whitespace-nowrap border-0 bg-transparent cursor-pointer font-anek text-[14px] font-bold text-[#024fff] px-1.5 py-1 rounded hover:bg-[#024fff]/8 transition-colors"
-                  >
-                    {ownersOpen ? '✕ Cerrar' : '+ Agregar'}
-                  </button>
-                </div>
-
-                <div className="flex flex-wrap gap-2">
-                  {assignedList.map((u: any) => (
-                    <span
-                      key={u.id}
-                      className="flex items-center gap-2 py-1 pl-1 pr-1.5 bg-white border border-[#d6dde5] rounded-full text-[15px] font-medium whitespace-nowrap"
-                    >
-                      <span className="w-7 h-7 rounded-full bg-[#024fff] text-white text-[11px] font-bold flex items-center justify-center">
-                        <span className="translate-y-[0.5px] leading-none select-none">{ini(u.name)}</span>
-                      </span>
-                      <span className="text-[#0d0d0d]">{u.name}</span>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const next = rawAssignedIds.filter((id: string) => id !== u.id);
-                          updateMutation.mutate({
-                            assigneeIds: next,
-                            ownerId: next[0] || null,
-                          });
-                        }}
-                        title="Quitar"
-                        className="border-0 bg-transparent cursor-pointer text-[#8c96a3] w-[22px] h-[22px] rounded-full flex items-center justify-center hover:bg-[#eef3f7] hover:text-[#0d0d0d] p-0"
-                      >
-                        <XIcon className="w-3 h-3" />
-                      </button>
-                    </span>
-                  ))}
-                  {assignedList.length === 0 && (
-                    <span className="text-[15px] text-[#8c96a3]">Sin asignar</span>
-                  )}
-                </div>
-
-                {(() => {
-                  const candidateOwners = allUsers.filter(
-                    (u: any) => !assignedList.some((a: any) => a.id === u.id) && u.name.toLowerCase().includes(ownerQuery.trim().toLowerCase())
-                  );
-                  return ownersOpen && (
-                    <div
-                      className="absolute top-[34px] right-0 w-[260px] bg-white border border-[#d6dde5] rounded-[10px] shadow-[0_12px_32px_rgba(0,14,31,.16)] p-1.5 z-40 flex flex-col gap-0.5 text-left"
-                    >
-                      <input
-                        value={ownerQuery}
-                        onChange={e => {
-                          setOwnerQuery(e.target.value);
-                          setSelectedOwnerIndex(0);
-                        }}
-                        onKeyDown={e => {
-                          if (e.key === 'Escape') {
-                            e.preventDefault();
-                            setOwnersOpen(false);
-                          } else if (e.key === 'ArrowDown') {
-                            e.preventDefault();
-                            if (candidateOwners.length > 0) {
-                              setSelectedOwnerIndex(prev => (prev + 1) % candidateOwners.length);
-                            }
-                          } else if (e.key === 'ArrowUp') {
-                            e.preventDefault();
-                            if (candidateOwners.length > 0) {
-                              setSelectedOwnerIndex(prev => (prev - 1 + candidateOwners.length) % candidateOwners.length);
-                            }
-                          } else if (e.key === 'Enter') {
-                            e.preventDefault();
-                            const u = candidateOwners[selectedOwnerIndex];
-                            if (u) {
-                              if (!rawAssignedIds.includes(u.id)) {
-                                const next = [...rawAssignedIds, u.id];
-                                updateMutation.mutate({
-                                  assigneeIds: next,
-                                  ownerId: next[0] || u.id,
-                                });
-                              }
-                              setOwnerQuery('');
-                              setOwnersOpen(false);
-                            }
-                          }
-                        }}
-                        autoFocus
-                        placeholder="Buscar persona…"
-                        className="h-[38px] box-border font-anek text-[15px] px-3 border border-[#d6dde5] rounded-md outline-none mb-1 focus:border-[#024fff]"
-                      />
-                      <div className="flex flex-col max-h-[220px] overflow-y-auto">
-                        {candidateOwners.length === 0 && (
-                          <span className="text-[13px] text-[#8c96a3] p-2 text-center">Nadie coincide con la búsqueda</span>
-                        )}
-                        {candidateOwners.map((u: any, idx: number) => {
-                          const isSelected = idx === selectedOwnerIndex;
-                          return (
-                            <button
-                              key={u.id}
-                              type="button"
-                              onMouseEnter={() => setSelectedOwnerIndex(idx)}
-                              onClick={() => {
-                                if (!rawAssignedIds.includes(u.id)) {
-                                  const next = [...rawAssignedIds, u.id];
-                                  updateMutation.mutate({
-                                    assigneeIds: next,
-                                    ownerId: next[0] || u.id,
-                                  });
-                                }
-                                setOwnerQuery('');
-                                setOwnersOpen(false);
-                              }}
-                              className={`flex items-center gap-2.5 border-0 cursor-pointer font-anek text-[15px] p-2 px-2.5 rounded-md text-left transition-colors ${
-                                isSelected ? 'bg-[#024fff]/10 text-[#024fff] font-bold' : 'bg-transparent text-[#0d0d0d] hover:bg-[#eef3f7]'
-                              }`}
-                            >
-                              <span className="w-[26px] h-[26px] rounded-full bg-[#024fff] text-white text-[10px] font-bold flex items-center justify-center shrink-0">
-                                <span className="translate-y-[0.5px] leading-none select-none">{ini(u.name)}</span>
-                              </span>
-                              <span className="flex-1 truncate">{u.name}</span>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  );
-                })()}
-              </div>
+              <TicketOwnersPicker
+                assigneeIds={rawAssignedIds}
+                users={allUsers}
+                label={isPieza ? 'Owners' : 'Responsables'}
+                variant="page"
+                onChange={(next) => {
+                  updateMutation.mutate({
+                    assigneeIds: next,
+                    ownerId: next[0] || null,
+                  });
+                }}
+              />
 
               {/* Fechas */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

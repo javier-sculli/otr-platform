@@ -258,5 +258,26 @@ describe('TicketDetallePage (Smoke / Montaje)', () => {
     expect(document.querySelector('mark[data-c="c_cm-1"]')).toBeInTheDocument();
     expect(document.querySelector('mark[data-c="c_cm-1"]')?.textContent).toBe('texto resaltado');
   });
+
+  it('renderiza el botón copiar copy dentro de la caja a la altura de las redes y no afuera', async () => {
+    (api.getTicket as any).mockResolvedValue({
+      data: mockFullTicket,
+    });
+
+    renderTicketDetalle('ticket-999');
+
+    await waitFor(() => {
+      expect(screen.getByText('Texto de copy para LinkedIn')).toBeInTheDocument();
+    });
+
+    const copyBtn = screen.getByTestId('ticket-copy-button');
+    expect(copyBtn).toBeInTheDocument();
+    expect(copyBtn).toHaveTextContent('Copiar');
+
+    // Debe estar en el mismo contenedor que los tabs de redes
+    const linkedInTab = screen.getByRole('button', { name: 'LinkedIn' });
+    const redesRow = linkedInTab.closest('.border-b');
+    expect(redesRow).toContainElement(copyBtn);
+  });
 });
 

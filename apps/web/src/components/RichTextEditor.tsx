@@ -120,21 +120,6 @@ export const RichTextEditor = forwardRef<HTMLDivElement, RichTextEditorProps>(
         return;
       }
 
-      // Si el usuario hace click específicamente en el contenedor vacío
-      // (por ejemplo, en el espacio en blanco inferior del editor), colocar el cursor al final.
-      // Si hizo click sobre el contenido (un párrafo, línea o palabra), respetar la posición del click.
-      if (e.target === e.currentTarget && typeof window !== 'undefined' && window.getSelection) {
-        try {
-          const range = document.createRange();
-          const sel = window.getSelection();
-          range.selectNodeContents(e.currentTarget);
-          range.collapse(false);
-          sel?.removeAllRanges();
-          sel?.addRange(range);
-        } catch {
-          // ignore
-        }
-      }
     };
 
     const handlePaste = (e: React.ClipboardEvent<HTMLDivElement>) => {

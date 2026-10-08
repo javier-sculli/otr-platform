@@ -268,8 +268,16 @@ describe('CreateTicketModal', () => {
     const textarea = await screen.findByPlaceholderText('Descripción — detalle del pedido');
     expect(textarea).toHaveValue('Texto inicial');
 
+    // En jsdom, posicionar la selección al final para simular tipeo al final del contenido
+    textarea.focus();
+    const range1 = document.createRange();
+    range1.selectNodeContents(textarea);
+    range1.collapse(false);
+    window.getSelection()?.removeAllRanges();
+    window.getSelection()?.addRange(range1);
+
     // El usuario escribe texto continuo
-    await userEvent.type(textarea, ' con detalles adicionales');
+    await userEvent.type(textarea, ' con detalles adicionales', { skipClick: true });
     expect(textarea).toHaveValue('Texto inicial con detalles adicionales');
 
     // Al salir del campo (onBlur) se dispara el guardado
@@ -320,8 +328,16 @@ describe('CreateTicketModal', () => {
 
     const textarea = await screen.findByPlaceholderText('Descripción — detalle del pedido');
 
+    // En jsdom, posicionar la selección al final para simular tipeo al final del contenido
+    textarea.focus();
+    const range2 = document.createRange();
+    range2.selectNodeContents(textarea);
+    range2.collapse(false);
+    window.getSelection()?.removeAllRanges();
+    window.getSelection()?.addRange(range2);
+
     // El usuario escribe pero NO hace blur
-    await userEvent.type(textarea, ' - texto sin salir del campo');
+    await userEvent.type(textarea, ' - texto sin salir del campo', { skipClick: true });
 
     // Cierra el modal directamente haciendo clic en el backdrop oscuro
     const backdrop = document.querySelector('.bg-black\\/40');
@@ -706,6 +722,47 @@ describe('CreateTicketModal', () => {
         })
       );
     });
+  });
+
+  it('renderiza el botón copiar copy dentro de la caja a la altura de las redes en CreateTicketModal', async () => {
+    const mockTicketWithCopy = {
+      id: 'ticket-copy-popup',
+      title: 'Ticket con copy en popup',
+      status: 'REDACCION',
+      canales: ['LinkedIn'],
+      tiposContenido: ['Post'],
+      contentPerCanal: {
+        LinkedIn: '<p>Copy de popup</p>',
+      },
+      client: { id: 'c1', name: 'Cliente A' },
+      owner: { id: 'u1', name: 'Tester' },
+    };
+
+    (api.getTicket as any).mockResolvedValue({
+      data: mockTicketWithCopy,
+    });
+
+    render(
+      <CreateTicketModal
+        isOpen={true}
+        onClose={vi.fn()}
+        ticket={mockTicketWithCopy as any}
+      />,
+      { wrapper: createWrapper() }
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('Copy de popup')).toBeInTheDocument();
+    });
+
+    const copyBtn = screen.getByTestId('ticket-copy-button');
+    expect(copyBtn).toBeInTheDocument();
+    expect(copyBtn).toHaveTextContent('Copiar');
+
+    // Debe estar dentro del contenedor de tabs de redes
+    const linkedInTab = screen.getByRole('button', { name: 'LinkedIn' });
+    const redesRow = linkedInTab.closest('.border-b');
+    expect(redesRow).toContainElement(copyBtn);
   });
 });
 

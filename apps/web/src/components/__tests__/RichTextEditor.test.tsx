@@ -74,7 +74,7 @@ describe('RichTextEditor', () => {
     }
   });
 
-  it('al hacer click en el espacio vacío del contenedor, mueve el cursor al final', () => {
+  it('al hacer click en el editor, no sobreescribe la posición nativa del cursor', () => {
     const onChange = vi.fn();
     render(
       <RichTextEditor
@@ -97,9 +97,9 @@ describe('RichTextEditor', () => {
 
     try {
       fireEvent.click(editor);
-      // El click sobre el contenedor vacío (target === currentTarget) sí lleva el cursor al final
-      expect(selectNodeContentsSpy).toHaveBeenCalledWith(editor);
-      expect(collapseSpy).toHaveBeenCalledWith(false);
+      // El click sobre el editor respeta la posición del usuario y NO fuerza el cursor al final
+      expect(selectNodeContentsSpy).not.toHaveBeenCalled();
+      expect(collapseSpy).not.toHaveBeenCalled();
     } finally {
       document.createRange = originalCreateRange;
     }

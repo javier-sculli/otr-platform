@@ -4,6 +4,21 @@
 > 
 > 🎯 **BACKLOG OFICIAL Y PRIORIDADES (FUENTE DE VERDAD):** [Notion Backlog Oficial](https://app.notion.com/p/Backlog-3ba617fc369281048bfdfc89c5041d9c?source=copy_link). Todas las prioridades y tareas activas se gestionan directamente allí.
 
+### [2026-10-08] — Botón "Copiar" del Copy dentro de la Caja a la Altura de las Redes (Popup y Ticket)
+- **Desarrollador:** Antigravity (Pair Programming con Javier Sculli)
+- **Resumen de Avances:**
+  1. **Componente Unificado Reutilizable (`TicketCopyButton.tsx`):**
+     - Se creó el componente `TicketCopyButton` compartido entre la vista completa de ticket (`TicketDetallePage.tsx`) y el modal/popup (`CreateTicketModal.tsx`).
+     - Soporta extracción de texto directo desde la referencia del editor (`editorRef.current.innerText` / `textContent`) o fallback sobre la cadena provista (`text`), con formateo y limpieza vía `copyHtmlToClipboard`.
+     - Indicador temporal de feedback visual "Copiado" con icono de check verde y transición de retorno a los 2 segundos.
+  2. **Ubicación en el Borde Superior Derecho a la Altura de las Redes:**
+     - El botón "Copiar" se trasladó al interior de la caja de copy, alineado a la derecha en la barra superior junto a las pestañas de selección de redes sociales (`LinkedIn`, `Instagram`, etc.).
+     - En `TicketDetallePage`, se removió el botón redundante del encabezado externo, manteniendo "Redactar con IA" afuera y "Copiar" dentro del marco del contenido.
+     - En `CreateTicketModal`, se incorporó idéntica disposición en el encabezado de canales de copy.
+- **Suite de Tests:**
+  - Tests unitarios en `TicketCopyButton.test.tsx`, `TicketDetallePage.test.tsx` y `ticketModals.test.tsx` verificando la presencia y ubicación del botón en ambos entornos.
+- **Verificación:** 121 tests aprobados en Vitest (`npm test`), verificación de tipos (`npm run typecheck`) limpia y build (`npm run build`) exitoso.
+
 ### [2026-10-08] — Corrección en Menciones (@) en Popover de Comentarios de Brief y Selección
 - **Desarrollador:** Antigravity (Pair Programming con Javier Sculli)
 - **Resumen de Avances:**

@@ -13,8 +13,12 @@ import { TextFormatToolbar } from './TextFormatToolbar';
 import { RichTextEditor } from './RichTextEditor';
 import { MentionTextarea, formatCommentWithMentions } from './MentionTextarea';
 import { TicketPublishLinks } from './ticket/TicketPublishLinks';
+import { TicketCopyButton } from './ticket/TicketCopyButton';
 import { InlineCommentHoverTooltip } from './ticket/InlineCommentHoverTooltip';
 import { InlineCommentPopover } from './ticket/InlineCommentPopover';
+import { TicketOwnersPicker } from './ticket/TicketOwnersPicker';
+import { TicketStatusPicker } from './ticket/TicketStatusPicker';
+import { useInlineComments } from './ticket/useInlineComments';
 
 export type AttachedFile = {
   id: string;
@@ -231,29 +235,12 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
 
   const [linkCopiado, setLinkCopiado] = useState(false);
 
-  const [ownersOpen, setOwnersOpen] = useState(false);
-  const [ownerQuery, setOwnerQuery] = useState('');
-  const [selectedOwnerIndex, setSelectedOwnerIndex] = useState(0);
-  const ownersMenuRef = useRef<HTMLDivElement>(null);
-
-  const [statesOpen, setStatesOpen] = useState(false);
-  const statesMenuRef = useRef<HTMLDivElement>(null);
-
   const [briefOpen, setBriefOpen] = useState(false);
   const [copyOpen, setCopyOpen] = useState(false);
   const [notasOpen, setNotasOpen] = useState(false);
   const [commentInput, setCommentInput] = useState('');
   const [entregableInput, setEntregableInput] = useState('');
 
-  // Inline comment popover state
-  const [pop, setPop] = useState<{ id: string; x: number; y: number; isDraft?: boolean } | null>(null);
-  const [popInput, setPopInput] = useState('');
-  const [threads, setThreads] = useState<Record<string, { quote: string; items: { author: string; when: string; text: string }[] }>>({});
-  const popRef = useRef<HTMLTextAreaElement>(null);
-  const popRefVal = useRef(pop);
-  popRefVal.current = pop;
-  const threadsRefVal = useRef(threads);
-  threadsRefVal.current = threads;
 
   const [isChangingSpeaker, setIsChangingSpeaker] = useState(false);
 
@@ -330,7 +317,35 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
   });
   const comments = commentsData?.data ?? [];
 
-  // Reset or populate on modal open/ticket change
+  const createCommentMutation = useMutation({
+    mutationFn: (text: string) => api.createComment(ticket!.id, text),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['comments', ticket?.id] });
+      setCommentInput('');
+    },
+  });
+
+  const {
+    pop,
+    setPop,
+    threads,
+    hoverComment,
+    handleMarkHover,
+    handleMarkClick,
+    closePop,
+    resolvePop,
+    sendPop,
+    startInlineComment,
+    locateMark: locateMarkBase,
+  } = useInlineComments({
+    comments,
+    currentUser: user,
+    onSubmitComment: ({ fullContent }) => {
+      if (ticket?.id) {
+        createCommentMutation.mutate(fullContent);
+      }
+    },
+  });
   useEffect(() => {
     if (isOpen) {
       const currentId = ticket?.id ?? null;
@@ -448,8 +463,6 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
     const handleOutside = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
       if (fmtMenuRef.current && !fmtMenuRef.current.contains(target)) setFmtOpen(false);
-      if (ownersMenuRef.current && !ownersMenuRef.current.contains(target)) setOwnersOpen(false);
-      if (statesMenuRef.current && !statesMenuRef.current.contains(target)) setStatesOpen(false);
       const path = (e.composedPath ? e.composedPath() : []) as HTMLElement[];
       const isInsidePop = Boolean(
         target.closest?.('[data-inline-pop]') ||
@@ -599,14 +612,6 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
     },
   });
 
-  const createCommentMutation = useMutation({
-    mutationFn: (text: string) => api.createComment(ticket!.id, text),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['comments', ticket?.id] });
-      setCommentInput('');
-    },
-  });
-
   const deleteCommentMutation = useMutation({
     mutationFn: (commentId: string) => api.deleteComment(ticket!.id, commentId),
     onSuccess: () => {
@@ -634,15 +639,13 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
       }
       if (e.key === 'Escape') {
         if (pop) closePop();
-        else if (ownersOpen) setOwnersOpen(false);
         else if (fmtOpen) setFmtOpen(false);
-        else if (statesOpen) setStatesOpen(false);
         else handleClose();
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, pop, ownersOpen, fmtOpen, statesOpen, formData]);
+  }, [isOpen, pop, fmtOpen, formData]);
 
   // Formats handling
   const toggleFormato = (f: string) => {
@@ -707,55 +710,9 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
   };
 
   // Inline Comment Balloon logic
-  const posFor = (mark: HTMLElement) => {
-    const b = mark.getBoundingClientRect();
-    const x = Math.max(8, Math.min(b.left, window.innerWidth - 308));
-    const below = b.bottom + 8;
-    const y = below + 260 > window.innerHeight ? Math.max(8, b.top - 268) : below;
-    return { x, y };
-  };
-
+  // Inline Comment Balloon logic
   const triggerCommentForEditor = (ref: React.RefObject<HTMLDivElement | null>) => {
-    const root = ref.current;
-    const sel = window.getSelection();
-    if (!root || !sel || !sel.rangeCount || sel.isCollapsed || !root.contains(sel.anchorNode)) {
-      alert('Seleccioná un fragmento del texto para comentarlo.');
-      return;
-    }
-    const quote = sel.toString().trim();
-    if (!quote) return;
-    if (popRefVal.current?.isDraft) {
-      const prevT = threadsRefVal.current[popRefVal.current.id];
-      if (!prevT || !prevT.items || !prevT.items.length) {
-        const prevMark = document.querySelector(`mark[data-c="${popRefVal.current.id}"]`);
-        if (prevMark) prevMark.replaceWith(...Array.from(prevMark.childNodes));
-        setThreads(prev => {
-          const c = { ...prev };
-          delete c[popRefVal.current!.id];
-          return c;
-        });
-      }
-    }
-
-    const id = 'c' + Date.now();
-    const range = sel.getRangeAt(0);
-    const m = document.createElement('mark');
-    m.dataset.c = id;
-    m.style.backgroundColor = 'rgba(0, 255, 178, 0.35)';
-    m.style.borderRadius = '2px';
-    m.style.padding = '1px 2px';
-    m.style.cursor = 'pointer';
-    try {
-      m.appendChild(range.extractContents());
-      range.insertNode(m);
-    } catch {
-      return;
-    }
-    sel.removeAllRanges();
-
-    // Sync newly inserted mark HTML into formData state and storage
-    if (ref.current) {
-      const newHtml = ref.current.innerHTML;
+    startInlineComment(ref, (newHtml) => {
       if (ref === briefRef) {
         handleChange('brief', newHtml);
       } else if (ref === copyRef) {
@@ -763,228 +720,27 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
       } else if (ref === notasRef) {
         handleChange('notasAudiovisual', newHtml);
       }
-    }
-
-    setThreads(prev => ({ ...prev, [id]: { quote, items: [] } }));
-    setPop({ id, ...posFor(m), isDraft: true });
-    setPopInput('');
-    setTimeout(() => popRef.current?.focus(), 50);
-  };
-
-  const [hoverComment, setHoverComment] = useState<{
-    id: string;
-    x: number;
-    y: number;
-    quote: string;
-    items: { author: string; when: string; text: string }[];
-  } | null>(null);
-
-  const handleMarkHover = (id: string | null, m: HTMLElement | null) => {
-    if (!id || !m) {
-      setHoverComment(null);
-      return;
-    }
-    // If pop is open for this or another mark, let user interact with pop without distraction
-    if (pop) return;
-
-    const quoteText = (m.innerText || m.textContent || '').trim();
-    const threadItems = threads[id]?.items || [];
-
-    // Also look up any persisted comments matching this quote
-    const matchedComments = comments.filter((cm: any) => {
-      const rawContent = cm.content || cm.text || '';
-      const quoteMatch = rawContent.match(/^«([^»]+)»:\s*([\s\S]*)$/);
-      const q = cm.quote || (quoteMatch ? quoteMatch[1] : null);
-      return q && (q.trim() === quoteText || quoteText.includes(q.trim()) || q.trim().includes(quoteText));
     });
-
-    const persistedItems = matchedComments.map((cm: any) => {
-      const rawContent = cm.content || cm.text || '';
-      const quoteMatch = rawContent.match(/^«([^»]+)»:\s*([\s\S]*)$/);
-      const mainContent = quoteMatch ? quoteMatch[2] : rawContent;
-      const when = cm.createdAt
-        ? new Date(cm.createdAt).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
-        : (cm.when || '');
-      return {
-        author: cm.user?.name || cm.author || 'Usuario',
-        when,
-        text: mainContent,
-      };
-    });
-
-    const allItems = [...threadItems, ...persistedItems];
-
-    setHoverComment({
-      id,
-      ...posFor(m),
-      quote: quoteText || threads[id]?.quote || '',
-      items: allItems,
-    });
-  };
-
-  const handleMarkClick = (id: string, m: HTMLElement) => {
-    setHoverComment(null);
-
-    if (popRefVal.current?.isDraft && popRefVal.current.id !== id) {
-      const prevT = threadsRefVal.current[popRefVal.current.id];
-      if (!prevT || !prevT.items || !prevT.items.length) {
-        const prevMark = document.querySelector(`mark[data-c="${popRefVal.current.id}"]`);
-        if (prevMark) prevMark.replaceWith(...Array.from(prevMark.childNodes));
-        setThreads(prev => {
-          const c = { ...prev };
-          delete c[popRefVal.current!.id];
-          return c;
-        });
-      }
-    }
-
-    const quoteText = (m.innerText || m.textContent || '').trim();
-
-    // Also look up any persisted comments matching this quote or id
-    const matchedComments = comments.filter((cm: any) => {
-      const rawContent = cm.content || cm.text || '';
-      const quoteMatch = rawContent.match(/^«([^»]+)»:\s*([\s\S]*)$/);
-      const q = cm.quote || (quoteMatch ? quoteMatch[1] : null);
-      const matchById = id && (id === `c_${cm.id}` || id === String(cm.id));
-      const matchByQuote = q && (q.trim() === quoteText || quoteText.includes(q.trim()) || q.trim().includes(quoteText));
-      return matchById || matchByQuote;
-    });
-
-    const persistedItems = matchedComments.map((cm: any) => {
-      const rawContent = cm.content || cm.text || '';
-      const quoteMatch = rawContent.match(/^«([^»]+)»:\s*([\s\S]*)$/);
-      const mainContent = quoteMatch ? quoteMatch[2] : rawContent;
-      const when = cm.createdAt
-        ? new Date(cm.createdAt).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
-        : (cm.when || '');
-      return {
-        author: cm.user?.name || cm.author || 'Usuario',
-        when,
-        text: mainContent,
-      };
-    });
-
-    const existingLocalItems = threads[id]?.items || [];
-    const combinedItems = [...persistedItems];
-    for (const localItem of existingLocalItems) {
-      if (!combinedItems.some(p => p.text === localItem.text && p.author === localItem.author)) {
-        combinedItems.push(localItem);
-      }
-    }
-
-    setThreads(prev => ({
-      ...prev,
-      [id]: {
-        quote: quoteText || prev[id]?.quote || '',
-        items: combinedItems,
-      },
-    }));
-
-    setPop({ id, ...posFor(m), isDraft: false });
-    setPopInput('');
-    setTimeout(() => popRef.current?.focus(), 50);
   };
 
   const locateMark = (quoteText: string) => {
-    if (!quoteText) return;
-    const cleanQ = quoteText.trim();
-
-    // Check if the quote belongs to brief, notas, or a specific copy tab and ensure it's visible
-    if (formData.brief?.includes(cleanQ)) {
-      setBriefOpen(true);
-    }
-    if (formData.notasAudiovisual?.includes(cleanQ)) {
-      setNotasOpen(true);
-    }
-    if (formData.contentPerCanal) {
-      for (const [canal, text] of Object.entries(formData.contentPerCanal)) {
-        if (text?.includes(cleanQ)) {
-          setActiveCopyTab(canal);
-          setCopyOpen(true);
-          break;
+    locateMarkBase(quoteText, (cleanQ) => {
+      if (formData.brief?.includes(cleanQ)) {
+        setBriefOpen(true);
+      }
+      if (formData.notasAudiovisual?.includes(cleanQ)) {
+        setNotasOpen(true);
+      }
+      if (formData.contentPerCanal) {
+        for (const [canal, text] of Object.entries(formData.contentPerCanal)) {
+          if (text?.includes(cleanQ)) {
+            setActiveCopyTab(canal);
+            setCopyOpen(true);
+            break;
+          }
         }
       }
-    }
-
-    setTimeout(() => {
-      const allMarks = Array.from(document.querySelectorAll('mark[data-c]')) as HTMLElement[];
-      const found = allMarks.find(el => {
-        const text = (el.innerText || el.textContent || '').trim();
-        return text === cleanQ || text.includes(cleanQ) || cleanQ.includes(text);
-      });
-      if (found) {
-        found.scrollIntoView?.({ behavior: 'smooth', block: 'center' });
-        found.style.transition = 'box-shadow 0.3s ease, background-color 0.3s ease';
-        const origBg = found.style.backgroundColor;
-        found.style.backgroundColor = '#00ff99';
-        found.style.boxShadow = '0 0 0 3px rgba(2, 79, 255, 0.4)';
-        setTimeout(() => {
-          found.style.backgroundColor = origBg;
-          found.style.boxShadow = '';
-        }, 1500);
-        const markId = found.dataset.c;
-        if (markId) {
-          handleMarkClick(markId, found);
-        }
-      }
-    }, 60);
-  };
-
-
-
-  const closePop = () => {
-    const currentPop = popRefVal.current;
-    if (!currentPop) return;
-    if (currentPop.isDraft) {
-      const currentThreads = threadsRefVal.current;
-      const t = currentThreads[currentPop.id];
-      if (!t || !t.items || !t.items.length) {
-        const mark = document.querySelector(`mark[data-c="${currentPop.id}"]`);
-        if (mark) mark.replaceWith(...Array.from(mark.childNodes));
-        setThreads(prev => {
-          const c = { ...prev };
-          delete c[currentPop.id];
-          return c;
-        });
-      }
-    }
-    setPop(null);
-    setPopInput('');
-  };
-
-  const sendPop = (incomingText?: string) => {
-    const text = (incomingText ?? popInput).trim();
-    if (!pop || !text) return;
-    const d = new Date();
-    const when = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-    const quote = threads[pop.id]?.quote;
-    const item = { author: user?.name || user?.email || 'Usuario', when, text };
-    setThreads(prev => ({
-      ...prev,
-      [pop.id]: {
-        ...prev[pop.id],
-        items: [...(prev[pop.id]?.items || []), item],
-      },
-    }));
-    setPop(prev => (prev ? { ...prev, isDraft: false } : null));
-    if (ticket?.id) {
-      const payload = quote ? `«${quote}»: ${text}` : text;
-      createCommentMutation.mutate(payload);
-    }
-    setPopInput('');
-  };
-
-  const resolvePop = () => {
-    if (!pop) return;
-    const mark = document.querySelector(`mark[data-c="${pop.id}"]`);
-    if (mark) mark.replaceWith(...Array.from(mark.childNodes));
-    setThreads(prev => {
-      const c = { ...prev };
-      delete c[pop.id];
-      return c;
     });
-    setPop(null);
-    setPopInput('');
   };
 
   // Missing fields validation (requeridos para crear ticket nuevo)
@@ -1039,7 +795,6 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
   };
 
   const handleSelectStatusModal = async (targetStatus: string) => {
-    setStatesOpen(false);
     if (!ticket?.id) return;
     if (esPrensa) {
       handleChange('subEstado', targetStatus, true);
@@ -1170,10 +925,6 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
   const showNotasContent = !isCollapsibleNotas || notasOpen;
 
   const teamList = (users?.data ?? []) as any[];
-  const filteredTeam = teamList.filter((u: any) =>
-    !formData.assigneeIds.includes(u.id) &&
-    u.name.toLowerCase().includes(ownerQuery.trim().toLowerCase())
-  );
 
   const formatList = isPieza ? FORMATOS_PIEZA : TIPOS_TAREA;
 
@@ -1681,6 +1432,11 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
                                   </button>
                                 ))}
                               </div>
+
+                              <TicketCopyButton
+                                text={currentCopyText}
+                                editorRef={copyRef}
+                              />
                             </div>
 
                             {/* Standard consistent toolbar */}
@@ -1968,140 +1724,20 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
             <div className="h-px bg-[#d6dde5]"></div>
 
             {/* Owners / Responsables */}
-            <div ref={ownersMenuRef} className="flex flex-col gap-2 relative">
-              <div className="flex items-center justify-between">
-                <label className="text-[11px] font-bold tracking-[0.06em] uppercase text-[#5b6675]">
-                  {isPieza ? 'Owners' : 'Responsables'}
-                </label>
-                <button
-                  type="button"
-                  onClick={() => setOwnersOpen(!ownersOpen)}
-                  className="border-0 bg-transparent cursor-pointer font-anek text-[13px] font-bold text-[#024fff] p-0.5 hover:bg-[#024fff]/8 rounded flex items-center gap-1"
-                >
-                  {ownersOpen ? '✕ Cerrar' : '+ Agregar'}
-                </button>
-              </div>
-
-              <div className="flex flex-wrap gap-1.5 items-center">
-                {formData.assigneeIds.map((uid: string) => {
-                  const u = teamList.find((m: any) => m.id === uid);
-                  if (!u) return null;
-                  return (
-                    <span
-                      key={uid}
-                      className="inline-flex items-center gap-1.5 h-[28px] pl-[3px] pr-2 bg-white border border-[#d6dde5] rounded-full text-[13px] font-medium leading-none box-border"
-                    >
-                      <span className="w-[22px] h-[22px] shrink-0 rounded-full bg-[#024fff] text-white text-[10px] font-bold flex items-center justify-center leading-none select-none">
-                        <span className="translate-y-[0.5px] leading-none select-none">{ini(u.name)}</span>
-                      </span>
-                      <span className="leading-none select-none -translate-y-[1.5px] text-[#0d0d0d]">{u.name}</span>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const next = formData.assigneeIds.filter((id: string) => id !== uid);
-                          handleChange('assigneeIds', next, true);
-                          if (formData.ownerId === uid) {
-                            handleChange('ownerId', next[0] || '', true);
-                          }
-                        }}
-                        className="border-0 bg-transparent cursor-pointer text-[#8c96a3] w-[18px] h-[18px] rounded-full flex items-center justify-center hover:bg-[#eef3f7] hover:text-[#0d0d0d] p-0 shrink-0 ml-0.5"
-                      >
-                        <X className="w-3 h-3" />
-                      </button>
-                    </span>
-                  );
-                })}
-                {formData.assigneeIds.length === 0 && (
-                  <span className="text-[13px] text-[#8c96a3] py-1 flex items-center leading-none">Sin asignar</span>
-                )}
-              </div>
-
-              {ownersOpen && (
-                <>
-                  <div
-                    className="fixed inset-0 z-20 cursor-default"
-                    onClick={() => setOwnersOpen(false)}
-                  />
-                  <div className="absolute top-8 right-0 w-[260px] bg-white border border-[#d6dde5] rounded-[10px] shadow-[0_12px_32px_rgba(0,14,31,.16)] p-2 z-30 flex flex-col gap-1.5 animate-in fade-in zoom-in-95 duration-100">
-                    <div className="flex items-center justify-between pb-1 border-b border-[#eef3f7] px-0.5">
-                      <span className="text-[11px] font-bold uppercase tracking-wider text-[#5b6675]">Asignar persona</span>
-                      <button
-                        type="button"
-                        onClick={() => setOwnersOpen(false)}
-                        className="w-5 h-5 flex items-center justify-center rounded text-[#8c96a3] hover:text-[#0d0d0d] hover:bg-[#eef3f7] cursor-pointer"
-                        title="Cerrar"
-                      >
-                        <X className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                    <input
-                      value={ownerQuery}
-                      onChange={e => {
-                        setOwnerQuery(e.target.value);
-                        setSelectedOwnerIndex(0);
-                      }}
-                      onKeyDown={e => {
-                        if (e.key === 'Escape') {
-                          e.preventDefault();
-                          setOwnersOpen(false);
-                        } else if (e.key === 'ArrowDown') {
-                          e.preventDefault();
-                          if (filteredTeam.length > 0) {
-                            setSelectedOwnerIndex(prev => (prev + 1) % filteredTeam.length);
-                          }
-                        } else if (e.key === 'ArrowUp') {
-                          e.preventDefault();
-                          if (filteredTeam.length > 0) {
-                            setSelectedOwnerIndex(prev => (prev - 1 + filteredTeam.length) % filteredTeam.length);
-                          }
-                        } else if (e.key === 'Enter') {
-                          e.preventDefault();
-                          const u = filteredTeam[selectedOwnerIndex];
-                          if (u) {
-                            const next = [...formData.assigneeIds, u.id];
-                            handleChange('assigneeIds', next, true);
-                            if (!formData.ownerId) handleChange('ownerId', u.id, true);
-                            setOwnerQuery('');
-                            setOwnersOpen(false);
-                          }
-                        }
-                      }}
-                      autoFocus
-                      placeholder="Buscar persona…"
-                      className="h-8 font-anek text-[13px] px-2.5 border border-[#d6dde5] rounded-md outline-none focus:border-[#024fff]"
-                    />
-                    {filteredTeam.length === 0 && (
-                      <span className="text-[13px] text-[#8c96a3] p-2">Nadie coincide con la búsqueda</span>
-                    )}
-                    {filteredTeam.map((u: any, idx: number) => {
-                      const isSelected = idx === selectedOwnerIndex;
-                      return (
-                        <button
-                          key={u.id}
-                          type="button"
-                          onMouseEnter={() => setSelectedOwnerIndex(idx)}
-                          onClick={() => {
-                            const next = [...formData.assigneeIds, u.id];
-                            handleChange('assigneeIds', next, true);
-                            if (!formData.ownerId) handleChange('ownerId', u.id, true);
-                            setOwnerQuery('');
-                            setOwnersOpen(false);
-                          }}
-                          className={`flex items-center gap-2.5 border-0 cursor-pointer font-anek text-[13px] p-1.5 px-2 rounded-md text-left transition-colors ${
-                            isSelected ? 'bg-[#024fff]/10 text-[#024fff] font-bold' : 'bg-transparent text-[#0d0d0d] hover:bg-[#eef3f7]'
-                          }`}
-                        >
-                          <span className="w-5 h-5 rounded-full bg-[#024fff] text-white text-[9px] font-bold flex items-center justify-center">
-                            <span className="translate-y-[0.5px] leading-none select-none">{ini(u.name)}</span>
-                          </span>
-                          <span className="flex-1 truncate">{u.name}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </>
-              )}
-            </div>
+            <TicketOwnersPicker
+              assigneeIds={formData.assigneeIds}
+              users={teamList}
+              label={isPieza ? 'Owners' : 'Responsables'}
+              variant="modal"
+              onChange={(next) => {
+                handleChange('assigneeIds', next, true);
+                if (!formData.ownerId && next.length > 0) {
+                  handleChange('ownerId', next[0], true);
+                } else if (formData.ownerId && !next.includes(formData.ownerId)) {
+                  handleChange('ownerId', next[0] || '', true);
+                }
+              }}
+            />
 
             {/* Prensa specific fields */}
             {esPrensa && (
@@ -2358,70 +1994,28 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
             </button>
           )}
 
-          <div ref={statesMenuRef} className="flex relative shrink-0">
-            <button
-              type="button"
-              onClick={handlePrimary}
-              disabled={isEditing ? (createMutation.isPending || updateMutation.isPending) : (missing.length > 0 || createMutation.isPending || updateMutation.isPending)}
-              className={`h-[38px] px-4 sm:px-4.5 border-0 font-anek text-[13px] sm:text-[14px] font-bold flex items-center justify-center gap-2 text-white transition-all whitespace-nowrap leading-none shrink-0 ${
-                isEditing ? 'rounded-l-lg' : 'rounded-lg'
-              } ${
-                (!isEditing && missing.length > 0)
-                  ? 'bg-[#b9c2cd] cursor-not-allowed'
-                  : 'bg-[#024fff] hover:bg-[#0c57d3] cursor-pointer'
-              }`}
-            >
-              {(createMutation.isPending || updateMutation.isPending) && <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />}
-              <span className="leading-none flex items-center whitespace-nowrap">
-                {isEditing ? `Pasar a ${nextStatusInfo.label}` : 'Crear ticket'}
-              </span>
-              {(isEditing || missing.length === 0) && <span className="text-[11px] font-medium opacity-75 leading-none shrink-0 ml-0.5">⌘↵</span>}
-            </button>
-
-            {isEditing && (
-              <>
-                <button
-                  type="button"
-                  onClick={() => setStatesOpen(!statesOpen)}
-                  title="Otros estados"
-                  className="h-[38px] w-[34px] border-0 border-l border-white/30 bg-[#024fff] hover:bg-[#0c57d3] text-white rounded-r-lg cursor-pointer flex items-center justify-center transition-colors shrink-0"
-                >
-                  <ChevronDown className="w-3.5 h-3.5 shrink-0" />
-                </button>
-
-                {statesOpen && (
-                  <div className="absolute bottom-11 right-0 w-[220px] bg-white border border-[#d6dde5] rounded-[10px] shadow-[0_12px_32px_rgba(0,14,31,.16)] p-1.5 z-50 flex flex-col gap-0.5">
-                    <span className="text-[10px] font-bold tracking-[0.08em] uppercase text-[#8c96a3] p-1.5 pb-1">
-                      Mover a
-                    </span>
-                    {(esPrensa ? PRENSA_STATUS_OPTIONS : STATUS_OPTIONS).map(st => {
-                      const isCurrent = esPrensa
-                        ? ((ticket as any)?.subEstado ?? formData.estadoRespuesta) === st.value
-                        : formData.status === st.value;
-                      const isNext = st.value === nextStatusInfo.next;
-                      return (
-                        <button
-                          key={st.value}
-                          type="button"
-                          onClick={() => handleSelectStatusModal(st.value)}
-                          className={`border-0 bg-transparent cursor-pointer font-anek text-[13px] p-2 rounded-md text-left transition-colors flex items-center justify-between ${
-                            isCurrent
-                              ? 'text-[#8c96a3] bg-[#f7fafc]'
-                              : isNext
-                              ? 'text-[#024fff] font-bold hover:bg-[#024fff]/6'
-                              : 'text-[#0d0d0d] hover:bg-[#eef3f7]'
-                          }`}
-                        >
-                          <span>{st.label}</span>
-                          {isCurrent && <span className="text-[11px] text-[#8c96a3]">actual</span>}
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-              </>
-            )}
-          </div>
+          <TicketStatusPicker
+            variant="modal"
+            currentStatus={
+              esPrensa
+                ? ((ticket as any)?.subEstado ?? formData.estadoRespuesta)
+                : formData.status
+            }
+            nextStatusLabel={nextStatusInfo.label}
+            nextStatusValue={nextStatusInfo.next}
+            options={esPrensa ? PRENSA_STATUS_OPTIONS : STATUS_OPTIONS}
+            onAdvance={handlePrimary}
+            onSelectStatus={handleSelectStatusModal}
+            primaryLabel={isEditing ? `Pasar a ${nextStatusInfo.label}` : 'Crear ticket'}
+            shortcutHint={isEditing || missing.length === 0 ? '⌘↵' : undefined}
+            isLoading={createMutation.isPending || updateMutation.isPending}
+            disabled={
+              isEditing
+                ? (createMutation.isPending || updateMutation.isPending)
+                : (missing.length > 0 || createMutation.isPending || updateMutation.isPending)
+            }
+            showDropdown={isEditing}
+          />
         </div>
 
       </div>
