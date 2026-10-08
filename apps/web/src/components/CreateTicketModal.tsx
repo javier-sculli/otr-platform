@@ -12,6 +12,9 @@ import { ensureAbsoluteUrl, formatDateISO, getRedesObjetivoForClient, parseDeliv
 import { TextFormatToolbar } from './TextFormatToolbar';
 import { RichTextEditor } from './RichTextEditor';
 import { MentionTextarea, formatCommentWithMentions } from './MentionTextarea';
+import { TicketPublishLinks } from './ticket/TicketPublishLinks';
+import { InlineCommentHoverTooltip } from './ticket/InlineCommentHoverTooltip';
+import { InlineCommentPopover } from './ticket/InlineCommentPopover';
 
 export type AttachedFile = {
   id: string;
@@ -241,7 +244,6 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
   const [notasOpen, setNotasOpen] = useState(false);
   const [commentInput, setCommentInput] = useState('');
   const [entregableInput, setEntregableInput] = useState('');
-  const [publicacionInput, setPublicacionInput] = useState('');
 
   // Inline comment popover state
   const [pop, setPop] = useState<{ id: string; x: number; y: number } | null>(null);
@@ -866,11 +868,11 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
     setPopInput('');
   };
 
-  const sendPop = () => {
-    if (!pop || !popInput.trim()) return;
+  const sendPop = (incomingText?: string) => {
+    const text = (incomingText ?? popInput).trim();
+    if (!pop || !text) return;
     const d = new Date();
     const when = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-    const text = popInput.trim();
     const quote = threads[pop.id]?.quote;
     const item = { author: user?.name || user?.email || 'Usuario', when, text };
     setThreads(prev => ({
@@ -1055,7 +1057,9 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
     ? (formData.subEstado || 'Pendiente')
     : (STATUS_OPTIONS.find(s => s.value === formData.status)?.label ?? formData.status);
 
-  const isPendienteORedaccion = ['PENDIENTE', 'REDACCION', 'Pendiente', 'Redacción', 'Redaccion'].includes(formData.status);
+  const isPendiente = ['PENDIENTE', 'Pendiente'].includes(formData.status);
+  const isRedaccion = ['REDACCION', 'Redacción', 'Redaccion'].includes(formData.status);
+  const isPendienteORedaccion = isPendiente || isRedaccion;
 
   const isCollapsibleBrief = isEditing && ['REVISION_INTERNA', 'CLIENTE', 'ESPERANDO_FEEDBACK', 'LISTO_PARA_PUBLICAR', 'PUBLICADO', 'LISTO'].includes(formData.status);
   const showBriefContent = !isCollapsibleBrief || briefOpen;
@@ -1065,7 +1069,8 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
   const showCopyContent = !isCollapsibleCopy || copyOpen;
 
   // Notas de diseño se muestran en Pendiente, Redacción, Diseño y estados posteriores.
-  // En Pendiente y Redacción son colapsables (y el copy aparece antes). En Diseño y Edición aparecen abiertas. De Revisión interna en adelante, también aparecen colapsadas.
+  // En Pendiente son colapsables (el copy aparece antes). En Redacción aparecen abiertas (el copy aparece antes).
+  // En Diseño y Edición aparecen abiertas (antes del copy). De Revisión interna en adelante, aparecen colapsadas.
   const showNotas = isPieza && (
     isPendienteORedaccion ||
     DESIGN_STATES.includes(formData.status) ||
@@ -1073,7 +1078,7 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
     !!formData.notasAudiovisual?.trim()
   );
   const isCollapsibleNotas = isPieza && (
-    isPendienteORedaccion ||
+    isPendiente ||
     ['REVISION_INTERNA', 'CLIENTE', 'ESPERANDO_FEEDBACK', 'LISTO_PARA_PUBLICAR', 'PUBLICADO', 'LISTO'].includes(formData.status)
   );
   const showNotasContent = !isCollapsibleNotas || notasOpen;
@@ -1649,90 +1654,11 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
 
             {/* Link a la Publicación (a partir de listo para publicar en adelante) */}
             {['LISTO_PARA_PUBLICAR', 'PUBLICADO', 'LISTO'].includes(formData.status) && (
-              <div className="flex flex-col gap-2 pt-2">
-                <label className="text-[11px] font-bold tracking-[0.06em] uppercase text-[#5b6675]">
-                  Link a la Publicación
-                </label>
-                <span className="text-[13px] text-[#5b6675] -mt-1">
-                  Links a las publicaciones finales en redes o medios.
-                </span>
-
-                {/* Lista de links de publicación */}
-                {parseDeliverableLinks(formData.linkPublicacion).length > 0 && (
-                  <div className="flex flex-col gap-1.5">
-                    {parseDeliverableLinks(formData.linkPublicacion).map((link, idx) => (
-                      <div
-                        key={`modal-publicacion-${idx}`}
-                        className="flex items-center gap-2.5 p-2 px-3 bg-[#024fff]/5 border border-[#024fff]/25 rounded-lg group transition-colors hover:bg-[#024fff]/8"
-                      >
-                        <div className="w-7 h-7 rounded-md bg-[#024fff]/10 flex items-center justify-center text-[#024fff] shrink-0">
-                          <ExternalLink className="w-3.5 h-3.5" />
-                        </div>
-                        <a
-                          href={ensureAbsoluteUrl(link)}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex-1 font-anek text-[14px] font-semibold text-[#024fff] hover:underline truncate"
-                          title={link}
-                        >
-                          <span className="truncate">{link}</span>
-                        </a>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const current = parseDeliverableLinks(formData.linkPublicacion);
-                            const next = current.filter((_, i) => i !== idx);
-                            handleChange('linkPublicacion', serializeDeliverableLinks(next) || '', true);
-                          }}
-                          className="border-0 bg-transparent cursor-pointer text-[#8c96a3] hover:text-red-500 p-1 rounded hover:bg-white/80 transition-colors"
-                          title="Eliminar link"
-                        >
-                          <X className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {/* Input para agregar link de publicación */}
-                <div className="flex items-center gap-2">
-                  <input
-                    value={publicacionInput}
-                    onChange={e => setPublicacionInput(e.target.value)}
-                    onKeyDown={e => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        const v = publicacionInput.trim();
-                        if (v) {
-                          const current = parseDeliverableLinks(formData.linkPublicacion);
-                          const next = [...current, ensureAbsoluteUrl(v)];
-                          setPublicacionInput('');
-                          handleChange('linkPublicacion', serializeDeliverableLinks(next) || '', true);
-                        }
-                      }
-                    }}
-                    placeholder="Pegá un link a la publicación y presioná Enter"
-                    className="flex-1 h-10 px-3 border border-[#d6dde5] rounded-lg text-[14px] text-[#0d0d0d] font-anek outline-none focus:border-[#024fff] focus:ring-2 focus:ring-[#024fff]/12 transition-all placeholder:text-[#8c96a3]"
-                  />
-                  {publicacionInput.trim() && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const v = publicacionInput.trim();
-                        if (v) {
-                          const current = parseDeliverableLinks(formData.linkPublicacion);
-                          const next = [...current, ensureAbsoluteUrl(v)];
-                          setPublicacionInput('');
-                          handleChange('linkPublicacion', serializeDeliverableLinks(next) || '', true);
-                        }
-                      }}
-                      className="h-10 px-3 border border-[#024fff] bg-[#024fff] text-white rounded-lg text-[13px] font-bold font-anek cursor-pointer hover:bg-[#0c57d3] transition-colors shrink-0"
-                    >
-                      Agregar
-                    </button>
-                  )}
-                </div>
-              </div>
+              <TicketPublishLinks
+                value={formData.linkPublicacion}
+                onChange={(nextVal) => handleChange('linkPublicacion', nextVal, true)}
+                variant="modal"
+              />
             )}
 
             {/* Comments list & input */}
@@ -2287,125 +2213,20 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
         </div>
 
         {/* HOVER COMMENT PREVIEW */}
-        {hoverComment && !pop && (
-          <div
-            data-hover-comment="1"
-            style={{
-              position: 'fixed',
-              left: `${hoverComment.x}px`,
-              top: `${hoverComment.y}px`,
-              pointerEvents: 'none',
-            }}
-            className="w-[280px] bg-white border border-[#d6dde5] rounded-[10px] shadow-[0_10px_28px_rgba(0,14,31,.2)] z-[60] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150"
-          >
-            <div className="p-2 px-2.5 text-[11px] text-[#5b6675] truncate border-l-2 border-[#00e39c] m-2 mb-1 pl-2 bg-[#00ff99]/5 rounded-r">
-              «{hoverComment.quote}»
-            </div>
-
-            {hoverComment.items.length > 0 ? (
-              <div className="flex flex-col max-h-[220px] overflow-y-auto">
-                {hoverComment.items.map((it, idx) => (
-                  <div key={idx} className="flex gap-2 p-2 px-2.5 border-b border-[#f0f4f8] last:border-b-0">
-                    <span className="w-5 h-5 rounded-full bg-[#eef3f7] text-[#024fff] text-[9px] font-bold flex items-center justify-center shrink-0">
-                      {ini(it.author)}
-                    </span>
-                    <div className="flex-1 min-w-0 flex flex-col">
-                      <div className="flex gap-1.5 items-baseline">
-                        <span className="text-[11px] font-bold text-[#0d0d0d]">{it.author}</span>
-                        {it.when && <span className="text-[10px] text-[#8c96a3]">{it.when}</span>}
-                      </div>
-                      <span className="text-[12px] leading-snug text-[#1d2a3a] whitespace-pre-wrap">{formatCommentWithMentions(it.text)}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="p-2 px-2.5 text-[11px] text-[#8c96a3] italic">
-                Hacé click para escribir o responder este comentario
-              </div>
-            )}
-
-            <div className="bg-[#f7fafc] px-2.5 py-1 text-[10px] text-[#8c96a3] border-t border-[#eef3f7] flex items-center justify-between">
-              <span>Click para responder o resolver</span>
-            </div>
-          </div>
-        )}
+        <InlineCommentHoverTooltip
+          hoverComment={hoverComment}
+          isVisible={!pop}
+        />
 
         {/* INLINE COMMENT POPOVER */}
-        {pop && (
-          <div
-            data-inline-pop="1"
-            style={{ position: 'fixed', left: `${pop.x}px`, top: `${pop.y}px` }}
-            className="w-[300px] bg-white border border-[#d6dde5] rounded-[10px] shadow-[0_12px_32px_rgba(0,14,31,.18)] z-50 flex flex-col overflow-hidden animate-in fade-in zoom-in-95"
-          >
-            <div className="p-2.5 px-3 text-[12px] text-[#5b6675] truncate border-l-2 border-[#00e39c] m-2.5 mb-0 pl-2 bg-[#00ff99]/5 rounded-r">
-              «{threads[pop.id]?.quote}»
-            </div>
-
-            {threads[pop.id]?.items.map((it, idx) => (
-              <div key={idx} className="flex gap-2 p-2.5 px-3 pt-2">
-                <span className="w-5 h-5 rounded-full bg-[#eef3f7] text-[#024fff] text-[9px] font-bold flex items-center justify-center shrink-0">
-                  {ini(it.author)}
-                </span>
-                <div className="flex-1 min-w-0 flex flex-col">
-                  <div className="flex gap-1.5 items-baseline">
-                    <span className="text-[12px] font-bold text-[#0d0d0d]">{it.author}</span>
-                    <span className="text-[11px] text-[#8c96a3]">{it.when}</span>
-                  </div>
-                  <span className="text-[13px] leading-snug text-[#1d2a3a] whitespace-pre-wrap">{formatCommentWithMentions(it.text)}</span>
-                </div>
-              </div>
-            ))}
-
-            <div className="p-2.5 pb-3 flex flex-col gap-2">
-              <MentionTextarea
-                value={popInput}
-                onChange={setPopInput}
-                onKeyDown={e => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    sendPop();
-                  }
-                  if (e.key === 'Escape') closePop();
-                }}
-                placeholder={threads[pop.id]?.items.length ? 'Responder… (@ para mencionar)' : 'Escribí un comentario… (@ para mencionar)'}
-                rows={2}
-                users={teamList}
-                autoFocus
-                className="w-full font-anek text-[13px] p-2 border border-[#d6dde5] rounded-lg outline-none resize-none focus:border-[#024fff] focus:ring-2 focus:ring-[#024fff]/12"
-              />
-              <div className="flex items-center gap-1.5">
-                {threads[pop.id]?.items.length > 0 && (
-                  <button
-                    type="button"
-                    onClick={resolvePop}
-                    className="border-0 bg-transparent cursor-pointer font-anek text-[12px] font-bold text-[#3a4655] p-1.5 rounded hover:bg-[#eef3f7] flex items-center gap-1"
-                  >
-                    <Check className="w-3.5 h-3.5" /> Resolver
-                  </button>
-                )}
-                <span className="flex-1"></span>
-                <button
-                  type="button"
-                  onClick={closePop}
-                  className="border-0 bg-transparent cursor-pointer font-anek text-[12px] font-medium text-[#5b6675] p-1.5 rounded hover:bg-[#eef3f7]"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="button"
-                  onClick={sendPop}
-                  disabled={!popInput.trim()}
-                  className={`h-7 border-0 rounded-md cursor-pointer font-anek text-[12px] font-bold text-white px-3 transition-colors ${
-                    popInput.trim() ? 'bg-[#024fff] hover:bg-[#0c57d3]' : 'bg-[#b9c2cd] cursor-not-allowed'
-                  }`}
-                >
-                  {threads[pop.id]?.items.length ? 'Responder' : 'Comentar'}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+        <InlineCommentPopover
+          pop={pop}
+          thread={pop ? threads[pop.id] : undefined}
+          users={teamList}
+          onSend={(text) => sendPop(text)}
+          onResolve={resolvePop}
+          onClose={closePop}
+        />
 
         {/* FOOTER */}
         <div className="flex items-center gap-3 px-5 sm:px-6 py-3 border-t border-[#d6dde5] bg-white flex-wrap shrink-0">
