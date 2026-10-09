@@ -54,6 +54,28 @@ describe('TicketPublishLinks', () => {
     expect(onChange).toHaveBeenCalledWith('https://instagram.com/p/2');
   });
 
+  it('guarda automáticamente el link al hacer blur del input', async () => {
+    const onChange = vi.fn();
+    render(<TicketPublishLinks value="" onChange={onChange} />);
+
+    const input = screen.getByPlaceholderText(/pegá un link a la publicación/i);
+    await userEvent.type(input, 'linkedin.com/posts/auto-save');
+    await userEvent.tab(); // trigger blur
+
+    expect(onChange).toHaveBeenCalledTimes(1);
+    expect(onChange).toHaveBeenCalledWith('https://linkedin.com/posts/auto-save');
+  });
+
+  it('procesa y agrega múltiples links pegados separados por saltos de línea', async () => {
+    const onChange = vi.fn();
+    render(<TicketPublishLinks value="https://existente.com/post" onChange={onChange} />);
+
+    const input = screen.getByPlaceholderText(/pegá un link a la publicación/i);
+    await userEvent.type(input, 'linkedin.com/p/1{enter}');
+
+    expect(onChange).toHaveBeenCalledWith('https://existente.com/post\nhttps://linkedin.com/p/1');
+  });
+
   it('respeta el estado disabled ocultando inputs y botones de eliminación', () => {
     const rawLinks = JSON.stringify(['https://instagram.com/p/1']);
     render(<TicketPublishLinks value={rawLinks} onChange={vi.fn()} disabled />);

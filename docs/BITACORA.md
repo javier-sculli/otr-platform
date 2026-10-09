@@ -4,6 +4,20 @@
 > 
 > 🎯 **BACKLOG OFICIAL Y PRIORIDADES (FUENTE DE VERDAD):** [Notion Backlog Oficial](https://app.notion.com/p/Backlog-3ba617fc369281048bfdfc89c5041d9c?source=copy_link). Todas las prioridades y tareas activas se gestionan directamente allí.
 
+### [2026-10-09] — Corrección de Guardado de Link a la Publicación desde Popup y Backend
+- **Desarrollador:** Antigravity (Pair Programming con Javier Sculli)
+- **Causa Raíz:**
+  1. En el endpoint `GET /api/tickets` (listado de piezas del backlog) y en la respuesta de `PATCH /api/tickets/:id`, la cláusula `select` omitía el campo `linkPublicacion: true`. Al abrir un ticket desde el tablero o al recibir la confirmación de guardado, el campo volvía `undefined`, limpiando la URL en la caché de React Query.
+  2. En `packages/types` y `packages/schemas`, `linkPublicacion` y `linkEntregable` no estaban definidos en la interfaz `Ticket` ni en los esquemas Zod de validación.
+  3. En `TicketPublishLinks`, el input carecía de guardado en `onBlur`: si el usuario pegaba un enlace y cerraba el popup o cambiaba el foco sin pulsar Enter ni el botón "Agregar", el valor se descartaba.
+  4. En `CreateTicketModal`, la serialización pasaba la cadena multilineal entera a `ensureAbsoluteUrl` en lugar de sanitizar cada enlace individualmente mediante `cleanDeliverableLinks`.
+- **Solución Implementada:**
+  1. **Backend (`apps/api/src/routes/tickets.ts`):** Se incluyó `linkPublicacion: true` en el `select` de `findMany` (`GET /`) y `update` (`PATCH /:id`), así como en el `bulk-create`.
+  2. **Tipos y Esquemas (`packages/types`, `packages/schemas`):** Agregados `linkPublicacion` y `linkEntregable` a `Ticket`, `createTicketSchema` y `updateTicketSchema`.
+  3. **Auto-guardado en Blur (`TicketPublishLinks.tsx`):** Se vinculó `onBlur={handleAdd}` y soporte para parsear y deduplicar múltiples links pegados simultáneamente.
+  4. **Sanitización y Soporte Prensa (`CreateTicketModal.tsx`, `TicketDetallePage.tsx`):** Se normalizan enlaces con `cleanDeliverableLinks` y se habilitó la visualización de la sección también para tickets de Prensa en estados `PENDIENTE_PUBLICACION` y `LISTO`.
+- **Suite de Tests:** 143 tests aprobados en Vitest (`pnpm test`), typecheck y build (`pnpm build`) 100% exitosos.
+
 ### [2026-10-08] — Refactorización Modular de Tickets (Fase 3: CommentsThread, Resources, FormatPicker)
 - **Desarrollador:** Antigravity (Pair Programming con Javier Sculli)
 - **Resumen de Avances:**

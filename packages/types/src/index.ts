@@ -177,6 +177,8 @@ export interface Ticket {
   publishedAt?: Date;
   estadoAprobacionCliente?: EstadoAprobacionCliente;
   links: string[];
+  linkEntregable?: string | null;
+  linkPublicacion?: string | null;
   tiposContenido?: string[];
   notasGrafica?: string;
   referenciasGraficas?: any[];

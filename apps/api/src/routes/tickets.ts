@@ -283,6 +283,7 @@ async function fetchAndCacheTickets(query: any = {}) {
         estadoAprobacionCliente: true,
         links: true,
         linkEntregable: true,
+        linkPublicacion: true,
         description: true,
         tiposContenido: true,
         createdAt: true,
@@ -597,7 +598,7 @@ export async function ticketsRoutes(fastify: FastifyInstance) {
         macroEstado: true, subEstado: true, reviewerId: true, medio: true,
         periodista: true, estadoRespuesta: true, dueDate: true, plannedDate: true,
         isDraftPlan: true, publishedAt: true, estadoAprobacionCliente: true,
-        keywords: true, links: true, linkEntregable: true, tiposContenido: true,
+        keywords: true, links: true, linkEntregable: true, linkPublicacion: true, tiposContenido: true,
         referenciasGraficas: true, contentPerCanal: true, versionsPerCanal: true,
         notasAudiovisual: true, createdAt: true, updatedAt: true,
         owner: { select: { id: true, name: true, email: true } },
@@ -817,6 +818,7 @@ export async function ticketsRoutes(fastify: FastifyInstance) {
           estadoAprobacionCliente: t.estadoAprobacionCliente || 'BORRADOR',
           contentPerCanal: t.contentPerCanal || (t.copy ? { [(t.canales && t.canales[0]) || 'LinkedIn']: t.copy } : {}),
           linkEntregable: t.linkPublicacionReal || t.linkEntregable || null,
+          linkPublicacion: t.linkPublicacion || null,
           keywords: t.keywords || null,
         }
       });

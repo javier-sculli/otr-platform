@@ -21,9 +21,14 @@ export function TicketPublishLinks({
   const handleAdd = () => {
     const trimmed = inputVal.trim();
     if (!trimmed || disabled) return;
-    const next = [...links, ensureAbsoluteUrl(trimmed)];
+    const incoming = parseDeliverableLinks(trimmed).map(ensureAbsoluteUrl).filter(Boolean);
+    if (incoming.length === 0) {
+      setInputVal('');
+      return;
+    }
+    const combined = Array.from(new Set([...links, ...incoming]));
     setInputVal('');
-    onChange(serializeDeliverableLinks(next) || '');
+    onChange(serializeDeliverableLinks(combined) || '');
   };
 
   const handleRemove = (indexToRemove: number) => {
@@ -96,6 +101,7 @@ export function TicketPublishLinks({
           <input
             value={inputVal}
             onChange={(e) => setInputVal(e.target.value)}
+            onBlur={handleAdd}
             onKeyDown={(e) => {
               if (e.key === 'Enter') {
                 e.preventDefault();

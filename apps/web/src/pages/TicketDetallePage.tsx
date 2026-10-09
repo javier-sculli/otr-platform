@@ -1049,7 +1049,8 @@ export function TicketDetallePage() {
           <div className="lg:sticky lg:top-[124px] lg:max-h-[calc(100vh-124px)] lg:overflow-y-auto p-6 sm:p-7 pb-12 flex flex-col gap-7 box-border">
 
             {/* Link a la Publicación (a partir de listo para publicar en adelante) */}
-            {['LISTO_PARA_PUBLICAR', 'PUBLICADO', 'LISTO'].includes(ticket.status) && (
+            {(['LISTO_PARA_PUBLICAR', 'PUBLICADO', 'LISTO'].includes(ticket.status) ||
+              (ticket.area === 'PRENSA' && ['PENDIENTE_PUBLICACION', 'LISTO'].includes(ticket.subEstado))) && (
               <div className="flex flex-col gap-3.5">
                 <TicketPublishLinks
                   value={ticket?.linkPublicacion}

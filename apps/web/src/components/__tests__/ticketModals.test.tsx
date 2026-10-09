@@ -666,6 +666,146 @@ describe('CreateTicketModal', () => {
     });
   });
 
+  it('guarda el link a la publicación en auto-save al agregarlo desde el popup', async () => {
+    const ticketFinal = {
+      id: 'ticket-modal-pub',
+      title: 'Ticket Listo para Publicar',
+      status: 'LISTO_PARA_PUBLICAR',
+      canales: ['LinkedIn'],
+      links: [],
+      linkPublicacion: null,
+      linkEntregable: null,
+      contentPerCanal: {},
+      notasAudiovisual: '',
+      objetivo: '',
+      client: { id: 'c1', name: 'Cliente X' },
+      owner: { id: 'u1', name: 'Dueño' },
+      assigneeIds: ['u1'],
+      prioridad: 'ALTA',
+    };
+
+    (api.getTicket as any).mockResolvedValue({
+      data: ticketFinal,
+    });
+    (api.updateTicket as any).mockResolvedValue({
+      data: { ...ticketFinal, linkPublicacion: 'https://linkedin.com/posts/xyz' },
+    });
+
+    render(
+      <CreateTicketModal
+        isOpen={true}
+        onClose={vi.fn()}
+        ticket={ticketFinal as any}
+      />,
+      { wrapper: createWrapper() }
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('Link a la Publicación')).toBeInTheDocument();
+    });
+
+    const input = screen.getByPlaceholderText(/pegá un link a la publicación y presioná enter/i);
+    await userEvent.type(input, 'https://linkedin.com/posts/xyz{enter}');
+
+    await waitFor(() => {
+      expect(api.updateTicket).toHaveBeenCalled();
+    });
+
+    const updateCalls = (api.updateTicket as any).mock.calls;
+    const lastCall = updateCalls[updateCalls.length - 1];
+    expect(lastCall[0]).toBe('ticket-modal-pub');
+    expect(lastCall[1].linkPublicacion).toBe('https://linkedin.com/posts/xyz');
+  });
+
+  it('guarda el link a la publicación en auto-save al hacer blur del input en el popup', async () => {
+    const ticketFinal = {
+      id: 'ticket-modal-pub-blur',
+      title: 'Ticket Listo para Publicar Blur',
+      status: 'LISTO_PARA_PUBLICAR',
+      canales: ['LinkedIn'],
+      links: [],
+      linkPublicacion: null,
+      linkEntregable: null,
+      contentPerCanal: {},
+      notasAudiovisual: '',
+      objetivo: '',
+      client: { id: 'c1', name: 'Cliente X' },
+      owner: { id: 'u1', name: 'Dueño' },
+      assigneeIds: ['u1'],
+      prioridad: 'ALTA',
+    };
+
+    (api.getTicket as any).mockResolvedValue({
+      data: ticketFinal,
+    });
+    (api.updateTicket as any).mockResolvedValue({
+      data: { ...ticketFinal, linkPublicacion: 'https://linkedin.com/posts/blur-test' },
+    });
+
+    render(
+      <CreateTicketModal
+        isOpen={true}
+        onClose={vi.fn()}
+        ticket={ticketFinal as any}
+      />,
+      { wrapper: createWrapper() }
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('Link a la Publicación')).toBeInTheDocument();
+    });
+
+    const input = screen.getByPlaceholderText(/pegá un link a la publicación y presioná enter/i);
+    await userEvent.type(input, 'https://linkedin.com/posts/blur-test');
+    await userEvent.tab(); // Blur
+
+    await waitFor(() => {
+      expect(api.updateTicket).toHaveBeenCalled();
+    });
+
+    const updateCalls = (api.updateTicket as any).mock.calls;
+    const lastCall = updateCalls[updateCalls.length - 1];
+    expect(lastCall[0]).toBe('ticket-modal-pub-blur');
+    expect(lastCall[1].linkPublicacion).toBe('https://linkedin.com/posts/blur-test');
+  });
+
+  it('renderiza Link a la Publicación en tickets de Prensa con subEstado PENDIENTE_PUBLICACION', async () => {
+    const ticketPrensa = {
+      id: 'ticket-prensa-pub',
+      title: 'Nota de Prensa Publicada',
+      status: 'PENDIENTE',
+      subEstado: 'PENDIENTE_PUBLICACION',
+      area: 'PRENSA',
+      ticketType: { kind: 'PRENSA', name: 'Prensa' },
+      links: [],
+      linkPublicacion: 'https://infobae.com/nota-123',
+      linkEntregable: null,
+      client: { id: 'c1', name: 'Cliente Prensa' },
+      owner: { id: 'u1', name: 'Dueño' },
+      assigneeIds: ['u1'],
+      prioridad: 'ALTA',
+    };
+
+    (api.getTicket as any).mockResolvedValue({
+      data: ticketPrensa,
+    });
+
+    render(
+      <CreateTicketModal
+        isOpen={true}
+        onClose={vi.fn()}
+        ticket={ticketPrensa as any}
+        area="PRENSA"
+      />,
+      { wrapper: createWrapper() }
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('Link a la Publicación')).toBeInTheDocument();
+      expect(screen.getByText('https://infobae.com/nota-123')).toBeInTheDocument();
+    });
+  });
+
   it('un ticket existente sin formato elegido no bloquea el botón y permite avanzar al estado siguiente (ej. REDACCION -> DISENO)', async () => {
     const ticketSinFormato = {
       id: 'c1c449f1-e53c-4a3e-a465-9c2c8df385b2',

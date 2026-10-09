@@ -117,6 +117,12 @@ const ini = (n?: string) => {
   return n.split(' ').filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase();
 };
 
+function cleanDeliverableLinks(raw?: string | null): string | null {
+  if (!raw) return null;
+  const parsed = parseDeliverableLinks(raw).map(ensureAbsoluteUrl).filter(Boolean);
+  return serializeDeliverableLinks(parsed);
+}
+
 function buildFormData(ticket?: TicketData | null, defaultClientId?: string) {
   if (!ticket) {
     return {
@@ -500,8 +506,8 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
       pilarId: noContenido ? null : (current.pilarId || null),
       speakerId: noContenido ? null : (current.speakerId || null),
       ...(current.links.length > 0 ? { links: current.links.map(ensureAbsoluteUrl) } : { links: [] }),
-      ...(current.linkEntregable ? { linkEntregable: ensureAbsoluteUrl(current.linkEntregable) } : { linkEntregable: null }),
-      ...(current.linkPublicacion ? { linkPublicacion: ensureAbsoluteUrl(current.linkPublicacion) } : { linkPublicacion: null }),
+      ...(current.linkEntregable ? { linkEntregable: cleanDeliverableLinks(current.linkEntregable) } : { linkEntregable: null }),
+      ...(current.linkPublicacion ? { linkPublicacion: cleanDeliverableLinks(current.linkPublicacion) } : { linkPublicacion: null }),
       ...(current.notasAudiovisual ? { notasAudiovisual: current.notasAudiovisual } : {}),
       content: noContenido ? undefined : (current.content || null),
       contentPerCanal: noContenido ? undefined : current.contentPerCanal,
@@ -735,8 +741,8 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
         pilarId: noContenido ? null : (formData.pilarId || null),
         speakerId: noContenido ? null : (formData.speakerId || null),
         links: formData.links.map(ensureAbsoluteUrl),
-        linkEntregable: formData.linkEntregable ? ensureAbsoluteUrl(formData.linkEntregable) : null,
-        linkPublicacion: formData.linkPublicacion ? ensureAbsoluteUrl(formData.linkPublicacion) : null,
+        linkEntregable: cleanDeliverableLinks(formData.linkEntregable),
+        linkPublicacion: cleanDeliverableLinks(formData.linkPublicacion),
       };
       if (esPrensa) {
         payload.area = 'PRENSA';
@@ -1393,7 +1399,8 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
             })()}
 
             {/* Link a la Publicación (a partir de listo para publicar en adelante) */}
-            {['LISTO_PARA_PUBLICAR', 'PUBLICADO', 'LISTO'].includes(formData.status) && (
+            {(['LISTO_PARA_PUBLICAR', 'PUBLICADO', 'LISTO'].includes(formData.status) ||
+              (esPrensa && ['PENDIENTE_PUBLICACION', 'LISTO'].includes((ticket as any)?.subEstado || formData.subEstado))) && (
               <TicketPublishLinks
                 value={formData.linkPublicacion}
                 onChange={(nextVal) => handleChange('linkPublicacion', nextVal, true)}
