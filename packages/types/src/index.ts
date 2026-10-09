@@ -182,6 +182,8 @@ export interface Ticket {
   tiposContenido?: string[];
   notasGrafica?: string;
   referenciasGraficas?: any[];
+  pilarId?: string | null;
+  speakerId?: string | null;
   createdAt: Date;
   updatedAt: Date;
   // Relations
@@ -190,6 +192,8 @@ export interface Ticket {
   assignees?: User[];
   reviewer?: User;
   ticketType?: TicketType;
+  pilar?: { id: string; nombre: string; descripcion?: string | null } | null;
+  speaker?: { id: string; nombre: string } | null;
   publication?: Publication;
   references?: Pick<Ticket, 'id' | 'title' | 'status'>[];
 }

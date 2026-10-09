@@ -4,6 +4,27 @@
 > 
 > 🎯 **BACKLOG OFICIAL Y PRIORIDADES (FUENTE DE VERDAD):** [Notion Backlog Oficial](https://app.notion.com/p/Backlog-3ba617fc369281048bfdfc89c5041d9c?source=copy_link). Todas las prioridades y tareas activas se gestionan directamente allí.
 
+### [2026-10-09] — Simplificación y Persistencia de Pilar de Contenido en Edición de Tickets
+- **Desarrollador:** Antigravity (Pair Programming con Javier Sculli)
+- **Diagnóstico y Causa Raíz:**
+  1. Al editar un ticket existente y seleccionar un pilar de contenido, se guardaba en base de datos (`updateData.pilarId`), pero el endpoint `PUT /tickets/:id` devolvía un select sin la entidad relacionada `pilar: { id, nombre, descripcion }`.
+  2. En memoria (`CreateTicketModal.tsx`), `buildFormData` solo leía `pilarId: (ticket as any).pilar?.id ?? ''`. Al salir al backlog y volver a abrir el ticket, `ticket.pilar` era null en el objeto en memoria aunque `ticket.pilarId` existiera, reseteando la selección a vacío (y apareciendo solo tras refrescar la página).
+- **Cambios Implementados:**
+  1. **Simplificación en Frontend (`CreateTicketModal.tsx`):** Lectura directa e intuitiva de la referencia por ID: `pilarId: ticket.pilarId || ticket.pilar?.id || ''`. La selección en el botón matchea directamente por ID (`formData.pilarId === p.id`).
+  2. **Tipado Estándar (`packages/types`, `BacklogPage.tsx`, `CreateTicketModal.tsx`):** Se agregaron `pilarId` y `speakerId` directamente a las interfaces de `Ticket` y `TicketData`.
+  3. **Backend (`apps/api/src/routes/tickets.ts`):** `PUT /tickets/:id` y `POST /tickets` ahora incluyen siempre en su respuesta las relaciones completas (`pilar`, `speaker`, `ticketType`, `client`, `reviewer`).
+  4. **Sincronización de Caché React Query:** `performAutoSave` y `updateMutation` actualizan la caché local e invalidan las queries correspondientes para mantener consistencia inmediata entre Backlog y Modal.
+- **Suite de Tests:** Tests unitarios agregados en `ticketModals.test.tsx` verificando persistencia tras reabrir y selección directa con `pilarId` plano. 166 tests pasando en Vitest (`pnpm test`), builds y typechecks 100% exitosos.
+
+### [2026-10-09] — Soporte de Imágenes en Comentarios y Tipado de Pilar / Speaker
+- **Desarrollador:** Antigravity (Pair Programming con Javier Sculli)
+- **Funcionalidad:**
+  1. **Imágenes en Comentarios (`TicketCommentsThread.tsx`, `InlineCommentPopover.tsx`, `MentionTextarea.tsx`):** Soporte para pegar imágenes directamente con `Ctrl+V` / `Cmd+V` o seleccionar archivo con botón de adjuntar. Compresión automática en cliente con canvas JPEG (`imageCompression.ts`) para optimizar tamaño antes de enviar.
+  2. **Visualizador de Imagen (`CommentImageViewerModal.tsx`):** Modal lightbox al hacer clic en cualquier imagen adjunta en comentarios para visualizarla en pantalla completa o abrirla en pestaña nueva.
+  3. **Notificaciones por Email (`apps/api/src/routes/comments.ts`):** Sanitización de contenido en emails de mención, reemplazando bloques de imágenes en base64 por `[Imagen adjunta]`.
+  4. **Tipado e Integración (`packages/types`, `BacklogPage.tsx`, `CreateTicketModal.tsx`):** Incorporación de `pilarId`, `speakerId` y sus relaciones a los tipos de Ticket para consistencia de datos entre Backlog y Modal.
+- **Suite de Tests:** Tests y typechecks pasando al 100%, build de web y API exitosos.
+
 ### [2026-10-09] — Fix de Comentarios Dobles, Deduplicación en Hover y Limpieza de Marcas Huérfanas
 - **Desarrollador:** Antigravity (Pair Programming con Javier Sculli)
 - **Diagnóstico y Causa Raíz:**

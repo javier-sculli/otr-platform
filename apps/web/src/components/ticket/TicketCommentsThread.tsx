@@ -1,6 +1,8 @@
-import React, { useState } from 'react';
-import { Trash2, Loader2 } from 'lucide-react';
+import React, { useState, useRef } from 'react';
+import { Trash2, Loader2, Image as ImageIcon, X } from 'lucide-react';
 import { MentionTextarea } from '../MentionTextarea';
+import { compressImageFile, parseCommentContent, buildCommentContent } from '../../lib/imageCompression';
+import { CommentImageViewerModal } from './CommentImageViewerModal';
 
 export interface TicketCommentItem {
   id: string;
@@ -97,12 +99,35 @@ export const TicketCommentsThread: React.FC<TicketCommentsThreadProps> = ({
   className = '',
 }) => {
   const [commentInput, setCommentInput] = useState('');
+  const [pastedImages, setPastedImages] = useState<string[]>([]);
+  const [isCompressing, setIsCompressing] = useState(false);
+  const [viewerImage, setViewerImage] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleImageFile = async (file: File) => {
+    if (!file.type.startsWith('image/')) return;
+    try {
+      setIsCompressing(true);
+      const compressed = await compressImageFile(file);
+      setPastedImages(prev => [...prev, compressed]);
+    } catch (err) {
+      console.error('Error al procesar imagen pegada:', err);
+    } finally {
+      setIsCompressing(false);
+    }
+  };
+
+  const handleRemovePastedImage = (index: number) => {
+    setPastedImages(prev => prev.filter((_, i) => i !== index));
+  };
 
   const handleSend = () => {
     const trimmed = commentInput.trim();
-    if (!trimmed || isPendingAdd) return;
-    onAddComment(trimmed);
+    if ((!trimmed && pastedImages.length === 0) || isPendingAdd || isCompressing) return;
+    const fullContent = buildCommentContent(trimmed, pastedImages);
+    onAddComment(fullContent);
     setCommentInput('');
+    setPastedImages([]);
   };
 
   const isPage = variant === 'page';
@@ -139,6 +164,7 @@ export const TicketCommentsThread: React.FC<TicketCommentsThreadProps> = ({
         const quoteMatch = rawContent.match(/^«([^»]+)»:\s*([\s\S]*)$/);
         const quote = cm.quote || (quoteMatch ? quoteMatch[1] : null);
         const mainContent = quoteMatch ? quoteMatch[2] : rawContent;
+        const { text: cleanText, images: commentImages } = parseCommentContent(mainContent);
         const authorName = cm.user?.name || cm.author || 'Usuario';
         const dateStr = formatCommentDate(cm);
 
@@ -198,13 +224,31 @@ export const TicketCommentsThread: React.FC<TicketCommentsThreadProps> = ({
                 </button>
               )}
 
-              <span
-                className={`${
-                  isPage ? 'text-[15px] leading-[1.5]' : 'text-[14px] leading-relaxed'
-                } text-[#1d2a3a] whitespace-pre-wrap`}
-              >
-                {formatCommentWithMentions(mainContent)}
-              </span>
+              {cleanText && (
+                <span
+                  className={`${
+                    isPage ? 'text-[15px] leading-[1.5]' : 'text-[14px] leading-relaxed'
+                  } text-[#1d2a3a] whitespace-pre-wrap`}
+                >
+                  {formatCommentWithMentions(cleanText)}
+                </span>
+              )}
+
+              {commentImages.length > 0 && (
+                <div className="flex flex-col gap-2 mt-1.5" data-testid={`comment-images-${cm.id}`}>
+                  {commentImages.map((imgSrc, imgIdx) => (
+                    <div key={imgIdx} className="inline-block max-w-full">
+                      <img
+                        src={imgSrc}
+                        alt="Imagen adjunta en comentario"
+                        onClick={() => setViewerImage(imgSrc)}
+                        className="max-w-full max-h-[260px] sm:max-h-[300px] object-contain rounded-lg border border-[#d6dde5] bg-white cursor-pointer hover:opacity-95 shadow-xs transition-all block"
+                        loading="lazy"
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         );
@@ -224,10 +268,11 @@ export const TicketCommentsThread: React.FC<TicketCommentsThreadProps> = ({
           <MentionTextarea
             value={commentInput}
             onChange={setCommentInput}
+            onPasteImage={handleImageFile}
             placeholder={
               isPage
-                ? 'Comentario general del ticket (@ para mencionar)'
-                : 'Escribí un comentario para el equipo (usá @ para mencionar)…'
+                ? 'Comentario general del ticket (@ para mencionar, pegá imágenes con Ctrl+V)'
+                : 'Escribí un comentario para el equipo (usá @ o pegá imágenes)…'
             }
             rows={isPage ? 2 : 3}
             users={teamList}
@@ -238,18 +283,76 @@ export const TicketCommentsThread: React.FC<TicketCommentsThreadProps> = ({
             }`}
           />
 
+          {pastedImages.length > 0 && (
+            <div className="flex flex-wrap gap-2 pt-0.5" data-testid="pasted-images-preview">
+              {pastedImages.map((img, idx) => (
+                <div
+                  key={idx}
+                  className="relative group border border-[#d6dde5] rounded-lg overflow-hidden bg-white shadow-xs max-w-[120px] max-h-[84px] shrink-0"
+                >
+                  <img
+                    src={img}
+                    alt="Vista previa de imagen"
+                    className="w-full h-full object-cover max-h-[80px]"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => handleRemovePastedImage(idx)}
+                    title="Quitar imagen"
+                    aria-label="Quitar imagen"
+                    className="absolute top-1 right-1 bg-black/60 hover:bg-black/85 text-white rounded-full p-0.5 border-0 cursor-pointer flex items-center justify-center transition-colors"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {isCompressing && (
+            <div className="flex items-center gap-1.5 text-[12px] text-[#5b6675] py-0.5" data-testid="compressing-indicator">
+              <Loader2 className="w-3.5 h-3.5 animate-spin text-[#024fff]" />
+              <span>Optimizando imagen…</span>
+            </div>
+          )}
+
           <div
             className={`flex items-center ${
-              isPage ? 'justify-end' : 'justify-end gap-2'
+              isPage ? 'justify-between' : 'justify-between'
             }`}
           >
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                title="Adjuntar imagen (o pegala con Ctrl+V)"
+                aria-label="Adjuntar imagen"
+                className="h-8 px-2 rounded-md text-[#5b6675] hover:text-[#024fff] hover:bg-[#eef3f7] transition-colors border-0 bg-transparent cursor-pointer flex items-center gap-1 text-[12px] font-medium font-anek"
+              >
+                <ImageIcon className="w-4 h-4" />
+                <span className="hidden sm:inline">Adjuntar imagen</span>
+              </button>
+              <input
+                type="file"
+                ref={fileInputRef}
+                accept="image/*"
+                className="hidden"
+                data-testid="comment-file-input"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) handleImageFile(file);
+                  e.target.value = '';
+                }}
+              />
+            </div>
+
             {isPage ? (
-              commentInput.trim().length > 0 && (
+              (commentInput.trim().length > 0 || pastedImages.length > 0) && (
                 <button
                   type="button"
                   onClick={handleSend}
-                  disabled={isPendingAdd}
-                  className="self-end shrink-0 whitespace-nowrap h-[38px] px-4 border-0 bg-[#024fff] rounded-lg cursor-pointer font-anek text-[14px] font-bold text-white hover:bg-[#0c57d3] transition-colors flex items-center gap-1.5"
+                  disabled={isPendingAdd || isCompressing}
+                  className="self-end shrink-0 whitespace-nowrap h-[38px] px-4 border-0 bg-[#024fff] rounded-lg cursor-pointer font-anek text-[14px] font-bold text-white hover:bg-[#0c57d3] transition-colors flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isPendingAdd && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                   <span>{isPendingAdd ? 'Comentando…' : 'Comentar'}</span>
@@ -259,9 +362,9 @@ export const TicketCommentsThread: React.FC<TicketCommentsThreadProps> = ({
               <button
                 type="button"
                 onClick={handleSend}
-                disabled={!commentInput.trim() || isPendingAdd}
+                disabled={(!commentInput.trim() && pastedImages.length === 0) || isPendingAdd || isCompressing}
                 className={`h-8 px-4 rounded-lg font-anek text-[13px] font-bold transition-all flex items-center gap-1.5 ${
-                  commentInput.trim() && !isPendingAdd
+                  (commentInput.trim() || pastedImages.length > 0) && !isPendingAdd && !isCompressing
                     ? 'bg-[#024fff] hover:bg-[#0c57d3] text-white cursor-pointer shadow-sm'
                     : 'bg-[#eef3f7] text-[#8c96a3] cursor-not-allowed border border-[#d6dde5]'
                 }`}
@@ -291,6 +394,13 @@ export const TicketCommentsThread: React.FC<TicketCommentsThreadProps> = ({
               })}`
             : ''}
         </span>
+      )}
+
+      {viewerImage && (
+        <CommentImageViewerModal
+          src={viewerImage}
+          onClose={() => setViewerImage(null)}
+        />
       )}
     </div>
   );

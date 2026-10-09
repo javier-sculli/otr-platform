@@ -8,3 +8,4 @@ export * from './TicketCopyButton';
 export * from './TicketCommentsThread';
 export * from './TicketResources';
 export * from './TicketFormatPicker';
+export * from './CommentImageViewerModal';

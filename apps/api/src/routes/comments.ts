@@ -150,6 +150,10 @@ export async function commentsRoutes(fastify: FastifyInstance) {
             }
 
             if (recipientUser?.email) {
+              const cleanEmailContent = content
+                .replace(/!\[([^\]]*)\]\(((?:data:image\/[^)]+|https?:\/\/[^\s)]+))\)/g, '[Imagen adjunta]')
+                .trim();
+
               sendNotificationEmail({
                 to: recipientUser.email,
                 type: 'MENTION',
@@ -157,7 +161,7 @@ export async function commentsRoutes(fastify: FastifyInstance) {
                 ticketId: ticket.id,
                 ticketTitle: ticket.title,
                 clientName: ticket.client?.name || 'Cliente',
-                commentContent: content,
+                commentContent: cleanEmailContent,
               }).catch(() => {});
             }
           }

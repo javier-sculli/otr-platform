@@ -1,4 +1,5 @@
 import { formatCommentWithMentions } from '../MentionTextarea';
+import { parseCommentContent } from '../../lib/imageCompression';
 
 export interface CommentItem {
   author: string;
@@ -50,22 +51,39 @@ export function InlineCommentHoverTooltip({
 
       {hoverComment.items.length > 0 ? (
         <div className="flex flex-col max-h-[220px] overflow-y-auto" data-testid="hover-comment-items">
-          {hoverComment.items.map((it, idx) => (
-            <div key={idx} className="flex gap-2 p-2 px-2.5 border-b border-[#f0f4f8] last:border-b-0">
-              <span className="w-5 h-5 rounded-full bg-[#eef3f7] text-[#024fff] text-[9px] font-bold flex items-center justify-center shrink-0">
-                {ini(it.author)}
-              </span>
-              <div className="flex-1 min-w-0 flex flex-col">
-                <div className="flex gap-1.5 items-baseline">
-                  <span className="text-[11px] font-bold text-[#0d0d0d]">{it.author}</span>
-                  {it.when && <span className="text-[10px] text-[#8c96a3]">{it.when}</span>}
-                </div>
-                <span className="text-[12px] leading-snug text-[#1d2a3a] whitespace-pre-wrap">
-                  {formatCommentWithMentions(it.text)}
+          {hoverComment.items.map((it, idx) => {
+            const { text: cleanText, images: itemImages } = parseCommentContent(it.text);
+            return (
+              <div key={idx} className="flex gap-2 p-2 px-2.5 border-b border-[#f0f4f8] last:border-b-0">
+                <span className="w-5 h-5 rounded-full bg-[#eef3f7] text-[#024fff] text-[9px] font-bold flex items-center justify-center shrink-0">
+                  {ini(it.author)}
                 </span>
+                <div className="flex-1 min-w-0 flex flex-col">
+                  <div className="flex gap-1.5 items-baseline">
+                    <span className="text-[11px] font-bold text-[#0d0d0d]">{it.author}</span>
+                    {it.when && <span className="text-[10px] text-[#8c96a3]">{it.when}</span>}
+                  </div>
+                  {cleanText && (
+                    <span className="text-[12px] leading-snug text-[#1d2a3a] whitespace-pre-wrap">
+                      {formatCommentWithMentions(cleanText)}
+                    </span>
+                  )}
+                  {itemImages.length > 0 && (
+                    <div className="flex flex-col gap-1 mt-1">
+                      {itemImages.map((src, i) => (
+                        <img
+                          key={i}
+                          src={src}
+                          alt="Imagen adjunta"
+                          className="max-w-full max-h-[100px] object-contain rounded border border-[#d6dde5] bg-white"
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       ) : (
         <div className="p-2 px-2.5 text-[11px] text-[#8c96a3] italic">

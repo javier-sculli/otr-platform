@@ -3,6 +3,14 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { TicketCommentsThread, TicketCommentItem } from '../TicketCommentsThread';
 
+vi.mock('../../../lib/imageCompression', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../../lib/imageCompression')>();
+  return {
+    ...actual,
+    compressImageFile: vi.fn().mockResolvedValue('data:image/png;base64,dummy'),
+  };
+});
+
 describe('TicketCommentsThread', () => {
   const mockTeam = [
     { id: 'u1', name: 'Ana Garcia' },
@@ -27,7 +35,7 @@ describe('TicketCommentsThread', () => {
   ];
 
   beforeEach(() => {
-    vi.restoreAllMocks();
+    vi.clearAllMocks();
   });
 
   it('renderiza la lista de comentarios con autores e iniciales', () => {
@@ -142,5 +150,74 @@ describe('TicketCommentsThread', () => {
       screen.getByText(/Sin comentarios. Para comentar un fragmento del copy/i)
     ).toBeInTheDocument();
     expect(screen.getByText(/Creado el/i)).toBeInTheDocument();
+  });
+
+  it('renderiza imágenes embebidas en comentarios y abre el modal al hacer click', () => {
+    const commentsWithImage: TicketCommentItem[] = [
+      {
+        id: 'c-img',
+        content: 'Captura del problema:\n\n![imagen](data:image/jpeg;base64,mockImageData)',
+        userId: 'u1',
+        user: { id: 'u1', name: 'Ana Garcia' },
+        createdAt: '2026-10-01T12:00:00Z',
+      },
+    ];
+
+    render(
+      <TicketCommentsThread
+        comments={commentsWithImage}
+        teamList={mockTeam}
+        currentUserId="u1"
+        onAddComment={vi.fn()}
+      />
+    );
+
+    expect(screen.getByText('Captura del problema:')).toBeInTheDocument();
+    const img = screen.getByAltText('Imagen adjunta en comentario');
+    expect(img).toBeInTheDocument();
+    expect(img).toHaveAttribute('src', 'data:image/jpeg;base64,mockImageData');
+
+    // Click en la imagen para abrir modal visor
+    fireEvent.click(img);
+    expect(screen.getByTestId('comment-image-viewer-modal')).toBeInTheDocument();
+
+    // Cerrar modal
+    const closeBtn = screen.getByRole('button', { name: /cerrar imagen/i });
+    fireEvent.click(closeBtn);
+    expect(screen.queryByTestId('comment-image-viewer-modal')).not.toBeInTheDocument();
+  });
+
+  it('permite adjuntar imagen y habilita el botón comentar sin necesidad de texto', async () => {
+    const onAddComment = vi.fn();
+    render(
+      <TicketCommentsThread
+        comments={[]}
+        teamList={mockTeam}
+        currentUserId="u1"
+        onAddComment={onAddComment}
+      />
+    );
+
+    // Enviar sin texto ni imagen está deshabilitado
+    const submitBtn = screen.getByRole('button', { name: 'Comentar' });
+    expect(submitBtn).toBeDisabled();
+
+    // Simular selección de archivo de imagen
+    const fileInput = screen.getByTestId('comment-file-input') as HTMLInputElement;
+    const file = new File(['dummy-content'], 'screenshot.png', { type: 'image/png' });
+
+    fireEvent.change(fileInput, { target: { files: [file] } });
+
+    // La miniatura de la imagen aparece en el preview
+    const previewContainer = await screen.findByTestId('pasted-images-preview');
+    expect(previewContainer).toBeInTheDocument();
+    expect(screen.getByAltText('Vista previa de imagen')).toBeInTheDocument();
+
+    // El botón comentar se habilita aun sin texto
+    expect(submitBtn).not.toBeDisabled();
+
+    // Click en Comentar
+    fireEvent.click(submitBtn);
+    expect(onAddComment).toHaveBeenCalledWith('![imagen](data:image/png;base64,dummy)');
   });
 });

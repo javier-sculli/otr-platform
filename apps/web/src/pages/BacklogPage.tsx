@@ -27,6 +27,9 @@ interface Ticket {
   assignees?: { id: string; name: string }[];
   client: { id: string; name: string };
   ticketType?: { id: string; name: string; kind?: string } | null;
+  pilarId?: string | null;
+  pilar?: { id: string; nombre: string } | null;
+  speakerId?: string | null;
   speaker?: { id: string; nombre: string } | null;
 }
 

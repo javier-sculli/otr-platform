@@ -52,17 +52,22 @@ export interface TicketData {
   versionsPerCanal?: Record<string, string[]>;
   notasAudiovisual?: string | null;
   tiposContenido?: string[];
-  client: { id: string; name: string; canales?: string[] };
-  owner: { id: string; name: string };
+  clientId?: string;
+  client?: { id: string; name: string; canales?: string[] } | null;
+  ownerId?: string;
+  owner?: { id: string; name: string } | null;
   assigneeIds?: string[];
   assignees?: { id: string; name: string }[];
+  pilarId?: string | null;
   pilar?: { id: string; nombre: string } | null;
+  speakerId?: string | null;
   speaker?: { id: string; name?: string; nombre?: string; role?: string } | null;
   area?: string;
   subEstado?: string | null;
   medio?: string | null;
   periodista?: string | null;
   estadoRespuesta?: string | null;
+  ticketTypeId?: string | null;
   ticketType?: { id: string; name: string; kind?: string } | null;
   estadoAprobacionCliente?: string | null;
   aprobadoPor?: string | null;
@@ -168,14 +173,14 @@ function buildFormData(ticket?: TicketData | null, defaultClientId?: string) {
   return {
     title: ticket.title || '',
     brief: ticket.objetivo ?? '',
-    canales: (ticket as any).canales?.length > 0 ? (ticket as any).canales : [],
-    clientId: (ticket as any).clientId !== undefined ? ((ticket as any).clientId ?? '') : (ticket.client?.id || ''),
-    ownerId: (ticket as any).ownerId !== undefined ? ((ticket as any).ownerId ?? '') : (ticket.owner?.id || ''),
+    canales: ticket.canales?.length ? ticket.canales : [],
+    clientId: ticket.clientId || ticket.client?.id || '',
+    ownerId: ticket.ownerId || ticket.owner?.id || '',
     assigneeIds: initialAssignees,
-    ticketTypeId: (ticket as any).ticketTypeId !== undefined ? ((ticket as any).ticketTypeId ?? '') : (ticket.ticketType?.id ?? ''),
+    ticketTypeId: ticket.ticketTypeId || ticket.ticketType?.id || '',
     tiposContenido: initialTipos,
-    pilarId: (ticket as any).pilarId !== undefined ? ((ticket as any).pilarId ?? '') : ((ticket as any).pilar?.id ?? ''),
-    speakerId: (ticket as any).speakerId !== undefined ? ((ticket as any).speakerId ?? '') : ((ticket as any).speaker?.id ?? ''),
+    pilarId: ticket.pilarId || ticket.pilar?.id || '',
+    speakerId: ticket.speakerId || ticket.speaker?.id || '',
     prioridad: ticket.prioridad || 'MEDIA',
     status: ticket.status || 'PENDIENTE',
     dueDate: formatDateISO(ticket.dueDate),

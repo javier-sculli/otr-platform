@@ -16,6 +16,8 @@ interface MentionTextareaProps {
   users: User[];
   disabled?: boolean;
   autoFocus?: boolean;
+  onPaste?: (e: React.ClipboardEvent<HTMLTextAreaElement>) => void;
+  onPasteImage?: (file: File) => void;
 }
 
 function ini(name?: string): string {
@@ -41,6 +43,8 @@ export const MentionTextarea: React.FC<MentionTextareaProps> = ({
   users,
   disabled = false,
   autoFocus = false,
+  onPaste,
+  onPasteImage,
 }) => {
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
@@ -168,6 +172,22 @@ export const MentionTextarea: React.FC<MentionTextareaProps> = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    if (onPasteImage) {
+      const items = Array.from(e.clipboardData.items || []);
+      const imageItem = items.find((item) => item.type.startsWith('image/'));
+      if (imageItem) {
+        const file = imageItem.getAsFile();
+        if (file) {
+          e.preventDefault();
+          onPasteImage(file);
+          return;
+        }
+      }
+    }
+    onPaste?.(e);
+  };
+
   return (
     <div className="relative flex-1 min-w-0">
       <textarea
@@ -176,6 +196,7 @@ export const MentionTextarea: React.FC<MentionTextareaProps> = ({
         onChange={handleChange}
         onKeyDown={handleKeyDown}
         onKeyUp={handleKeyUp}
+        onPaste={handlePaste}
         placeholder={placeholder}
         rows={rows}
         disabled={disabled}

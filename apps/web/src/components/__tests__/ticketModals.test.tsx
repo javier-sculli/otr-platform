@@ -1018,6 +1018,54 @@ describe('CreateTicketModal', () => {
       expect(screen.getByRole('button', { name: 'Cultura y Liderazgo' })).toHaveClass('bg-[#024fff]');
     });
   });
+
+  it('selecciona y marca el pilar si el ticket solo tiene pilarId plano (referencia directa por ID)', async () => {
+    const mockPilares = [
+      { id: 'pilar-x', nombre: 'Pilar Directo', clientId: 'c1' },
+      { id: 'pilar-y', nombre: 'Pilar Secundario', clientId: 'c1' },
+    ];
+    (api.getPilares as any).mockResolvedValue({
+      data: mockPilares,
+    });
+
+    const mockTicketWithFlatId = {
+      id: 'ticket-flat-id',
+      title: 'Ticket con pilarId plano',
+      status: 'PENDIENTE',
+      canales: ['LinkedIn'],
+      tiposContenido: ['Post'],
+      clientId: 'c1',
+      client: { id: 'c1', name: 'Cliente A' },
+      owner: { id: 'u1', name: 'Tester' },
+      pilarId: 'pilar-x',
+      pilar: null,
+      links: [],
+    };
+
+    (api.getTicket as any).mockResolvedValue({
+      data: mockTicketWithFlatId,
+    });
+
+    render(
+      <CreateTicketModal
+        isOpen={true}
+        onClose={vi.fn()}
+        ticket={mockTicketWithFlatId as any}
+      />,
+      { wrapper: createWrapper() }
+    );
+
+    // Debe matchear el ID directamente y estar seleccionado
+    await waitFor(() => {
+      const btn = screen.getByRole('button', { name: 'Pilar Directo' });
+      expect(btn).toBeInTheDocument();
+      expect(btn).toHaveClass('bg-[#024fff]');
+    });
+
+    // El otro no debe estar seleccionado
+    const btnSecundario = screen.getByRole('button', { name: 'Pilar Secundario' });
+    expect(btnSecundario).not.toHaveClass('bg-[#024fff]');
+  });
 });
 
 
