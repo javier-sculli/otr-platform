@@ -904,6 +904,121 @@ describe('CreateTicketModal', () => {
     const redesRow = linkedInTab.closest('.border-b');
     expect(redesRow).toContainElement(copyBtn);
   });
+
+  it('guarda el pilar de contenido al seleccionarlo y lo mantiene marcado al reabrir el ticket', async () => {
+    const mockPilares = [
+      { id: 'pilar-1', nombre: 'Cultura y Liderazgo', clientId: 'c1' },
+      { id: 'pilar-2', nombre: 'Innovación', clientId: 'c1' },
+    ];
+    (api.getPilares as any).mockResolvedValue({
+      data: mockPilares,
+    });
+
+    const mockTicket = {
+      id: 'ticket-pilar-1',
+      title: 'Post con pilar',
+      status: 'PENDIENTE',
+      canales: ['LinkedIn'],
+      tiposContenido: ['Post'],
+      clientId: 'c1',
+      client: { id: 'c1', name: 'Cliente A' },
+      owner: { id: 'u1', name: 'Tester' },
+      pilar: null,
+      pilarId: null,
+      links: [],
+    };
+
+    let currentTicket = { ...mockTicket };
+    (api.getTicket as any).mockImplementation(() =>
+      Promise.resolve({
+        data: currentTicket,
+      })
+    );
+    (api.updateTicket as any).mockImplementation((_id: string, payload: any) => {
+      currentTicket = {
+        ...currentTicket,
+        ...payload,
+        pilarId: payload.pilarId,
+      };
+      return Promise.resolve({
+        data: currentTicket,
+      });
+    });
+
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    queryClient.setQueryData(['tickets'], { data: [mockTicket] });
+
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter>{children}</MemoryRouter>
+      </QueryClientProvider>
+    );
+
+    const { rerender } = render(
+      <CreateTicketModal
+        isOpen={true}
+        onClose={vi.fn()}
+        ticket={mockTicket as any}
+      />,
+      { wrapper }
+    );
+
+    // Esperar a que carguen los pilares
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Cultura y Liderazgo' })).toBeInTheDocument();
+    });
+
+    const pilarBtn = screen.getByRole('button', { name: 'Cultura y Liderazgo' });
+    expect(pilarBtn).not.toHaveClass('bg-[#024fff]');
+
+    // Seleccionar el pilar
+    fireEvent.click(pilarBtn);
+
+    // Debe llamar a updateTicket con pilarId inmediatamente
+    await waitFor(() => {
+      expect(api.updateTicket).toHaveBeenCalledWith(
+        'ticket-pilar-1',
+        expect.objectContaining({
+          pilarId: 'pilar-1',
+        })
+      );
+    });
+
+    // Debe quedar marcado visualmente
+    expect(screen.getByRole('button', { name: 'Cultura y Liderazgo' })).toHaveClass('bg-[#024fff]');
+
+    // Simular cerrar el modal (salir al backlog)
+    rerender(
+      <CreateTicketModal
+        isOpen={false}
+        onClose={vi.fn()}
+        ticket={null}
+      />
+    );
+
+    // Obtener el ticket actualizado desde el cache de tickets
+    const cachedTickets: any = queryClient.getQueryData(['tickets']);
+    const updatedTicketFromCache = cachedTickets.data.find((t: any) => t.id === 'ticket-pilar-1');
+
+    expect(updatedTicketFromCache.pilarId).toBe('pilar-1');
+
+    // Simular reabrir el ticket desde el backlog
+    rerender(
+      <CreateTicketModal
+        isOpen={true}
+        onClose={vi.fn()}
+        ticket={updatedTicketFromCache}
+      />
+    );
+
+    // Al reabrir, el pilar debe permanecer marcado
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Cultura y Liderazgo' })).toHaveClass('bg-[#024fff]');
+    });
+  });
 });
+
 
 

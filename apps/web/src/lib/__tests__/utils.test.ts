@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseLocalDate, formatDateSpan, formatDateISO, ensureAbsoluteUrl, mergeContentPerCanal, getRedesObjetivoForClient, stripHtmlToPlainText, recordCopyVersion, filterPilaresBySpeaker, shouldOmitTemperature, parseDeliverableLinks, serializeDeliverableLinks } from '../utils';
+import { parseLocalDate, formatDateSpan, formatDateISO, ensureAbsoluteUrl, mergeContentPerCanal, getRedesObjetivoForClient, stripHtmlToPlainText, recordCopyVersion, filterPilaresBySpeaker, shouldOmitTemperature, parseDeliverableLinks, serializeDeliverableLinks, getCollapsedRichTextSnippet } from '../utils';
 
 describe('lib/utils', () => {
   describe('parseLocalDate & Date shift prevention', () => {
@@ -134,6 +134,66 @@ describe('lib/utils', () => {
       expect(stripHtmlToPlainText('')).toBe('');
       expect(stripHtmlToPlainText(null)).toBe('');
       expect(stripHtmlToPlainText(undefined)).toBe('');
+    });
+  });
+
+  describe('getCollapsedRichTextSnippet', () => {
+    it('renderiza el formato (negrita, cursiva) en vez de los caracteres de código o etiquetas', () => {
+      const html = '<p><strong>Objetivo principal:</strong> Difundir la <em>campaña</em></p>';
+      const result = getCollapsedRichTextSnippet(html);
+      expect(result.isEmpty).toBe(false);
+      expect(result.html).toContain('<strong>Objetivo principal:</strong>');
+      expect(result.html).toContain('<em>campaña</em>');
+      expect(result.html).not.toContain('<p>');
+      expect(result.html).not.toContain('</p>');
+    });
+
+    it('toma sólo la primera línea o párrafo no vacío en contenido multilínea', () => {
+      const html = '<p><br></p><p><strong>Primera línea:</strong> importante</p><p>Segunda línea que no debe aparecer</p>';
+      const result = getCollapsedRichTextSnippet(html);
+      expect(result.isEmpty).toBe(false);
+      expect(result.html).toBe('<strong>Primera línea:</strong> importante');
+      expect(result.html).not.toContain('Segunda línea');
+    });
+
+    it('trunca en el primer <br> si hay salto de línea interno', () => {
+      const html = 'Línea uno<br>Línea dos<br>Línea tres';
+      const result = getCollapsedRichTextSnippet(html);
+      expect(result.isEmpty).toBe(false);
+      expect(result.html).toBe('Línea uno');
+    });
+
+    it('convierte formato markdown (**negrita**, *cursiva*) para que se renderice el formato y no los caracteres literales', () => {
+      const md = '**Brief importante:** lanzar en *redes*';
+      const result = getCollapsedRichTextSnippet(md);
+      expect(result.isEmpty).toBe(false);
+      expect(result.html).toContain('<strong>Brief importante:</strong>');
+      expect(result.html).toContain('<em>redes</em>');
+      expect(result.html).not.toContain('**');
+      expect(result.html).not.toContain('*redes*');
+    });
+
+    it('decodifica etiquetas HTML escapadas si vienen en la data (&lt;strong&gt;)', () => {
+      const escaped = '&lt;p&gt;&lt;strong&gt;Brief en texto escapado&lt;/strong&gt;&lt;/p&gt;';
+      const result = getCollapsedRichTextSnippet(escaped);
+      expect(result.isEmpty).toBe(false);
+      expect(result.html).toBe('<strong>Brief en texto escapado</strong>');
+      expect(result.html).not.toContain('&lt;');
+    });
+
+    it('convierte enlaces <a> a spans con estilo para no generar botones interactivos anidados', () => {
+      const html = '<p>Ver detalles en <a href="https://ejemplo.com">este link</a></p>';
+      const result = getCollapsedRichTextSnippet(html);
+      expect(result.isEmpty).toBe(false);
+      expect(result.html).toContain('<span class="underline text-[#024fff]">este link</span>');
+      expect(result.html).not.toContain('<a');
+    });
+
+    it('devuelve el fallback y marca isEmpty=true cuando está vacío, con sólo espacios o tags vacíos', () => {
+      expect(getCollapsedRichTextSnippet(null)).toEqual({ html: 'Sin brief todavía', isEmpty: true });
+      expect(getCollapsedRichTextSnippet('')).toEqual({ html: 'Sin brief todavía', isEmpty: true });
+      expect(getCollapsedRichTextSnippet('<p><br></p>', 'Sin descripción')).toEqual({ html: 'Sin descripción', isEmpty: true });
+      expect(getCollapsedRichTextSnippet('<p>&nbsp; &nbsp;</p>')).toEqual({ html: 'Sin brief todavía', isEmpty: true });
     });
   });
 

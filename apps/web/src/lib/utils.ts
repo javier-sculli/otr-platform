@@ -376,4 +376,161 @@ export function highlightQuotesInHtml(
   return container.innerHTML;
 }
 
+/**
+ * Processes rich text (HTML) or markdown from a brief/copy field into a single-line formatted preview HTML.
+ * - Extracts the first non-empty line or block.
+ * - Preserves inline formatting (bold, italic, underline, strikethrough, highlights).
+ * - Converts markdown syntax (**bold**, *italic*, etc.) into HTML tags if present.
+ * - Prevents raw formatting characters/tags from showing as literal text.
+ * - Returns a fallback when empty.
+ */
+export function getCollapsedRichTextSnippet(
+  content: string | null | undefined,
+  fallback: string = 'Sin brief todavía'
+): { html: string; isEmpty: boolean } {
+  const escapeHtml = (str: string) =>
+    str
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+
+  if (!content || !content.trim()) {
+    return { html: escapeHtml(fallback), isEmpty: true };
+  }
+
+  // If content contains escaped tags like &lt;p&gt; or &lt;strong&gt;, decode them
+  let decoded = content.trim();
+  if (/&lt;(?:p|strong|b|em|i|u|s|strike|del|span|div|a|mark)\b/i.test(decoded)) {
+    decoded = decoded
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      .replace(/&#039;/g, "'");
+  }
+
+  if (typeof document !== 'undefined') {
+    const container = document.createElement('div');
+    container.innerHTML = decoded;
+
+    // Check overall text content
+    const fullText = (container.textContent || '')
+      .replace(/[\u00A0\u200B]/g, ' ')
+      .trim();
+    if (!fullText) {
+      return { html: escapeHtml(fallback), isEmpty: true };
+    }
+
+    // Convert markdown in text nodes
+    const applyMarkdownToNode = (node: Node) => {
+      if (node.nodeType === Node.TEXT_NODE) {
+        const val = node.nodeValue || '';
+        if (/(\*\*|__|\*|_|~~|~)/.test(val)) {
+          const converted = val
+            .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+            .replace(/__(.+?)__/g, '<strong>$1</strong>')
+            .replace(/(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)/g, '<em>$1</em>')
+            .replace(/(?<![a-zA-Z0-9])_([^_]+)_(?![a-zA-Z0-9])/g, '<em>$1</em>')
+            .replace(/~~(.+?)~~/g, '<s>$1</s>')
+            .replace(/~([^~]+)~/g, '<s>$1</s>');
+          if (converted !== val) {
+            const span = document.createElement('span');
+            span.innerHTML = converted;
+            node.parentElement?.replaceChild(span, node);
+          }
+        }
+      } else if (node.nodeType === Node.ELEMENT_NODE) {
+        const children = Array.from(node.childNodes);
+        for (const child of children) {
+          applyMarkdownToNode(child);
+        }
+      }
+    };
+    applyMarkdownToNode(container);
+
+    // Find the first non-empty block element (p, div, li, h1-h6)
+    const blocks = container.querySelectorAll('p, div, li, h1, h2, h3, h4, h5, h6');
+    let targetEl: Element | null = null;
+    if (blocks.length > 0) {
+      for (let i = 0; i < blocks.length; i++) {
+        const blk = blocks[i];
+        const txt = (blk.textContent || '').replace(/[\u00A0\u200B]/g, ' ').trim();
+        if (txt) {
+          targetEl = blk;
+          break;
+        }
+      }
+    }
+
+    const workingNode = targetEl
+      ? (targetEl.cloneNode(true) as HTMLElement)
+      : (container.cloneNode(true) as HTMLElement);
+
+    // Truncate at first <br> if it has text before it
+    const brs = workingNode.querySelectorAll('br');
+    if (brs.length > 0) {
+      for (const br of Array.from(brs)) {
+        let next = br.nextSibling;
+        while (next) {
+          const toRemove = next;
+          next = next.nextSibling;
+          toRemove.remove();
+        }
+        br.remove();
+        if ((workingNode.textContent || '').trim().length > 0) {
+          break;
+        }
+      }
+    }
+
+    // Convert links <a> to non-interactive styled <span> so they don't conflict with outer button
+    workingNode.querySelectorAll('a').forEach(a => {
+      const span = document.createElement('span');
+      span.className = 'underline text-[#024fff]';
+      span.innerHTML = a.innerHTML;
+      a.replaceWith(span);
+    });
+
+    // Strip unsafe elements
+    workingNode.querySelectorAll('script, style, iframe, object, embed, img, input, button, select, textarea').forEach(el => el.remove());
+
+    // Unwrap or remove block tags so it stays strictly inline
+    let snippetHtml = workingNode.innerHTML
+      .replace(/[\u00A0\u200B]/g, ' ')
+      .replace(/<\/?(p|div|h[1-6]|li|ul|ol|section|article)[^>]*>/gi, '')
+      .trim();
+
+    // In case there were raw newlines in text, take only first line
+    if (snippetHtml.includes('\n')) {
+      snippetHtml = snippetHtml.split('\n')[0].trim();
+    }
+
+    const testDiv = document.createElement('div');
+    testDiv.innerHTML = snippetHtml;
+    if (!(testDiv.textContent || '').replace(/[\u00A0\u200B]/g, ' ').trim()) {
+      return { html: escapeHtml(fallback), isEmpty: true };
+    }
+
+    return { html: snippetHtml, isEmpty: false };
+  }
+
+  // Non-DOM fallback (regex only)
+  let clean = decoded
+    .replace(/<br\s*[\/]?>/gi, '\n')
+    .replace(/<\/(p|div|li|h[1-6])>/gi, '\n')
+    .replace(/&nbsp;/gi, ' ')
+    .trim();
+  const firstLine = clean.split('\n').map(l => l.trim()).find(l => l.length > 0) || '';
+  if (!firstLine) {
+    return { html: escapeHtml(fallback), isEmpty: true };
+  }
+  let lineHtml = firstLine
+    .replace(/<\/?(p|div|h[1-6]|li|ul|ol)[^>]*>/gi, '')
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)/g, '<em>$1</em>');
+  return { html: lineHtml, isEmpty: false };
+}
+
+
 

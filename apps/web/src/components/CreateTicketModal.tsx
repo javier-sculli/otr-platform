@@ -8,7 +8,7 @@ import {
 import { api } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 import { STATUS_OPTIONS, PRENSA_STATUS_OPTIONS, getNextStatusInfo } from '../lib/estados';
-import { ensureAbsoluteUrl, formatDateISO, getRedesObjetivoForClient, parseDeliverableLinks, serializeDeliverableLinks, highlightQuotesInHtml } from '../lib/utils';
+import { ensureAbsoluteUrl, formatDateISO, getRedesObjetivoForClient, parseDeliverableLinks, serializeDeliverableLinks, highlightQuotesInHtml, getCollapsedRichTextSnippet } from '../lib/utils';
 import { TextFormatToolbar } from './TextFormatToolbar';
 import { RichTextEditor } from './RichTextEditor';
 import {
@@ -169,13 +169,13 @@ function buildFormData(ticket?: TicketData | null, defaultClientId?: string) {
     title: ticket.title || '',
     brief: ticket.objetivo ?? '',
     canales: (ticket as any).canales?.length > 0 ? (ticket as any).canales : [],
-    clientId: ticket.client?.id || '',
-    ownerId: ticket.owner?.id || '',
+    clientId: (ticket as any).clientId !== undefined ? ((ticket as any).clientId ?? '') : (ticket.client?.id || ''),
+    ownerId: (ticket as any).ownerId !== undefined ? ((ticket as any).ownerId ?? '') : (ticket.owner?.id || ''),
     assigneeIds: initialAssignees,
-    ticketTypeId: ticket.ticketType?.id ?? '',
+    ticketTypeId: (ticket as any).ticketTypeId !== undefined ? ((ticket as any).ticketTypeId ?? '') : (ticket.ticketType?.id ?? ''),
     tiposContenido: initialTipos,
-    pilarId: (ticket as any).pilar?.id ?? '',
-    speakerId: (ticket as any).speaker?.id ?? '',
+    pilarId: (ticket as any).pilarId !== undefined ? ((ticket as any).pilarId ?? '') : ((ticket as any).pilar?.id ?? ''),
+    speakerId: (ticket as any).speakerId !== undefined ? ((ticket as any).speakerId ?? '') : ((ticket as any).speaker?.id ?? ''),
     prioridad: ticket.prioridad || 'MEDIA',
     status: ticket.status || 'PENDIENTE',
     dueDate: formatDateISO(ticket.dueDate),
@@ -284,7 +284,7 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
   );
 
   const selectedClient = (clients?.data ?? []).find((c: any) => c.id === formData.clientId)
-    ?? (ticket?.client?.id === formData.clientId ? (ticket.client as any) : null);
+    ?? (ticket?.client?.id === formData.clientId ? (ticket?.client as any) : null);
 
   const redesDisponibles = useMemo(() => {
     return getRedesObjetivoForClient(selectedClient?.canales, formData.canales);
@@ -388,7 +388,7 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
       if (loadedDetailTicketIdRef.current === ticket.id) return;
       loadedDetailTicketIdRef.current = ticket.id;
 
-      const full = ticketDetailQuery.data as any;
+      const full = ((ticketDetailQuery as any)?.data ?? ticketDetailQuery) as any;
       const fullFormData = buildFormData(full, defaultClientId);
 
       setFormData(prev => {
@@ -526,17 +526,28 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
     try {
       const res = await api.updateTicket(ticket.id, payload);
       if (res?.data) {
+        const enrichedTicket = {
+          ...res.data,
+          pilar: res.data.pilar !== undefined
+            ? res.data.pilar
+            : (res.data.pilarId ? pilares.find((p: any) => p.id === res.data.pilarId) || null : null),
+          speaker: res.data.speaker !== undefined
+            ? res.data.speaker
+            : (res.data.speakerId ? speakers.find((s: any) => s.id === res.data.speakerId) || null : null),
+        };
         queryClient.setQueryData(['tickets'], (old: any) => {
           if (!old?.data) return old;
           return {
             ...old,
-            data: old.data.map((t: any) => (t.id === res.data.id ? { ...t, ...res.data } : t)),
+            data: old.data.map((t: any) => (t.id === res.data.id ? { ...t, ...enrichedTicket } : t)),
           };
         });
         queryClient.setQueryData(['ticket', ticket.id], (old: any) => {
           if (!old?.data) return old;
-          return { ...old, data: { ...old.data, ...res.data } };
+          return { ...old, data: { ...old.data, ...enrichedTicket } };
         });
+        queryClient.invalidateQueries({ queryKey: ['tickets'] });
+        queryClient.invalidateQueries({ queryKey: ['ticket', ticket.id] });
       }
       setSaveStatus('saved');
       dirtyFieldsRef.current.clear();
@@ -595,17 +606,28 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
     mutationFn: (data: any) => api.updateTicket(ticket!.id, data),
     onSuccess: (res: any) => {
       if (res?.data && ticket?.id) {
+        const enrichedTicket = {
+          ...res.data,
+          pilar: res.data.pilar !== undefined
+            ? res.data.pilar
+            : (res.data.pilarId ? pilares.find((p: any) => p.id === res.data.pilarId) || null : null),
+          speaker: res.data.speaker !== undefined
+            ? res.data.speaker
+            : (res.data.speakerId ? speakers.find((s: any) => s.id === res.data.speakerId) || null : null),
+        };
         queryClient.setQueryData(['tickets'], (old: any) => {
           if (!old?.data) return old;
           return {
             ...old,
-            data: old.data.map((t: any) => (t.id === res.data.id ? { ...t, ...res.data } : t)),
+            data: old.data.map((t: any) => (t.id === res.data.id ? { ...t, ...enrichedTicket } : t)),
           };
         });
         queryClient.setQueryData(['ticket', ticket.id], (old: any) => {
           if (!old?.data) return old;
-          return { ...old, data: { ...old.data, ...res.data } };
+          return { ...old, data: { ...old.data, ...enrichedTicket } };
         });
+        queryClient.invalidateQueries({ queryKey: ['tickets'] });
+        queryClient.invalidateQueries({ queryKey: ['ticket', ticket.id] });
       }
     },
     onError: (err: any) => {
@@ -615,8 +637,37 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
 
   const deleteCommentMutation = useMutation({
     mutationFn: (commentId: string) => api.deleteComment(ticket!.id, commentId),
-    onSuccess: () => {
+    onSuccess: (_data, commentId) => {
       queryClient.invalidateQueries({ queryKey: ['comments', ticket?.id] });
+      const markSelector = `mark[data-c="c_${commentId}"], mark[data-c="${commentId}"]`;
+      document.querySelectorAll(markSelector).forEach(m => m.replaceWith(...Array.from(m.childNodes)));
+      const stripRegex = new RegExp(`<mark[^>]*data-c=["'](c_)?${commentId}["'][^>]*>([\\s\\S]*?)</mark>`, 'gi');
+      setFormData(prev => {
+        let changed = false;
+        const nextBrief = prev.brief ? prev.brief.replace(stripRegex, '$2') : prev.brief;
+        if (nextBrief !== prev.brief) changed = true;
+        const nextNotas = prev.notasAudiovisual ? prev.notasAudiovisual.replace(stripRegex, '$2') : prev.notasAudiovisual;
+        if (nextNotas !== prev.notasAudiovisual) changed = true;
+        const nextPerCanal: Record<string, string> = { ...prev.contentPerCanal };
+        Object.keys(nextPerCanal).forEach(canal => {
+          if (nextPerCanal[canal]) {
+            const stripped = nextPerCanal[canal].replace(stripRegex, '$2');
+            if (stripped !== nextPerCanal[canal]) {
+              nextPerCanal[canal] = stripped;
+              changed = true;
+            }
+          }
+        });
+        if (changed) {
+          triggerImmediateAutoSave({
+            brief: nextBrief,
+            notasAudiovisual: nextNotas,
+            contentPerCanal: nextPerCanal,
+          });
+          return { ...prev, brief: nextBrief, notasAudiovisual: nextNotas, contentPerCanal: nextPerCanal };
+        }
+        return prev;
+      });
     },
   });
 
@@ -1024,11 +1075,20 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
                   <span className="text-[11px] font-bold tracking-[0.06em] uppercase text-[#5b6675]">
                     {isPieza ? 'Brief' : 'Descripción'} <span className="font-normal">y {isPieza ? 'material de referencia' : 'recursos'}</span>
                   </span>
-                  {!briefOpen && (
-                    <span className="text-[14px] text-[#1d2a3a] truncate block">
-                      {formData.brief?.trim().split('\n')[0] || 'Sin brief todavía'}
-                    </span>
-                  )}
+                  {!briefOpen && (() => {
+                    const preview = getCollapsedRichTextSnippet(
+                      formData.brief,
+                      isPieza ? 'Sin brief todavía' : 'Sin descripción todavía'
+                    );
+                    return (
+                      <span
+                        className={`text-[14px] truncate block [&_*]:inline ${
+                          preview.isEmpty ? 'text-[#8c96a3]' : 'text-[#1d2a3a]'
+                        }`}
+                        dangerouslySetInnerHTML={{ __html: preview.html }}
+                      />
+                    );
+                  })()}
                 </div>
                 {formData.links.length > 0 && (
                   <span className="shrink-0 whitespace-nowrap text-[12px] text-[#5b6675]">
@@ -1213,11 +1273,20 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
                         <span className="text-[11px] font-bold tracking-[0.06em] uppercase text-[#5b6675]">
                           Notas de diseño
                         </span>
-                        {!notasOpen && (
-                          <span className="text-[14px] text-[#1d2a3a] truncate block">
-                            {formData.notasAudiovisual?.replace(/<[^>]+>/g, '').trim().split('\n')[0] || 'Sin notas de diseño'}
-                          </span>
-                        )}
+                        {!notasOpen && (() => {
+                          const preview = getCollapsedRichTextSnippet(
+                            formData.notasAudiovisual,
+                            'Sin notas de diseño'
+                          );
+                          return (
+                            <span
+                              className={`text-[14px] truncate block [&_*]:inline ${
+                                preview.isEmpty ? 'text-[#8c96a3]' : 'text-[#1d2a3a]'
+                              }`}
+                              dangerouslySetInnerHTML={{ __html: preview.html }}
+                            />
+                          );
+                        })()}
                       </div>
                       <span className="shrink-0 whitespace-nowrap flex items-center gap-1 text-[13px] font-bold text-[#024fff]">
                         {notasOpen ? 'Ocultar' : 'Ver notas'}
@@ -1298,11 +1367,20 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
                               <span className="text-[11px] font-bold tracking-[0.06em] uppercase text-[#5b6675]">Copy</span>
                               <span className="text-[11px] text-[#8c96a3]">({formData.canales.join(', ')})</span>
                             </div>
-                            {!copyOpen && (
-                              <span className="text-[14px] text-[#1d2a3a] truncate block">
-                                {currentCopyText?.replace(/<[^>]+>/g, '').trim().split('\n')[0] || 'Sin copy redactado'}
-                              </span>
-                            )}
+                            {!copyOpen && (() => {
+                              const preview = getCollapsedRichTextSnippet(
+                                currentCopyText,
+                                'Sin copy redactado'
+                              );
+                              return (
+                                <span
+                                  className={`text-[14px] truncate block [&_*]:inline ${
+                                    preview.isEmpty ? 'text-[#8c96a3]' : 'text-[#1d2a3a]'
+                                  }`}
+                                  dangerouslySetInnerHTML={{ __html: preview.html }}
+                                />
+                              );
+                            })()}
                           </div>
                           <span className="shrink-0 whitespace-nowrap flex items-center gap-1 text-[13px] font-bold text-[#024fff]">
                             {copyOpen ? 'Ocultar' : 'Ver copy'}
@@ -1398,15 +1476,6 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
               );
             })()}
 
-            {/* Link a la Publicación (a partir de listo para publicar en adelante) */}
-            {(['LISTO_PARA_PUBLICAR', 'PUBLICADO', 'LISTO'].includes(formData.status) ||
-              (esPrensa && ['PENDIENTE_PUBLICACION', 'LISTO'].includes((ticket as any)?.subEstado || formData.subEstado))) && (
-              <TicketPublishLinks
-                value={formData.linkPublicacion}
-                onChange={(nextVal) => handleChange('linkPublicacion', nextVal, true)}
-                variant="modal"
-              />
-            )}
 
             {/* Comments list & input */}
             <TicketCommentsThread
@@ -1718,6 +1787,19 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
                   })}
                 </div>
               </div>
+            )}
+
+            {/* Link a la Publicación (a partir de listo para publicar en adelante - abajo de todo) */}
+            {(['LISTO_PARA_PUBLICAR', 'PUBLICADO', 'LISTO'].includes(formData.status) ||
+              (esPrensa && ['PENDIENTE_PUBLICACION', 'LISTO'].includes((ticket as any)?.subEstado || formData.subEstado))) && (
+              <>
+                <div className="h-px bg-[#d6dde5]" />
+                <TicketPublishLinks
+                  value={formData.linkPublicacion}
+                  onChange={(nextVal) => handleChange('linkPublicacion', nextVal, true)}
+                  variant="modal"
+                />
+              </>
             )}
 
           </div>

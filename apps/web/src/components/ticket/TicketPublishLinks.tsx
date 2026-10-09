@@ -112,7 +112,7 @@ export function TicketPublishLinks({
             className={
               isPage
                 ? 'h-[42px] box-border font-anek text-[15px] px-3 border border-[#d6dde5] rounded-lg bg-white outline-none text-[#0d0d0d] min-w-0 w-full flex-1 focus:border-[#024fff] focus:ring-2 focus:ring-[#024fff]/12'
-                : 'flex-1 h-10 px-3 border border-[#d6dde5] rounded-lg text-[14px] text-[#0d0d0d] font-anek outline-none focus:border-[#024fff] focus:ring-2 focus:ring-[#024fff]/12 transition-all placeholder:text-[#8c96a3]'
+                : 'flex-1 min-w-0 h-10 px-3 border border-[#d6dde5] rounded-lg text-[14px] text-[#0d0d0d] font-anek outline-none focus:border-[#024fff] focus:ring-2 focus:ring-[#024fff]/12 transition-all placeholder:text-[#8c96a3]'
             }
           />
           {inputVal.trim() && (

@@ -4,6 +4,16 @@
 > 
 > 🎯 **BACKLOG OFICIAL Y PRIORIDADES (FUENTE DE VERDAD):** [Notion Backlog Oficial](https://app.notion.com/p/Backlog-3ba617fc369281048bfdfc89c5041d9c?source=copy_link). Todas las prioridades y tareas activas se gestionan directamente allí.
 
+### [2026-10-09] — Reubicación de Link a la Publicación al Final de la Columna Derecha
+- **Desarrollador:** Antigravity (Pair Programming con Javier Sculli)
+- **Requerimiento:** El Link a la publicación tiene que estar ubicado en la columna derecha, abajo de todo.
+- **Cambios Implementados:**
+  1. **Vista de Detalle (`TicketDetallePage.tsx`):** Se removió el bloque `TicketPublishLinks` de la parte superior del sidebar (encima de los comentarios) y se reubicó al final de la columna derecha, debajo de la sección de Detalles y Vinculados, separado por divisor.
+  2. **Popup Modal (`CreateTicketModal.tsx`):** Se removió de la columna izquierda (arriba de comentarios) y se integró al pie de la columna lateral derecha (sidebar), debajo de las redes y pilares objetivo.
+  3. **Ajuste de Input (`TicketPublishLinks.tsx`):** Se agregó `min-w-0` a los estilos del input en variante modal para garantizar que nunca desborde sidebars angostos.
+  4. **Optimización de Snippets y Comentarios:** Soporte para preview colapsado con formato inline (`getCollapsedRichTextSnippet`) y limpieza de marcas de comentarios al eliminarlos.
+- **Suite de Tests:** 145 tests pasando al 100% en Vitest (`pnpm test`), typecheck y build de producción (`pnpm build`) 100% exitosos.
+
 ### [2026-10-09] — Corrección de Guardado de Link a la Publicación desde Popup y Backend
 - **Desarrollador:** Antigravity (Pair Programming con Javier Sculli)
 - **Causa Raíz:**

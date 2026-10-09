@@ -16,7 +16,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { ensureAbsoluteUrl, formatDateISO, recordCopyVersion, parseDeliverableLinks, serializeDeliverableLinks, highlightQuotesInHtml } from '../lib/utils';
+import { ensureAbsoluteUrl, formatDateISO, recordCopyVersion, parseDeliverableLinks, serializeDeliverableLinks, highlightQuotesInHtml, getCollapsedRichTextSnippet } from '../lib/utils';
 import { api } from '../lib/api';
 import { TicketsReferencia } from '../components/TicketsReferencia';
 import { TextFormatToolbar } from '../components/TextFormatToolbar';
@@ -130,8 +130,27 @@ export function TicketDetallePage() {
 
   const deleteCommentMutation = useMutation({
     mutationFn: (commentId: string) => api.deleteComment(ticketId!, commentId),
-    onSuccess: () => {
+    onSuccess: (_data, commentId) => {
       queryClient.invalidateQueries({ queryKey: ['comments', ticketId] });
+      const markSelector = `mark[data-c="c_${commentId}"], mark[data-c="${commentId}"]`;
+      document.querySelectorAll(markSelector).forEach(m => m.replaceWith(...Array.from(m.childNodes)));
+      const stripRegex = new RegExp(`<mark[^>]*data-c=["'](c_)?${commentId}["'][^>]*>([\\s\\S]*?)</mark>`, 'gi');
+      setBriefTemp(prev => (prev ? prev.replace(stripRegex, '$2') : prev));
+      setNotasAudiovisual(prev => (prev ? prev.replace(stripRegex, '$2') : prev));
+      setCopyPerCanal(prev => {
+        let changed = false;
+        const next = { ...prev };
+        Object.keys(next).forEach(canal => {
+          if (next[canal]) {
+            const stripped = next[canal].replace(stripRegex, '$2');
+            if (stripped !== next[canal]) {
+              next[canal] = stripped;
+              changed = true;
+            }
+          }
+        });
+        return changed ? next : prev;
+      });
     },
   });
 
@@ -414,7 +433,15 @@ export function TicketDetallePage() {
 
   // Inline comment balloon methods
   const startInline = (ref: React.RefObject<HTMLDivElement | null>, e?: React.MouseEvent) => {
-    startInlineComment(ref, undefined, e);
+    startInlineComment(ref, (newHtml) => {
+      if (ref === briefRef) {
+        setBriefTemp(newHtml);
+      } else if (ref === copyRef) {
+        setCopyPerCanal(prev => ({ ...prev, [activeCopyTab]: newHtml }));
+      } else if (ref === notasRef) {
+        setNotasAudiovisual(newHtml);
+      }
+    }, e);
   };
 
   const locateMark = (quoteText: string) => {
@@ -672,11 +699,20 @@ export function TicketDetallePage() {
                 <span className="text-[12px] font-bold tracking-[0.06em] uppercase text-[#5b6675]">
                   {isPieza ? 'Brief y material de referencia' : 'Descripción y recursos'}
                 </span>
-                {!briefOpen && (
-                  <span className="text-[16px] leading-[1.45] text-[#1d2a3a] truncate block">
-                    {briefTemp ? briefTemp.replace(/<[^>]*>/g, '').trim().split('\n')[0] || 'Sin brief todavía' : 'Sin brief todavía'}
-                  </span>
-                )}
+                {!briefOpen && (() => {
+                  const preview = getCollapsedRichTextSnippet(
+                    briefTemp,
+                    isPieza ? 'Sin brief todavía' : 'Sin descripción todavía'
+                  );
+                  return (
+                    <span
+                      className={`text-[16px] leading-[1.45] truncate block [&_*]:inline ${
+                        preview.isEmpty ? 'text-[#8c96a3]' : 'text-[#1d2a3a]'
+                      }`}
+                      dangerouslySetInnerHTML={{ __html: preview.html }}
+                    />
+                  );
+                })()}
               </div>
               {((ticket.links || []).length > 0 || attachedFiles.length > 0) && (
                 <span className="shrink-0 whitespace-nowrap flex items-center gap-1.5 text-[14px] text-[#5b6675]">
@@ -943,11 +979,20 @@ export function TicketDetallePage() {
                         <span className="text-[12px] font-bold tracking-[0.06em] uppercase text-[#5b6675]">
                           Notas de diseño
                         </span>
-                        {!notasOpen && (
-                          <span className="text-[14px] text-[#1d2a3a] truncate block">
-                            {notasAudiovisual?.replace(/<[^>]+>/g, '').trim().split('\n')[0] || 'Sin notas de diseño'}
-                          </span>
-                        )}
+                        {!notasOpen && (() => {
+                          const preview = getCollapsedRichTextSnippet(
+                            notasAudiovisual,
+                            'Sin notas de diseño'
+                          );
+                          return (
+                            <span
+                              className={`text-[14px] truncate block [&_*]:inline ${
+                                preview.isEmpty ? 'text-[#8c96a3]' : 'text-[#1d2a3a]'
+                              }`}
+                              dangerouslySetInnerHTML={{ __html: preview.html }}
+                            />
+                          );
+                        })()}
                       </div>
                       <span className="shrink-0 whitespace-nowrap flex items-center gap-1.5 text-[14px] font-bold text-[#024fff]">
                         {notasOpen ? 'Ocultar' : 'Ver notas'}
@@ -1048,18 +1093,6 @@ export function TicketDetallePage() {
         <div className="self-stretch min-w-0 bg-[#f7fafc] border-t lg:border-t-0 lg:border-l border-[#d6dde5] box-border">
           <div className="lg:sticky lg:top-[124px] lg:max-h-[calc(100vh-124px)] lg:overflow-y-auto p-6 sm:p-7 pb-12 flex flex-col gap-7 box-border">
 
-            {/* Link a la Publicación (a partir de listo para publicar en adelante) */}
-            {(['LISTO_PARA_PUBLICAR', 'PUBLICADO', 'LISTO'].includes(ticket.status) ||
-              (ticket.area === 'PRENSA' && ['PENDIENTE_PUBLICACION', 'LISTO'].includes(ticket.subEstado))) && (
-              <div className="flex flex-col gap-3.5">
-                <TicketPublishLinks
-                  value={ticket?.linkPublicacion}
-                  onChange={(nextVal) => updateMutation.mutate({ linkPublicacion: nextVal || null })}
-                  variant="page"
-                />
-                <div className="h-px bg-[#d6dde5] mt-2" />
-              </div>
-            )}
 
             {/* 0 Comentarios */}
             <TicketCommentsThread
@@ -1366,6 +1399,21 @@ export function TicketDetallePage() {
                 </div>
               </div>
             </div>
+            
+            {/* 4 Link a la Publicación (abajo de todo) */}
+            {(['LISTO_PARA_PUBLICAR', 'PUBLICADO', 'LISTO'].includes(ticket.status) ||
+              (ticket.area === 'PRENSA' && ['PENDIENTE_PUBLICACION', 'LISTO'].includes(ticket.subEstado))) && (
+              <>
+                <div className="h-px bg-[#d6dde5]" />
+                <div className="flex flex-col gap-3.5">
+                  <TicketPublishLinks
+                    value={ticket?.linkPublicacion}
+                    onChange={(nextVal) => updateMutation.mutate({ linkPublicacion: nextVal || null })}
+                    variant="page"
+                  />
+                </div>
+              </>
+            )}
 
           </div>
         </div>

@@ -459,6 +459,8 @@ export async function ticketsRoutes(fastify: FastifyInstance) {
         client: true,
         owner: { select: { id: true, name: true, email: true } },
         ticketType: true,
+        pilar: { select: { id: true, nombre: true, descripcion: true } },
+        speaker: { select: { id: true, nombre: true } },
       },
     });
 
@@ -602,6 +604,11 @@ export async function ticketsRoutes(fastify: FastifyInstance) {
         referenciasGraficas: true, contentPerCanal: true, versionsPerCanal: true,
         notasAudiovisual: true, createdAt: true, updatedAt: true,
         owner: { select: { id: true, name: true, email: true } },
+        reviewer: { select: { id: true, name: true, email: true } },
+        ticketType: { select: { id: true, name: true, kind: true } },
+        pilar: { select: { id: true, nombre: true, descripcion: true } },
+        speaker: { select: { id: true, nombre: true } },
+        client: { select: { id: true, name: true, active: true, canales: true, linkedinUrl: true, instagramUrl: true, webUrl: true } },
       },
     });
 

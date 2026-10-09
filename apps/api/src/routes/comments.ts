@@ -172,7 +172,7 @@ export async function commentsRoutes(fastify: FastifyInstance) {
 
   // DELETE /tickets/:ticketId/comments/:commentId
   fastify.delete('/:ticketId/comments/:commentId', async (request, reply) => {
-    const { commentId } = request.params as { ticketId: string; commentId: string };
+    const { ticketId, commentId } = request.params as { ticketId: string; commentId: string };
     const user = (request as any).user;
 
     const comment = await prisma.ticketComment.findUnique({ where: { id: commentId } });
@@ -182,6 +182,52 @@ export async function commentsRoutes(fastify: FastifyInstance) {
     }
 
     await prisma.ticketComment.delete({ where: { id: commentId } });
+
+    // Clean up mark in ticket html fields
+    try {
+      const ticket = await prisma.ticket.findUnique({
+        where: { id: ticketId },
+        select: { id: true, objetivo: true, notasAudiovisual: true, contentPerCanal: true }
+      });
+      if (ticket) {
+        const markRegex = new RegExp(`<mark[^>]*data-c=["'](c_)?${commentId}["'][^>]*>([\\s\\S]*?)</mark>`, 'gi');
+        let updateNeeded = false;
+        const updateData: any = {};
+
+        if (ticket.objetivo && markRegex.test(ticket.objetivo)) {
+          updateData.objetivo = ticket.objetivo.replace(markRegex, '$2');
+          updateNeeded = true;
+        }
+        if (ticket.notasAudiovisual && markRegex.test(ticket.notasAudiovisual)) {
+          updateData.notasAudiovisual = ticket.notasAudiovisual.replace(markRegex, '$2');
+          updateNeeded = true;
+        }
+        if (ticket.contentPerCanal && typeof ticket.contentPerCanal === 'object') {
+          const perCanal = { ...(ticket.contentPerCanal as Record<string, string>) };
+          let canalChanged = false;
+          for (const [ch, val] of Object.entries(perCanal)) {
+            if (typeof val === 'string' && markRegex.test(val)) {
+              perCanal[ch] = val.replace(markRegex, '$2');
+              canalChanged = true;
+            }
+          }
+          if (canalChanged) {
+            updateData.contentPerCanal = perCanal;
+            updateNeeded = true;
+          }
+        }
+
+        if (updateNeeded) {
+          await prisma.ticket.update({
+            where: { id: ticketId },
+            data: updateData,
+          });
+        }
+      }
+    } catch (e) {
+      fastify.log.error(e, 'Error cleaning up ticket mark on comment delete');
+    }
+
     return reply.status(204).send();
   });
 }
