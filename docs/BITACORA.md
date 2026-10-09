@@ -4,6 +4,19 @@
 > 
 > 🎯 **BACKLOG OFICIAL Y PRIORIDADES (FUENTE DE VERDAD):** [Notion Backlog Oficial](https://app.notion.com/p/Backlog-3ba617fc369281048bfdfc89c5041d9c?source=copy_link). Todas las prioridades y tareas activas se gestionan directamente allí.
 
+### [2026-10-09] — Fix de Comentarios Dobles, Deduplicación en Hover y Limpieza de Marcas Huérfanas
+- **Desarrollador:** Antigravity (Pair Programming con Javier Sculli)
+- **Diagnóstico y Causa Raíz:**
+  1. En `useInlineComments.ts`, `handleMarkHover` concatenaba los comentarios en memoria local (`threadItems`) con los de la API (`persistedItems`) sin deduplicar (`[...threadItems, ...persistedItems]`), duplicando comentarios en el tooltip flotante tras interactuar con un comentario inline.
+  2. Al seleccionar texto para comentar, `startInlineComment` insertaba un `<mark>` y llamaba inmediatamente a `onHtmlChange`, disparando el auto-guardado a la base de datos (800ms). Si el usuario cancelaba el popover, `closePop` quitaba la marca del DOM pero no notificaba a `onHtmlChange`, dejando marcas huérfanas en la base de datos e incluso permitiendo anidarlas (`<mark><mark>`).
+  3. Al eliminar un comentario en el backend (`DELETE /comments/:commentId`), se borraba la fila en `ticket_comments` pero no se limpiaban las marcas `<mark>` del ticket en la base de datos.
+- **Cambios Implementados:**
+  1. **Frontend (`useInlineComments.ts`):** Deduplicación de comentarios en `handleMarkHover` y `getPersistedItems`, rollback y notificación con `onHtmlChange` al cancelar borradores en `closePop`, y bloqueo de anidamiento de marcas sobre comentarios existentes.
+  2. **Frontend (`CreateTicketModal.tsx`, `TicketDetallePage.tsx`):** Limpieza de etiquetas `<mark>` en el DOM y en `formData` / estado local al eliminar un comentario.
+  3. **Backend (`comments.ts`):** En `DELETE /tickets/:ticketId/comments/:commentId`, se remueven automáticamente las etiquetas `<mark>` del ticket asociado en `objetivo`, `notasAudiovisual` y `contentPerCanal`.
+  4. **Limpieza en BD:** Limpieza puntual del ticket `26fc3929-fb1c-4f52-86aa-a28609be898a`, desenvolviendo marcas huérfanas y anidadas en `objetivo` y `LinkedIn` preservando el comentario válido.
+- **Suite de Tests:** 148 tests pasando en Vitest (`pnpm test`), builds de backend y frontend 100% exitosos.
+
 ### [2026-10-09] — Reubicación de Link a la Publicación al Final de la Columna Derecha
 - **Desarrollador:** Antigravity (Pair Programming con Javier Sculli)
 - **Requerimiento:** El Link a la publicación tiene que estar ubicado en la columna derecha, abajo de todo.
