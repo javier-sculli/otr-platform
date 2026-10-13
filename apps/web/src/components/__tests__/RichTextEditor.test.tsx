@@ -121,4 +121,97 @@ describe('RichTextEditor', () => {
 
     expect(onMarkClick).toHaveBeenCalledWith('c123', mark);
   });
+
+  it('abre enlaces en una pestaña nueva al hacer click normal sobre un <a>', () => {
+    const onChange = vi.fn();
+    const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null);
+
+    render(
+      <RichTextEditor
+        value='<p>Brief con link: <a href="https://docs.google.com/document/d/123/edit">Google Doc</a></p>'
+        onChange={onChange}
+      />
+    );
+
+    const link = screen.getByText('Google Doc');
+    fireEvent.click(link);
+
+    expect(openSpy).toHaveBeenCalledWith(
+      'https://docs.google.com/document/d/123/edit',
+      '_blank',
+      'noopener,noreferrer'
+    );
+
+    openSpy.mockRestore();
+  });
+
+  it('normaliza URLs relativas con https:// al hacer click en un enlace', () => {
+    const onChange = vi.fn();
+    const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null);
+
+    render(
+      <RichTextEditor
+        value='<p>Visitar <a href="www.notion.so/my-page">Notion</a></p>'
+        onChange={onChange}
+      />
+    );
+
+    const link = screen.getByText('Notion');
+    fireEvent.click(link);
+
+    expect(openSpy).toHaveBeenCalledWith(
+      'https://www.notion.so/my-page',
+      '_blank',
+      'noopener,noreferrer'
+    );
+
+    openSpy.mockRestore();
+  });
+
+  it('agrega title al pasar el mouse por encima de un link para mostrar el destino', () => {
+    const onChange = vi.fn();
+
+    render(
+      <RichTextEditor
+        value='<p>Link: <a href="https://example.com/brief">Ejemplo</a></p>'
+        onChange={onChange}
+      />
+    );
+
+    const link = screen.getByText('Ejemplo');
+    expect(link).not.toHaveAttribute('title');
+
+    fireEvent.mouseOver(link);
+
+    expect(link).toHaveAttribute('title', 'https://example.com/brief');
+  });
+
+  it('no abre el link si el usuario está seleccionando texto mediante arrastre', () => {
+    const onChange = vi.fn();
+    const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null);
+
+    render(
+      <RichTextEditor
+        value='<p><a href="https://example.com">Texto seleccionado</a></p>'
+        onChange={onChange}
+      />
+    );
+
+    // Mock window.getSelection con texto seleccionado
+    const originalGetSelection = window.getSelection;
+    window.getSelection = () => ({
+      isCollapsed: false,
+      toString: () => 'Texto seleccionado',
+    } as any);
+
+    try {
+      const link = screen.getByText('Texto seleccionado');
+      fireEvent.click(link);
+
+      expect(openSpy).not.toHaveBeenCalled();
+    } finally {
+      window.getSelection = originalGetSelection;
+      openSpy.mockRestore();
+    }
+  });
 });

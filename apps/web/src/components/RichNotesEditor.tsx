@@ -4,6 +4,7 @@ import {
   Link2, ImageIcon, AlignLeft, AlignCenter, AlignRight, Trash2,
   RemoveFormatting, Smile, Search, X,
 } from 'lucide-react';
+import { ensureAbsoluteUrl } from '../lib/utils';
 
 interface RichNotesEditorProps {
   value: string;
@@ -408,9 +409,27 @@ export function RichNotesEditor({
     });
   }, []);
 
-  // Manejar selección de imagen
+  // Manejar selección de imagen y clicks en links
   const handleEditorClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    const target = e.target as HTMLElement;
+    const rawTarget = e.target as Node | null;
+    const target = (rawTarget instanceof Element ? rawTarget : rawTarget?.parentElement) as HTMLElement | null;
+
+    const anchor = target?.closest('a') as HTMLAnchorElement | null;
+    if (anchor) {
+      const rawHref = anchor.getAttribute('href') || anchor.href;
+      if (rawHref) {
+        const sel = typeof window !== 'undefined' ? window.getSelection() : null;
+        if (sel && !sel.isCollapsed && sel.toString().trim().length > 0) {
+          return;
+        }
+
+        e.preventDefault();
+        const targetUrl = ensureAbsoluteUrl(rawHref);
+        window.open(targetUrl, '_blank', 'noopener,noreferrer');
+        return;
+      }
+    }
+
     if (target && target.tagName === 'IMG') {
       const img = target as HTMLImageElement;
       // Desmarcar otras imágenes
@@ -425,6 +444,22 @@ export function RichNotesEditor({
         el.classList.remove('ring-2', 'ring-[#024fff]', 'ring-offset-2');
       });
       setSelectedImgState(null);
+    }
+  };
+
+  const handleEditorAuxClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (e.button === 1) {
+      const rawTarget = e.target as Node | null;
+      const target = (rawTarget instanceof Element ? rawTarget : rawTarget?.parentElement) as HTMLElement | null;
+      const anchor = target?.closest('a') as HTMLAnchorElement | null;
+      if (anchor) {
+        const rawHref = anchor.getAttribute('href') || anchor.href;
+        if (rawHref) {
+          e.preventDefault();
+          const targetUrl = ensureAbsoluteUrl(rawHref);
+          window.open(targetUrl, '_blank', 'noopener,noreferrer');
+        }
+      }
     }
   };
 
@@ -1084,6 +1119,7 @@ export function RichNotesEditor({
         contentEditable
         suppressContentEditableWarning
         onClick={handleEditorClick}
+        onAuxClick={handleEditorAuxClick}
         onInput={handleInput}
         onBlur={onBlur}
         onKeyDown={(e) => {

@@ -4,6 +4,19 @@
 > 
 > 🎯 **BACKLOG OFICIAL Y PRIORIDADES (FUENTE DE VERDAD):** [Notion Backlog Oficial](https://app.notion.com/p/Backlog-3ba617fc369281048bfdfc89c5041d9c?source=copy_link). Todas las prioridades y tareas activas se gestionan directamente allí.
 
+### [2026-10-13] — Habilitación de Clicks Directos en Enlaces en Brief y Editores de Texto
+- **Desarrollador:** Antigravity (Pair Programming con Javier Sculli)
+- **Diagnóstico y Causa Raíz:**
+  1. En elementos `contentEditable`, los navegadores desactivan por defecto la navegación nativa de etiquetas `<a>` para posicionar el cursor en el texto editable.
+  2. En `RichTextEditor.tsx`, la lógica de `handleClick` requería explícitamente `(e.metaKey || e.ctrlKey)` para abrir links, impidiendo que usuarios comunes abrieran enlaces con un click izquierdo normal en el brief o en los copies.
+- **Cambios Implementados:**
+  1. **Apertura Directa (`RichTextEditor.tsx`, `RichNotesEditor.tsx`):** Un click izquierdo normal o click central (`auxclick`) abre el enlace en una pestaña nueva (`window.open(targetUrl, '_blank', 'noopener,noreferrer')`).
+  2. **Protección de Selección de Texto:** Si el usuario está realizando una selección de texto mediante arrastre (`window.getSelection()`), no se dispara la navegación para no interferir con la edición o copiado.
+  3. **Normalización de URLs (`ensureAbsoluteUrl`):** Garantiza que enlaces relativos (ej. `www.google.com` o links sin protocolo) se abran correctamente con `https://`.
+  4. **Tooltip en Hover:** Al pasar el cursor por encima del enlace, se asigna `title` con la URL de destino para previsualización inmediata.
+  5. **Barra de Formato (`TextFormatToolbar.tsx`):** Al crear enlaces con el botón `Link`, se asegura URL absoluta y atributos `target="_blank"` y `rel="noopener noreferrer"`.
+- **Suite de Tests:** 4 tests agregados en `RichTextEditor.test.tsx` cubriendo click normal, normalización de URL, preservación durante selección y tooltip en hover. Suite completa (170 tests) pasando exitosamente.
+
 ### [2026-10-09] — Simplificación y Persistencia de Pilar de Contenido en Edición de Tickets
 - **Desarrollador:** Antigravity (Pair Programming con Javier Sculli)
 - **Diagnóstico y Causa Raíz:**

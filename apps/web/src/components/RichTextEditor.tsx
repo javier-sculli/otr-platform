@@ -1,4 +1,5 @@
 import React, { useRef, useEffect, forwardRef, useImperativeHandle } from 'react';
+import { ensureAbsoluteUrl } from '../lib/utils';
 
 export interface RichTextEditorProps {
   value: string;
@@ -114,12 +115,37 @@ export const RichTextEditor = forwardRef<HTMLDivElement, RichTextEditorProps>(
       }
 
       const anchor = target?.closest('a') as HTMLAnchorElement | null;
-      if (anchor && anchor.href && (e.metaKey || e.ctrlKey)) {
-        e.preventDefault();
-        window.open(anchor.href, '_blank', 'noopener,noreferrer');
-        return;
-      }
+      if (anchor) {
+        const rawHref = anchor.getAttribute('href') || anchor.href;
+        if (rawHref) {
+          // If the user is currently selecting text via drag, don't trigger navigation
+          const sel = typeof window !== 'undefined' ? window.getSelection() : null;
+          if (sel && !sel.isCollapsed && sel.toString().trim().length > 0) {
+            return;
+          }
 
+          e.preventDefault();
+          const targetUrl = ensureAbsoluteUrl(rawHref);
+          window.open(targetUrl, '_blank', 'noopener,noreferrer');
+          return;
+        }
+      }
+    };
+
+    const handleAuxClick = (e: React.MouseEvent<HTMLDivElement>) => {
+      if (e.button === 1) {
+        const rawTarget = e.target as Node | null;
+        const target = (rawTarget instanceof Element ? rawTarget : rawTarget?.parentElement) as HTMLElement | null;
+        const anchor = target?.closest('a') as HTMLAnchorElement | null;
+        if (anchor) {
+          const rawHref = anchor.getAttribute('href') || anchor.href;
+          if (rawHref) {
+            e.preventDefault();
+            const targetUrl = ensureAbsoluteUrl(rawHref);
+            window.open(targetUrl, '_blank', 'noopener,noreferrer');
+          }
+        }
+      }
     };
 
     const handlePaste = (e: React.ClipboardEvent<HTMLDivElement>) => {
@@ -200,9 +226,17 @@ export const RichTextEditor = forwardRef<HTMLDivElement, RichTextEditorProps>(
     };
 
     const handleMouseOver = (e: React.MouseEvent<HTMLDivElement>) => {
-      if (!onMarkHover) return;
       const rawTarget = e.target as Node | null;
       const target = (rawTarget instanceof Element ? rawTarget : rawTarget?.parentElement) as HTMLElement | null;
+      const anchor = target?.closest('a') as HTMLAnchorElement | null;
+      if (anchor && !anchor.title) {
+        const rawHref = anchor.getAttribute('href') || anchor.href;
+        if (rawHref) {
+          anchor.title = ensureAbsoluteUrl(rawHref);
+        }
+      }
+
+      if (!onMarkHover) return;
       const mark = target?.closest('mark[data-c]') as HTMLElement | null;
       if (mark) {
         const id = mark.dataset.c || '';
@@ -227,6 +261,7 @@ export const RichTextEditor = forwardRef<HTMLDivElement, RichTextEditorProps>(
         {...({ placeholder } as any)}
         onFocus={handleFocus}
         onClick={handleClick}
+        onAuxClick={handleAuxClick}
         onMouseOver={handleMouseOver}
         onMouseLeave={handleMouseLeave}
         onPaste={handlePaste}

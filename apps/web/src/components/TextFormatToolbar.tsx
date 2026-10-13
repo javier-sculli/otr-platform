@@ -1,5 +1,6 @@
 import React from 'react';
 import { MessageSquare } from 'lucide-react';
+import { ensureAbsoluteUrl } from '../lib/utils';
 
 export function applyFormatToEditor(
   editor: HTMLDivElement | null,
@@ -33,7 +34,13 @@ export function applyFormatToEditor(
     case 'link': {
       const u = prompt('Ingresá la URL del enlace:');
       if (u) {
-        document.execCommand('createLink', false, u);
+        const fullUrl = ensureAbsoluteUrl(u);
+        document.execCommand('createLink', false, fullUrl);
+        const links = editor.querySelectorAll(`a[href="${fullUrl}"]`);
+        links.forEach(l => {
+          l.setAttribute('target', '_blank');
+          l.setAttribute('rel', 'noopener noreferrer');
+        });
       }
       break;
     }
@@ -106,8 +113,9 @@ export function applyFormatToTextarea(
     case 'link': {
       const u = prompt('Ingresá la URL del enlace:');
       if (u) {
+        const fullUrl = ensureAbsoluteUrl(u);
         const text = selected || 'enlace';
-        next = val.slice(0, s) + `[${text}](${u})` + val.slice(end);
+        next = val.slice(0, s) + `[${text}](${fullUrl})` + val.slice(end);
         newStart = s + 1;
         newEnd = s + 1 + text.length;
       } else {
