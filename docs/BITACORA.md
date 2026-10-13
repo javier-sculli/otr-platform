@@ -4,6 +4,19 @@
 > 
 > 🎯 **BACKLOG OFICIAL Y PRIORIDADES (FUENTE DE VERDAD):** [Notion Backlog Oficial](https://app.notion.com/p/Backlog-3ba617fc369281048bfdfc89c5041d9c?source=copy_link). Todas las prioridades y tareas activas se gestionan directamente allí.
 
+### [2026-10-13] — Resiliencia en Envío de Comentarios y Protección contra Pérdida de Datos
+- **Desarrollador:** Antigravity (Pair Programming con Javier Sculli)
+- **Diagnóstico y Causa Raíz:**
+  1. Al pulsar "Comentar" en `TicketCommentsThread.tsx` e `InlineCommentPopover.tsx`, el campo de texto y las imágenes adjuntas se vaciaban de forma síncrona e inmediata (`setCommentInput('')`), antes de esperar confirmación del backend.
+  2. Si la petición tardaba en responder, el usuario cambiaba de pestaña o la conexión experimentaba inestabilidad, la mutación fallaba sin `onError`, perdiéndose el contenido redactado de forma irrecuperable y obligando al usuario a volver a cargarlo.
+- **Cambios Implementados:**
+  1. **Feedback de Envío Activo (`TicketCommentsThread.tsx`, `InlineCommentPopover.tsx`):** Al enviar, el botón entra en estado asíncrono mostrando un spinner y la leyenda `Guardando…`, quedando deshabilitado para prevenir envíos dobles.
+  2. **Limpieza Condicionada al Éxito:** El textarea y las imágenes adjuntas solo se limpian cuando la API confirma la persistencia exitosa.
+  3. **Preservación y Reintento ante Fallo:** Si ocurre un error de red o de API, el contenido se preserva intacto en el textarea, se despliega un mensaje visible en color rojo indicando el problema y el botón cambia reactivamente a `Reintentar`.
+  4. **Atajo de Teclado Seguro:** Soporte para enviar y reintentar con `⌘+Enter` / `Ctrl+Enter` directamente desde el teclado.
+  5. **Integración Asíncrona en Vistas (`TicketDetallePage.tsx`, `CreateTicketModal.tsx`):** Propagación de promesas mediante `mutateAsync` para capturar cualquier eventualidad en el componente de comentarios.
+- **Suite de Tests:** Nuevo test unitario en `TicketCommentsThread.test.tsx` verificando la preservación del texto ante caídas de red simuladas y la recuperación con el botón `Reintentar`. Suite completa (171 tests) pasando al 100% en Vitest (`pnpm test`) y build de producción exitoso.
+
 ### [2026-10-13] — Habilitación de Clicks Directos en Enlaces en Brief y Editores de Texto
 - **Desarrollador:** Antigravity (Pair Programming con Javier Sculli)
 - **Diagnóstico y Causa Raíz:**

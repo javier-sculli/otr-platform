@@ -104,6 +104,9 @@ export const TicketCommentsThread: React.FC<TicketCommentsThreadProps> = ({
   const [viewerImage, setViewerImage] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [sendError, setSendError] = useState<string | null>(null);
+
   const handleImageFile = async (file: File) => {
     if (!file.type.startsWith('image/')) return;
     try {
@@ -121,13 +124,24 @@ export const TicketCommentsThread: React.FC<TicketCommentsThreadProps> = ({
     setPastedImages(prev => prev.filter((_, i) => i !== index));
   };
 
-  const handleSend = () => {
+  const isBusy = isPendingAdd || isSubmitting;
+
+  const handleSend = async () => {
     const trimmed = commentInput.trim();
-    if ((!trimmed && pastedImages.length === 0) || isPendingAdd || isCompressing) return;
+    if ((!trimmed && pastedImages.length === 0) || isBusy || isCompressing) return;
     const fullContent = buildCommentContent(trimmed, pastedImages);
-    onAddComment(fullContent);
-    setCommentInput('');
-    setPastedImages([]);
+    try {
+      setIsSubmitting(true);
+      setSendError(null);
+      await onAddComment(fullContent);
+      setCommentInput('');
+      setPastedImages([]);
+    } catch (err: any) {
+      console.error('Error al enviar comentario:', err);
+      setSendError(err?.message || 'No se pudo guardar el comentario. Intentá de nuevo.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const isPage = variant === 'page';
@@ -267,12 +281,21 @@ export const TicketCommentsThread: React.FC<TicketCommentsThreadProps> = ({
         <div className={`flex-1 min-w-0 flex flex-col ${isPage ? 'w-full gap-2' : 'gap-2.5'}`}>
           <MentionTextarea
             value={commentInput}
-            onChange={setCommentInput}
+            onChange={(val) => {
+              setCommentInput(val);
+              if (sendError) setSendError(null);
+            }}
             onPasteImage={handleImageFile}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                e.preventDefault();
+                handleSend();
+              }
+            }}
             placeholder={
               isPage
-                ? 'Comentario general del ticket (@ para mencionar, pegá imágenes con Ctrl+V)'
-                : 'Escribí un comentario para el equipo (usá @ o pegá imágenes)…'
+                ? 'Comentario general del ticket (@ para mencionar, pegá imágenes con Ctrl+V, ⌘+Enter para enviar)'
+                : 'Escribí un comentario para el equipo (usá @ o pegá imágenes, ⌘+Enter para enviar)…'
             }
             rows={isPage ? 2 : 3}
             users={teamList}
@@ -347,31 +370,49 @@ export const TicketCommentsThread: React.FC<TicketCommentsThreadProps> = ({
             </div>
 
             {isPage ? (
-              (commentInput.trim().length > 0 || pastedImages.length > 0) && (
+              (commentInput.trim().length > 0 || pastedImages.length > 0 || sendError) && (
+                <div className="flex items-center gap-2.5 self-end">
+                  {sendError && (
+                    <span className="text-[12px] font-medium text-[#d4380d]" data-testid="comment-error">
+                      {sendError}
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={handleSend}
+                    disabled={isBusy || isCompressing}
+                    className={`self-end shrink-0 whitespace-nowrap h-[38px] px-4 border-0 rounded-lg cursor-pointer font-anek text-[14px] font-bold text-white transition-colors flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed ${
+                      sendError ? 'bg-[#d4380d] hover:bg-[#b02a06]' : 'bg-[#024fff] hover:bg-[#0c57d3]'
+                    }`}
+                  >
+                    {isBusy && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                    <span>{isBusy ? 'Guardando…' : sendError ? 'Reintentar' : 'Comentar'}</span>
+                  </button>
+                </div>
+              )
+            ) : (
+              <div className="flex items-center gap-2 self-end">
+                {sendError && (
+                  <span className="text-[11px] font-medium text-[#d4380d]" data-testid="comment-error">
+                    {sendError}
+                  </span>
+                )}
                 <button
                   type="button"
                   onClick={handleSend}
-                  disabled={isPendingAdd || isCompressing}
-                  className="self-end shrink-0 whitespace-nowrap h-[38px] px-4 border-0 bg-[#024fff] rounded-lg cursor-pointer font-anek text-[14px] font-bold text-white hover:bg-[#0c57d3] transition-colors flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={((!commentInput.trim() && pastedImages.length === 0) && !sendError) || isBusy || isCompressing}
+                  className={`h-8 px-4 rounded-lg font-anek text-[13px] font-bold transition-all flex items-center gap-1.5 ${
+                    ((commentInput.trim() || pastedImages.length > 0) || sendError) && !isBusy && !isCompressing
+                      ? sendError
+                        ? 'bg-[#d4380d] hover:bg-[#b02a06] text-white cursor-pointer shadow-sm'
+                        : 'bg-[#024fff] hover:bg-[#0c57d3] text-white cursor-pointer shadow-sm'
+                      : 'bg-[#eef3f7] text-[#8c96a3] cursor-not-allowed border border-[#d6dde5]'
+                  }`}
                 >
-                  {isPendingAdd && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                  <span>{isPendingAdd ? 'Comentando…' : 'Comentar'}</span>
+                  {isBusy && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                  <span>{isBusy ? 'Guardando…' : sendError ? 'Reintentar' : 'Comentar'}</span>
                 </button>
-              )
-            ) : (
-              <button
-                type="button"
-                onClick={handleSend}
-                disabled={(!commentInput.trim() && pastedImages.length === 0) || isPendingAdd || isCompressing}
-                className={`h-8 px-4 rounded-lg font-anek text-[13px] font-bold transition-all flex items-center gap-1.5 ${
-                  (commentInput.trim() || pastedImages.length > 0) && !isPendingAdd && !isCompressing
-                    ? 'bg-[#024fff] hover:bg-[#0c57d3] text-white cursor-pointer shadow-sm'
-                    : 'bg-[#eef3f7] text-[#8c96a3] cursor-not-allowed border border-[#d6dde5]'
-                }`}
-              >
-                {isPendingAdd && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                <span>Comentar</span>
-              </button>
+              </div>
             )}
           </div>
         </div>

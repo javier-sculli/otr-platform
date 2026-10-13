@@ -1488,9 +1488,9 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
               currentUserId={user?.id}
               currentUserName={user?.name || user?.email || 'YO'}
               teamList={teamList}
-              onAddComment={(content) => {
+              onAddComment={async (content) => {
                 if (ticket?.id) {
-                  createCommentMutation.mutate(content);
+                  await createCommentMutation.mutateAsync(content);
                 }
               }}
               onDeleteComment={(commentId) => {

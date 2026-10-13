@@ -52,6 +52,9 @@ export function InlineCommentPopover({
   const [viewerImage, setViewerImage] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [sendError, setSendError] = useState<string | null>(null);
+
   if (!pop) return null;
 
   const handleImageFile = async (file: File) => {
@@ -67,13 +70,22 @@ export function InlineCommentPopover({
     }
   };
 
-  const handleSend = () => {
+  const handleSend = async () => {
     const trimmed = popInput.trim();
-    if ((!trimmed && popImages.length === 0) || isCompressing) return;
+    if ((!trimmed && popImages.length === 0) || isCompressing || isSubmitting) return;
     const fullContent = buildCommentContent(trimmed, popImages);
-    onSend(fullContent);
-    setPopInput('');
-    setPopImages([]);
+    try {
+      setIsSubmitting(true);
+      setSendError(null);
+      await onSend(fullContent);
+      setPopInput('');
+      setPopImages([]);
+    } catch (err: any) {
+      console.error('Error al enviar comentario inline:', err);
+      setSendError(err?.message || 'Error al guardar');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const items = thread?.items || [];
@@ -136,7 +148,10 @@ export function InlineCommentPopover({
         <div className="p-2.5 pb-3 flex flex-col gap-2">
           <MentionTextarea
             value={popInput}
-            onChange={setPopInput}
+            onChange={(val) => {
+              setPopInput(val);
+              if (sendError) setSendError(null);
+            }}
             onPasteImage={handleImageFile}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) {
@@ -212,6 +227,11 @@ export function InlineCommentPopover({
             />
 
             <span className="flex-1" />
+            {sendError && (
+              <span className="text-[11px] font-medium text-[#d4380d] mr-1" data-testid="inline-comment-error">
+                {sendError}
+              </span>
+            )}
             <button
               type="button"
               onClick={onClose}
@@ -222,12 +242,19 @@ export function InlineCommentPopover({
             <button
               type="button"
               onClick={handleSend}
-              disabled={!canSend}
-              className={`h-7 border-0 rounded-md cursor-pointer font-anek text-[12px] font-bold text-white px-3 transition-colors ${
-                canSend ? 'bg-[#024fff] hover:bg-[#0c57d3]' : 'bg-[#b9c2cd] cursor-not-allowed'
+              disabled={(!canSend && !sendError) || isSubmitting}
+              className={`h-7 border-0 rounded-md cursor-pointer font-anek text-[12px] font-bold text-white px-3 transition-colors flex items-center gap-1 ${
+                isSubmitting
+                  ? 'bg-[#024fff] opacity-75 cursor-wait'
+                  : sendError
+                  ? 'bg-[#d4380d] hover:bg-[#b02a06]'
+                  : canSend
+                  ? 'bg-[#024fff] hover:bg-[#0c57d3]'
+                  : 'bg-[#b9c2cd] cursor-not-allowed'
               }`}
             >
-              {hasItems ? 'Responder' : 'Comentar'}
+              {isSubmitting && <Loader2 className="w-3 h-3 animate-spin" />}
+              <span>{isSubmitting ? 'Guardando…' : sendError ? 'Reintentar' : (hasItems ? 'Responder' : 'Comentar')}</span>
             </button>
           </div>
         </div>

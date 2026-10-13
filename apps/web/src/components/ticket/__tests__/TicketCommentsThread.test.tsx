@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { TicketCommentsThread, TicketCommentItem } from '../TicketCommentsThread';
 
@@ -131,7 +131,9 @@ describe('TicketCommentsThread', () => {
     fireEvent.click(submitBtn);
 
     expect(onAddComment).toHaveBeenCalledWith('Nuevo comentario para el equipo');
-    expect(textarea).toHaveValue('');
+    await waitFor(() => {
+      expect(textarea).toHaveValue('');
+    });
   });
 
   it('renderiza variante page con mensaje vacío cuando no hay comentarios', () => {
@@ -219,5 +221,45 @@ describe('TicketCommentsThread', () => {
     // Click en Comentar
     fireEvent.click(submitBtn);
     expect(onAddComment).toHaveBeenCalledWith('![imagen](data:image/png;base64,dummy)');
+  });
+
+  it('no borra el texto si el envío falla y muestra el botón de Reintentar con error', async () => {
+    const onAddComment = vi.fn().mockRejectedValueOnce(new Error('Fallo de red simulado'));
+    render(
+      <TicketCommentsThread
+        comments={[]}
+        teamList={mockTeam}
+        currentUserId="u1"
+        onAddComment={onAddComment}
+        variant="page"
+      />
+    );
+
+    const textarea = screen.getByPlaceholderText(/Comentario general del ticket/i);
+    fireEvent.change(textarea, { target: { value: 'Comentario que no debe perderse' } });
+
+    const submitBtn = screen.getByRole('button', { name: 'Comentar' });
+    fireEvent.click(submitBtn);
+
+    // Esperar a que se procese el fallo
+    const errorMsg = await screen.findByText('Fallo de red simulado');
+    expect(errorMsg).toBeInTheDocument();
+
+    // El texto sigue intacto en el textarea
+    expect(textarea).toHaveValue('Comentario que no debe perderse');
+
+    // El botón ahora dice Reintentar
+    const retryBtn = screen.getByRole('button', { name: 'Reintentar' });
+    expect(retryBtn).toBeInTheDocument();
+
+    // Reintentar con éxito
+    onAddComment.mockResolvedValueOnce(undefined);
+    fireEvent.click(retryBtn);
+
+    // Al tener éxito, el textarea se vacía
+    expect(onAddComment).toHaveBeenCalledTimes(2);
+    await waitFor(() => {
+      expect(textarea).toHaveValue('');
+    });
   });
 });

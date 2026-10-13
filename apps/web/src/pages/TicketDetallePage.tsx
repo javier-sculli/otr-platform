@@ -1100,8 +1100,8 @@ export function TicketDetallePage() {
               currentUserId={currentUser?.id}
               currentUserName={currentUser?.name || currentUser?.email || 'YO'}
               teamList={allUsers}
-              onAddComment={(content) => {
-                createCommentMutation.mutate(content);
+              onAddComment={async (content) => {
+                await createCommentMutation.mutateAsync(content);
               }}
               onDeleteComment={(commentId) => {
                 deleteCommentMutation.mutate(commentId);
