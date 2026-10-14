@@ -4,6 +4,19 @@
 > 
 > 🎯 **BACKLOG OFICIAL Y PRIORIDADES (FUENTE DE VERDAD):** [Notion Backlog Oficial](https://app.notion.com/p/Backlog-3ba617fc369281048bfdfc89c5041d9c?source=copy_link). Todas las prioridades y tareas activas se gestionan directamente allí.
 
+### [2026-10-14] — Arquitectura Estándar Anti-Pérdida de Comentarios y Borradores
+- **Desarrollador:** Antigravity (Pair Programming con Javier Sculli)
+- **Diagnóstico y Causa Raíz:**
+  1. Si el usuario escribía un comentario y cerraba el modal, recargaba la página, o hacía click afuera del popover inline, el texto en el `textarea` se borraba al desmontarse el componente.
+  2. Al seleccionar texto para comentar, se generaba un ID temporal (`c${Date.now()}`) guardado en base de datos que nunca coincidía con el UUID real del comentario creado, provocando que la marca fuera huérfana y bloqueara selecciones futuras de texto.
+  3. Los envíos de comentarios inline no esperaban la respuesta del servidor antes de cerrar el popover (`mutate` en lugar de `mutateAsync`), provocando pérdidas silenciosas si ocurría un fallo de red o validación.
+- **Cambios Implementados:**
+  1. **Persistencia de Borradores (`sessionStorage`):** Indexación automática de comentarios no enviados en `sessionStorage` (`otr_draft_comment_${ticketId}` y `otr_draft_inline_${popId}`). El texto se restaura automáticamente si el usuario recarga, cambia de pestaña o reabre el ticket.
+  2. **Protección de Cierre Accidental:** Al hacer click fuera del popover de comentarios inline, si el usuario tiene texto redactado, el popover **no se cierra** automáticamente.
+  3. **Envío Asíncrono Confirmado:** `sendPop` y `onSubmitComment` son asíncronos y esperan a `createCommentMutation.mutateAsync`. Solo ante HTTP 200/201 se limpia el borrador y se cierra el popover. Si falla, el texto se preserva y el botón muestra `Reintentar`.
+  4. **Reconciliación y Limpieza de Marcas Huérfanas:** `highlightQuotesInHtml` sincroniza IDs de marcas con los IDs reales de comentarios (`c_${commentId}`) y desenvuelve automáticamente marcas huérfanas sin comentarios asociados.
+- **Suite de Tests:** 180 tests unitarios pasando al 100% en Vitest (`pnpm test`), builds de producción verificados (`tsc && vite build`).
+
 ### [2026-10-13] — Resiliencia en Envío de Comentarios y Protección contra Pérdida de Datos
 - **Desarrollador:** Antigravity (Pair Programming con Javier Sculli)
 - **Diagnóstico y Causa Raíz:**
