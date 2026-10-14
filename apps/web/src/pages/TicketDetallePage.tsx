@@ -89,6 +89,20 @@ export function TicketDetallePage() {
 
   const updateMutation = useMutation({
     mutationFn: (patch: Record<string, unknown>) => api.updateTicket(ticketId!, patch),
+    onMutate: async (patch: Record<string, unknown>) => {
+      await queryClient.cancelQueries({ queryKey: ['ticket', ticketId] });
+      const previous = queryClient.getQueryData(['ticket', ticketId]);
+      queryClient.setQueryData(['ticket', ticketId], (old: any) => {
+        if (!old?.data) return old;
+        return { ...old, data: { ...old.data, ...patch } };
+      });
+      return { previous };
+    },
+    onError: (_err, _vars, context: any) => {
+      if (context?.previous) {
+        queryClient.setQueryData(['ticket', ticketId], context.previous);
+      }
+    },
     onSuccess: (res: any) => {
       if (res?.data && ticketId) {
         queryClient.setQueryData(['ticket', ticketId], (old: any) => {
@@ -171,9 +185,9 @@ export function TicketDetallePage() {
   } = useInlineComments({
     comments: commentsData?.data || [],
     currentUser,
-    onSubmitComment: ({ fullContent }) => {
+    onSubmitComment: async ({ fullContent }) => {
       if (ticketId) {
-        createCommentMutation.mutate(fullContent);
+        await createCommentMutation.mutateAsync(fullContent);
       }
     },
   });
@@ -432,6 +446,11 @@ export function TicketDetallePage() {
         !target.closest?.('mark[data-c]') &&
         !target.closest?.('[data-comment-trigger]')
       ) {
+        const popEl = document.querySelector('[data-inline-pop]');
+        const textarea = popEl?.querySelector('textarea');
+        if (textarea && textarea.value.trim().length > 0) {
+          return;
+        }
         closePop();
       }
     };
@@ -1115,6 +1134,7 @@ export function TicketDetallePage() {
 
             {/* 0 Comentarios */}
             <TicketCommentsThread
+              ticketId={ticketId}
               comments={comments}
               currentUserId={currentUser?.id}
               currentUserName={currentUser?.name || currentUser?.email || 'YO'}

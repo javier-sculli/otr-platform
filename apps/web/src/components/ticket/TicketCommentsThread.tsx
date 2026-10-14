@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Trash2, Loader2, Image as ImageIcon, X } from 'lucide-react';
 import { MentionTextarea } from '../MentionTextarea';
 import { compressImageFile, parseCommentContent, buildCommentContent } from '../../lib/imageCompression';
@@ -21,6 +21,7 @@ export interface TicketCommentItem {
 }
 
 export interface TicketCommentsThreadProps {
+  ticketId?: string;
   comments: TicketCommentItem[];
   currentUserId?: string;
   currentUserName?: string;
@@ -85,6 +86,7 @@ function formatCommentDate(cm: TicketCommentItem): string {
 }
 
 export const TicketCommentsThread: React.FC<TicketCommentsThreadProps> = ({
+  ticketId,
   comments,
   currentUserId,
   currentUserName,
@@ -106,6 +108,33 @@ export const TicketCommentsThread: React.FC<TicketCommentsThreadProps> = ({
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
+
+  const draftStorageKey = ticketId ? `otr_draft_comment_${ticketId}` : null;
+
+  useEffect(() => {
+    if (draftStorageKey) {
+      try {
+        const saved = sessionStorage.getItem(draftStorageKey);
+        if (saved && !commentInput) {
+          setCommentInput(saved);
+        }
+      } catch {}
+    }
+  }, [draftStorageKey]);
+
+  const handleCommentInputChange = (val: string) => {
+    setCommentInput(val);
+    if (sendError) setSendError(null);
+    if (draftStorageKey) {
+      try {
+        if (val) {
+          sessionStorage.setItem(draftStorageKey, val);
+        } else {
+          sessionStorage.removeItem(draftStorageKey);
+        }
+      } catch {}
+    }
+  };
 
   const handleImageFile = async (file: File) => {
     if (!file.type.startsWith('image/')) return;
@@ -136,6 +165,11 @@ export const TicketCommentsThread: React.FC<TicketCommentsThreadProps> = ({
       await onAddComment(fullContent);
       setCommentInput('');
       setPastedImages([]);
+      if (draftStorageKey) {
+        try {
+          sessionStorage.removeItem(draftStorageKey);
+        } catch {}
+      }
     } catch (err: any) {
       console.error('Error al enviar comentario:', err);
       setSendError(err?.message || 'No se pudo guardar el comentario. Intentá de nuevo.');
@@ -281,10 +315,7 @@ export const TicketCommentsThread: React.FC<TicketCommentsThreadProps> = ({
         <div className={`flex-1 min-w-0 flex flex-col ${isPage ? 'w-full gap-2' : 'gap-2.5'}`}>
           <MentionTextarea
             value={commentInput}
-            onChange={(val) => {
-              setCommentInput(val);
-              if (sendError) setSendError(null);
-            }}
+            onChange={handleCommentInputChange}
             onPasteImage={handleImageFile}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {

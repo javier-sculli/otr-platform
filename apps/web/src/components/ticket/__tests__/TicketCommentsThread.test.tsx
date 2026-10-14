@@ -262,4 +262,25 @@ describe('TicketCommentsThread', () => {
       expect(textarea).toHaveValue('');
     });
   });
+
+  it('guarda el borrador en sessionStorage y lo recupera si el usuario recarga o reabre', () => {
+    sessionStorage.setItem('otr_draft_comment_ticket-123', 'Borrador recuperado de sesión');
+
+    render(
+      <TicketCommentsThread
+        ticketId="ticket-123"
+        comments={[]}
+        teamList={mockTeam}
+        currentUserId="u1"
+        onAddComment={vi.fn().mockResolvedValue(undefined)}
+        variant="page"
+      />
+    );
+
+    const textarea = screen.getByPlaceholderText(/Comentario general del ticket/i);
+    expect(textarea).toHaveValue('Borrador recuperado de sesión');
+
+    fireEvent.change(textarea, { target: { value: 'Borrador modificado' } });
+    expect(sessionStorage.getItem('otr_draft_comment_ticket-123')).toBe('Borrador modificado');
+  });
 });

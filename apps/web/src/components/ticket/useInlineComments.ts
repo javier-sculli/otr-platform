@@ -29,7 +29,7 @@ export interface HoverCommentState {
 export interface UseInlineCommentsOptions {
   comments?: any[];
   currentUser?: { name?: string | null; email?: string | null } | null;
-  onSubmitComment?: (payload: { quote?: string; text: string; fullContent: string }) => void;
+  onSubmitComment?: (payload: { quote?: string; text: string; fullContent: string }) => void | Promise<any>;
 }
 
 export const posFor = (mark: HTMLElement) => {
@@ -145,7 +145,7 @@ export function useInlineComments({
     setPopInput('');
   }, []);
 
-  const sendPop = useCallback((incomingText?: string) => {
+  const sendPop = useCallback(async (incomingText?: string) => {
     const currentPop = popRefVal.current;
     if (!currentPop) return;
     const text = (incomingText ?? popInput).trim();
@@ -157,6 +157,11 @@ export function useInlineComments({
     const authorName = currentUser?.name || currentUser?.email || 'Usuario';
     const item: ThreadItem = { author: authorName, when, text };
 
+    const fullContent = quote ? `«${quote}»: ${text}` : text;
+    if (onSubmitComment) {
+      await onSubmitComment({ quote, text, fullContent });
+    }
+
     setThreads(prev => ({
       ...prev,
       [currentPop.id]: {
@@ -167,9 +172,6 @@ export function useInlineComments({
 
     setPop(prev => (prev ? { ...prev, isDraft: false } : null));
     draftCleanupRef.current = null;
-
-    const fullContent = quote ? `«${quote}»: ${text}` : text;
-    onSubmitComment?.({ quote, text, fullContent });
     setPopInput('');
   }, [currentUser, popInput, onSubmitComment]);
 

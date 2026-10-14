@@ -168,7 +168,7 @@ function buildFormData(ticket?: TicketData | null, defaultClientId?: string) {
     : (ticket.ticketType?.name ? [ticket.ticketType.name] : []);
   const initialAssignees = Array.isArray((ticket as any).assigneeIds) && (ticket as any).assigneeIds.length > 0
     ? (ticket as any).assigneeIds
-    : (ticket.owner?.id ? [ticket.owner.id] : []);
+    : (ticket.ownerId ? [ticket.ownerId] : (ticket.owner?.id ? [ticket.owner.id] : []));
 
   return {
     title: ticket.title || '',
@@ -347,9 +347,9 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
   } = useInlineComments({
     comments,
     currentUser: user,
-    onSubmitComment: ({ fullContent }) => {
+    onSubmitComment: async ({ fullContent }) => {
       if (ticket?.id) {
-        createCommentMutation.mutate(fullContent);
+        await createCommentMutation.mutateAsync(fullContent);
       }
     },
   });
@@ -479,6 +479,11 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
       );
 
       if (pop && !isInsidePop && !target.closest?.('mark[data-c]') && !target.closest?.('[data-comment-trigger]')) {
+        const popEl = document.querySelector('[data-inline-pop]');
+        const textarea = popEl?.querySelector('textarea');
+        if (textarea && textarea.value.trim().length > 0) {
+          return;
+        }
         closePop();
       }
     };
@@ -585,12 +590,17 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
     performAutoSave(overrideData);
   };
 
-  const handleChange = (field: string, value: any, immediate = false) => {
-    dirtyFieldsRef.current.add(field);
-    const updated = { ...formDataRef.current, [field]: value };
+  const handleMultipleChanges = (changes: Partial<typeof formData>, immediate = false) => {
+    Object.keys(changes).forEach(k => dirtyFieldsRef.current.add(k));
+    const updated = { ...formDataRef.current, ...changes };
+    formDataRef.current = updated;
     setFormData(updated);
     if (immediate) triggerImmediateAutoSave(updated);
     else triggerDebouncedAutoSave(updated);
+  };
+
+  const handleChange = (field: string, value: any, immediate = false) => {
+    handleMultipleChanges({ [field]: value }, immediate);
   };
 
   const createMutation = useMutation({
@@ -1486,6 +1496,7 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
 
             {/* Comments list & input */}
             <TicketCommentsThread
+              ticketId={ticket?.id}
               comments={comments}
               currentUserId={user?.id}
               currentUserName={user?.name || user?.email || 'YO'}
@@ -1595,12 +1606,16 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
               label={isPieza ? 'Owners' : 'Responsables'}
               variant="modal"
               onChange={(next) => {
-                handleChange('assigneeIds', next, true);
-                if (!formData.ownerId && next.length > 0) {
-                  handleChange('ownerId', next[0], true);
-                } else if (formData.ownerId && !next.includes(formData.ownerId)) {
-                  handleChange('ownerId', next[0] || '', true);
+                let nextOwnerId = formDataRef.current.ownerId;
+                if (!nextOwnerId && next.length > 0) {
+                  nextOwnerId = next[0];
+                } else if (nextOwnerId && !next.includes(nextOwnerId)) {
+                  nextOwnerId = next[0] || '';
                 }
+                handleMultipleChanges({
+                  assigneeIds: next,
+                  ownerId: nextOwnerId,
+                }, true);
               }}
             />
 

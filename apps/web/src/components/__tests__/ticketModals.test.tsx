@@ -1066,6 +1066,77 @@ describe('CreateTicketModal', () => {
     const btnSecundario = screen.getByRole('button', { name: 'Pilar Secundario' });
     expect(btnSecundario).not.toHaveClass('bg-[#024fff]');
   });
+
+  it('asigna el owner en el primer intento en CreateTicketModal sin que se pierda assigneeIds', async () => {
+    const mockUsers = [
+      { id: 'user-a', name: 'Ana Perez', email: 'ana@otr.com' },
+      { id: 'user-b', name: 'Bernardo Gomez', email: 'bernardo@otr.com' },
+    ];
+    (api.getUsers as any).mockResolvedValue({ data: mockUsers });
+
+    const mockTicketSinOwner = {
+      id: 'ticket-no-owner',
+      title: 'Ticket sin responsable',
+      status: 'PENDIENTE',
+      canales: ['LinkedIn'],
+      tiposContenido: ['Post'],
+      clientId: 'c1',
+      client: { id: 'c1', name: 'Cliente A' },
+      owner: null,
+      ownerId: null,
+      assigneeIds: [],
+      links: [],
+    };
+
+    (api.getTicket as any).mockResolvedValue({
+      data: mockTicketSinOwner,
+    });
+    (api.updateTicket as any).mockResolvedValue({
+      data: {
+        ...mockTicketSinOwner,
+        ownerId: 'user-a',
+        assigneeIds: ['user-a'],
+      },
+    });
+
+    render(
+      <CreateTicketModal
+        isOpen={true}
+        onClose={vi.fn()}
+        ticket={mockTicketSinOwner as any}
+      />,
+      { wrapper: createWrapper() }
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('Sin asignar')).toBeInTheDocument();
+    });
+
+    // Abrir el selector de owners
+    const addBtn = screen.getByRole('button', { name: '+ Agregar' });
+    await userEvent.click(addBtn);
+
+    // Seleccionar a Ana Perez
+    const anaBtn = await screen.findByTestId('candidate-user-user-a');
+    await userEvent.click(anaBtn);
+
+    // Debe mostrar la pastilla de Ana Perez inmediatamente y no "Sin asignar"
+    await waitFor(() => {
+      expect(screen.getByTestId('owner-pill-user-a')).toBeInTheDocument();
+      expect(screen.queryByText('Sin asignar')).not.toBeInTheDocument();
+    });
+
+    // Verificar que updateTicket fue llamado con assigneeIds conteniendo user-a y ownerId user-a
+    await waitFor(() => {
+      expect(api.updateTicket).toHaveBeenCalledWith(
+        'ticket-no-owner',
+        expect.objectContaining({
+          assigneeIds: ['user-a'],
+          ownerId: 'user-a',
+        })
+      );
+    });
+  });
 });
 
 

@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Check, X, Image as ImageIcon, Loader2 } from 'lucide-react';
 import { MentionTextarea, formatCommentWithMentions } from '../MentionTextarea';
 import { compressImageFile, parseCommentContent, buildCommentContent } from '../../lib/imageCompression';
@@ -25,7 +25,7 @@ export interface InlineCommentPopoverProps {
   pop: PopPosition | null;
   thread?: CommentThread;
   users?: { id: string; name: string }[];
-  onSend: (text: string) => void;
+  onSend: (text: string) => void | Promise<any>;
   onResolve?: () => void;
   onClose: () => void;
 }
@@ -55,7 +55,45 @@ export function InlineCommentPopover({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
 
+  const draftStorageKey = pop ? `otr_draft_inline_${pop.id}` : null;
+
+  useEffect(() => {
+    if (draftStorageKey) {
+      try {
+        const saved = sessionStorage.getItem(draftStorageKey);
+        if (saved && !popInput) {
+          setPopInput(saved);
+        }
+      } catch {}
+    }
+  }, [draftStorageKey]);
+
   if (!pop) return null;
+
+  const handleInputChange = (val: string) => {
+    setPopInput(val);
+    if (sendError) setSendError(null);
+    if (draftStorageKey) {
+      try {
+        if (val) {
+          sessionStorage.setItem(draftStorageKey, val);
+        } else {
+          sessionStorage.removeItem(draftStorageKey);
+        }
+      } catch {}
+    }
+  };
+
+  const handleCancel = () => {
+    if (draftStorageKey) {
+      try {
+        sessionStorage.removeItem(draftStorageKey);
+      } catch {}
+    }
+    setPopInput('');
+    setPopImages([]);
+    onClose();
+  };
 
   const handleImageFile = async (file: File) => {
     if (!file.type.startsWith('image/')) return;
@@ -80,6 +118,12 @@ export function InlineCommentPopover({
       await onSend(fullContent);
       setPopInput('');
       setPopImages([]);
+      if (draftStorageKey) {
+        try {
+          sessionStorage.removeItem(draftStorageKey);
+        } catch {}
+      }
+      onClose();
     } catch (err: any) {
       console.error('Error al enviar comentario inline:', err);
       setSendError(err?.message || 'Error al guardar');
@@ -148,10 +192,7 @@ export function InlineCommentPopover({
         <div className="p-2.5 pb-3 flex flex-col gap-2">
           <MentionTextarea
             value={popInput}
-            onChange={(val) => {
-              setPopInput(val);
-              if (sendError) setSendError(null);
-            }}
+            onChange={handleInputChange}
             onPasteImage={handleImageFile}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) {
@@ -159,7 +200,7 @@ export function InlineCommentPopover({
                 handleSend();
               }
               if (e.key === 'Escape') {
-                onClose();
+                handleCancel();
               }
             }}
             placeholder={hasItems ? 'Responder… (@ para mencionar, pegá imagen)' : 'Escribí un comentario… (@ o pegá imagen)'}
@@ -234,7 +275,7 @@ export function InlineCommentPopover({
             )}
             <button
               type="button"
-              onClick={onClose}
+              onClick={handleCancel}
               className="border-0 bg-transparent cursor-pointer font-anek text-[12px] font-medium text-[#5b6675] p-1.5 rounded hover:bg-[#eef3f7]"
             >
               Cancelar

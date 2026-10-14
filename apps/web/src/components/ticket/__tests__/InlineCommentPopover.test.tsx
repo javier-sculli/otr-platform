@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { InlineCommentPopover } from '../InlineCommentPopover';
 
@@ -141,5 +141,50 @@ describe('InlineCommentPopover', () => {
 
     expect(onClose).not.toHaveBeenCalled();
     expect(textarea).toHaveValue('@Javier Sculli ');
+  });
+
+  it('guarda el borrador en sessionStorage y lo restaura al volver a abrir el popover', () => {
+    sessionStorage.setItem('otr_draft_inline_c1', 'Comentario pendiente restaurado');
+    const pop = { id: 'c1', x: 100, y: 150 };
+
+    render(
+      <InlineCommentPopover
+        pop={pop}
+        onSend={vi.fn()}
+        onClose={vi.fn()}
+      />
+    );
+
+    const textarea = screen.getByPlaceholderText(/escribí un comentario/i);
+    expect(textarea).toHaveValue('Comentario pendiente restaurado');
+
+    fireEvent.change(textarea, { target: { value: 'Comentario modificado' } });
+    expect(sessionStorage.getItem('otr_draft_inline_c1')).toBe('Comentario modificado');
+  });
+
+  it('mantiene el texto y muestra Reintentar cuando onSend falla', async () => {
+    const pop = { id: 'c1', x: 100, y: 150 };
+    const onSend = vi.fn().mockRejectedValue(new Error('Fallo en el servidor'));
+    const onClose = vi.fn();
+
+    render(
+      <InlineCommentPopover
+        pop={pop}
+        onSend={onSend}
+        onClose={onClose}
+      />
+    );
+
+    const textarea = screen.getByPlaceholderText(/escribí un comentario/i);
+    fireEvent.change(textarea, { target: { value: 'Texto valioso que no se debe borrar' } });
+
+    const sendBtn = screen.getByRole('button', { name: /comentar/i });
+    fireEvent.click(sendBtn);
+
+    const errorMsg = await screen.findByText('Fallo en el servidor');
+    expect(errorMsg).toBeInTheDocument();
+    expect(textarea).toHaveValue('Texto valioso que no se debe borrar');
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: /reintentar/i })).toBeInTheDocument();
   });
 });

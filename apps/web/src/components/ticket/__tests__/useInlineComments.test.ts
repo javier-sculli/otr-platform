@@ -29,8 +29,8 @@ describe('useInlineComments', () => {
     expect(alertMock).toHaveBeenCalledWith('Seleccioná un fragmento del texto para comentarlo.');
   });
 
-  it('envía un comentario actualizando el thread y disparando onSubmitComment', () => {
-    const onSubmitComment = vi.fn();
+  it('envía un comentario actualizando el thread y disparando onSubmitComment', async () => {
+    const onSubmitComment = vi.fn().mockResolvedValue(undefined);
     const { result } = renderHook(() =>
       useInlineComments({
         currentUser: { name: 'Juan Perez' },
@@ -45,8 +45,8 @@ describe('useInlineComments', () => {
       result.current.setPopInput('Este es mi comentario');
     });
 
-    act(() => {
-      result.current.sendPop();
+    await act(async () => {
+      await result.current.sendPop();
     });
 
     expect(result.current.threads['c123'].items).toHaveLength(1);
@@ -60,6 +60,32 @@ describe('useInlineComments', () => {
       text: 'Este es mi comentario',
       fullContent: '«fragmento citado»: Este es mi comentario',
     });
+  });
+
+  it('no limpia el borrador ni actualiza el thread si onSubmitComment falla', async () => {
+    const onSubmitComment = vi.fn().mockRejectedValue(new Error('Network error'));
+    const { result } = renderHook(() =>
+      useInlineComments({
+        currentUser: { name: 'Juan Perez' },
+        onSubmitComment,
+      })
+    );
+
+    act(() => {
+      result.current.setPop({ id: 'c123', x: 100, y: 150, isDraft: true });
+      result.current.setThreads({ c123: { quote: 'fragmento citado', items: [] } });
+      result.current.setPopInput('Este es mi comentario');
+    });
+
+    await expect(
+      act(async () => {
+        await result.current.sendPop();
+      })
+    ).rejects.toThrow('Network error');
+
+    // No se agregaron items porque falló
+    expect(result.current.threads['c123'].items).toHaveLength(0);
+    expect(result.current.pop?.isDraft).toBe(true);
   });
 
   it('closePop limpia el mark del DOM si es un draft sin comentarios', () => {
