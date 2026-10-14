@@ -262,14 +262,30 @@ export function useInlineComments({
 
     const range = sel.getRangeAt(0);
 
-    // Evitar anidar marcas dentro de otra marca existente
+    // Evitar anidar marcas dentro de otra marca existente si tiene comentarios activos
     const commonNode = range.commonAncestorContainer;
     const parentMark = commonNode.nodeType === Node.ELEMENT_NODE
       ? (commonNode as HTMLElement).closest('mark[data-c]')
       : commonNode.parentElement?.closest('mark[data-c]');
     if (parentMark) {
-      alert('Este texto ya forma parte de un comentario. Podés hacer click sobre él para responder.');
-      return;
+      const pId = parentMark.getAttribute('data-c');
+      const pText = (parentMark.textContent || '').trim();
+      const hasComments = Boolean(
+        pId && (
+          (threadsRefVal.current[pId]?.items && threadsRefVal.current[pId].items.length > 0) ||
+          getPersistedItems(pText, pId).length > 0
+        )
+      );
+      if (hasComments) {
+        alert('Este texto ya forma parte de un comentario. Podés hacer click sobre él para responder.');
+        return;
+      } else {
+        // Marca huérfana sin comentarios: desenvolverla y permitir comentar normalmente
+        parentMark.replaceWith(...Array.from(parentMark.childNodes));
+        if (onHtmlChange && ref.current) {
+          onHtmlChange(ref.current.innerHTML);
+        }
+      }
     }
 
     if (popRefVal.current?.isDraft) {

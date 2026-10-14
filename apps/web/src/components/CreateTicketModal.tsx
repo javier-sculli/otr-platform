@@ -424,10 +424,10 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
 
   // Synchronize comment marks into formData when comments or ticket details load
   useEffect(() => {
-    if (!isOpen || !comments || comments.length === 0) return;
+    if (!isOpen) return;
 
     const quotesWithIds: { quote: string; id: string }[] = [];
-    comments.forEach((cm: any) => {
+    (comments || []).forEach((cm: any) => {
       const rawContent = cm.content || cm.text || '';
       const quoteMatch = rawContent.match(/^«([^»]+)»:\s*([\s\S]*)$/);
       const q = cm.quote || (quoteMatch ? quoteMatch[1] : null);
@@ -435,8 +435,6 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
         quotesWithIds.push({ quote: q.trim(), id: `c_${cm.id}` });
       }
     });
-
-    if (quotesWithIds.length === 0) return;
 
     setFormData(prev => {
       let changed = false;
@@ -456,12 +454,16 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
       });
 
       if (!changed) return prev;
-      return {
+      const updated = {
         ...prev,
         brief: nextBrief,
         notasAudiovisual: nextNotas,
         contentPerCanal: nextPerCanal,
       };
+      if (ticket?.id) {
+        triggerImmediateAutoSave(updated);
+      }
+      return updated;
     });
   }, [comments, isOpen]);
 

@@ -297,28 +297,57 @@ export function highlightQuotesInHtml(
   html: string,
   quotesWithIds: { quote: string; id: string }[]
 ): string {
-  if (!html || !quotesWithIds || quotesWithIds.length === 0) return html;
-  if (typeof document === 'undefined') return html;
+  if (!html || typeof document === 'undefined') return html;
 
-  const validQuotes = quotesWithIds
+  const validQuotes = (quotesWithIds || [])
     .map(q => ({ id: q.id, quote: q.quote ? q.quote.trim() : '' }))
     .filter(q => q.quote.length > 0);
 
-  if (validQuotes.length === 0) return html;
-
-  // Use DOMParser or temp container
+  // Use temp container to manipulate HTML DOM safely
   const container = document.createElement('div');
   container.innerHTML = html;
 
-  for (const { id, quote } of validQuotes) {
-    // If quote is already inside a mark with data-c, skip
-    const existingMarks = Array.from(container.querySelectorAll('mark[data-c]'));
-    const alreadyMarked = existingMarks.some(
-      m => m.textContent?.trim() === quote || m.textContent?.includes(quote)
-    );
-    if (alreadyMarked) continue;
+  // 1. Process existing <mark data-c="..."> elements:
+  // Match with valid quotes, update data-c if needed, or unwrap orphan marks.
+  const existingMarks = Array.from(container.querySelectorAll('mark[data-c]')) as HTMLElement[];
+  const matchedQuoteIds = new Set<string>();
 
-    // Traverse all text nodes not inside a mark
+  for (const m of existingMarks) {
+    const markId = m.dataset.c || '';
+    const markText = (m.textContent || '').trim();
+
+    // Find if this mark matches any valid comment quote
+    const matched = validQuotes.find(q => {
+      if (matchedQuoteIds.has(q.id)) return false;
+      // Direct ID match (e.g. data-c="c_123" or data-c="123")
+      if (markId === q.id || markId === q.id.replace(/^c_/, '') || `c_${markId}` === q.id) {
+        return true;
+      }
+      // Text match (exact or containing, e.g. from timestamp draft mark)
+      if (markText && q.quote && (markText === q.quote || markText.includes(q.quote) || q.quote.includes(markText))) {
+        return true;
+      }
+      return false;
+    });
+
+    if (matched) {
+      matchedQuoteIds.add(matched.id);
+      m.dataset.c = matched.id;
+      m.style.backgroundColor = 'rgba(0, 255, 178, 0.35)';
+      m.style.borderRadius = '2px';
+      m.style.padding = '1px 2px';
+      m.style.cursor = 'pointer';
+    } else {
+      // Orphan mark: no active comment corresponds to this mark -> unwrap it!
+      m.replaceWith(...Array.from(m.childNodes));
+    }
+  }
+
+  // 2. Wrap remaining unmatched quotes in <mark data-c="...">
+  const remainingQuotes = validQuotes.filter(q => !matchedQuoteIds.has(q.id));
+
+  for (const { id, quote } of remainingQuotes) {
+    // Traverse all text nodes not inside an existing mark
     const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, {
       acceptNode(node) {
         if (!node.nodeValue || !node.nodeValue.includes(quote)) {

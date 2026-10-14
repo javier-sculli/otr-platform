@@ -217,9 +217,17 @@ describe('useInlineComments', () => {
     expect(onHtmlChange).toHaveBeenLastCalledWith('Texto para comentar');
   });
 
-  it('startInlineComment evita anidar marcas si el texto ya pertenece a un comentario', () => {
+  it('startInlineComment evita anidar marcas si el texto ya pertenece a un comentario activo', () => {
     const alertMock = vi.spyOn(window, 'alert').mockImplementation(() => {});
-    const { result } = renderHook(() => useInlineComments());
+    const comments = [
+      {
+        id: 'existing',
+        content: '«texto ya marcado»: Un comentario activo',
+        author: 'Sofia',
+        createdAt: '2026-10-10T10:00:00Z',
+      },
+    ];
+    const { result } = renderHook(() => useInlineComments({ comments }));
 
     const container = document.createElement('div');
     const existingMark = document.createElement('mark');
@@ -242,5 +250,35 @@ describe('useInlineComments', () => {
 
     expect(alertMock).toHaveBeenCalledWith('Este texto ya forma parte de un comentario. Podés hacer click sobre él para responder.');
     expect(container.querySelectorAll('mark')).toHaveLength(1);
+  });
+
+  it('startInlineComment desenvuelve marcas huérfanas sin comentarios en lugar de alertar y bloquear', () => {
+    const alertMock = vi.spyOn(window, 'alert').mockImplementation(() => {});
+    const onHtmlChange = vi.fn();
+    const { result } = renderHook(() => useInlineComments({ comments: [] }));
+
+    const container = document.createElement('div');
+    const orphanMark = document.createElement('mark');
+    orphanMark.setAttribute('data-c', 'c1791983824460');
+    orphanMark.textContent = 'texto con marca huérfana';
+    container.appendChild(orphanMark);
+    document.body.appendChild(container);
+
+    const ref = { current: container };
+
+    const range = document.createRange();
+    range.selectNodeContents(orphanMark);
+    const sel = window.getSelection();
+    sel?.removeAllRanges();
+    sel?.addRange(range);
+
+    act(() => {
+      result.current.startInlineComment(ref, onHtmlChange);
+    });
+
+    expect(alertMock).not.toHaveBeenCalled();
+    // La marca huérfana fue desenvuelta, y ahora existe la nueva marca de borrador
+    expect(container.querySelector('mark[data-c="c1791983824460"]')).toBeNull();
+    expect(result.current.pop?.isDraft).toBe(true);
   });
 });

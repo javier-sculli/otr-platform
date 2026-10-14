@@ -149,6 +149,9 @@ export function TicketDetallePage() {
             }
           }
         });
+        if (changed) {
+          updateMutation.mutate({ contentPerCanal: next });
+        }
         return changed ? next : prev;
       });
     },
@@ -228,8 +231,8 @@ export function TicketDetallePage() {
 
   // Synchronize comment marks into editors when comments or ticket load
   useEffect(() => {
+    if (!ticket) return;
     const commentsList = commentsData?.data || [];
-    if (!ticket || commentsList.length === 0) return;
 
     const quotesWithIds: { quote: string; id: string }[] = [];
     commentsList.forEach((cm: any) => {
@@ -241,10 +244,22 @@ export function TicketDetallePage() {
       }
     });
 
-    if (quotesWithIds.length === 0) return;
+    setBriefTemp(prev => {
+      const next = highlightQuotesInHtml(prev || '', quotesWithIds);
+      if (next !== prev && ticket.objetivo && next !== ticket.objetivo) {
+        updateMutation.mutate({ objetivo: next });
+      }
+      return next;
+    });
 
-    setBriefTemp(prev => highlightQuotesInHtml(prev || '', quotesWithIds));
-    setNotasAudiovisual(prev => highlightQuotesInHtml(prev || '', quotesWithIds));
+    setNotasAudiovisual(prev => {
+      const next = highlightQuotesInHtml(prev || '', quotesWithIds);
+      if (next !== prev && ticket.notasAudiovisual && next !== ticket.notasAudiovisual) {
+        updateMutation.mutate({ notasAudiovisual: next });
+      }
+      return next;
+    });
+
     setCopyPerCanal(prev => {
       let changed = false;
       const next: Record<string, string> = { ...prev };
@@ -255,7 +270,11 @@ export function TicketDetallePage() {
           changed = true;
         }
       });
-      return changed ? next : prev;
+      if (changed) {
+        updateMutation.mutate({ contentPerCanal: next });
+        return next;
+      }
+      return prev;
     });
   }, [commentsData?.data, ticket?.id]);
 
