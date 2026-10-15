@@ -100,6 +100,8 @@ export function BacklogPage() {
   const [showModalNueva, setShowModalNueva] = useState(false);
   const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
   const [draggedId, setDraggedId] = useState<string | null>(null);
+  const [dragOverColId, setDragOverColId] = useState<string | null>(null);
+  const draggedIdRef = useRef<string | null>(null);
 
   const queryTicketId = searchParams.get('ticketId');
 
@@ -300,18 +302,44 @@ export function BacklogPage() {
     );
 
   const handleDragStart = (e: React.DragEvent, id: string) => {
+    draggedIdRef.current = id;
     setDraggedId(id);
+    e.dataTransfer.setData('text/plain', id);
     e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleDragOver = (e: React.DragEvent, colId: string) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (dragOverColId !== colId) {
+      setDragOverColId(colId);
+    }
+  };
+
+  const handleDragLeave = (e: React.DragEvent, colId: string) => {
+    if (e.currentTarget.contains(e.relatedTarget as Node)) return;
+    if (dragOverColId === colId) {
+      setDragOverColId(null);
+    }
+  };
+
+  const handleDragEnd = () => {
+    draggedIdRef.current = null;
+    setDraggedId(null);
+    setDragOverColId(null);
   };
 
   const handleDrop = (e: React.DragEvent, status: string) => {
     e.preventDefault();
-    if (draggedId) {
-      const ticket = allTickets.find(t => t.id === draggedId);
+    setDragOverColId(null);
+    const id = e.dataTransfer.getData('text/plain') || draggedId || draggedIdRef.current;
+    if (id) {
+      const ticket = allTickets.find(t => t.id === id);
       if (ticket && ticket.status !== status) {
-        updateStatusMutation.mutate({ id: draggedId, status });
+        updateStatusMutation.mutate({ id, status });
       }
     }
+    draggedIdRef.current = null;
     setDraggedId(null);
   };
 
@@ -614,12 +642,20 @@ export function BacklogPage() {
           <div className="flex gap-3 p-4 h-full min-w-max">
             {COLUMNAS.map(col => {
               const tickets = getTicketsPorColumna(col.id);
+              const isOver = dragOverColId === col.id;
               return (
                 <div
                   key={col.id}
-                  className="flex flex-col w-[240px] flex-shrink-0"
+                  onDragOver={e => handleDragOver(e, col.id)}
+                  onDragLeave={e => handleDragLeave(e, col.id)}
+                  onDrop={e => handleDrop(e, col.id)}
+                  className={`flex flex-col w-[240px] flex-shrink-0 rounded-xl transition-all ${
+                    isOver ? 'ring-2 ring-[#024fff] shadow-md bg-[#024fff]/[0.02]' : ''
+                  }`}
                 >
-                  <div className={`${col.color} border-2 ${col.border} rounded-t-xl px-3 py-2 flex items-center justify-between`}>
+                  <div className={`${col.color} border-2 ${col.border} rounded-t-xl px-3 py-2 flex items-center justify-between transition-colors ${
+                    isOver ? '!border-[#024fff] bg-[#024fff]/10' : ''
+                  }`}>
                     <div className="flex items-center gap-1.5">
                       <h3 className="text-xs font-bold text-[#000033]">{col.nombre}</h3>
                       <span className="text-xs font-bold text-[#000033]/60 bg-white/60 px-1.5 py-0.5 rounded-full">
@@ -630,9 +666,9 @@ export function BacklogPage() {
                   </div>
 
                   <div
-                    onDragOver={e => e.preventDefault()}
-                    onDrop={e => handleDrop(e, col.id)}
-                    className="flex-1 overflow-y-auto bg-[#000033]/[0.02] border-2 border-t-0 border-[#000033]/10 rounded-b-xl p-2 space-y-2 min-h-[400px]"
+                    className={`flex-1 overflow-y-auto bg-[#000033]/[0.02] border-2 border-t-0 border-[#000033]/10 rounded-b-xl p-2 space-y-2 min-h-[400px] transition-colors ${
+                      isOver ? 'border-[#024fff] bg-[#024fff]/[0.04]' : ''
+                    }`}
                   >
                     {tickets.map(ticket => (
                       <TicketCard
@@ -640,7 +676,7 @@ export function BacklogPage() {
                         ticket={ticket}
                         isDragging={draggedId === ticket.id}
                         onDragStart={e => handleDragStart(e, ticket.id)}
-                        onDragEnd={() => setDraggedId(null)}
+                        onDragEnd={handleDragEnd}
                         onClick={() => handleOpenTicket(ticket)}
                       />
                     ))}
@@ -655,8 +691,10 @@ export function BacklogPage() {
                     )}
 
                     {tickets.length === 0 && col.id !== 'PENDIENTE' && (
-                      <div className="py-6 text-center text-xs text-[#000033]/30 font-medium">
-                        Sin piezas
+                      <div className={`py-6 text-center text-xs font-medium transition-colors ${
+                        isOver ? 'text-[#024fff] font-bold' : 'text-[#000033]/30'
+                      }`}>
+                        {isOver ? 'Soltar aquí' : 'Sin piezas'}
                       </div>
                     )}
                   </div>
@@ -715,9 +753,9 @@ function TicketCard({
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
       onClick={onClick}
-      className={`bg-white border-2 rounded-lg p-3 hover:shadow-lg transition-all cursor-pointer group ${
+      className={`bg-white border-2 rounded-lg p-3 hover:shadow-lg transition-all cursor-pointer group select-none ${
         esTarea ? 'border-[#000033]/15 hover:border-[#000033]/30' : 'border-[#024fff]/40 hover:border-[#024fff]/70'
-      } ${isDragging ? 'opacity-40' : ''}`}
+      } ${isDragging ? 'opacity-40 pointer-events-none' : ''}`}
     >
       <div className="flex items-center justify-between mb-2 gap-1.5">
         <span className="text-xs font-bold text-[#024fff]/70 truncate">

@@ -149,6 +149,7 @@ export function PrensaBacklogPage() {
   const [showModalNueva, setShowModalNueva] = useState(false);
   const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
   const [draggedId, setDraggedId] = useState<string | null>(null);
+  const draggedIdRef = useRef<string | null>(null);
 
   const queryTicketId = searchParams.get('ticketId');
 
@@ -406,11 +407,26 @@ export function PrensaBacklogPage() {
     }
   };
 
-  const handleDrop = (subEstado: SubEstado) => {
-    if (draggedId) {
-      const t = allTickets.find(x => x.id === draggedId);
-      if (t && subOf(t) !== subEstado) updateSubEstadoMutation.mutate({ id: draggedId, subEstado });
+  const handleDragStart = (e: React.DragEvent, id: string) => {
+    draggedIdRef.current = id;
+    setDraggedId(id);
+    e.dataTransfer.setData('text/plain', id);
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleDragEnd = () => {
+    draggedIdRef.current = null;
+    setDraggedId(null);
+  };
+
+  const handleDrop = (subEstado: SubEstado, e?: React.DragEvent) => {
+    if (e) e.preventDefault();
+    const id = e?.dataTransfer?.getData('text/plain') || draggedId || draggedIdRef.current;
+    if (id) {
+      const t = allTickets.find(x => x.id === id);
+      if (t && subOf(t) !== subEstado) updateSubEstadoMutation.mutate({ id, subEstado });
     }
+    draggedIdRef.current = null;
     setDraggedId(null);
   };
 
@@ -696,8 +712,8 @@ export function PrensaBacklogPage() {
                                       key={ticket.id}
                                       ticket={ticket}
                                       isDragging={draggedId === ticket.id}
-                                      onDragStart={() => setDraggedId(ticket.id)}
-                                      onDragEnd={() => setDraggedId(null)}
+                                      onDragStart={(e) => handleDragStart(e, ticket.id)}
+                                      onDragEnd={handleDragEnd}
                                       onClick={() => handleOpenTicket(ticket)}
                                     />
                                   ))
@@ -783,8 +799,8 @@ export function PrensaBacklogPage() {
                                 key={ticket.id}
                                 ticket={ticket}
                                 isDragging={draggedId === ticket.id}
-                                onDragStart={() => setDraggedId(ticket.id)}
-                                onDragEnd={() => setDraggedId(null)}
+                                onDragStart={(e) => handleDragStart(e, ticket.id)}
+                                onDragEnd={handleDragEnd}
                                 onClick={() => handleOpenTicket(ticket)}
                               />
                             ))
@@ -886,8 +902,8 @@ export function PrensaBacklogPage() {
                                                 key={ticket.id}
                                                 ticket={ticket}
                                                 isDragging={draggedId === ticket.id}
-                                                onDragStart={() => setDraggedId(ticket.id)}
-                                                onDragEnd={() => setDraggedId(null)}
+                                                onDragStart={(e) => handleDragStart(e, ticket.id)}
+                                                onDragEnd={handleDragEnd}
                                                 onClick={() => handleOpenTicket(ticket)}
                                               />
                                             ))
@@ -974,8 +990,8 @@ export function PrensaBacklogPage() {
                                             key={ticket.id}
                                             ticket={ticket}
                                             isDragging={draggedId === ticket.id}
-                                            onDragStart={() => setDraggedId(ticket.id)}
-                                            onDragEnd={() => setDraggedId(null)}
+                                            onDragStart={(e) => handleDragStart(e, ticket.id)}
+                                            onDragEnd={handleDragEnd}
                                             onClick={() => handleOpenTicket(ticket)}
                                           />
                                         ))
@@ -1145,7 +1161,7 @@ function TicketCard({
 }: {
   ticket: Ticket;
   isDragging: boolean;
-  onDragStart: () => void;
+  onDragStart: (e: React.DragEvent) => void;
   onDragEnd: () => void;
   onClick: () => void;
 }) {
@@ -1156,8 +1172,8 @@ function TicketCard({
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
       onClick={onClick}
-      className={`bg-white border border-[#000033]/[0.08] rounded-lg p-3.5 hover:shadow-md hover:border-violet-200 transition-all cursor-pointer group relative overflow-hidden ${
-        isDragging ? 'opacity-40' : ''
+      className={`bg-white border border-[#000033]/[0.08] rounded-lg p-3.5 hover:shadow-md hover:border-violet-200 transition-all cursor-pointer group relative overflow-hidden select-none ${
+        isDragging ? 'opacity-40 pointer-events-none' : ''
       }`}
       style={{ borderLeftWidth: 3, borderLeftColor: '#7C3AED' }}
     >
