@@ -4,6 +4,19 @@
 > 
 > 🎯 **BACKLOG OFICIAL Y PRIORIDADES (FUENTE DE VERDAD):** [Notion Backlog Oficial](https://app.notion.com/p/Backlog-3ba617fc369281048bfdfc89c5041d9c?source=copy_link). Todas las prioridades y tareas activas se gestionan directamente allí.
 
+### [2026-10-15] — Blindaje de Drag & Drop entre Columnas en Backlog y Prensa
+- **Desarrollador:** Antigravity (Pair Programming con Javier Sculli)
+- **Diagnóstico y Causa Raíz:**
+  1. **Condición de carrera:** Al arrastrar un ticket, solo se actualizaba el estado de React (`setDraggedId(id)`) sin invocar `e.dataTransfer.setData('text/plain', id)`. Si el navegador disparaba el evento `dragend` antes o en simultáneo con el `drop`, `draggedId` quedaba en `null`, descartando silenciosamente la mutación y devolviendo el ticket a su columna original.
+  2. **Zona de soltado restringida:** Los eventos `onDragOver` y `onDrop` estaban colocados únicamente en el contenedor interno de tarjetas. Arrastrar y soltar sobre la cabecera de la columna o márgenes cancelaba el drag.
+  3. **Ausencia de feedback visual:** Las columnas estrechas (240px) sin indicación visual activa provocaban que soltar apenas unos píxeles desplazado hacia columnas contiguas hiciera que la tarjeta cayera en una columna no deseada.
+- **Cambios Implementados:**
+  1. **Persistencia nativa robusta:** Se utiliza `e.dataTransfer.setData('text/plain', id)` con fallback a `draggedIdRef` y `draggedId` de React state, garantizando la recuperación del ID independientemente del orden de eventos.
+  2. **Receptores en columna completa:** Se elevaron `onDragOver`, `onDragLeave` y `onDrop` al contenedor raíz de cada columna en `BacklogPage.tsx` y `PrensaBacklogPage.tsx`.
+  3. **Feedback visual en tiempo real:** Indicador activo `ring-2 ring-[#024fff]` y fondo sutil en la columna sobre la cual se está posando la tarjeta (`isOver`), además de placeholder explícito *"Soltar aquí"* en columnas vacías.
+  4. **Protección de cursor y selección:** Clases `pointer-events-none` y `select-none` en la tarjeta arrastrada para no interferir en la detección de drop targets.
+- **Suite de Tests:** 180 tests unitarios pasando al 100% en Vitest across 18 test suites (`pnpm test`), build de producción verificado (`pnpm build`).
+
 ### [2026-10-14] — Arquitectura Estándar Anti-Pérdida de Comentarios y Borradores
 - **Desarrollador:** Antigravity (Pair Programming con Javier Sculli)
 - **Diagnóstico y Causa Raíz:**
