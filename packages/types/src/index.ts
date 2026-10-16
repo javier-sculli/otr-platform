@@ -164,6 +164,7 @@ export interface Ticket {
   ticketTypeId: string;
   status: TicketStatus;
   closeReason?: TicketCloseReason;
+  tipoTicket?: TicketTypeKind;
   area: TicketArea;
   macroEstado?: MacroEstado;
   subEstado?: SubEstado;

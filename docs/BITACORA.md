@@ -4,6 +4,36 @@
 > 
 > 🎯 **BACKLOG OFICIAL Y PRIORIDADES (FUENTE DE VERDAD):** [Notion Backlog Oficial](https://app.notion.com/p/Backlog-3ba617fc369281048bfdfc89c5041d9c?source=copy_link). Todas las prioridades y tareas activas se gestionan directamente allí.
 
+### [2026-10-16] — Refactor Arquitectónico: Desacople Nivel 1 (Tipo de Ticket) y Nivel 2 (Formatos / Subtipos)
+- **Desarrollador:** Antigravity (Pair Programming con Javier Sculli)
+- **Decisión de Arquitectura y Propósito:**
+  La lógica de clasificación de tickets se simplificó separando explícitamente el **Nivel 1 (Naturaleza del Ticket)** del **Nivel 2 (Formato / Entregable)** para evitar que la UI o el backend infieran o mezclen la categoría del ticket a partir de cadenas de formatos:
+  1. **Nivel 1 — `tipoTicket` (`CONTENIDO` | `TAREA` | `PRENSA`):** Columna de primera clase en base de datos PostgreSQL (`tipo_ticket` enum `TicketTypeKind NOT NULL DEFAULT 'CONTENIDO'`), en el modelo Prisma `Ticket`, en `@otr/types` y esquemas de validación Zod `@otr/schemas`.
+  2. **Nivel 2 — Formato / Entregable:** Dependiente del Nivel 1:
+     - `CONTENIDO` -> Tipos de contenido (Carrusel, Reel, Video, etc.). Canales válidos (LinkedIn, etc.).
+     - `TAREA` -> Tipos de tarea / entregables (Deck, Estrategia, Reporte, Diseño puntual, Otro). Canales siempre `[]`.
+     - `PRENSA` -> Tipos de prensa (Gestión pitch, Nota de opinión, etc.). Canales siempre `[]`.
+- **Cambios Implementados:**
+  1. **Base de Datos & Prisma (`schema.prisma` y migración SQL):**
+     - Se añadió la columna `tipo_ticket TicketTypeKind @default(CONTENIDO)` a la tabla `tickets`.
+     - Backfill completo en base de datos de producción: 342 tickets `PRENSA`, 130 tickets `TAREA`, 536 tickets `CONTENIDO`.
+     - Se restauró la propiedad `prioridad Prioridad @default(MEDIA)` en el modelo `Ticket` de Prisma.
+  2. **Contratos Compartidos (`packages/types` y `packages/schemas`):**
+     - Campo `tipoTicket?: TicketTypeKind` agregado a la interfaz `Ticket` y esquemas `createTicketSchema` / `updateTicketSchema`.
+  3. **Backend API (`apps/api/src/routes/tickets.ts`):**
+     - `POST /` persiste `tipoTicket`. Si es `TAREA` o `PRENSA`, blinda estrictamente `canales: []`.
+     - `PATCH /:id` permite actualizar `tipoTicket` y garantiza `canales: []` para tareas y prensa.
+     - `GET /` y `GET /:id` seleccionan y exponen `tipoTicket`.
+     - `POST /bulk-create` inicializa drafts con `tipoTicket`.
+  4. **Frontend Web (`CreateTicketModal.tsx`, `BacklogPage.tsx`, `TicketDetallePage.tsx`, `SumarioTab.tsx`):**
+     - En `CreateTicketModal.tsx`: el switch Pieza/Tarea gobierna directamente `tipoTicket`. Al conmutar a Tarea, limpia canales y resetea formatos no compatibles; al enviar se envía `tipoTicket`.
+     - En `BacklogPage.tsx`: el filtro de tareas y las tarjetas Kanban evalúan directamente `t.tipoTicket === 'TAREA'`, sin inspeccionar arrays de formatos.
+     - En `TicketDetallePage.tsx`: `isPieza`, `esTarea` y `esPrensa` se determinan limpiamente por `ticket.tipoTicket`.
+     - En `SumarioTab.tsx`: `handleAddTareaRow`, `handleAddPrensaRow` y `handleDuplicateRow` asignan `tipoTicket` correspondiente y fuerzan `canales: []`.
+- **Verificación y Calidad:**
+  - 183 tests unitarios pasando al 100% en Vitest (`pnpm test`).
+  - `pnpm build` compila con 0 errores en todos los workspaces (API, Web, MCP, Types, Schemas).
+
 ### [2026-10-16] — Fix Crítico: Tareas creadas como Piezas de Contenido y Canales Involuntarios
 - **Desarrollador:** Antigravity (Pair Programming con Javier Sculli)
 - **Diagnóstico y Causa Raíz:**

@@ -68,6 +68,7 @@ export interface TicketData {
   periodista?: string | null;
   estadoRespuesta?: string | null;
   ticketTypeId?: string | null;
+  tipoTicket?: 'CONTENIDO' | 'TAREA' | 'PRENSA';
   ticketType?: { id: string; name: string; kind?: string } | null;
   estadoAprobacionCliente?: string | null;
   aprobadoPor?: string | null;
@@ -229,6 +230,7 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
   const [formData, setFormData] = useState(() => buildFormData(ticket, defaultClientId));
 
   const initTipo = (t?: TicketData | null): 'CONTENIDO' | 'TAREA' | 'PRENSA' => {
+    if (t?.tipoTicket) return t.tipoTicket;
     if (t?.ticketType?.kind === 'PRENSA' || (!t && area === 'PRENSA') || (t as any)?.area === 'PRENSA') return 'PRENSA';
     if (t?.ticketType?.kind === 'TAREA') return 'TAREA';
     if (t && (t as any).tiposContenido?.some((fmt: string) => TIPOS_TAREA.includes(fmt))) return 'TAREA';
@@ -1054,8 +1056,13 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
                 type="button"
                 onClick={() => {
                   setTipoTicket('CONTENIDO');
-                  const matching = findTicketType(formData.tiposContenido[0], 'CONTENIDO');
-                  handleChange('ticketTypeId', matching?.id || '');
+                  const currentIsPieza = formData.tiposContenido.some((fmt: string) => FORMATOS_PIEZA.includes(fmt));
+                  const newFormats = currentIsPieza ? formData.tiposContenido : [];
+                  const matching = findTicketType(newFormats[0], 'CONTENIDO');
+                  handleMultipleChanges({
+                    ticketTypeId: matching?.id || '',
+                    tiposContenido: newFormats,
+                  });
                 }}
                 className={`border-0 cursor-pointer font-anek text-[13px] font-bold px-4 py-1.5 rounded-[7px] transition-all ${
                   isPieza ? 'bg-white text-[#024fff] shadow-[0_1px_2px_rgba(0,14,31,.12)]' : 'bg-transparent text-[#5b6675]'
@@ -1067,9 +1074,12 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
                 type="button"
                 onClick={() => {
                   setTipoTicket('TAREA');
-                  const matching = findTicketType(formData.tiposContenido[0], 'TAREA') || defaultTareaType;
+                  const currentIsTarea = formData.tiposContenido.some((fmt: string) => TIPOS_TAREA.includes(fmt));
+                  const newFormats = currentIsTarea ? formData.tiposContenido : [];
+                  const matching = findTicketType(newFormats[0], 'TAREA') || defaultTareaType;
                   handleMultipleChanges({
                     ticketTypeId: matching?.id || '',
+                    tiposContenido: newFormats,
                     canales: [],
                     pilarId: '',
                     speakerId: '',

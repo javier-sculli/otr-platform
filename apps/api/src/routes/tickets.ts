@@ -265,6 +265,7 @@ async function fetchAndCacheTickets(query: any = {}) {
         ownerId: true,
         assigneeIds: true,
         ticketTypeId: true,
+        tipoTicket: true,
         pilarId: true,
         speakerId: true,
         status: true,
@@ -450,7 +451,7 @@ async function resolveTicketTypeForCreation(prismaInstance: typeof prisma, data:
         resolvedTicketType = tareaTypes.find(t => t.name.toLowerCase() === 'otro') || null;
       }
     } else if (firstFormat) {
-      const kind = data.area === 'PRENSA' ? 'PRENSA' : 'CONTENIDO';
+      const kind = (data.tipoTicket === 'PRENSA' || data.area === 'PRENSA') ? 'PRENSA' : 'CONTENIDO';
       const contentTypes = await prismaInstance.ticketType.findMany({
         where: { kind: kind as any },
       });
@@ -481,17 +482,20 @@ async function resolveTicketTypeForCreation(prismaInstance: typeof prisma, data:
       : (data.ownerId ? [data.ownerId] : []);
     const primaryOwnerId = data.ownerId || initialAssigneeIds[0];
 
-    const { ticketTypeId: resolvedTicketTypeId, isTarea } = await resolveTicketTypeForCreation(prisma, data);
+    const tipoTicket = data.tipoTicket || (data.tipo === 'TAREA' ? 'TAREA' : (data.area === 'PRENSA' ? 'PRENSA' : 'CONTENIDO'));
+    const isTarea = tipoTicket === 'TAREA';
+
+    const { ticketTypeId: resolvedTicketTypeId } = await resolveTicketTypeForCreation(prisma, { ...data, tipoTicket });
 
     let canales: string[];
     if (isTarea) {
+      canales = [];
+    } else if (tipoTicket === 'PRENSA' || data.area === 'PRENSA') {
       canales = [];
     } else if (Array.isArray(data.canales)) {
       canales = data.canales.length > 0 ? data.canales : ['LinkedIn'];
     } else if (data.canal) {
       canales = [data.canal];
-    } else if (data.area === 'PRENSA') {
-      canales = [];
     } else {
       canales = ['LinkedIn'];
     }
@@ -502,6 +506,7 @@ async function resolveTicketTypeForCreation(prismaInstance: typeof prisma, data:
         description: data.referencias !== undefined ? data.referencias : data.description,
         objetivo: data.objetivo,
         canales,
+        tipoTicket,
         prioridad: data.prioridad || 'MEDIA',
         clientId: data.clientId,
         ownerId: primaryOwnerId,
@@ -582,17 +587,25 @@ async function resolveTicketTypeForCreation(prismaInstance: typeof prisma, data:
 
     const existingTicket = await prisma.ticket.findUnique({
       where: { id },
-      select: { id: true, title: true, ownerId: true, assigneeIds: true, status: true, subEstado: true, contentPerCanal: true, versionsPerCanal: true, ticketTypeId: true, tiposContenido: true, area: true }
+      select: { id: true, title: true, ownerId: true, assigneeIds: true, status: true, subEstado: true, contentPerCanal: true, versionsPerCanal: true, ticketTypeId: true, tipoTicket: true, tiposContenido: true, area: true }
     });
     if (!existingTicket) return reply.status(404).send({ error: 'Ticket no encontrado' });
 
     const updateData: any = {};
+    if (data.tipoTicket !== undefined) updateData.tipoTicket = data.tipoTicket;
+    const currentTipoTicket = updateData.tipoTicket || existingTicket.tipoTicket;
+
     if (data.title !== undefined) updateData.title = data.title;
     if (data.description !== undefined) updateData.description = data.description;
     if (data.referencias !== undefined) updateData.description = data.referencias;
     if (data.objetivo !== undefined) updateData.objetivo = data.objetivo;
-    if (data.canales !== undefined) updateData.canales = data.canales;
-    if (data.canal !== undefined) updateData.canales = [data.canal];
+
+    if (currentTipoTicket === 'TAREA' || currentTipoTicket === 'PRENSA') {
+      updateData.canales = [];
+    } else {
+      if (data.canales !== undefined) updateData.canales = data.canales;
+      if (data.canal !== undefined) updateData.canales = [data.canal];
+    }
     if (data.contentPerCanal !== undefined) {
       const existingMap: Record<string, string> =
         existingTicket.contentPerCanal && typeof existingTicket.contentPerCanal === 'object'
@@ -628,15 +641,16 @@ async function resolveTicketTypeForCreation(prismaInstance: typeof prisma, data:
     }
     if (data.ticketTypeId !== undefined) {
       updateData.ticketTypeId = data.ticketTypeId;
-    } else if (data.tipoTicket === 'TAREA' || (data.tiposContenido !== undefined && !existingTicket.ticketTypeId)) {
+    } else if (currentTipoTicket === 'TAREA' || (data.tiposContenido !== undefined && !existingTicket.ticketTypeId)) {
       const { ticketTypeId: resolvedId, isTarea } = await resolveTicketTypeForCreation(prisma, {
         ...existingTicket,
         ...data,
+        tipoTicket: currentTipoTicket,
       });
       if (resolvedId) {
         updateData.ticketTypeId = resolvedId;
       }
-      if (isTarea && data.canales === undefined) {
+      if (isTarea) {
         updateData.canales = [];
       }
     }
@@ -682,7 +696,7 @@ async function resolveTicketTypeForCreation(prismaInstance: typeof prisma, data:
       data: updateData,
       select: {
         id: true, title: true, objetivo: true, description: true, canales: true,
-        clientId: true, ownerId: true, assigneeIds: true, ticketTypeId: true,
+        clientId: true, ownerId: true, assigneeIds: true, ticketTypeId: true, tipoTicket: true,
         pilarId: true, speakerId: true, status: true, prioridad: true, area: true,
         macroEstado: true, subEstado: true, reviewerId: true, medio: true,
         periodista: true, estadoRespuesta: true, dueDate: true, plannedDate: true,
@@ -899,14 +913,15 @@ async function resolveTicketTypeForCreation(prismaInstance: typeof prisma, data:
         data: {
           title: t.title || 'Contenido Planificado',
           description: t.description || t.referencias || null,
-          canales: t.canales || (t.canal ? [t.canal] : []),
+          tipoTicket: t.tipoTicket || (t.area === 'PRENSA' ? 'PRENSA' : 'CONTENIDO'),
+          canales: (t.tipoTicket === 'TAREA' || t.area === 'PRENSA') ? [] : (t.canales || (t.canal ? [t.canal] : [])),
           clientId: t.clientId,
           ownerId: t.ownerId,
           ticketTypeId: t.ticketTypeId || null,
           pilarId: t.pilarId || null,
           speakerId: t.speakerId || null,
           status: t.status || 'PENDIENTE',
-          area: 'CONTENIDO',
+          area: t.area || 'CONTENIDO',
           plannedDate: t.plannedDate ? new Date(t.plannedDate) : null,
           isDraftPlan: t.isDraftPlan !== undefined ? t.isDraftPlan : true,
           estadoAprobacionCliente: t.estadoAprobacionCliente || 'BORRADOR',

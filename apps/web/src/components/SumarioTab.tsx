@@ -133,8 +133,8 @@ export function SumarioTab({ clientId }: { clientId: string }) {
       return t.plannedDate.startsWith(periodo);
     })
     .map((t: any, index: number) => {
-      const isPrensa = t.ticketType?.kind === 'PRENSA' || t.area === 'PRENSA';
-      const isTarea = !isPrensa && t.ticketType?.kind === 'TAREA';
+      const isPrensa = t.tipoTicket === 'PRENSA' || t.ticketType?.kind === 'PRENSA' || t.area === 'PRENSA';
+      const isTarea = !isPrensa && (t.tipoTicket === 'TAREA' || t.ticketType?.kind === 'TAREA');
       return {
         id: t.id,
         plannedDate: t.plannedDate ? t.plannedDate.substring(0, 10) : '',
@@ -503,6 +503,7 @@ export function SumarioTab({ clientId }: { clientId: string }) {
       title: '',
       clientId,
       ownerId: client?.ownerId ?? '',
+      tipoTicket: 'CONTENIDO',
       ticketTypeId: null,
       pilarId: null,
       speakerId: activeTab === 'MARCA' ? null : activeTab,
@@ -521,6 +522,7 @@ export function SumarioTab({ clientId }: { clientId: string }) {
       title: '',
       clientId,
       ownerId: client?.ownerId ?? '',
+      tipoTicket: 'TAREA',
       ticketTypeId: tareaType,
       pilarId: null,
       speakerId: activeTab === 'MARCA' ? null : activeTab,
@@ -528,8 +530,7 @@ export function SumarioTab({ clientId }: { clientId: string }) {
       plannedDate: `${periodo}-01T12:00:00.000Z`,
       isDraftPlan: true,
       estadoAprobacionCliente: 'BORRADOR',
-      canal: 'Tarea',
-      canales: ['Tarea'],
+      canales: [],
     });
   };
 
@@ -539,6 +540,7 @@ export function SumarioTab({ clientId }: { clientId: string }) {
       title: '',
       clientId,
       ownerId: client?.ownerId ?? '',
+      tipoTicket: 'PRENSA',
       ticketTypeId: prensaType,
       area: 'PRENSA',
       pilarId: null,
@@ -547,8 +549,7 @@ export function SumarioTab({ clientId }: { clientId: string }) {
       plannedDate: `${periodo}-01T12:00:00.000Z`,
       isDraftPlan: true,
       estadoAprobacionCliente: 'BORRADOR',
-      canal: 'Prensa',
-      canales: ['Prensa'],
+      canales: [],
     });
   };
 
@@ -559,6 +560,7 @@ export function SumarioTab({ clientId }: { clientId: string }) {
       description: row.referencias,
       clientId: clientId,
       ownerId: rawTicket?.ownerId ?? null,
+      tipoTicket: rawTicket?.tipoTicket || (row.isPrensa ? 'PRENSA' : (row.isTarea ? 'TAREA' : 'CONTENIDO')),
       ticketTypeId: row.formatoId || null,
       pilarId: row.pilarId || null,
       speakerId: targetSpeakerId,
@@ -566,7 +568,7 @@ export function SumarioTab({ clientId }: { clientId: string }) {
       plannedDate: null,
       isDraftPlan: true,
       estadoAprobacionCliente: 'BORRADOR',
-      canales: [row.canal],
+      canales: (row.isTarea || row.isPrensa) ? [] : [row.canal],
       content: row.copy,
       linkEntregable: row.linkPublicacionReal,
     };

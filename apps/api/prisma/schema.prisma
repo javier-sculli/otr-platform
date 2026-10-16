@@ -250,6 +250,8 @@ model Ticket {
   speakerId    String?        @map("speaker_id")
   status       TicketStatus   @default(PENDIENTE)
   prioridad    Prioridad      @default(MEDIA)
+  // Nivel 1: Tipo de ticket (CONTENIDO | TAREA | PRENSA)
+  tipoTicket   TicketTypeKind @default(CONTENIDO) @map("tipo_ticket")
   // Modelo de dos niveles (HU Fase 2). Contenido sigue usando `status`;
   // Prensa usa `subEstado` (+ `macroEstado` derivado y persistido).
   area         TicketArea     @default(CONTENIDO)

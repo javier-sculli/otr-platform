@@ -310,9 +310,10 @@ export function TicketDetallePage() {
     updateMutation.mutate({ status: targetStatus });
   };
 
-  const esTarea = (ticket as any)?.ticketType?.kind === 'TAREA' || ((ticket as any)?.area !== 'PRENSA' && (ticket as any)?.tiposContenido?.some((t: string) => TIPOS_TAREA.includes(t)));
-  const esPrensa = (ticket as any)?.ticketType?.kind === 'PRENSA' || (ticket as any)?.area === 'PRENSA';
-  const isPieza = !esTarea && !esPrensa;
+  const tipo = (ticket as any)?.tipoTicket || ((ticket as any)?.ticketType?.kind === 'TAREA' ? 'TAREA' : (((ticket as any)?.area === 'PRENSA' || (ticket as any)?.ticketType?.kind === 'PRENSA') ? 'PRENSA' : 'CONTENIDO'));
+  const esTarea = tipo === 'TAREA';
+  const esPrensa = tipo === 'PRENSA';
+  const isPieza = tipo === 'CONTENIDO';
 
   const handleNextStatusClick = () => {
     if (!ticket) return;
