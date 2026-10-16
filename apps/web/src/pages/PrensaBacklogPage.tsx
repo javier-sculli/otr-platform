@@ -1172,8 +1172,8 @@ function TicketCard({
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
       onClick={onClick}
-      className={`bg-white border border-[#000033]/[0.08] rounded-lg p-3.5 hover:shadow-md hover:border-violet-200 transition-all cursor-pointer group relative overflow-hidden select-none ${
-        isDragging ? 'opacity-40 pointer-events-none' : ''
+      className={`bg-white border border-[#000033]/[0.08] rounded-lg p-3.5 hover:shadow-md hover:border-violet-200 transition-all cursor-grab active:cursor-grabbing group relative overflow-hidden select-none ${
+        isDragging ? 'opacity-35 scale-[0.98]' : ''
       }`}
       style={{ borderLeftWidth: 3, borderLeftColor: '#7C3AED' }}
     >

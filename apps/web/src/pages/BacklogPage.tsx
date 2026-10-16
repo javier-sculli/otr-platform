@@ -194,10 +194,16 @@ export function BacklogPage() {
     onMutate: async ({ id, status }) => {
       await queryClient.cancelQueries({ queryKey: ['tickets'] });
       const prev = queryClient.getQueryData(['tickets']);
-      queryClient.setQueryData(['tickets'], (old: any) => ({
-        ...old,
-        data: old?.data?.map((t: Ticket) => t.id === id ? { ...t, status } : t) ?? [],
-      }));
+      queryClient.setQueryData(['tickets'], (old: any) => {
+        if (!old) return old;
+        if (Array.isArray(old)) {
+          return old.map((t: Ticket) => t.id === id ? { ...t, status } : t);
+        }
+        return {
+          ...old,
+          data: old.data?.map((t: Ticket) => t.id === id ? { ...t, status } : t) ?? [],
+        };
+      });
       return { prev };
     },
     onError: (_err, _vars, ctx) => {
@@ -304,7 +310,10 @@ export function BacklogPage() {
   const handleDragStart = (e: React.DragEvent, id: string) => {
     draggedIdRef.current = id;
     setDraggedId(id);
-    e.dataTransfer.setData('text/plain', id);
+    try {
+      e.dataTransfer.setData('text/plain', id);
+      e.dataTransfer.setData('text', id);
+    } catch {}
     e.dataTransfer.effectAllowed = 'move';
   };
 
@@ -316,31 +325,35 @@ export function BacklogPage() {
     }
   };
 
-  const handleDragLeave = (e: React.DragEvent, colId: string) => {
-    if (e.currentTarget.contains(e.relatedTarget as Node)) return;
-    if (dragOverColId === colId) {
-      setDragOverColId(null);
-    }
-  };
-
   const handleDragEnd = () => {
-    draggedIdRef.current = null;
-    setDraggedId(null);
     setDragOverColId(null);
+    setTimeout(() => {
+      draggedIdRef.current = null;
+      setDraggedId(null);
+    }, 250);
   };
 
   const handleDrop = (e: React.DragEvent, status: string) => {
     e.preventDefault();
+    e.stopPropagation();
     setDragOverColId(null);
-    const id = e.dataTransfer.getData('text/plain') || draggedId || draggedIdRef.current;
+    let id: string | null = null;
+    try {
+      id = e.dataTransfer.getData('text/plain') || e.dataTransfer.getData('text');
+    } catch {}
+    if (!id) {
+      id = draggedIdRef.current || draggedId;
+    }
     if (id) {
       const ticket = allTickets.find(t => t.id === id);
       if (ticket && ticket.status !== status) {
         updateStatusMutation.mutate({ id, status });
       }
     }
-    draggedIdRef.current = null;
-    setDraggedId(null);
+    setTimeout(() => {
+      draggedIdRef.current = null;
+      setDraggedId(null);
+    }, 50);
   };
 
   const altaCount = ticketsFiltrados.filter(t => t.prioridad === 'ALTA').length;
@@ -647,7 +660,6 @@ export function BacklogPage() {
                 <div
                   key={col.id}
                   onDragOver={e => handleDragOver(e, col.id)}
-                  onDragLeave={e => handleDragLeave(e, col.id)}
                   onDrop={e => handleDrop(e, col.id)}
                   className={`flex flex-col w-[240px] flex-shrink-0 rounded-xl transition-all ${
                     isOver ? 'ring-2 ring-[#024fff] shadow-md bg-[#024fff]/[0.02]' : ''
@@ -666,6 +678,8 @@ export function BacklogPage() {
                   </div>
 
                   <div
+                    onDragOver={e => handleDragOver(e, col.id)}
+                    onDrop={e => handleDrop(e, col.id)}
                     className={`flex-1 overflow-y-auto bg-[#000033]/[0.02] border-2 border-t-0 border-[#000033]/10 rounded-b-xl p-2 space-y-2 min-h-[400px] transition-colors ${
                       isOver ? 'border-[#024fff] bg-[#024fff]/[0.04]' : ''
                     }`}
@@ -753,9 +767,9 @@ function TicketCard({
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
       onClick={onClick}
-      className={`bg-white border-2 rounded-lg p-3 hover:shadow-lg transition-all cursor-pointer group select-none ${
+      className={`bg-white border-2 rounded-lg p-3 hover:shadow-lg transition-all cursor-grab active:cursor-grabbing select-none ${
         esTarea ? 'border-[#000033]/15 hover:border-[#000033]/30' : 'border-[#024fff]/40 hover:border-[#024fff]/70'
-      } ${isDragging ? 'opacity-40 pointer-events-none' : ''}`}
+      } ${isDragging ? 'opacity-35 scale-[0.98] border-dashed border-[#024fff]' : ''}`}
     >
       <div className="flex items-center justify-between mb-2 gap-1.5">
         <span className="text-xs font-bold text-[#024fff]/70 truncate">
