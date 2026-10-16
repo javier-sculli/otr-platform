@@ -27,6 +27,7 @@ interface Ticket {
   assignees?: { id: string; name: string }[];
   client: { id: string; name: string };
   ticketType?: { id: string; name: string; kind?: string } | null;
+  tiposContenido?: string[];
   pilarId?: string | null;
   pilar?: { id: string; nombre: string } | null;
   speakerId?: string | null;
@@ -37,6 +38,11 @@ interface Cliente {
   id: string;
   name: string;
 }
+
+const TIPOS_TAREA = [
+  'Artículo de blog', 'Deck', 'Diseño puntual', 'Estrategia',
+  'Newsletter', 'Reporte', 'Otro'
+];
 
 const COLUMNAS = [
   { id: 'PENDIENTE',          nombre: 'Pendiente',            color: 'bg-[#000033]/5',   border: 'border-[#000033]/20' },
@@ -252,8 +258,9 @@ export function BacklogPage() {
     // Prensa tiene su propia tab (/prensa) — no se mezcla en el backlog de Contenido.
     if (t.area === 'PRENSA') return false;
     if (effectiveClientIds.length > 0 && !effectiveClientIds.includes(t.client.id)) return false;
-    if (filtroTipo === 'TAREA' && t.ticketType?.kind !== 'TAREA') return false;
-    if (filtroTipo === 'CONTENIDO' && t.ticketType?.kind === 'TAREA') return false;
+    const isTarea = t.ticketType?.kind === 'TAREA' || (t.area !== 'PRENSA' && t.tiposContenido?.some((fmt: string) => TIPOS_TAREA.includes(fmt)));
+    if (filtroTipo === 'TAREA' && !isTarea) return false;
+    if (filtroTipo === 'CONTENIDO' && isTarea) return false;
     if (vocerosSeleccionados.length > 0 && (!t.speaker || !vocerosSeleccionados.includes(t.speaker.id))) return false;
     
     const dateToUse = t.dueDate || (t as any).plannedDate;
@@ -760,7 +767,7 @@ function TicketCard({
   onDragEnd: () => void;
   onClick: () => void;
 }) {
-  const esTarea = ticket.ticketType?.kind === 'TAREA';
+  const esTarea = ticket.ticketType?.kind === 'TAREA' || (ticket.area !== 'PRENSA' && ticket.tiposContenido?.some((fmt: string) => TIPOS_TAREA.includes(fmt)));
   return (
     <div
       draggable

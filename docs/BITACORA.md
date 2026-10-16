@@ -4,6 +4,20 @@
 > 
 > 🎯 **BACKLOG OFICIAL Y PRIORIDADES (FUENTE DE VERDAD):** [Notion Backlog Oficial](https://app.notion.com/p/Backlog-3ba617fc369281048bfdfc89c5041d9c?source=copy_link). Todas las prioridades y tareas activas se gestionan directamente allí.
 
+### [2026-10-16] — Fix Crítico: Tareas creadas como Piezas de Contenido y Canales Involuntarios
+- **Desarrollador:** Antigravity (Pair Programming con Javier Sculli)
+- **Diagnóstico y Causa Raíz:**
+  1. Al crear una Tarea desde `CreateTicketModal.tsx`, el formulario recolectaba el formato en `formData.tiposContenido` (ej. `['Otro']`, `['Deck']`), pero **nunca asignaba ni resolvía `ticketTypeId`** correspondiente al tipo `TicketType` con `kind === 'TAREA'`.
+  2. En el backend (`apps/api/src/routes/tickets.ts`), `canales` evaluaba `(data.canales && data.canales.length > 0) ? data.canales : ... : ['LinkedIn']`. Al recibir `canales: []` para una tarea, como `data.canales.length > 0` era falso, el backend le asignaba forzosamente `['LinkedIn']`.
+  3. Al quedar `ticketTypeId: null` en la base de datos, `ticket.ticketType?.kind === 'TAREA'` evaluaba a `false`. El sistema completo (Backlog Kanban, Detalle de Ticket, modal de edición y filtros) interpretaba el ticket como una Pieza de Contenido: mostraba canales de publicación, abría pestañas de redacción/copy en lugar de descripción de tarea, usaba borde azul de pieza y lo excluía al filtrar por "Tareas".
+- **Cambios Implementados:**
+  1. **Resolución automática de `TicketType` en Backend (`tickets.ts`):** `resolveTicketTypeForCreation` busca y vincula automáticamente el `TicketType` adecuado (por `tiposContenido` o tipo explícito `TAREA`, con fallback a `Otro` de tipo `TAREA`).
+  2. **Protección de Canales en Backend (`tickets.ts`):** Para toda Tarea (entregable no publicable), los canales se fuerzan estrictamente a `[]` sin inyectar `['LinkedIn']`.
+  3. **Sincronización en Creación y Edición (`CreateTicketModal.tsx`):** Se consulta el catálogo `api.getTicketTypes()` y se mapea de forma reactiva el `ticketTypeId` correcto de tipo `TAREA` al seleccionar formatos y cambiar entre pestañas Pieza/Tarea. Se envía `tipoTicket: 'TAREA'` explícito y `canales: []`.
+  4. **Detección Resiliente en Frontend (`CreateTicketModal.tsx`, `BacklogPage.tsx`, `TicketDetallePage.tsx`):** `initTipo` y la condición `esTarea` verifican tanto `ticket.ticketType?.kind === 'TAREA'` como la presencia de formatos de tarea en `tiposContenido`, garantizando que cualquier ticket legacy abra en modo Tarea.
+  5. **Migración de Datos en Producción:** Se ejecutó una migración sobre los 17 tickets afectados existentes en la base de datos (incluyendo el ticket reportado `1dcb6ef1-50f5-471b-a41e-53f29d435bb8`), asignándoles su `ticketTypeId` correspondiente de `kind: 'TAREA'` y limpiando sus canales a `[]`.
+- **Suite de Tests:** 183 tests unitarios pasando al 100% en Vitest (`pnpm test`), incluyendo 2 nuevos tests en `ticketModals.test.tsx` que blindan la creación y edición de Tareas. Build limpio verificado en todo el monorepo (`pnpm build`).
+
 ### [2026-10-16] — Fix Crítico Drag & Drop: Eliminación de pointer-events-none y Buffer de Drop
 - **Desarrollador:** Antigravity (Pair Programming con Javier Sculli)
 - **Diagnóstico y Causa Raíz:**

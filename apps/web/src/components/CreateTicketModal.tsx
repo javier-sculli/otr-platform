@@ -229,8 +229,9 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
   const [formData, setFormData] = useState(() => buildFormData(ticket, defaultClientId));
 
   const initTipo = (t?: TicketData | null): 'CONTENIDO' | 'TAREA' | 'PRENSA' => {
-    if (t?.ticketType?.kind === 'PRENSA' || (!t && area === 'PRENSA')) return 'PRENSA';
+    if (t?.ticketType?.kind === 'PRENSA' || (!t && area === 'PRENSA') || (t as any)?.area === 'PRENSA') return 'PRENSA';
     if (t?.ticketType?.kind === 'TAREA') return 'TAREA';
+    if (t && (t as any).tiposContenido?.some((fmt: string) => TIPOS_TAREA.includes(fmt))) return 'TAREA';
     return 'CONTENIDO';
   };
 
@@ -317,6 +318,30 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
     staleTime: 5 * 60 * 1000,
   });
   const speakers = speakersData?.data ?? [];
+
+  const { data: ticketTypesData } = useQuery({
+    queryKey: ['ticket-types'],
+    queryFn: () => api.getTicketTypes(),
+    enabled: isOpen,
+    staleTime: 10 * 60 * 1000,
+  });
+  const ticketTypes = (ticketTypesData?.data ?? []) as { id: string; name: string; kind?: string }[];
+
+  const findTicketType = (name?: string, kind?: 'CONTENIDO' | 'TAREA' | 'PRENSA') => {
+    if (!name) return null;
+    const lower = name.toLowerCase().trim();
+    return ticketTypes.find(t =>
+      (!kind || t.kind === kind) && (
+        t.name.toLowerCase() === lower ||
+        t.name.toLowerCase().replace(/\s+/g, '') === lower.replace(/\s+/g, '') ||
+        (lower.includes('blog') && t.name.toLowerCase().includes('blog')) ||
+        (lower.includes('news') && t.name.toLowerCase().includes('news'))
+      )
+    ) || null;
+  };
+
+  const defaultTareaType = ticketTypes.find(t => t.kind === 'TAREA' && t.name.toLowerCase() === 'otro')
+    || ticketTypes.find(t => t.kind === 'TAREA') || null;
 
   const { data: commentsData } = useQuery({
     queryKey: ['comments', ticket?.id],
@@ -503,6 +528,12 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
     const primaryOwner = current.ownerId || current.assigneeIds?.[0];
     if (!current.title || !current.clientId || !primaryOwner) return;
 
+    const resolvedType = esTarea
+      ? (current.ticketTypeId ? ticketTypes.find(t => t.id === current.ticketTypeId) : null) || findTicketType(current.tiposContenido[0], 'TAREA') || defaultTareaType
+      : (isPieza ? (current.ticketTypeId ? ticketTypes.find(t => t.id === current.ticketTypeId) : null) || findTicketType(current.tiposContenido[0], 'CONTENIDO') : null);
+
+    const finalTicketTypeId = resolvedType?.id || current.ticketTypeId || null;
+
     const payload: any = {
       title: current.title,
       ownerId: primaryOwner,
@@ -510,10 +541,11 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
       status: current.status,
       prioridad: current.prioridad,
       objetivo: current.brief || undefined,
+      tipoTicket,
       canales: noContenido ? [] : (current.canales.length > 0 ? current.canales : ['LinkedIn']),
       dueDate: current.dueDate || null,
       plannedDate: current.fechaPub || null,
-      ticketTypeId: current.ticketTypeId || null,
+      ticketTypeId: finalTicketTypeId,
       tiposContenido: current.tiposContenido,
       pilarId: noContenido ? null : (current.pilarId || null),
       speakerId: noContenido ? null : (current.speakerId || null),
@@ -723,8 +755,19 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
     if (esTarea && added && list.length === 0 && (!formData.brief.trim() || Object.values(TPL_TAREA).includes(formData.brief))) {
       briefUpdate.brief = TPL_TAREA[added] || '';
     }
-    const updated = { ...formData, tiposContenido: next, ...briefUpdate };
+
+    const matchingType = esTarea
+      ? (findTicketType(next[0], 'TAREA') || defaultTareaType)
+      : (isPieza ? findTicketType(next[0], 'CONTENIDO') : null);
+
+    const updated = {
+      ...formData,
+      tiposContenido: next,
+      ticketTypeId: matchingType?.id || formData.ticketTypeId || '',
+      ...briefUpdate
+    };
     dirtyFieldsRef.current.add('tiposContenido');
+    if (matchingType?.id) dirtyFieldsRef.current.add('ticketTypeId');
     if (briefUpdate.brief !== undefined) dirtyFieldsRef.current.add('brief');
     setFormData(updated);
     triggerImmediateAutoSave(updated);
@@ -793,6 +836,12 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
       handleNextStatusClickModal();
     } else {
       const primaryOwner = formData.ownerId || formData.assigneeIds[0];
+      const resolvedType = esTarea
+        ? (formData.ticketTypeId ? ticketTypes.find(t => t.id === formData.ticketTypeId) : null) || findTicketType(formData.tiposContenido[0], 'TAREA') || defaultTareaType
+        : (isPieza ? (formData.ticketTypeId ? ticketTypes.find(t => t.id === formData.ticketTypeId) : null) || findTicketType(formData.tiposContenido[0], 'CONTENIDO') : null);
+
+      const finalTicketTypeId = resolvedType?.id || formData.ticketTypeId || null;
+
       const payload: any = {
         title: formData.title,
         clientId: formData.clientId,
@@ -801,10 +850,11 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
         status: formData.status,
         prioridad: formData.prioridad,
         objetivo: formData.brief || null,
+        tipoTicket,
         canales: noContenido ? [] : (formData.canales.length > 0 ? formData.canales : ['LinkedIn']),
         dueDate: formData.dueDate || null,
         plannedDate: formData.fechaPub || null,
-        ticketTypeId: formData.ticketTypeId || null,
+        ticketTypeId: finalTicketTypeId,
         tiposContenido: formData.tiposContenido,
         pilarId: noContenido ? null : (formData.pilarId || null),
         speakerId: noContenido ? null : (formData.speakerId || null),
@@ -1002,7 +1052,11 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
             <div className="flex p-[3px] bg-[#eef3f7] rounded-[9px] gap-0.5">
               <button
                 type="button"
-                onClick={() => setTipoTicket('CONTENIDO')}
+                onClick={() => {
+                  setTipoTicket('CONTENIDO');
+                  const matching = findTicketType(formData.tiposContenido[0], 'CONTENIDO');
+                  handleChange('ticketTypeId', matching?.id || '');
+                }}
                 className={`border-0 cursor-pointer font-anek text-[13px] font-bold px-4 py-1.5 rounded-[7px] transition-all ${
                   isPieza ? 'bg-white text-[#024fff] shadow-[0_1px_2px_rgba(0,14,31,.12)]' : 'bg-transparent text-[#5b6675]'
                 }`}
@@ -1011,7 +1065,16 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
               </button>
               <button
                 type="button"
-                onClick={() => setTipoTicket('TAREA')}
+                onClick={() => {
+                  setTipoTicket('TAREA');
+                  const matching = findTicketType(formData.tiposContenido[0], 'TAREA') || defaultTareaType;
+                  handleMultipleChanges({
+                    ticketTypeId: matching?.id || '',
+                    canales: [],
+                    pilarId: '',
+                    speakerId: '',
+                  });
+                }}
                 className={`border-0 cursor-pointer font-anek text-[13px] font-bold px-4 py-1.5 rounded-[7px] transition-all ${
                   esTarea ? 'bg-white text-[#024fff] shadow-[0_1px_2px_rgba(0,14,31,.12)]' : 'bg-transparent text-[#5b6675]'
                 }`}

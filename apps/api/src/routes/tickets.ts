@@ -413,6 +413,65 @@ export async function ticketsRoutes(fastify: FastifyInstance) {
     return result;
   });
 
+async function resolveTicketTypeForCreation(prismaInstance: typeof prisma, data: any) {
+  const isExplicitTarea = data.tipoTicket === 'TAREA' || data.tipo === 'TAREA';
+  let finalTicketTypeId = data.ticketTypeId || null;
+  let resolvedTicketType: { id: string; name: string; kind: string } | null = null;
+
+  if (finalTicketTypeId) {
+    resolvedTicketType = await prismaInstance.ticketType.findUnique({
+      where: { id: finalTicketTypeId },
+      select: { id: true, name: true, kind: true },
+    });
+  }
+
+  if (!resolvedTicketType) {
+    const firstFormat = (Array.isArray(data.tiposContenido) && data.tiposContenido.length > 0)
+      ? String(data.tiposContenido[0]).trim()
+      : null;
+
+    const KNOWN_TAREA_FORMATS = [
+      'otro', 'deck', 'reporte', 'estrategia', 'diseño puntual',
+      'newsletter', 'artículo de blog', 'artículo blog', 'blog', 'news', 'base de medios'
+    ];
+
+    if (isExplicitTarea || (firstFormat && KNOWN_TAREA_FORMATS.includes(firstFormat.toLowerCase()))) {
+      const tareaTypes = await prismaInstance.ticketType.findMany({
+        where: { kind: 'TAREA' },
+      });
+      if (firstFormat) {
+        resolvedTicketType = tareaTypes.find(t =>
+          t.name.toLowerCase() === firstFormat.toLowerCase() ||
+          (firstFormat.toLowerCase().includes('blog') && t.name.toLowerCase().includes('blog')) ||
+          (firstFormat.toLowerCase().includes('news') && t.name.toLowerCase().includes('news'))
+        ) || null;
+      }
+      if (!resolvedTicketType) {
+        resolvedTicketType = tareaTypes.find(t => t.name.toLowerCase() === 'otro') || null;
+      }
+    } else if (firstFormat) {
+      const kind = data.area === 'PRENSA' ? 'PRENSA' : 'CONTENIDO';
+      const contentTypes = await prismaInstance.ticketType.findMany({
+        where: { kind: kind as any },
+      });
+      resolvedTicketType = contentTypes.find(t =>
+        t.name.toLowerCase() === firstFormat.toLowerCase() ||
+        t.name.toLowerCase().replace(/\s+/g, '') === firstFormat.toLowerCase().replace(/\s+/g, '')
+      ) || null;
+    }
+
+    if (resolvedTicketType) {
+      finalTicketTypeId = resolvedTicketType.id;
+    }
+  }
+
+  return {
+    ticketTypeId: finalTicketTypeId,
+    ticketType: resolvedTicketType,
+    isTarea: isExplicitTarea || resolvedTicketType?.kind === 'TAREA',
+  };
+}
+
   // Create ticket
   fastify.post('/', async (request) => {
     const data = request.body as any;
@@ -422,17 +481,32 @@ export async function ticketsRoutes(fastify: FastifyInstance) {
       : (data.ownerId ? [data.ownerId] : []);
     const primaryOwnerId = data.ownerId || initialAssigneeIds[0];
 
+    const { ticketTypeId: resolvedTicketTypeId, isTarea } = await resolveTicketTypeForCreation(prisma, data);
+
+    let canales: string[];
+    if (isTarea) {
+      canales = [];
+    } else if (Array.isArray(data.canales)) {
+      canales = data.canales.length > 0 ? data.canales : ['LinkedIn'];
+    } else if (data.canal) {
+      canales = [data.canal];
+    } else if (data.area === 'PRENSA') {
+      canales = [];
+    } else {
+      canales = ['LinkedIn'];
+    }
+
     const ticket = await prisma.ticket.create({
       data: {
         title: data.title,
         description: data.referencias !== undefined ? data.referencias : data.description,
         objetivo: data.objetivo,
-        canales: (data.canales && data.canales.length > 0) ? data.canales : (data.canal ? [data.canal] : (data.area === 'PRENSA' ? [] : ['LinkedIn'])),
+        canales,
         prioridad: data.prioridad || 'MEDIA',
         clientId: data.clientId,
         ownerId: primaryOwnerId,
         assigneeIds: initialAssigneeIds,
-        ticketTypeId: data.ticketTypeId || null,
+        ticketTypeId: resolvedTicketTypeId,
         pilarId: data.pilarId || null,
         speakerId: data.speakerId || null,
         status: data.status || 'PENDIENTE',
@@ -508,7 +582,7 @@ export async function ticketsRoutes(fastify: FastifyInstance) {
 
     const existingTicket = await prisma.ticket.findUnique({
       where: { id },
-      select: { id: true, title: true, ownerId: true, assigneeIds: true, status: true, subEstado: true, contentPerCanal: true, versionsPerCanal: true }
+      select: { id: true, title: true, ownerId: true, assigneeIds: true, status: true, subEstado: true, contentPerCanal: true, versionsPerCanal: true, ticketTypeId: true, tiposContenido: true, area: true }
     });
     if (!existingTicket) return reply.status(404).send({ error: 'Ticket no encontrado' });
 
@@ -552,7 +626,20 @@ export async function ticketsRoutes(fastify: FastifyInstance) {
         updateData.ownerId = null;
       }
     }
-    if (data.ticketTypeId !== undefined) updateData.ticketTypeId = data.ticketTypeId;
+    if (data.ticketTypeId !== undefined) {
+      updateData.ticketTypeId = data.ticketTypeId;
+    } else if (data.tipoTicket === 'TAREA' || (data.tiposContenido !== undefined && !existingTicket.ticketTypeId)) {
+      const { ticketTypeId: resolvedId, isTarea } = await resolveTicketTypeForCreation(prisma, {
+        ...existingTicket,
+        ...data,
+      });
+      if (resolvedId) {
+        updateData.ticketTypeId = resolvedId;
+      }
+      if (isTarea && data.canales === undefined) {
+        updateData.canales = [];
+      }
+    }
     if (data.pilarId !== undefined) updateData.pilarId = data.pilarId || null;
     if (data.speakerId !== undefined) updateData.speakerId = data.speakerId || null;
     if (data.status !== undefined) updateData.status = data.status;

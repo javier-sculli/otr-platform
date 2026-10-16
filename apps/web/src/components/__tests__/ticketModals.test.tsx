@@ -1137,7 +1137,148 @@ describe('CreateTicketModal', () => {
       );
     });
   });
+
+  it('al crear una Tarea, asigna correctamente el ticketTypeId de TAREA, envía tipoTicket y canales vacíos', async () => {
+    vi.mocked(api.getTicketTypes).mockResolvedValue({
+      data: [
+        { id: 'tt-otro-tarea', name: 'Otro', kind: 'TAREA' },
+        { id: 'tt-deck-tarea', name: 'Deck', kind: 'TAREA' },
+        { id: 'tt-carrusel', name: 'Carrusel', kind: 'CONTENIDO' },
+      ],
+    });
+    vi.mocked(api.getClients).mockResolvedValue({
+      data: [{ id: 'client-1', name: 'Cliente Test', canales: ['LinkedIn'] }],
+    });
+    vi.mocked(api.getUsers).mockResolvedValue({
+      data: [{ id: 'user-1', name: 'Tester', email: 'test@otr.com' }],
+    });
+    vi.mocked(api.createTicket).mockResolvedValue({
+      data: { id: 'new-tarea-id', title: 'Nueva Tarea Test' },
+    });
+
+    render(
+      <CreateTicketModal
+        isOpen={true}
+        onClose={vi.fn()}
+      />,
+      { wrapper: createWrapper() }
+    );
+
+    // Cambiar a pestaña Tarea
+    const tareaTab = screen.getByRole('button', { name: 'Tarea' });
+    await userEvent.click(tareaTab);
+
+    // Escribir nombre
+    const inputTitulo = screen.getByPlaceholderText('Nombre del pedido');
+    await userEvent.type(inputTitulo, 'Documento de estrategia');
+
+    // Seleccionar cliente
+    const selectCliente = screen.getByDisplayValue('Seleccionar');
+    fireEvent.change(selectCliente, { target: { value: 'client-1' } });
+
+    // Seleccionar tipo de entregable "Otro"
+    const formatoPicker = screen.getByTestId('ticket-format-picker');
+    const formatoBtn = formatoPicker.querySelector('button')!;
+    await userEvent.click(formatoBtn);
+    const otroOption = await screen.findByText('Otro');
+    await userEvent.click(otroOption);
+
+    // Seleccionar responsable
+    const addOwnerBtn = screen.getByRole('button', { name: '+ Agregar' });
+    await userEvent.click(addOwnerBtn);
+    const userBtn = await screen.findByTestId('candidate-user-user-1');
+    await userEvent.click(userBtn);
+
+    // Guardar / Crear
+    const submitBtn = screen.getByRole('button', { name: /crear/i });
+    await userEvent.click(submitBtn);
+
+    await waitFor(() => {
+      expect(api.createTicket).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: 'Documento de estrategia',
+          clientId: 'client-1',
+          tipoTicket: 'TAREA',
+          ticketTypeId: 'tt-otro-tarea',
+          tiposContenido: ['Otro'],
+          canales: [],
+        })
+      );
+    });
+  });
+
+  it('un ticket existente con tiposContenido de tarea y ticketTypeId nulo se inicializa como Tarea y auto-guarda el ticketTypeId correcto', async () => {
+    vi.mocked(api.getTicketTypes).mockResolvedValue({
+      data: [
+        { id: 'tt-otro-tarea', name: 'Otro', kind: 'TAREA' },
+        { id: 'tt-carrusel', name: 'Carrusel', kind: 'CONTENIDO' },
+      ],
+    });
+    vi.mocked(api.getClients).mockResolvedValue({
+      data: [{ id: 'client-1', name: 'Cliente Test', canales: ['LinkedIn'] }],
+    });
+    vi.mocked(api.getUsers).mockResolvedValue({
+      data: [{ id: 'user-1', name: 'Tester', email: 'test@otr.com' }],
+    });
+
+    const mockTareaSinTipo = {
+      id: 'tarea-legacy-1',
+      title: 'DOCUMENTO | Guiones para videos de founders',
+      objetivo: 'Hacer documento con bajada',
+      clientId: 'client-1',
+      ownerId: 'user-1',
+      assigneeIds: ['user-1'],
+      status: 'PENDIENTE',
+      prioridad: 'MEDIA',
+      area: 'CONTENIDO',
+      ticketTypeId: null,
+      ticketType: null,
+      tiposContenido: ['Otro'],
+      canales: ['LinkedIn'],
+      links: [],
+      client: { id: 'client-1', name: 'Cliente Test' },
+      owner: { id: 'user-1', name: 'Tester' },
+    };
+
+    vi.mocked(api.getTicket).mockResolvedValue({
+      data: mockTareaSinTipo,
+    });
+    vi.mocked(api.updateTicket).mockResolvedValue({
+      data: { ...mockTareaSinTipo, ticketTypeId: 'tt-otro-tarea', canales: [] },
+    });
+
+    render(
+      <CreateTicketModal
+        isOpen={true}
+        onClose={vi.fn()}
+        ticket={mockTareaSinTipo as any}
+      />,
+      { wrapper: createWrapper() }
+    );
+
+    // Debe inicializar como Tarea
+    await waitFor(() => {
+      expect(screen.getByText('Tipo de entregable')).toBeInTheDocument();
+      expect(screen.queryByText('Red(es) objetivo')).not.toBeInTheDocument();
+    });
+
+    // Modificar un campo para disparar guardado (ej. cambiar prioridad)
+    const mediaBtn = screen.getByRole('button', { name: 'Media' });
+    await userEvent.click(mediaBtn);
+
+    await waitFor(() => {
+      expect(api.updateTicket).toHaveBeenCalledWith(
+        'tarea-legacy-1',
+        expect.objectContaining({
+          ticketTypeId: 'tt-otro-tarea',
+          tipoTicket: 'TAREA',
+          canales: [],
+        })
+      );
+    });
+  });
 });
+
 
 
 
