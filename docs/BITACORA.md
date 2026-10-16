@@ -4,6 +4,20 @@
 > 
 > 🎯 **BACKLOG OFICIAL Y PRIORIDADES (FUENTE DE VERDAD):** [Notion Backlog Oficial](https://app.notion.com/p/Backlog-3ba617fc369281048bfdfc89c5041d9c?source=copy_link). Todas las prioridades y tareas activas se gestionan directamente allí.
 
+### [2026-10-16] — Fix Crítico Drag & Drop: Eliminación de pointer-events-none y Buffer de Drop
+- **Desarrollador:** Antigravity (Pair Programming con Javier Sculli)
+- **Diagnóstico y Causa Raíz:**
+  1. En el release previo se agregó la clase CSS `pointer-events-none` a la tarjeta arrastrada (`isDragging === true`). En la especificación HTML5 DnD de Chromium/Safari, si el elemento fuente recibe `pointer-events: none` al comenzar el drag, el navegador cancela la interacción de puntero de inmediato, imposibilitando arrastrar tickets entre columnas ("no anda").
+  2. Al soltar el mouse, `handleDragEnd` limpiaba inmediatamente `draggedIdRef.current` y `draggedId` antes de que el evento `drop` pudiera leerlos.
+  3. `onDragLeave` en el contenedor padre generaba parpadeo (`flicker`) al cruzar elementos hijos dado que `e.relatedTarget` suele ser `null` en Chromium.
+- **Cambios Implementados:**
+  1. **Remoción de `pointer-events-none`:** Se reemplazó por estilos visuales nativos no bloqueantes (`opacity-35 scale-[0.98] border-dashed border-[#024fff] cursor-grab active:cursor-grabbing`) en `BacklogPage.tsx` y `PrensaBacklogPage.tsx`.
+  2. **Buffer de sincronización en `handleDragEnd`:** Se añadió un buffer de 250ms con `setTimeout` para asegurar que `handleDrop` siempre disponga del ID del ticket antes de que se limpie la referencia.
+  3. **Receptores redundantes:** Se añadieron `onDragOver` y `onDrop` tanto en la columna contenedora como en la lista interna con scroll, asegurando soltado en cualquier área visible.
+  4. **Test automatizado:** Se agregó la suite `BacklogDragDrop.test.tsx` validando el ciclo completo de arrastre entre columnas y la mutación correspondiente.
+- **Suite de Tests:** 181 tests unitarios pasando al 100% en Vitest across 19 test suites (`pnpm test`), build de producción verificado (`pnpm build`).
+- **Despliegue a Producción:** Push a `main` (`d6ff5cd`) para despliegue automático del Web frontend y comando `railway up --service api` para API.
+
 ### [2026-10-15] — Blindaje de Drag & Drop entre Columnas en Backlog y Prensa
 - **Desarrollador:** Antigravity (Pair Programming con Javier Sculli)
 - **Diagnóstico y Causa Raíz:**
