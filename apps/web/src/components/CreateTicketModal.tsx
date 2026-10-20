@@ -1242,14 +1242,17 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
                   </div>
                 )}
 
-                <div className="border border-[#d6dde5] rounded-[10px] overflow-hidden bg-white">
-                  {/* Toolbar */}
-                  <TextFormatToolbar
-                    editorRef={briefRef}
-                    value={formData.brief || ''}
-                    onChange={val => handleChange('brief', val)}
-                    onComment={() => triggerCommentForEditor(briefRef)}
-                  />
+                <div className="border border-[#d6dde5] rounded-[10px] bg-white relative">
+                  {/* Sticky Toolbar */}
+                  <div className="sticky top-0 z-20 border-b border-[#d6dde5] bg-[#f7fafc] rounded-t-[9px]">
+                    <TextFormatToolbar
+                      editorRef={briefRef}
+                      value={formData.brief || ''}
+                      onChange={val => handleChange('brief', val)}
+                      onComment={() => triggerCommentForEditor(briefRef)}
+                      className="border-b-0"
+                    />
+                  </div>
 
                   {/* RichTextEditor */}
                   <RichTextEditor
@@ -1443,13 +1446,16 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
                           </span>
                         </div>
                       )}
-                      <div className="border border-[#d6dde5] rounded-[10px] overflow-hidden bg-white">
-                        <TextFormatToolbar
-                          editorRef={notasRef}
-                          value={formData.notasAudiovisual || ''}
-                          onChange={val => handleChange('notasAudiovisual', val)}
-                          onComment={() => triggerCommentForEditor(notasRef)}
-                        />
+                      <div className="border border-[#d6dde5] rounded-[10px] bg-white relative">
+                        <div className="sticky top-0 z-20 border-b border-[#d6dde5] bg-[#f7fafc] rounded-t-[9px]">
+                          <TextFormatToolbar
+                            editorRef={notasRef}
+                            value={formData.notasAudiovisual || ''}
+                            onChange={val => handleChange('notasAudiovisual', val)}
+                            onComment={() => triggerCommentForEditor(notasRef)}
+                            className="border-b-0"
+                          />
+                        </div>
                         <RichTextEditor
                           ref={notasRef}
                           value={formData.notasAudiovisual || ''}
@@ -1459,7 +1465,7 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
                           onMarkHover={handleMarkHover}
                           placeholder="Ej.: placa estilo «en medios», usar logos de los medios, foto del vocero…"
                           minHeight="110px"
-                          className="p-3.5"
+                          className="p-3.5 rounded-b-[9px]"
                         />
                       </div>
                     </div>
@@ -1532,40 +1538,44 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
                               <label className="text-[11px] font-bold tracking-[0.06em] uppercase text-[#5b6675]">Copy</label>
                             </div>
                           )}
-                          <div className="border border-[#d6dde5] rounded-[10px] overflow-hidden bg-white">
-                            {/* Network tabs row */}
-                            <div className="flex items-center justify-between gap-2 p-1.5 px-2 bg-[#f7fafc] border-b border-[#d6dde5] flex-wrap">
-                              <div className="flex items-center gap-1 p-0.5 bg-[#eef3f7] rounded-lg">
-                                {formData.canales.map((r: string) => (
-                                  <button
-                                    key={r}
-                                    type="button"
-                                    onClick={() => setActiveCopyTab(r)}
-                                    className={`border-0 cursor-pointer font-anek text-[13px] font-bold px-3 py-1 rounded-md transition-all ${
-                                      activeCopyTab === r ? 'bg-white text-[#024fff] shadow-sm' : 'bg-transparent text-[#5b6675] hover:bg-white/50'
-                                    }`}
-                                  >
-                                    {r}
-                                  </button>
-                                ))}
+                          <div className="border border-[#d6dde5] rounded-[10px] bg-white relative">
+                            {/* Sticky Tabs + Toolbar */}
+                            <div className="sticky top-0 z-20 border-b border-[#d6dde5] bg-[#f7fafc] rounded-t-[9px]">
+                              {/* Network tabs row */}
+                              <div className="flex items-center justify-between gap-2 p-1.5 px-2 border-b border-[#d6dde5] flex-wrap">
+                                <div className="flex items-center gap-1 p-0.5 bg-[#eef3f7] rounded-lg">
+                                  {formData.canales.map((r: string) => (
+                                    <button
+                                      key={r}
+                                      type="button"
+                                      onClick={() => setActiveCopyTab(r)}
+                                      className={`border-0 cursor-pointer font-anek text-[13px] font-bold px-3 py-1 rounded-md transition-all ${
+                                        activeCopyTab === r ? 'bg-white text-[#024fff] shadow-sm' : 'bg-transparent text-[#5b6675] hover:bg-white/50'
+                                      }`}
+                                    >
+                                      {r}
+                                    </button>
+                                  ))}
+                                </div>
+
+                                <TicketCopyButton
+                                  text={currentCopyText}
+                                  editorRef={copyRef}
+                                />
                               </div>
 
-                              <TicketCopyButton
-                                text={currentCopyText}
+                              {/* Standard consistent toolbar */}
+                              <TextFormatToolbar
                                 editorRef={copyRef}
+                                value={currentCopyText}
+                                onChange={val => {
+                                  const nextPerCanal = { ...formData.contentPerCanal, [activeCopyTab]: val };
+                                  handleChange('contentPerCanal', nextPerCanal);
+                                }}
+                                onComment={() => triggerCommentForEditor(copyRef)}
+                                className="border-b-0"
                               />
                             </div>
-
-                            {/* Standard consistent toolbar */}
-                            <TextFormatToolbar
-                              editorRef={copyRef}
-                              value={currentCopyText}
-                              onChange={val => {
-                                const nextPerCanal = { ...formData.contentPerCanal, [activeCopyTab]: val };
-                                handleChange('contentPerCanal', nextPerCanal);
-                              }}
-                              onComment={() => triggerCommentForEditor(copyRef)}
-                            />
 
                             {/* RichTextEditor */}
                             <RichTextEditor
@@ -1583,7 +1593,7 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
                               className="p-3.5 sm:p-4"
                             />
 
-                            <div className="flex justify-end p-2 px-3 border-t border-[#eef3f7] text-[12px] text-[#8c96a3]">
+                            <div className="flex justify-end p-2 px-3 border-t border-[#eef3f7] text-[12px] text-[#8c96a3] rounded-b-[9px] bg-white">
                               <span className={isCopyOver ? 'text-[#d4380d] font-bold' : ''}>
                                 {copyLimit > 0
                                   ? `${visibleCopyLength.toLocaleString('es-AR')} / ${copyLimit.toLocaleString('es-AR')}`

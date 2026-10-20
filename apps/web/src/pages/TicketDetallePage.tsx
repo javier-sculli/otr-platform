@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { ensureAbsoluteUrl, formatDateISO, recordCopyVersion, parseDeliverableLinks, serializeDeliverableLinks, highlightQuotesInHtml, getCollapsedRichTextSnippet } from '../lib/utils';
+import { useAutoSave } from '../lib/useAutoSave';
 import { api } from '../lib/api';
 import { TicketsReferencia } from '../components/TicketsReferencia';
 import { TextFormatToolbar } from '../components/TextFormatToolbar';
@@ -81,35 +82,18 @@ export function TicketDetallePage() {
 
   const ticket = data?.data;
 
-  const isSavingRef = useRef(false);
-  const pendingPatchRef = useRef<Record<string, unknown>>({});
-  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const [saveStatus, setSaveStatus] = useState<'saving' | 'saved' | 'unsaved'>('saved');
-
-  const flushSave = async () => {
-    if (!ticketId) return;
-    if (saveTimeoutRef.current) {
-      clearTimeout(saveTimeoutRef.current);
-      saveTimeoutRef.current = null;
-    }
-    if (isSavingRef.current) {
-      return;
-    }
-    const patchToSend = { ...pendingPatchRef.current };
-    if (Object.keys(patchToSend).length === 0) {
-      setSaveStatus('saved');
-      return;
-    }
-    pendingPatchRef.current = {};
-    isSavingRef.current = true;
-    setSaveStatus('saving');
-
-    try {
-      const res = await api.updateTicket(ticketId, patchToSend);
+  const {
+    status: saveStatus,
+    save: saveTicketPatch,
+    flush: flushSave,
+  } = useAutoSave<Record<string, unknown>>({
+    onSave: async (patch) => {
+      if (!ticketId) return;
+      const res = await api.updateTicket(ticketId, patch);
       if (res?.data) {
         queryClient.setQueryData(['ticket', ticketId], (old: any) => {
           if (!old?.data) return old;
-          return { ...old, data: { ...old.data, ...res.data, ...pendingPatchRef.current } };
+          return { ...old, data: { ...old.data, ...res.data } };
         });
         queryClient.setQueryData(['tickets'], (old: any) => {
           if (!old?.data) return old;
@@ -119,61 +103,26 @@ export function TicketDetallePage() {
           };
         });
       }
-      setSaveStatus('saved');
-    } catch (err) {
-      console.error('Error al guardar ticket:', err);
-      // Re-queue so failed changes are preserved for next attempt
-      pendingPatchRef.current = { ...patchToSend, ...pendingPatchRef.current };
-      setSaveStatus('unsaved');
-    } finally {
-      isSavingRef.current = false;
-      if (Object.keys(pendingPatchRef.current).length > 0) {
-        flushSave();
-      }
-    }
-  };
+      return res;
+    },
+    debounceMs: 750,
+  });
 
   const queueSave = (patch: Record<string, unknown>, immediate = false) => {
-    pendingPatchRef.current = { ...pendingPatchRef.current, ...patch };
-    // Optimistic cache update for instant UI responsiveness
     queryClient.setQueryData(['ticket', ticketId], (old: any) => {
       if (!old?.data) return old;
       return { ...old, data: { ...old.data, ...patch } };
     });
-
-    if (immediate) {
-      flushSave();
-    } else {
-      setSaveStatus('unsaved');
-      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
-      saveTimeoutRef.current = setTimeout(() => {
-        flushSave();
-      }, 700);
-    }
+    saveTicketPatch(patch, immediate);
   };
 
   const updateMutation = {
     mutate: (patch: Record<string, unknown>) => queueSave(patch, true),
     mutateAsync: async (patch: Record<string, unknown>) => {
-      pendingPatchRef.current = { ...pendingPatchRef.current, ...patch };
-      await flushSave();
+      queueSave(patch, true);
     },
     isPending: saveStatus === 'saving',
   };
-
-  useEffect(() => {
-    const handleBeforeUnload = () => {
-      if (Object.keys(pendingPatchRef.current).length > 0) {
-        flushSave();
-      }
-    };
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    return () => {
-      window.removeEventListener('beforeunload', handleBeforeUnload);
-      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
-      flushSave();
-    };
-  }, [ticketId]);
 
   // Comments
   const { data: commentsData } = useQuery({
@@ -271,6 +220,29 @@ export function TicketDetallePage() {
   const briefRef = useRef<HTMLDivElement>(null);
   const copyRef = useRef<HTMLDivElement>(null);
   const notasRef = useRef<HTMLDivElement>(null);
+  const headerRef = useRef<HTMLDivElement>(null);
+  const [stickyOffset, setStickyOffset] = useState(180);
+
+  useEffect(() => {
+    const updateOffset = () => {
+      if (headerRef.current) {
+        const isLg = typeof window !== 'undefined' && window.innerWidth >= 1024;
+        const navH = 64;
+        const h = headerRef.current.offsetHeight;
+        setStickyOffset((isLg ? navH : 0) + h);
+      }
+    };
+    updateOffset();
+    const el = headerRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(updateOffset);
+    ro.observe(el);
+    window.addEventListener('resize', updateOffset);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener('resize', updateOffset);
+    };
+  }, []);
 
   const { data: speakersData } = useQuery({
     queryKey: ['speakers', ticket?.clientId],
@@ -580,7 +552,7 @@ export function TicketDetallePage() {
     <div className="min-h-[calc(100vh-64px)] bg-[#f7fafc] font-anek">
 
       {/* TOP HEADER STICKY */}
-      <div className="sticky top-0 lg:top-[64px] z-30 bg-white border-b border-[#d6dde5]">
+      <div ref={headerRef} className="sticky top-0 lg:top-[64px] z-30 bg-white border-b border-[#d6dde5]">
         <div className="max-w-[1440px] mx-auto px-4 sm:px-9 py-4 sm:py-[16px] pb-[18px] flex flex-col gap-2 box-border">
 
           {/* Breadcrumbs & Autosave indicator */}
@@ -761,13 +733,16 @@ export function TicketDetallePage() {
       </div>
 
       {/* BODY CONTAINER */}
-      <div className="flex-1 w-full max-w-[1440px] mx-auto grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(340px,420px)] items-start box-border">
+      <div
+        style={{ '--header-sticky-offset': `${stickyOffset}px` } as React.CSSProperties}
+        className="flex-1 w-full max-w-[1440px] mx-auto grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(340px,420px)] items-start box-border"
+      >
 
         {/* LEFT COLUMN (MAIN) */}
         <div className="min-w-0 p-6 sm:px-9 sm:pt-7 sm:pb-20 flex flex-col gap-10 box-border">
 
           {/* 1. Brief (desplegable) */}
-          <div className="border border-[#d6dde5] rounded-[12px] bg-white overflow-hidden shadow-xs">
+          <div className="border border-[#d6dde5] rounded-[12px] bg-white relative shadow-xs">
             <button
               type="button"
               onClick={() => {
@@ -776,8 +751,8 @@ export function TicketDetallePage() {
                 }
                 setBriefOpen(!briefOpen);
               }}
-              className={`w-full flex items-center gap-4 p-4 px-5 border-0 cursor-pointer font-anek text-left transition-colors ${
-                briefOpen ? 'bg-[#f7fafc]' : 'bg-white hover:bg-[#f7fafc]'
+              className={`w-full flex items-center gap-4 p-4 px-5 border-0 cursor-pointer font-anek text-left transition-colors rounded-[12px] ${
+                briefOpen ? 'rounded-b-none bg-[#f7fafc]' : 'bg-white hover:bg-[#f7fafc]'
               }`}
             >
               <div className="flex-1 min-w-0 flex flex-col gap-1">
@@ -817,15 +792,21 @@ export function TicketDetallePage() {
 
             {briefOpen && (
               <div className="border-t border-[#eef3f7]">
-                <TextFormatToolbar
-                  editorRef={briefRef}
-                  value={briefTemp}
-                  onChange={val => {
-                    setBriefTemp(val);
-                    queueSave({ objetivo: val || null }, true);
-                  }}
-                  onComment={() => startInline(briefRef)}
-                />
+                <div
+                  className="sticky z-20 border-b border-[#d6dde5] bg-[#f7fafc]"
+                  style={{ top: 'var(--header-sticky-offset, 180px)' }}
+                >
+                  <TextFormatToolbar
+                    editorRef={briefRef}
+                    value={briefTemp}
+                    onChange={val => {
+                      setBriefTemp(val);
+                      queueSave({ objetivo: val || null }, true);
+                    }}
+                    onComment={() => startInline(briefRef)}
+                    className="border-b-0"
+                  />
+                </div>
 
                 <RichTextEditor
                   ref={briefRef}
@@ -993,54 +974,61 @@ export function TicketDetallePage() {
                   </button>
                 </div>
 
-                <div className="border border-[#d6dde5] rounded-[12px] overflow-hidden bg-white shadow-xs">
-                  {/* Redes tabs */}
-                  <div className="flex items-center justify-between gap-2 p-2 border-b border-[#eef3f7] bg-[#f7fafc] flex-wrap">
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      {(ticket.canales?.length > 0 ? ticket.canales : ['LinkedIn']).map((r: string) => (
-                        <button
-                          key={r}
-                          type="button"
-                          onClick={() => setActiveCopyTab(r)}
-                          className={`shrink-0 whitespace-nowrap border-0 cursor-pointer font-anek text-[15px] font-bold h-[36px] px-3.5 rounded-md transition-colors ${
-                            activeCopyTab === r
-                              ? 'bg-white text-[#024fff] shadow-[0_1px_2px_rgba(0,14,31,.12)]'
-                              : 'bg-transparent text-[#5b6675] hover:bg-[#eef3f7]'
-                          }`}
-                        >
-                          {r}
-                        </button>
-                      ))}
-                      {['LinkedIn', 'Instagram', 'Twitter/X']
-                        .filter(rd => !(ticket.canales || []).includes(rd))
-                        .map(ar => (
+                <div className="border border-[#d6dde5] rounded-[12px] bg-white relative shadow-xs">
+                  {/* Sticky Tabs + Toolbar */}
+                  <div
+                    className="sticky z-20 border-b border-[#d6dde5] bg-[#f7fafc] rounded-t-[11px]"
+                    style={{ top: 'var(--header-sticky-offset, 180px)' }}
+                  >
+                    {/* Redes tabs */}
+                    <div className="flex items-center justify-between gap-2 p-2 border-b border-[#eef3f7] flex-wrap">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        {(ticket.canales?.length > 0 ? ticket.canales : ['LinkedIn']).map((r: string) => (
                           <button
-                            key={ar}
+                            key={r}
                             type="button"
-                            onClick={() => toggleRed(ar)}
-                            className="shrink-0 whitespace-nowrap border border-dashed border-[#b9c2cd] bg-transparent cursor-pointer font-anek text-[14px] font-medium h-[34px] px-3 rounded-md text-[#3a4655] hover:border-[#024fff] hover:text-[#024fff] transition-colors"
+                            onClick={() => setActiveCopyTab(r)}
+                            className={`shrink-0 whitespace-nowrap border-0 cursor-pointer font-anek text-[15px] font-bold h-[36px] px-3.5 rounded-md transition-colors ${
+                              activeCopyTab === r
+                                ? 'bg-white text-[#024fff] shadow-[0_1px_2px_rgba(0,14,31,.12)]'
+                                : 'bg-transparent text-[#5b6675] hover:bg-[#eef3f7]'
+                            }`}
                           >
-                            + {ar}
+                            {r}
                           </button>
                         ))}
+                        {['LinkedIn', 'Instagram', 'Twitter/X']
+                          .filter(rd => !(ticket.canales || []).includes(rd))
+                          .map(ar => (
+                            <button
+                              key={ar}
+                              type="button"
+                              onClick={() => toggleRed(ar)}
+                              className="shrink-0 whitespace-nowrap border border-dashed border-[#b9c2cd] bg-transparent cursor-pointer font-anek text-[14px] font-medium h-[34px] px-3 rounded-md text-[#3a4655] hover:border-[#024fff] hover:text-[#024fff] transition-colors"
+                            >
+                              + {ar}
+                            </button>
+                          ))}
+                      </div>
+
+                      <TicketCopyButton
+                        text={currentCopy}
+                        editorRef={copyRef}
+                      />
                     </div>
 
-                    <TicketCopyButton
-                      text={currentCopy}
+                    {/* Toolbar */}
+                    <TextFormatToolbar
                       editorRef={copyRef}
+                      value={currentCopy}
+                      onChange={val => {
+                        setCopyPerCanal(prev => ({ ...prev, [activeCopyTab]: val }));
+                        saveCopyTab(activeCopyTab, val);
+                      }}
+                      onComment={() => startInline(copyRef)}
+                      className="border-b-0"
                     />
                   </div>
-
-                  {/* Toolbar */}
-                  <TextFormatToolbar
-                    editorRef={copyRef}
-                    value={currentCopy}
-                    onChange={val => {
-                      setCopyPerCanal(prev => ({ ...prev, [activeCopyTab]: val }));
-                      saveCopyTab(activeCopyTab, val);
-                    }}
-                    onComment={() => startInline(copyRef)}
-                  />
 
                   <RichTextEditor
                     ref={copyRef}
@@ -1062,7 +1050,7 @@ export function TicketDetallePage() {
                     className="p-5 sm:p-6 text-[16px] leading-[1.65]"
                   />
 
-                  <div className="flex justify-between items-center gap-3 p-2.5 px-4 border-t border-[#eef3f7] text-[14px] text-[#5b6675]">
+                  <div className="flex justify-between items-center gap-3 p-2.5 px-4 border-t border-[#eef3f7] text-[14px] text-[#5b6675] rounded-b-[11px] bg-white">
                     <span>{pickedSpeaker ? `Voz: ${getSpeakerName(pickedSpeaker)}` : 'Voz de marca'}</span>
                     <span className={isCopyOver ? 'text-[#d4380d] font-bold' : 'text-[#8c96a3]'}>
                       {copyLimit > 0
@@ -1114,16 +1102,22 @@ export function TicketDetallePage() {
                     </button>
 
                     {notasOpen && (
-                      <div className="border border-[#d6dde5] rounded-[12px] overflow-hidden bg-white shadow-xs">
-                        <TextFormatToolbar
-                          editorRef={notasRef}
-                          value={notasAudiovisual}
-                          onChange={val => {
-                            setNotasAudiovisual(val);
-                            queueSave({ notasAudiovisual: val || null }, true);
-                          }}
-                          onComment={() => startInline(notasRef)}
-                        />
+                      <div className="border border-[#d6dde5] rounded-[12px] bg-white relative shadow-xs">
+                        <div
+                          className="sticky z-20 border-b border-[#d6dde5] bg-[#f7fafc] rounded-t-[11px]"
+                          style={{ top: 'var(--header-sticky-offset, 180px)' }}
+                        >
+                          <TextFormatToolbar
+                            editorRef={notasRef}
+                            value={notasAudiovisual}
+                            onChange={val => {
+                              setNotasAudiovisual(val);
+                              queueSave({ notasAudiovisual: val || null }, true);
+                            }}
+                            onComment={() => startInline(notasRef)}
+                            className="border-b-0"
+                          />
+                        </div>
 
                         <RichTextEditor
                           ref={notasRef}
@@ -1145,7 +1139,7 @@ export function TicketDetallePage() {
                           onMarkHover={handleMarkHover}
                           placeholder="Ej.: placa estilo «Newtopia en medios», usar logos de los medios…"
                           minHeight="140px"
-                          className="p-5 sm:p-6 text-[16px] leading-[1.65]"
+                          className="p-5 sm:p-6 text-[16px] leading-[1.65] rounded-b-[11px]"
                         />
                       </div>
                     )}
@@ -1157,16 +1151,22 @@ export function TicketDetallePage() {
                       <span className="text-[14px] text-[#5b6675]">Indicaciones para quien diseña: estilo, referencias, textos que van en la pieza.</span>
                     </div>
 
-                    <div className="border border-[#d6dde5] rounded-[12px] overflow-hidden bg-white shadow-xs">
-                      <TextFormatToolbar
-                        editorRef={notasRef}
-                        value={notasAudiovisual}
-                        onChange={val => {
-                          setNotasAudiovisual(val);
-                          queueSave({ notasAudiovisual: val || null }, true);
-                        }}
-                        onComment={() => startInline(notasRef)}
-                      />
+                    <div className="border border-[#d6dde5] rounded-[12px] bg-white relative shadow-xs">
+                      <div
+                        className="sticky z-20 border-b border-[#d6dde5] bg-[#f7fafc] rounded-t-[11px]"
+                        style={{ top: 'var(--header-sticky-offset, 180px)' }}
+                      >
+                        <TextFormatToolbar
+                          editorRef={notasRef}
+                          value={notasAudiovisual}
+                          onChange={val => {
+                            setNotasAudiovisual(val);
+                            queueSave({ notasAudiovisual: val || null }, true);
+                          }}
+                          onComment={() => startInline(notasRef)}
+                          className="border-b-0"
+                        />
+                      </div>
 
                       <RichTextEditor
                         ref={notasRef}
@@ -1188,7 +1188,7 @@ export function TicketDetallePage() {
                         onMarkHover={handleMarkHover}
                         placeholder="Ej.: placa estilo «Newtopia en medios», usar logos de los medios…"
                         minHeight="140px"
-                        className="p-5 sm:p-6 text-[16px] leading-[1.65]"
+                        className="p-5 sm:p-6 text-[16px] leading-[1.65] rounded-b-[11px]"
                       />
                     </div>
                   </>

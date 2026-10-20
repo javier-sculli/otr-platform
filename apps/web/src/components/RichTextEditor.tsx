@@ -2,6 +2,7 @@ import React, { useRef, useEffect, forwardRef, useImperativeHandle } from 'react
 import { ensureAbsoluteUrl } from '../lib/utils';
 import { compressImageFile, convertImageUrlToDataUrl } from '../lib/imageCompression';
 import { readFileAsDataUrl } from '../lib/attachments';
+import { cleanJunkHtmlBlocks } from '../lib/htmlSanitizer';
 
 export function insertHtmlIntoEditor(editor: HTMLDivElement | null, htmlToInsert: string) {
   if (!editor) return;
@@ -250,8 +251,8 @@ export const RichTextEditor = forwardRef<HTMLDivElement, RichTextEditorProps>(
             insertHtmlIntoEditor(activeRef.current, imgEl.outerHTML);
           }
         } else {
-          docHtml?.querySelectorAll('script, style, iframe, meta, input').forEach(el => el.remove());
-          insertHtmlIntoEditor(activeRef.current, docHtml?.body?.innerHTML || '');
+          const cleaned = cleanJunkHtmlBlocks(docHtml?.body?.innerHTML || '');
+          insertHtmlIntoEditor(activeRef.current, cleaned);
         }
         if (activeRef.current) {
           onChange(activeRef.current.innerHTML);
@@ -262,6 +263,18 @@ export const RichTextEditor = forwardRef<HTMLDivElement, RichTextEditorProps>(
 
       if (!text && !html) return;
 
+      // 4. Check for Markdown bold formatting in pasted text (**bold** or __bold__)
+      if (text && (/\*\*[^*]+\*\*/.test(text) || /__[^_]+__/.test(text))) {
+        e.preventDefault();
+        const mdHtml = cleanJunkHtmlBlocks(text);
+        insertHtmlIntoEditor(activeRef.current, mdHtml);
+        if (activeRef.current) {
+          onChange(activeRef.current.innerHTML);
+          onImmediateSave?.();
+        }
+        return;
+      }
+
       // If rich HTML is present with actual <a href="...">, let browser paste natively
       if (html && /<a\s+[^>]*href=/i.test(html)) {
         return;
@@ -269,6 +282,16 @@ export const RichTextEditor = forwardRef<HTMLDivElement, RichTextEditorProps>(
 
       const urlRegex = /(https?:\/\/[^\s<]+|www\.[^\s<]+)/i;
       if (!urlRegex.test(text)) {
+        // 5. Clean rich text pasted from Notion/Docs without URLs
+        if (html) {
+          e.preventDefault();
+          const cleaned = cleanJunkHtmlBlocks(html);
+          insertHtmlIntoEditor(activeRef.current, cleaned);
+          if (activeRef.current) {
+            onChange(activeRef.current.innerHTML);
+            onImmediateSave?.();
+          }
+        }
         return;
       }
 
