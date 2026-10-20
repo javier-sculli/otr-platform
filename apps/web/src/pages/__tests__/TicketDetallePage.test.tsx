@@ -279,5 +279,83 @@ describe('TicketDetallePage (Smoke / Montaje)', () => {
     const redesRow = linkedInTab.closest('.border-b');
     expect(redesRow).toContainElement(copyBtn);
   });
+
+  it('permite realizar múltiples cambios en el brief guardándolos de forma secuencial sin perder acciones', async () => {
+    (api.getTicket as any).mockResolvedValue({
+      data: mockFullTicket,
+    });
+    (api.updateTicket as any).mockResolvedValue({
+      data: { ...mockFullTicket, objetivo: 'Brief inicial + Acción 1 + Acción 2' },
+    });
+
+    renderTicketDetalle('ticket-999');
+
+    await waitFor(() => {
+      expect(screen.getByText('Ver brief')).toBeInTheDocument();
+    });
+
+    // Abrir el brief
+    fireEvent.click(screen.getByText('Ver brief'));
+
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText('Qué querés comunicar y por qué')).toBeInTheDocument();
+    });
+
+    const briefEditor = screen.getByPlaceholderText('Qué querés comunicar y por qué');
+
+    // Acción 1
+    fireEvent.input(briefEditor, { target: { innerHTML: 'Brief inicial + Acción 1' } });
+
+    // Acción 2
+    fireEvent.input(briefEditor, { target: { innerHTML: 'Brief inicial + Acción 1 + Acción 2' } });
+
+    // Blur para forzar guardado inmediato
+    fireEvent.blur(briefEditor);
+
+    await waitFor(() => {
+      expect(api.updateTicket).toHaveBeenCalledWith(
+        'ticket-999',
+        expect.objectContaining({ objetivo: 'Brief inicial + Acción 1 + Acción 2' })
+      );
+    });
+  });
+
+  it('al colapsar el brief (Ocultar), guarda inmediatamente cualquier cambio pendiente antes de desmontar el editor', async () => {
+    (api.getTicket as any).mockResolvedValue({
+      data: mockFullTicket,
+    });
+    (api.updateTicket as any).mockResolvedValue({
+      data: { ...mockFullTicket, objetivo: 'Brief con cambios antes de ocultar' },
+    });
+
+    renderTicketDetalle('ticket-999');
+
+    await waitFor(() => {
+      expect(screen.getByText('Ver brief')).toBeInTheDocument();
+    });
+
+    // Abrir el brief
+    fireEvent.click(screen.getByText('Ver brief'));
+
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText('Qué querés comunicar y por qué')).toBeInTheDocument();
+    });
+
+    const briefEditor = screen.getByPlaceholderText('Qué querés comunicar y por qué');
+
+    // Escribir cambios
+    fireEvent.input(briefEditor, { target: { innerHTML: 'Brief con cambios antes de ocultar' } });
+
+    // Hacer click en Ocultar antes de que pase el debounce
+    const ocultarBtn = screen.getByText('Ocultar');
+    fireEvent.click(ocultarBtn);
+
+    await waitFor(() => {
+      expect(api.updateTicket).toHaveBeenCalledWith(
+        'ticket-999',
+        expect.objectContaining({ objetivo: 'Brief con cambios antes de ocultar' })
+      );
+    });
+  });
 });
 

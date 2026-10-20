@@ -1,7 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Trash2, Loader2, Image as ImageIcon, X } from 'lucide-react';
+import { Trash2, Loader2, Image as ImageIcon, X, Paperclip, FileText, Download } from 'lucide-react';
 import { MentionTextarea } from '../MentionTextarea';
 import { compressImageFile, parseCommentContent, buildCommentContent } from '../../lib/imageCompression';
+import { readFileAsDataUrl, formatFileSize, MAX_ATTACHMENT_SIZE_BYTES } from '../../lib/attachments';
 import { CommentImageViewerModal } from './CommentImageViewerModal';
 
 export interface TicketCommentItem {
@@ -102,9 +103,11 @@ export const TicketCommentsThread: React.FC<TicketCommentsThreadProps> = ({
 }) => {
   const [commentInput, setCommentInput] = useState('');
   const [pastedImages, setPastedImages] = useState<string[]>([]);
+  const [attachedCommentFiles, setAttachedCommentFiles] = useState<Array<{ name: string; url: string; size?: number }>>([]);
   const [isCompressing, setIsCompressing] = useState(false);
   const [viewerImage, setViewerImage] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const fileAttachmentInputRef = useRef<HTMLInputElement>(null);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
@@ -149,22 +152,48 @@ export const TicketCommentsThread: React.FC<TicketCommentsThreadProps> = ({
     }
   };
 
+  const handleAttachFile = async (file: File) => {
+    if (file.size > MAX_ATTACHMENT_SIZE_BYTES) {
+      alert(`El archivo "${file.name}" supera el tamaño máximo permitido de 15MB.`);
+      return;
+    }
+    if (file.type.startsWith('image/')) {
+      await handleImageFile(file);
+      return;
+    }
+    try {
+      setIsCompressing(true);
+      const dataUrl = await readFileAsDataUrl(file);
+      setAttachedCommentFiles(prev => [...prev, { name: file.name, url: dataUrl, size: file.size }]);
+    } catch (err: any) {
+      console.error('Error al procesar archivo adjunto:', err);
+      alert(err?.message || 'Error al leer el archivo');
+    } finally {
+      setIsCompressing(false);
+    }
+  };
+
   const handleRemovePastedImage = (index: number) => {
     setPastedImages(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handleRemoveCommentFile = (index: number) => {
+    setAttachedCommentFiles(prev => prev.filter((_, i) => i !== index));
   };
 
   const isBusy = isPendingAdd || isSubmitting;
 
   const handleSend = async () => {
     const trimmed = commentInput.trim();
-    if ((!trimmed && pastedImages.length === 0) || isBusy || isCompressing) return;
-    const fullContent = buildCommentContent(trimmed, pastedImages);
+    if ((!trimmed && pastedImages.length === 0 && attachedCommentFiles.length === 0) || isBusy || isCompressing) return;
+    const fullContent = buildCommentContent(trimmed, pastedImages, attachedCommentFiles);
     try {
       setIsSubmitting(true);
       setSendError(null);
       await onAddComment(fullContent);
       setCommentInput('');
       setPastedImages([]);
+      setAttachedCommentFiles([]);
       if (draftStorageKey) {
         try {
           sessionStorage.removeItem(draftStorageKey);
@@ -212,7 +241,7 @@ export const TicketCommentsThread: React.FC<TicketCommentsThreadProps> = ({
         const quoteMatch = rawContent.match(/^«([^»]+)»:\s*([\s\S]*)$/);
         const quote = cm.quote || (quoteMatch ? quoteMatch[1] : null);
         const mainContent = quoteMatch ? quoteMatch[2] : rawContent;
-        const { text: cleanText, images: commentImages } = parseCommentContent(mainContent);
+        const { text: cleanText, images: commentImages, files: commentFiles } = parseCommentContent(mainContent);
         const authorName = cm.user?.name || cm.author || 'Usuario';
         const dateStr = formatCommentDate(cm);
 
@@ -297,6 +326,42 @@ export const TicketCommentsThread: React.FC<TicketCommentsThreadProps> = ({
                   ))}
                 </div>
               )}
+
+              {commentFiles && commentFiles.length > 0 && (
+                <div className="flex flex-col gap-1.5 mt-2" data-testid={`comment-files-${cm.id}`}>
+                  {commentFiles.map((cf, fIdx) => {
+                    const isPdf = cf.name.toLowerCase().endsWith('.pdf');
+                    return (
+                      <a
+                        key={fIdx}
+                        href={cf.url}
+                        download={cf.name}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        title={`Abrir o descargar ${cf.name}`}
+                        className="flex items-center gap-2.5 p-2 px-3 rounded-lg border border-[#d6dde5] bg-[#f7fafc] hover:bg-[#eef3f7] text-[#1d2a3a] hover:text-[#024fff] transition-colors max-w-sm group/file text-left no-underline"
+                      >
+                        {isPdf ? (
+                          <FileText className="w-5 h-5 text-rose-600 shrink-0" />
+                        ) : (
+                          <Paperclip className="w-5 h-5 text-[#024fff] shrink-0" />
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <span className="text-[13px] font-semibold truncate block">
+                            {cf.name}
+                          </span>
+                          <span className="text-[11px] text-[#8c96a3] flex items-center gap-1">
+                            <span>{isPdf ? 'Documento PDF' : 'Archivo adjunto'}</span>
+                            <span>•</span>
+                            <span className="underline group-hover/file:text-[#024fff]">Descargar / Ver</span>
+                          </span>
+                        </div>
+                        <Download className="w-4 h-4 text-[#8c96a3] group-hover/file:text-[#024fff] shrink-0" />
+                      </a>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </div>
         );
@@ -317,6 +382,7 @@ export const TicketCommentsThread: React.FC<TicketCommentsThreadProps> = ({
             value={commentInput}
             onChange={handleCommentInputChange}
             onPasteImage={handleImageFile}
+            onPasteFile={handleAttachFile}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
                 e.preventDefault();
@@ -363,10 +429,45 @@ export const TicketCommentsThread: React.FC<TicketCommentsThreadProps> = ({
             </div>
           )}
 
+          {attachedCommentFiles.length > 0 && (
+            <div className="flex flex-wrap gap-2 pt-0.5" data-testid="attached-files-preview">
+              {attachedCommentFiles.map((f, idx) => {
+                const isPdf = f.name.toLowerCase().endsWith('.pdf');
+                return (
+                  <div
+                    key={idx}
+                    className="flex items-center gap-1.5 py-1 pl-2.5 pr-1 border border-[#d6dde5] rounded-full bg-[#f7fafc] text-[13px] text-[#1d2a3a]"
+                  >
+                    {isPdf ? (
+                      <FileText className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                    ) : (
+                      <Paperclip className="w-3.5 h-3.5 text-[#024fff] shrink-0" />
+                    )}
+                    <span className="max-w-[200px] truncate">{f.name}</span>
+                    {f.size && (
+                      <span className="text-[11px] text-[#8c96a3] shrink-0 font-normal">
+                        ({formatFileSize(f.size)})
+                      </span>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveCommentFile(idx)}
+                      title="Quitar archivo"
+                      aria-label="Quitar archivo"
+                      className="border-0 bg-transparent cursor-pointer text-[#8c96a3] shrink-0 rounded-full w-5 h-5 flex items-center justify-center hover:bg-[#d6dde5] hover:text-[#0d0d0d]"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
           {isCompressing && (
             <div className="flex items-center gap-1.5 text-[12px] text-[#5b6675] py-0.5" data-testid="compressing-indicator">
               <Loader2 className="w-3.5 h-3.5 animate-spin text-[#024fff]" />
-              <span>Optimizando imagen…</span>
+              <span>Procesando archivo adjunto…</span>
             </div>
           )}
 
@@ -386,6 +487,16 @@ export const TicketCommentsThread: React.FC<TicketCommentsThreadProps> = ({
                 <ImageIcon className="w-4 h-4" />
                 <span className="hidden sm:inline">Adjuntar imagen</span>
               </button>
+              <button
+                type="button"
+                onClick={() => fileAttachmentInputRef.current?.click()}
+                title="Adjuntar PDF o documento"
+                aria-label="Adjuntar PDF o documento"
+                className="h-8 px-2 rounded-md text-[#5b6675] hover:text-[#024fff] hover:bg-[#eef3f7] transition-colors border-0 bg-transparent cursor-pointer flex items-center gap-1 text-[12px] font-medium font-anek"
+              >
+                <Paperclip className="w-4 h-4" />
+                <span className="hidden sm:inline">Adjuntar PDF / Archivo</span>
+              </button>
               <input
                 type="file"
                 ref={fileInputRef}
@@ -398,10 +509,22 @@ export const TicketCommentsThread: React.FC<TicketCommentsThreadProps> = ({
                   e.target.value = '';
                 }}
               />
+              <input
+                type="file"
+                ref={fileAttachmentInputRef}
+                accept="application/pdf,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.zip,image/*"
+                className="hidden"
+                data-testid="comment-attachment-file-input"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) handleAttachFile(file);
+                  e.target.value = '';
+                }}
+              />
             </div>
 
             {isPage ? (
-              (commentInput.trim().length > 0 || pastedImages.length > 0 || sendError) && (
+              (commentInput.trim().length > 0 || pastedImages.length > 0 || attachedCommentFiles.length > 0 || sendError) && (
                 <div className="flex items-center gap-2.5 self-end">
                   {sendError && (
                     <span className="text-[12px] font-medium text-[#d4380d]" data-testid="comment-error">
@@ -431,9 +554,9 @@ export const TicketCommentsThread: React.FC<TicketCommentsThreadProps> = ({
                 <button
                   type="button"
                   onClick={handleSend}
-                  disabled={((!commentInput.trim() && pastedImages.length === 0) && !sendError) || isBusy || isCompressing}
+                  disabled={((!commentInput.trim() && pastedImages.length === 0 && attachedCommentFiles.length === 0) && !sendError) || isBusy || isCompressing}
                   className={`h-8 px-4 rounded-lg font-anek text-[13px] font-bold transition-all flex items-center gap-1.5 ${
-                    ((commentInput.trim() || pastedImages.length > 0) || sendError) && !isBusy && !isCompressing
+                    ((commentInput.trim() || pastedImages.length > 0 || attachedCommentFiles.length > 0) || sendError) && !isBusy && !isCompressing
                       ? sendError
                         ? 'bg-[#d4380d] hover:bg-[#b02a06] text-white cursor-pointer shadow-sm'
                         : 'bg-[#024fff] hover:bg-[#0c57d3] text-white cursor-pointer shadow-sm'

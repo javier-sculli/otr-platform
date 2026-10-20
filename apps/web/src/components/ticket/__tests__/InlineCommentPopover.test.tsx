@@ -187,4 +187,38 @@ describe('InlineCommentPopover', () => {
     expect(onClose).not.toHaveBeenCalled();
     expect(screen.getByRole('button', { name: /reintentar/i })).toBeInTheDocument();
   });
+
+  it('permite adjuntar un archivo PDF y enviarlo junto con o sin texto', async () => {
+    const pop = { id: 'c-attach', x: 100, y: 150 };
+    const onSend = vi.fn().mockResolvedValue(undefined);
+    const onClose = vi.fn();
+
+    render(
+      <InlineCommentPopover
+        pop={pop}
+        onSend={onSend}
+        onClose={onClose}
+      />
+    );
+
+    const attachInput = screen.getByTestId('inline-comment-attachment-input');
+    const fakePdf = new File(['mock content'], 'brief_referencia.pdf', { type: 'application/pdf' });
+
+    fireEvent.change(attachInput, { target: { files: [fakePdf] } });
+
+    // Se muestra el chip de previsualización del archivo
+    await screen.findByText('brief_referencia.pdf');
+
+    // Botón de comentar habilitado incluso sin texto
+    const sendBtn = screen.getByRole('button', { name: /comentar/i });
+    expect(sendBtn).not.toBeDisabled();
+
+    fireEvent.click(sendBtn);
+
+    await vi.waitFor(() => {
+      expect(onSend).toHaveBeenCalledWith(
+        expect.stringContaining('[📎 brief_referencia.pdf](data:application/pdf')
+      );
+    });
+  });
 });

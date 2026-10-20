@@ -1277,7 +1277,153 @@ describe('CreateTicketModal', () => {
       );
     });
   });
+
+  it('persiste los archivos adjuntos (referenciasGraficas) al adjuntar un documento y los restaura al abrir el ticket', async () => {
+    const mockTicketWithFiles = {
+      id: 'ticket-adjuntos-1',
+      title: 'Ticket con adjuntos',
+      client: { id: 'c1', name: 'Cliente 1' },
+      owner: { id: 'user-1', name: 'Tester' },
+      status: 'PENDIENTE',
+      prioridad: 'MEDIA',
+      canales: ['LinkedIn'],
+      tiposContenido: ['Post'],
+      referenciasGraficas: [
+        { id: 'f-init', name: 'archivo_existente.pdf', url: 'data:application/pdf;base64,mockinit', size: 1024 },
+      ],
+    };
+
+    (api.getTicket as any).mockResolvedValue({
+      data: mockTicketWithFiles,
+    });
+    (api.updateTicket as any).mockResolvedValue({
+      data: mockTicketWithFiles,
+    });
+
+    render(
+      <CreateTicketModal
+        isOpen={true}
+        onClose={vi.fn()}
+        ticket={mockTicketWithFiles as any}
+      />,
+      { wrapper: createWrapper() }
+    );
+
+    // Esperar a que desaparezca el indicador de carga y se muestre el archivo existente
+    await waitFor(() => {
+      expect(screen.queryByText(/cargando…/i)).not.toBeInTheDocument();
+      expect(screen.getByText('archivo_existente.pdf')).toBeInTheDocument();
+    });
+
+    // Simular que adjuntamos un nuevo archivo PDF
+    const fileInput = screen.getByTestId('file-upload-input') as HTMLInputElement;
+    const nuevoPdf = new File(['mock content'], 'nuevo_brief.pdf', { type: 'application/pdf' });
+
+    fireEvent.change(fileInput, { target: { files: [nuevoPdf] } });
+
+    // El nuevo archivo debe aparecer en la interfaz
+    await waitFor(() => {
+      expect(screen.getByText('nuevo_brief.pdf')).toBeInTheDocument();
+    });
+
+    // api.updateTicket debe haber sido llamado enviando referenciasGraficas con ambos archivos
+    await waitFor(() => {
+      expect(api.updateTicket).toHaveBeenCalledWith(
+        'ticket-adjuntos-1',
+        expect.objectContaining({
+          referenciasGraficas: expect.arrayContaining([
+            expect.objectContaining({ name: 'archivo_existente.pdf' }),
+            expect.objectContaining({ name: 'nuevo_brief.pdf' }),
+          ]),
+        })
+      );
+    });
+  });
+
+  it('no cierra el modal si el arrastre de selección comenzó adentro y se soltó en el backdrop', async () => {
+    const onClose = vi.fn();
+    render(
+      <CreateTicketModal
+        isOpen={true}
+        onClose={onClose}
+        ticket={null}
+      />,
+      { wrapper: createWrapper() }
+    );
+
+    const backdrop = document.querySelector('.bg-black\\/40') as HTMLElement;
+    expect(backdrop).not.toBeNull();
+
+    const titleInput = screen.getByPlaceholderText(/nombre de la pieza/i);
+
+    // Simular inicio de selección / arrastre adentro del modal
+    fireEvent.mouseDown(titleInput);
+
+    // Soltar / clic en el backdrop después de haber iniciado adentro
+    fireEvent.click(backdrop);
+
+    // No debe cerrarse
+    expect(onClose).not.toHaveBeenCalled();
+
+    // Pero un clic directo en el backdrop sí cierra el modal
+    fireEvent.mouseDown(backdrop);
+    fireEvent.click(backdrop);
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  it('separa pilares de marca y de voceros según la selección de voz del contenido (al elegir marca no muestra los de voceros y viceversa)', async () => {
+    const pilaresMock = [
+      { id: 'p-marca-1', nombre: 'Pilar Exclusivo Marca', clientId: 'c1', speakerId: null },
+      { id: 'p-vocero-1', nombre: 'Pilar Exclusivo Vocero', clientId: 'c1', speakerId: 'spk-1' },
+    ];
+    (api.getPilares as any).mockResolvedValue({ data: pilaresMock });
+    (api.getSpeakers as any).mockResolvedValue({
+      data: [{ id: 'spk-1', nombre: 'Carlos Vocero', cargo: 'CEO' }],
+    });
+
+    const ticketPieza = {
+      id: 'ticket-pilares-sep',
+      title: 'Pieza para testear pilares',
+      status: 'PENDIENTE',
+      clientId: 'c1',
+      speakerId: null,
+      pilarId: null,
+      tiposContenido: ['Post'],
+    } as any;
+
+    render(
+      <CreateTicketModal
+        isOpen={true}
+        onClose={vi.fn()}
+        ticket={ticketPieza}
+      />,
+      { wrapper: createWrapper() }
+    );
+
+    // Esperar a que cargue el pilar de Marca
+    await screen.findByRole('button', { name: 'Pilar Exclusivo Marca' });
+
+    // En modo Marca, NO debe mostrarse el pilar del vocero
+    expect(screen.queryByRole('button', { name: 'Pilar Exclusivo Vocero' })).not.toBeInTheDocument();
+
+    // Cambiar a Vocero
+    const voceroBtn = screen.getByRole('button', { name: /^vocero$/i });
+    fireEvent.click(voceroBtn);
+
+    // Ahora debe mostrarse el pilar del vocero y NO el de la marca
+    await screen.findByRole('button', { name: 'Pilar Exclusivo Vocero' });
+    expect(screen.queryByRole('button', { name: 'Pilar Exclusivo Marca' })).not.toBeInTheDocument();
+
+    // Volver a Marca
+    const marcaBtn = screen.getByRole('button', { name: /^marca$/i });
+    fireEvent.click(marcaBtn);
+
+    // Vuelve a verse únicamente el pilar de la marca
+    await screen.findByRole('button', { name: 'Pilar Exclusivo Marca' });
+    expect(screen.queryByRole('button', { name: 'Pilar Exclusivo Vocero' })).not.toBeInTheDocument();
+  });
 });
+
 
 
 

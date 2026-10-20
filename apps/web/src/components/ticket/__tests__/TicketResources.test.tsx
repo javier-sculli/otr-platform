@@ -123,4 +123,27 @@ describe('TicketResources', () => {
     fireEvent.change(fileInput, { target: { files: [testFile] } });
     expect(onAddFiles).toHaveBeenCalledWith([testFile]);
   });
+
+  it('renderiza enlaces clickeables para abrir/descargar archivos cuando tienen url', () => {
+    const filesWithUrls = [
+      { id: 'f-pdf', name: 'informe_cliente.pdf', url: 'data:application/pdf;base64,mockpdf', size: 2 * 1024 * 1024 },
+    ];
+
+    render(
+      <TicketResources
+        links={[]}
+        attachedFiles={filesWithUrls}
+        onAddLink={vi.fn()}
+        onRemoveLink={vi.fn()}
+        onRemoveFile={vi.fn()}
+      />
+    );
+
+    const downloadLink = screen.getByRole('link', { name: /informe_cliente\.pdf/i });
+    expect(downloadLink).toBeInTheDocument();
+    expect(downloadLink).toHaveAttribute('href', 'data:application/pdf;base64,mockpdf');
+    expect(downloadLink).toHaveAttribute('download', 'informe_cliente.pdf');
+    expect(downloadLink).toHaveAttribute('target', '_blank');
+    expect(screen.getByText('(2.0 MB)')).toBeInTheDocument();
+  });
 });

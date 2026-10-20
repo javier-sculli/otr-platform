@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { RichNotesEditor } from './RichNotesEditor';
 import { api } from '../lib/api';
+import { filterPilaresBySpeaker } from '../lib/utils';
 
 interface SumarioRow {
   id: string;
@@ -832,7 +833,7 @@ export function SumarioTab({ clientId }: { clientId: string }) {
           className={`w-full px-2 py-1 rounded-md border text-[11px] focus:ring-0 focus:outline-none cursor-pointer truncate ${getPilarBadgeStyle(row.pilarId)}`}
         >
           <option value="">Sin pilar</option>
-          {pilares.map((p: any) => (
+          {filterPilaresBySpeaker(pilares, row.speakerId, false).map((p: any) => (
             <option key={p.id} value={p.id}>{p.nombre}</option>
           ))}
         </select>

@@ -4,6 +4,87 @@
 > 
 > 🎯 **BACKLOG OFICIAL Y PRIORIDADES (FUENTE DE VERDAD):** [Notion Backlog Oficial](https://app.notion.com/p/Backlog-3ba617fc369281048bfdfc89c5041d9c?source=copy_link). Todas las prioridades y tareas activas se gestionan directamente allí.
 
+### [2026-10-20] — Corrección Crítica en Ticket Detalle: Auto-guardado Secuencial en Brief/Copy/Notas y Soporte de Imágenes Pegadas desde Google Drive
+- **Desarrollador:** Antigravity (Pair Programming con Javier Sculli)
+- **Diagnóstico y Causa Raíz:**
+  1. **Pérdida de acciones al hacer múltiples cambios en el brief:** En `TicketDetallePage.tsx`, el brief (`objetivo`), notas de diseño y copy no contaban con guardado automático por debouncing al tipear; dependían exclusivamente del evento `onBlur`. Si el usuario realizaba una acción (ej. formatear con la toolbar o hacer click afuera, disparando guardado) y luego continuaba tipeando o editando (segunda acción) y refrescaba la pantalla ("actualizar"), la segunda acción no se había enviado al servidor. Además, si se disparaban mutaciones consecutivas, competían concurrentemente sin cola (`cancelQueries` + `onSuccess` sobrescribiendo la caché con la respuesta previa y refetch desincronizado de Postgres), descartando la última acción. Al colapsar el brief ("Ocultar"), el componente se desmontaba sin disparar `onBlur`, perdiendo cambios.
+  2. **Imágenes pegadas desde Google Drive desaparecían al actualizar:** Al copiar imágenes en Google Drive o Google Docs, el portapapeles a menudo inyecta fragmentos HTML con etiquetas `<img src="https://lh3.googleusercontent.com/...">` sin exponer un item de archivo `File` nativo en `clipboardData.items`. El editor enriquecido delegaba esto al pegado nativo del navegador, que no disparaba `onChange` de React ni convertía la imagen a Data URL. Al no guardarse en backend ni persistirse como Data URL autónoma, al recargar la página la imagen se borraba.
+- **Cambios Implementados:**
+  1. **Motor de Auto-guardado Secuencial en Cola (`TicketDetallePage.tsx`):**
+     - Se reemplazó el `useMutation` libre por un gestor con mutex (`isSavingRef`) y acumulador (`pendingPatchRef`).
+     - Nueva función `queueSave(patch, immediate)`: si el usuario tipea texto en Brief, Copy o Notas de diseño, se activa un debounce de 700ms (`immediate = false`). Si se pega una imagen, se hace blur o se usa la toolbar, se procesa de forma inmediata (`immediate = true`).
+     - Si una petición está en vuelo, los nuevos cambios se encolan automáticamente en `pendingPatchRef` y se envían en secuencia en el bloque `finally`, eliminando carreras y sobrescrituras.
+     - Indicador visual veraz en el header: muestra "Guardando cambios…" (naranja parpadeante) durante el debounce, "Guardando…" (spinner) durante la transmisión de red, y "Guardado" (check verde) al confirmar.
+     - Al colapsar el brief o notas ("Ocultar") o al cerrar/recargar la pestaña (`beforeunload` / unmount), se vacía inmediatamente cualquier cambio pendiente (`flushSave()`).
+  2. **Conversor y Pegado de Imágenes desde Google Drive/Docs (`imageCompression.ts`, `RichTextEditor.tsx`, `RichNotesEditor.tsx`, `TextFormatToolbar.tsx`):**
+     - Función `convertImageUrlToDataUrl(url)`: toma URLs externas o blobs (como los servidores CDN de Drive `lh3.googleusercontent.com`), los descarga o proyecta en Canvas con compresión JPEG y genera una Data URL Base64 autónoma.
+     - `RichTextEditor.tsx`: detector en `handlePaste` para capturar imágenes en HTML (`<img src="...">`), convertirlas de inmediato a Data URLs comprimidas, insertarlas de forma segura (`insertHtmlIntoEditor`) y notificar a `onChange`.
+     - `RichNotesEditor.tsx`: integración de `convertImageUrlToDataUrl` para imágenes remotas en el pegado.
+- **Tests Automatizados y Calidad:**
+  - `TicketDetallePage.test.tsx`: Tests agregados para verificar auto-guardado debounced secuencial en múltiples cambios y guardado inmediato al colapsar el brief ("Ocultar").
+  - `RichTextEditor.test.tsx`: Test agregado para verificar la conversión y guardado de imágenes pegadas desde HTML de Google Drive/Docs.
+  - **203 tests pasando al 100%** en Vitest (`pnpm test`). Build exitoso en todo el monorepo (`pnpm build`).
+
+### [2026-10-20] — Mejoras en Edición: Protección de Drag en Modal, Soporte Integral de PDFs/Imágenes en Textboxes y Comentarios, y Separación de Pilares Marca/Vocero
+- **Desarrollador:** Antigravity (Pair Programming con Javier Sculli)
+- **Diagnóstico y Necesidades:**
+  1. **Cierre accidental al seleccionar texto:** Al seleccionar texto dentro del modal de ticket (para comentar, copiar o corregir) y liberar el cursor afuera (sobre el backdrop oscuro), el evento de click se disparaba cerrando el modal por completo.
+  2. **Persistencia y carga de PDFs:** En el listado general de tickets (`GET /tickets`), el query Prisma de backend omitía `referenciasGraficas`, causando que tickets abiertos desde el Kanban/Backlog perdieran sus adjuntos al guardar. Además, los editores enriquecidos y comentarios en línea no admitían adjuntar ni pegar PDFs.
+  3. **Botón de imagen en toolbars de texto enriquecido:** Los toolbars de formato (`TextFormatToolbar.tsx`) carecían de un botón directo para subir imágenes a Brief, Notas de diseño y Copy.
+  4. **Pegado de imágenes en Notas de diseño:** Al intentar pegar una imagen desde el portapapeles en "Notas de diseño" (`RichNotesEditor.tsx`), wrappers HTML inyectados por el navegador provocaban que se descartara el item de imagen del portapapeles.
+  5. **Mezcla de pilares de Marca y Voceros:** Los selectores de pilares mostraban pilares de voceros cuando se seleccionaba Marca y viceversa.
+- **Cambios Implementados:**
+  1. **Protección de Selección/Arrastre en Modal (`CreateTicketModal.tsx`):**
+     - Se incorporó `dragStartedInsideRef` para detectar el inicio de selecciones de texto o arrastres (`onMouseDown`) dentro del contenedor del modal.
+     - Un listener global en `mouseup` previene que la liberación fuera del modal active el cierre en el backdrop. Clics directos en el backdrop continúan cerrando el modal normalmente.
+  2. **Persistencia Backend y Soporte de PDFs en Editores y Comentarios:**
+     - **Backend (`apps/api/src/routes/tickets.ts`):** Se incluyó `referenciasGraficas: true` en el `select` de `fetchAndCacheTickets`, garantizando que todos los tickets cargados en lote mantengan sus archivos adjuntos.
+     - **RichTextEditor (`RichTextEditor.tsx`):** Soporte completo para pegar y arrastrar PDFs (`application/pdf`) y documentos, convirtiéndolos en chips de descarga interactivos `<a>` con icono y nombre.
+     - **RichNotesEditor (`RichNotesEditor.tsx`):** Soporte para pegar y arrastrar PDFs como enlaces descargables dentro del lienzo Notion-style.
+     - **Comentarios en Línea y Threads (`InlineCommentPopover.tsx`, `MentionTextarea.tsx`, `TicketCommentsThread.tsx`):** Se incorporó botón de clip `<Paperclip />` en el popover de comentarios en línea, soporte de pegado directo (`onPasteFile`) y arrastre en `MentionTextarea`, previsualización con eliminación (`X`), y renderizado en markdown como tarjetas descargables.
+  3. **Botón Agregar Imágenes en Toolbar Enriquecido (`TextFormatToolbar.tsx`):**
+     - Se integró el botón `<ImageIcon />` con selector de archivo oculto (`data-testid="toolbar-image-input"`). Al seleccionar una imagen, se comprime y se inserta `<img src="...">` en la posición actual del cursor.
+  4. **Corrección de Pegado de Imágenes en Notas de Diseño (`RichNotesEditor.tsx`):**
+     - Se corrigió la inspección de items en `handlePaste`: si el portapapeles contiene un archivo de imagen (`item.type.startsWith('image/')`), se procesa de forma prioritaria sin ser bloqueado por fragmentos HTML residuales de la selección del navegador.
+  5. **Separación Estricta de Pilares de Marca vs. Voceros (`CreateTicketModal.tsx`, `SumarioTab.tsx`):**
+     - Se integró el filtrado estricto `filterPilaresBySpeaker(pilares, speakerId, false)`. Al seleccionar Marca solo se muestran pilares sin vocero (`speakerId === null`). Al seleccionar un Vocero solo se muestran los pilares específicos de ese vocero.
+     - Al cambiar entre Marca y Vocero, se resetea automáticamente el `pilarId` si pertenecía al contexto anterior.
+     - Se replicó el filtrado en las filas de `SumarioTab.tsx`.
+- **Tests Automatizados y Calidad:**
+  - `ticketModals.test.tsx`: Tests agregados para protección de drag en backdrop y separación de pilares marca vs. vocero.
+  - `RichTextEditor.test.tsx`: Tests agregados para pegado de imágenes e inserción de enlaces PDF.
+  - **200 tests pasando al 100%** en Vitest (`pnpm test`). Build exitoso en todos los paquetes del monorepo (`pnpm build`).
+
+### [2026-10-19] — Persistencia de Archivos Adjuntos (PDFs y Documentos) en Brief y Soporte de Adjuntos en Comentarios
+- **Desarrollador:** Antigravity (Pair Programming con Javier Sculli)
+- **Diagnóstico y Causa Raíz:**
+  1. **Pérdida de adjuntos en Brief del Ticket:** Al presionar en el clip de recursos/brief tanto en `CreateTicketModal.tsx` como en `TicketDetallePage.tsx`, el archivo se agregaba a un estado React local (`attachedFiles`) con `content: null`. En `CreateTicketModal.tsx` ni siquiera se guardaba en `sessionStorage`; en `TicketDetallePage.tsx` se guardaba en `sessionStorage` de la pestaña pero sin contenido. Al guardarse cualquier campo sucio, el auto-save mostraba el toast verde de "Guardado", pero `attachedFiles` nunca se enviaba al backend en el payload de `api.updateTicket`. Al reingresar al ticket, los archivos adjuntos estaban vacíos.
+  2. **Imposibilidad de adjuntar PDFs en Comentarios:** El hilo de comentarios (`TicketCommentsThread.tsx`) solo tenía un botón de `<ImageIcon />` con `accept="image/*"`, y el parser de markdown (`imageCompression.ts`) solo admitía formato `![imagen](...)`, ignorando y bloqueando cualquier PDF o documento no-imagen.
+- **Cambios Implementados:**
+  1. **Módulo Central de Adjuntos (`apps/web/src/lib/attachments.ts`):**
+     - Función `createAttachmentFromFile`: valida que el archivo no supere el umbral de 15MB, lee el contenido como base64 Data URL (`data:application/pdf;base64,...` o imagen optimizada) y genera un objeto `AttachedFileItem` completo.
+     - Formateador de tamaño de archivo legible `formatFileSize(bytes)` (ej. `1.5 MB`, `240 KB`).
+  2. **Persistencia en Base de Datos de `referenciasGraficas` (`CreateTicketModal.tsx` y `TicketDetallePage.tsx`):**
+     - Se conectó la propiedad `attachedFiles` con la columna PostgreSQL/Prisma existente `referencias_graficas` (campo `referenciasGraficas` de la API de tickets).
+     - Al agregar o quitar archivos con el clip, se dispara de inmediato el guardado hacia el backend (`api.updateTicket({ referenciasGraficas: nextFiles })`) con fallback acumulativo en `sessionStorage`.
+     - Al abrir cualquier ticket por ID o ruta (ej. `/backlog?ticketId=...` o `/piezas/:id`), los archivos adjuntos se hidratan automáticamente desde el servidor.
+  3. **Visualización y Descarga en `TicketResources.tsx`:**
+     - Los chips de archivos adjuntos ahora detectan si el archivo es un PDF (mostrando icono `<FileText className="text-rose-600" />`) o documento, muestran el tamaño y renderizan un enlace `<a>` con `download` y `target="_blank"` para previsualizar o descargar el archivo adjunto directamente.
+     - El selector de archivos ahora acepta `image/*,application/pdf,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.zip`.
+  4. **Soporte Completo de PDFs y Archivos en Comentarios (`TicketCommentsThread.tsx`, `imageCompression.ts`, `InlineCommentPopover.tsx`):**
+     - Se extendió `parseCommentContent` y `buildCommentContent` para procesar archivos adjuntos en formato markdown estándar: `[📎 nombre-archivo.pdf](data:application/pdf;base64,...)`.
+     - Se añadió un botón específico de clip `<Paperclip />` "Adjuntar PDF / Archivo" con su selector (`data-testid="comment-attachment-file-input"`).
+     - Previsualización en chip antes de enviar con opción de remover (`X`).
+     - Renderizado en el hilo de comentarios como tarjetas descargables con icono de PDF, nombre, peso y botón de descarga.
+     - Se habilita el botón "Comentar" cuando hay un PDF adjunto incluso si no se escribió texto.
+- **Tests Automatizados y Calidad:**
+  - `apps/web/src/lib/__tests__/attachments.test.ts`: 4 tests nuevos (formateo de tamaños, conversión a base64 Data URL y validación de límite de 15MB).
+  - `apps/web/src/lib/__tests__/imageCompression.test.ts`: 4 tests nuevos (parseo y construcción de comentarios combinando texto, imágenes y PDFs).
+  - `apps/web/src/components/ticket/__tests__/TicketResources.test.tsx`: 1 test nuevo (renderizado de enlaces clickeables de descarga y etiquetas de tamaño).
+  - `apps/web/src/components/ticket/__tests__/TicketCommentsThread.test.tsx`: 2 tests nuevos (renderizado de PDFs adjuntos en comentarios y envío de PDF sin texto).
+  - `apps/web/src/components/__tests__/ticketModals.test.tsx`: 1 test nuevo (persistencia de `referenciasGraficas` en auto-save de `CreateTicketModal` e hidratación al abrir).
+  - **195 tests pasando al 100%** en Vitest (`pnpm test`). Build exitoso en todo el monorepo (`pnpm build`).
+
 ### [2026-10-16] — Refactor Arquitectónico: Desacople Nivel 1 (Tipo de Ticket) y Nivel 2 (Formatos / Subtipos)
 - **Desarrollador:** Antigravity (Pair Programming con Javier Sculli)
 - **Decisión de Arquitectura y Propósito:**
@@ -786,6 +867,15 @@
   2. **Cabecera HTTP de Revalidación:** Se reemplazó la cabecera `Cache-Control: public, max-age=600` por `no-cache, no-store, must-revalidate` en las rutas GET de catálogos para evitar almacenamiento en caché en el navegador.
   3. **Refresco Inmediato en Frontend:** Se removió el `staleTime` estático de 10 minutos para voceros y pilares en `CreateTicketModal.tsx` y se amplio la invalidación de React Query en `VocerosPage.tsx` para invalidar `['speakers']` y `['clients']`.
 - **Verificación:** Compilación TypeScript (`npm run build`) aprobada exitosamente sin errores.
+
+### [2026-10-20] — Corrección de Autoguardado Concurrente del Brief y Soporte de Fotos desde Google Drive
+- **Desarrollador:** Javier Sculli
+- **Resumen de Avances:**
+  1. **Autoguardado Seguro con Cola de Parches (Brief, Notas y Copy):** Se reemplazó el guardado exclusivo en `onBlur` por un sistema reactivo de autoguardado (`queueSave` / `flushSave`) con debounce inteligente, guardado inmediato en blur/acciones de toolbar, y preservación de cambios locales ante respuestas de red concurrentes.
+  2. **Eliminación de Bucle de Mutaciones en Citas/Comentarios:** Se eliminó la llamada destructiva a `updateMutation.mutate` dentro del efecto de sincronización de marcas de comentarios (`highlightQuotesInHtml`), evitando que los cambios recientes en el brief fueran pisados por mutaciones en segundo plano.
+  3. **Pegado y Persistencia de Fotos desde Google Drive / Docs:** Se enriqueció `RichTextEditor` y `imageCompression` para procesar imágenes tanto en formato de archivo como embebidas en HTML provenientes de Google Drive / Docs / Notion. Se normalizan URLs directas de Drive (`https://lh3.googleusercontent.com/d/:id`), se aplica `referrerpolicy="no-referrer"` para evitar bloqueos 403 de Google, se convierten a Data URLs comprimidas y se gatilla el guardado inmediato (`onImmediateSave`).
+  4. **Feedback Visual de Guardado en Tiempo Real:** Se incorporaron indicadores visuales claros (`Guardando…` / `Guardado`) para que el usuario tenga confirmación inmediata de que sus cambios y fotos están persistidos sin necesidad de recargar la página.
+- **Verificación:** Suite de tests completa de 20 suites y 203 pruebas pasando al 100% (`npm test`), y typechecks aprobados con 0 errores.
 
 ---
 

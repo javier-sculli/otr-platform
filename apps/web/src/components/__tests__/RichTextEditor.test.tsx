@@ -2,6 +2,11 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { RichTextEditor } from '../RichTextEditor';
 
+vi.mock('../../lib/imageCompression', () => ({
+  compressImageFile: vi.fn().mockResolvedValue('data:image/jpeg;base64,mockedimg'),
+  convertImageUrlToDataUrl: vi.fn().mockImplementation(async (url: string) => `data:image/jpeg;base64,mocked_from_${url}`),
+}));
+
 describe('RichTextEditor', () => {
   it('renderiza el contenido HTML inicial', () => {
     const onChange = vi.fn();
@@ -212,6 +217,137 @@ describe('RichTextEditor', () => {
     } finally {
       window.getSelection = originalGetSelection;
       openSpy.mockRestore();
+    }
+  });
+
+  it('permite pegar una imagen desde el portapapeles e inserta la etiqueta img', async () => {
+    const onChange = vi.fn();
+    const origExec = (document as any).execCommand;
+    const execCommandMock = vi.fn().mockReturnValue(true);
+    (document as any).execCommand = execCommandMock;
+
+    try {
+      const { container } = render(
+        <RichTextEditor
+          value="<p>Texto inicial</p>"
+          onChange={onChange}
+        />
+      );
+
+      const editor = container.querySelector('[contenteditable]') as HTMLDivElement;
+      const fakeImageFile = new File(['dummy-img'], 'screenshot.png', { type: 'image/png' });
+
+      const pasteEvent = {
+        preventDefault: vi.fn(),
+        clipboardData: {
+          items: [
+            {
+              type: 'image/png',
+              getAsFile: () => fakeImageFile,
+            },
+          ],
+          getData: vi.fn().mockReturnValue(''),
+        },
+      };
+
+      fireEvent.paste(editor, pasteEvent);
+
+      await vi.waitFor(() => {
+        expect(execCommandMock).toHaveBeenCalledWith(
+          'insertHTML',
+          false,
+          expect.stringContaining('<img src=')
+        );
+      });
+    } finally {
+      (document as any).execCommand = origExec;
+    }
+  });
+
+  it('permite pegar un archivo PDF desde el portapapeles e inserta enlace descargable', async () => {
+    const onChange = vi.fn();
+    const origExec = (document as any).execCommand;
+    const execCommandMock = vi.fn().mockReturnValue(true);
+    (document as any).execCommand = execCommandMock;
+
+    try {
+      const { container } = render(
+        <RichTextEditor
+          value="<p>Notas de diseño</p>"
+          onChange={onChange}
+        />
+      );
+
+      const editor = container.querySelector('[contenteditable]') as HTMLDivElement;
+      const fakePdfFile = new File(['dummy-pdf'], 'especificaciones.pdf', { type: 'application/pdf' });
+
+      const pasteEvent = {
+        preventDefault: vi.fn(),
+        clipboardData: {
+          items: [
+            {
+              type: 'application/pdf',
+              getAsFile: () => fakePdfFile,
+            },
+          ],
+          getData: vi.fn().mockReturnValue(''),
+        },
+      };
+
+      fireEvent.paste(editor, pasteEvent);
+
+      await vi.waitFor(() => {
+        expect(execCommandMock).toHaveBeenCalledWith(
+          'insertHTML',
+          false,
+          expect.stringContaining('download="especificaciones.pdf"')
+        );
+      });
+    } finally {
+      (document as any).execCommand = origExec;
+    }
+  });
+
+  it('soporta pegar imágenes desde HTML de Google Drive o Docs convirtiéndolas a Data URL', async () => {
+    const onChange = vi.fn();
+    const origExec = (document as any).execCommand;
+    const execCommandMock = vi.fn().mockReturnValue(true);
+    (document as any).execCommand = execCommandMock;
+
+    try {
+      const { container } = render(
+        <RichTextEditor
+          value="<p>Brief</p>"
+          onChange={onChange}
+        />
+      );
+
+      const editor = container.querySelector('[contenteditable]') as HTMLDivElement;
+
+      const driveHtml = '<meta charset="utf-8"><img src="https://lh3.googleusercontent.com/drive-viewer/test-image-123" width="600" height="400">';
+      const pasteEvent = {
+        preventDefault: vi.fn(),
+        clipboardData: {
+          items: [],
+          getData: (format: string) => {
+            if (format === 'text/html') return driveHtml;
+            if (format === 'text/plain') return '';
+            return '';
+          },
+        },
+      };
+
+      fireEvent.paste(editor, pasteEvent);
+
+      await vi.waitFor(() => {
+        expect(execCommandMock).toHaveBeenCalledWith(
+          'insertHTML',
+          false,
+          expect.stringContaining('data:image/jpeg;base64,mocked_from_https://lh3.googleusercontent.com/drive-viewer/test-image-123')
+        );
+      });
+    } finally {
+      (document as any).execCommand = origExec;
     }
   });
 });

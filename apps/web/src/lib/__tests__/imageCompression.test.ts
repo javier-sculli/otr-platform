@@ -36,6 +36,29 @@ describe('imageCompression', () => {
       expect(res.text).toBe('');
       expect(res.images).toEqual([img]);
     });
+
+    it('extracts attached PDF files and separates them from text', () => {
+      const pdfDataUrl = 'data:application/pdf;base64,JVBERi0xLjQKJeLjz9MKMSAwIG9ia...';
+      const content = `Adjunto el brief del cliente:\n\n[📎 brief_oficial.pdf](${pdfDataUrl})`;
+      const res = parseCommentContent(content);
+
+      expect(res.text).toBe('Adjunto el brief del cliente:');
+      expect(res.images).toEqual([]);
+      expect(res.files).toEqual([
+        { name: 'brief_oficial.pdf', url: pdfDataUrl },
+      ]);
+    });
+
+    it('extracts both images and PDF documents from the same comment', () => {
+      const img = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY44YAAAAASUVORK5CYII=';
+      const pdf = 'data:application/pdf;base64,mockPdfData';
+      const content = `Nota:\n![captura](${img})\n\n[📎 manual.pdf](${pdf})`;
+      const res = parseCommentContent(content);
+
+      expect(res.text).toBe('Nota:');
+      expect(res.images).toEqual([img]);
+      expect(res.files).toEqual([{ name: 'manual.pdf', url: pdf }]);
+    });
   });
 
   describe('buildCommentContent', () => {
@@ -53,6 +76,19 @@ describe('imageCompression', () => {
       const img = 'data:image/jpeg;base64,abc123';
       const res = buildCommentContent('   ', [img]);
       expect(res).toBe('![imagen](data:image/jpeg;base64,abc123)');
+    });
+
+    it('combines text, images and file attachments cleanly', () => {
+      const img = 'data:image/png;base64,imgdata';
+      const files = [{ name: 'brief.pdf', url: 'data:application/pdf;base64,pdfdata' }];
+      const res = buildCommentContent('Detalle', [img], files);
+      expect(res).toBe('Detalle\n\n![imagen](data:image/png;base64,imgdata)\n\n[📎 brief.pdf](data:application/pdf;base64,pdfdata)');
+    });
+
+    it('builds comment with only a PDF file attachment', () => {
+      const files = [{ name: 'brief.pdf', url: 'data:application/pdf;base64,pdfdata' }];
+      const res = buildCommentContent('', [], files);
+      expect(res).toBe('[📎 brief.pdf](data:application/pdf;base64,pdfdata)');
     });
   });
 });

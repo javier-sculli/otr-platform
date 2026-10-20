@@ -1,12 +1,14 @@
 import React, { useState, useRef } from 'react';
-import { Link2, Paperclip, X } from 'lucide-react';
+import { Link2, Paperclip, X, FileText } from 'lucide-react';
 import { ensureAbsoluteUrl } from '../../lib/utils';
+import { formatFileSize } from '../../lib/attachments';
 
 export interface AttachedFileItem {
   id: string;
   name: string;
   size?: number;
   url?: string;
+  type?: string;
 }
 
 export interface TicketResourcesProps {
@@ -106,41 +108,74 @@ export const TicketResources: React.FC<TicketResourcesProps> = ({
             </span>
           ))}
 
-          {attachedFiles.map(file => (
-            <span
-              key={`file-${file.id}`}
-              className={`flex items-center gap-1.5 max-w-full border border-[#d6dde5] rounded-full bg-[#f7fafc] box-border text-[#1d2a3a] ${
-                isPage
-                  ? 'py-1.5 pl-3 pr-1.5 text-[14px] gap-2'
-                  : 'py-1 pl-2.5 pr-1 text-[13px]'
-              }`}
-              data-testid={`resource-file-${file.id}`}
-            >
-              <Paperclip
-                className={`${
-                  isPage ? 'w-[15px] h-[15px]' : 'w-3.5 h-3.5'
-                } text-[#024fff] shrink-0`}
-              />
+          {attachedFiles.map(file => {
+            const isPdf = file.name.toLowerCase().endsWith('.pdf') || (file.type && file.type.includes('pdf'));
+            const sizeLabel = formatFileSize(file.size);
+
+            return (
               <span
-                className={`${
-                  isPage ? 'max-w-[240px]' : 'max-w-[200px]'
-                } truncate text-[#1d2a3a]`}
-              >
-                {file.name}
-              </span>
-              <button
-                type="button"
-                onClick={() => onRemoveFile(file.id)}
-                title="Quitar"
-                aria-label={`Quitar archivo ${file.name}`}
-                className={`border-0 bg-transparent cursor-pointer text-[#8c96a3] shrink-0 rounded-full flex items-center justify-center hover:bg-[#d6dde5] hover:text-[#0d0d0d] ${
-                  isPage ? 'w-6 h-6' : 'w-5 h-5'
+                key={`file-${file.id}`}
+                className={`flex items-center gap-1.5 max-w-full border border-[#d6dde5] rounded-full bg-[#f7fafc] box-border text-[#1d2a3a] ${
+                  isPage
+                    ? 'py-1.5 pl-3 pr-1.5 text-[14px] gap-2'
+                    : 'py-1 pl-2.5 pr-1 text-[13px]'
                 }`}
+                data-testid={`resource-file-${file.id}`}
               >
-                <X className="w-3 h-3" />
-              </button>
-            </span>
-          ))}
+                {isPdf ? (
+                  <FileText
+                    className={`${
+                      isPage ? 'w-[15px] h-[15px]' : 'w-3.5 h-3.5'
+                    } text-rose-600 shrink-0`}
+                  />
+                ) : (
+                  <Paperclip
+                    className={`${
+                      isPage ? 'w-[15px] h-[15px]' : 'w-3.5 h-3.5'
+                    } text-[#024fff] shrink-0`}
+                  />
+                )}
+                {file.url ? (
+                  <a
+                    href={file.url}
+                    download={file.name}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title={`Abrir o descargar ${file.name}`}
+                    className={`${
+                      isPage ? 'max-w-[240px]' : 'max-w-[200px]'
+                    } truncate text-[#1d2a3a] hover:text-[#024fff] hover:underline flex items-center gap-1`}
+                  >
+                    <span className="truncate">{file.name}</span>
+                    {sizeLabel && (
+                      <span className="text-[11px] text-[#8c96a3] shrink-0 font-normal">
+                        ({sizeLabel})
+                      </span>
+                    )}
+                  </a>
+                ) : (
+                  <span
+                    className={`${
+                      isPage ? 'max-w-[240px]' : 'max-w-[200px]'
+                    } truncate text-[#1d2a3a]`}
+                  >
+                    {file.name}
+                  </span>
+                )}
+                <button
+                  type="button"
+                  onClick={() => onRemoveFile(file.id)}
+                  title="Quitar"
+                  aria-label={`Quitar archivo ${file.name}`}
+                  className={`border-0 bg-transparent cursor-pointer text-[#8c96a3] shrink-0 rounded-full flex items-center justify-center hover:bg-[#d6dde5] hover:text-[#0d0d0d] ${
+                    isPage ? 'w-6 h-6' : 'w-5 h-5'
+                  }`}
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            );
+          })}
         </div>
       )}
 
@@ -153,7 +188,7 @@ export const TicketResources: React.FC<TicketResourcesProps> = ({
         <button
           type="button"
           onClick={() => fileInputRef.current?.click()}
-          title="Adjuntar archivo"
+          title="Adjuntar archivo (PDF, imagen o doc)"
           aria-label="Adjuntar archivo"
           className={`shrink-0 border-0 bg-transparent rounded-md cursor-pointer text-[#3a4655] flex items-center justify-center hover:bg-[#eef3f7] ${
             isPage ? 'w-9 h-9' : 'w-7 h-7'
@@ -196,6 +231,7 @@ export const TicketResources: React.FC<TicketResourcesProps> = ({
           onChange={handleFiles}
           className="hidden"
           data-testid="file-upload-input"
+          accept="image/*,application/pdf,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.zip"
         />
       </div>
     </div>

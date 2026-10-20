@@ -5,6 +5,8 @@ import {
   RemoveFormatting, Smile, Search, X,
 } from 'lucide-react';
 import { ensureAbsoluteUrl } from '../lib/utils';
+import { readFileAsDataUrl } from '../lib/attachments';
+import { convertImageUrlToDataUrl } from '../lib/imageCompression';
 
 interface RichNotesEditorProps {
   value: string;
@@ -524,11 +526,30 @@ export function RichNotesEditor({
       (text.includes('\n') && text.trim().length >= 20);
 
     // 1. Si hay un archivo directo de imagen en el portapapeles y el HTML no contiene texto real (o es solo un wrapper de imagen)
-    if (imageItem && (!html || (!html.includes('<p>') && !html.includes('<span>')))) {
+    const htmlHasText = html ? Boolean(new DOMParser().parseFromString(html, 'text/html').body.textContent?.trim()) : false;
+    if (imageItem && (!html || !htmlHasText)) {
       e.preventDefault();
       const file = imageItem.getAsFile();
       if (file) {
         handleImageFile(file);
+        return;
+      }
+    }
+
+    // 1b. Si hay un archivo PDF o documento en el portapapeles
+    const docItem = items.find(item => item.type === 'application/pdf' || item.getAsFile()?.name?.toLowerCase().endsWith('.pdf'));
+    if (docItem) {
+      const file = docItem.getAsFile();
+      if (file) {
+        e.preventDefault();
+        try {
+          const dataUrl = await readFileAsDataUrl(file);
+          const docHtml = `<a href="${dataUrl}" download="${file.name}" target="_blank" rel="noopener noreferrer" style="display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; margin: 8px 0; border: 1px solid #d6dde5; border-radius: 8px; background-color: #f7fafc; color: #024fff; text-decoration: none; font-size: 13px; font-weight: 600;">📄 ${file.name}</a><br>`;
+          document.execCommand('insertHTML', false, docHtml);
+          handleInput();
+        } catch (err) {
+          console.error(err);
+        }
         return;
       }
     }
@@ -550,6 +571,8 @@ export function RichNotesEditor({
         let fixedSrc = fixNotionImageUrl(rawSrc);
         if (fixedSrc && fixedSrc.startsWith('data:image/')) {
           fixedSrc = await compressBase64Image(fixedSrc);
+        } else if (fixedSrc && (fixedSrc.startsWith('http://') || fixedSrc.startsWith('https://') || fixedSrc.startsWith('blob:'))) {
+          fixedSrc = await convertImageUrlToDataUrl(fixedSrc);
         }
         if (fixedSrc) {
           img.setAttribute('src', fixedSrc);
@@ -755,8 +778,19 @@ export function RichNotesEditor({
     // 1. Archivos externos soltados
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
       e.preventDefault();
-      Array.from(e.dataTransfer.files).forEach(file => {
-        if (file.type.startsWith('image/')) handleImageFile(file);
+      Array.from(e.dataTransfer.files).forEach(async file => {
+        if (file.type.startsWith('image/')) {
+          handleImageFile(file);
+        } else {
+          try {
+            const dataUrl = await readFileAsDataUrl(file);
+            const docHtml = `<a href="${dataUrl}" download="${file.name}" target="_blank" rel="noopener noreferrer" style="display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; margin: 8px 0; border: 1px solid #d6dde5; border-radius: 8px; background-color: #f7fafc; color: #024fff; text-decoration: none; font-size: 13px; font-weight: 600;">📄 ${file.name}</a><br>`;
+            document.execCommand('insertHTML', false, docHtml);
+            handleInput();
+          } catch (err) {
+            console.error(err);
+          }
+        }
       });
       return;
     }

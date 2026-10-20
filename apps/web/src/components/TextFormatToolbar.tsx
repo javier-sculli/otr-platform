@@ -1,6 +1,26 @@
-import React from 'react';
-import { MessageSquare } from 'lucide-react';
+import React, { useRef } from 'react';
+import { MessageSquare, Image as ImageIcon } from 'lucide-react';
 import { ensureAbsoluteUrl } from '../lib/utils';
+import { compressImageFile } from '../lib/imageCompression';
+import { insertHtmlIntoEditor } from './RichTextEditor';
+
+export async function insertImageIntoEditor(
+  editor: HTMLDivElement | null,
+  file: File,
+  onChange?: (val: string) => void
+) {
+  if (!editor || !file.type.startsWith('image/')) return;
+  try {
+    const dataUrl = await compressImageFile(file);
+    const imgHtml = `<img src="${dataUrl}" alt="${file.name}" referrerpolicy="no-referrer" style="max-width: 100%; height: auto; border-radius: 8px; margin: 8px 0; display: block;" />`;
+    insertHtmlIntoEditor(editor, imgHtml);
+    if (onChange) {
+      onChange(editor.innerHTML);
+    }
+  } catch (err) {
+    console.error('Error al insertar imagen en editor:', err);
+  }
+}
 
 export function applyFormatToEditor(
   editor: HTMLDivElement | null,
@@ -151,6 +171,8 @@ export function TextFormatToolbar({
   onComment,
   className = '',
 }: TextFormatToolbarProps) {
+  const imageInputRef = useRef<HTMLInputElement>(null);
+
   const handleFormat = (format: 'bold' | 'italic' | 'underline' | 'strike' | 'bullet' | 'number' | 'link') => {
     if (editorRef?.current) {
       applyFormatToEditor(editorRef.current, format, onChange);
@@ -238,6 +260,35 @@ export function TextFormatToolbar({
       >
         Link
       </button>
+
+      <button
+        type="button"
+        onMouseDown={e => {
+          e.preventDefault();
+          imageInputRef.current?.click();
+        }}
+        className="min-w-[28px] h-7 px-1.5 border-0 bg-transparent rounded-md cursor-pointer text-[13px] font-medium text-[#3a4655] hover:bg-[#eef3f7] transition-colors flex items-center justify-center gap-1"
+        title="Insertar imagen"
+        aria-label="Insertar imagen"
+      >
+        <ImageIcon className="w-3.5 h-3.5" />
+      </button>
+      <input
+        type="file"
+        ref={imageInputRef}
+        accept="image/*"
+        className="hidden"
+        data-testid="toolbar-image-input"
+        onChange={async (e) => {
+          const file = e.target.files?.[0];
+          if (file) {
+            if (editorRef?.current) {
+              await insertImageIntoEditor(editorRef.current, file, onChange);
+            }
+            e.target.value = '';
+          }
+        }}
+      />
 
       {onComment && (
         <>

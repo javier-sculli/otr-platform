@@ -18,6 +18,7 @@ interface MentionTextareaProps {
   autoFocus?: boolean;
   onPaste?: (e: React.ClipboardEvent<HTMLTextAreaElement>) => void;
   onPasteImage?: (file: File) => void;
+  onPasteFile?: (file: File) => void;
 }
 
 function ini(name?: string): string {
@@ -45,6 +46,7 @@ export const MentionTextarea: React.FC<MentionTextareaProps> = ({
   autoFocus = false,
   onPaste,
   onPasteImage,
+  onPasteFile,
 }) => {
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
@@ -173,8 +175,8 @@ export const MentionTextarea: React.FC<MentionTextareaProps> = ({
   }, []);
 
   const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const items = Array.from(e.clipboardData.items || []);
     if (onPasteImage) {
-      const items = Array.from(e.clipboardData.items || []);
       const imageItem = items.find((item) => item.type.startsWith('image/'));
       if (imageItem) {
         const file = imageItem.getAsFile();
@@ -185,7 +187,35 @@ export const MentionTextarea: React.FC<MentionTextareaProps> = ({
         }
       }
     }
+    if (onPasteFile) {
+      const fileItem = items.find((item) => item.kind === 'file');
+      if (fileItem) {
+        const file = fileItem.getAsFile();
+        if (file) {
+          e.preventDefault();
+          onPasteFile(file);
+          return;
+        }
+      }
+    }
     onPaste?.(e);
+  };
+
+  const handleDrop = (e: React.DragEvent<HTMLTextAreaElement>) => {
+    const files = Array.from(e.dataTransfer.files || []);
+    if (files.length === 0) return;
+    const imgFile = files.find(f => f.type.startsWith('image/'));
+    if (imgFile && onPasteImage) {
+      e.preventDefault();
+      onPasteImage(imgFile);
+      return;
+    }
+    const docFile = files.find(f => !f.type.startsWith('image/'));
+    if (docFile && onPasteFile) {
+      e.preventDefault();
+      onPasteFile(docFile);
+      return;
+    }
   };
 
   return (
@@ -197,6 +227,7 @@ export const MentionTextarea: React.FC<MentionTextareaProps> = ({
         onKeyDown={handleKeyDown}
         onKeyUp={handleKeyUp}
         onPaste={handlePaste}
+        onDrop={handleDrop}
         placeholder={placeholder}
         rows={rows}
         disabled={disabled}

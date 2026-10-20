@@ -11,6 +11,14 @@ vi.mock('../../../lib/imageCompression', async (importOriginal) => {
   };
 });
 
+vi.mock('../../../lib/attachments', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../../lib/attachments')>();
+  return {
+    ...actual,
+    readFileAsDataUrl: vi.fn().mockResolvedValue('data:application/pdf;base64,mockPdfContent'),
+  };
+});
+
 describe('TicketCommentsThread', () => {
   const mockTeam = [
     { id: 'u1', name: 'Ana Garcia' },
@@ -282,5 +290,62 @@ describe('TicketCommentsThread', () => {
 
     fireEvent.change(textarea, { target: { value: 'Borrador modificado' } });
     expect(sessionStorage.getItem('otr_draft_comment_ticket-123')).toBe('Borrador modificado');
+  });
+
+  it('renderiza documentos PDF adjuntos en comentarios y permite descargarlos', () => {
+    const pdfComment: TicketCommentItem = {
+      id: 'c-pdf',
+      content: 'Adjunto el reporte de métricas:\n\n[📎 reporte_septiembre.pdf](data:application/pdf;base64,mockPdfContent)',
+      userId: 'u1',
+      user: { id: 'u1', name: 'Ana Garcia' },
+    };
+
+    render(
+      <TicketCommentsThread
+        comments={[pdfComment]}
+        teamList={mockTeam}
+        currentUserId="u1"
+        onAddComment={vi.fn()}
+      />
+    );
+
+    const downloadLink = screen.getByRole('link', { name: /reporte_septiembre\.pdf/i });
+    expect(downloadLink).toBeInTheDocument();
+    expect(downloadLink).toHaveAttribute('href', 'data:application/pdf;base64,mockPdfContent');
+    expect(downloadLink).toHaveAttribute('download', 'reporte_septiembre.pdf');
+    expect(downloadLink).toHaveAttribute('target', '_blank');
+    expect(screen.getByText('Documento PDF')).toBeInTheDocument();
+  });
+
+  it('permite adjuntar un archivo PDF y habilita el botón comentar sin necesidad de texto', async () => {
+    const onAddComment = vi.fn().mockResolvedValue(undefined);
+    render(
+      <TicketCommentsThread
+        comments={[]}
+        teamList={mockTeam}
+        currentUserId="u1"
+        onAddComment={onAddComment}
+      />
+    );
+
+    const submitBtn = screen.getByRole('button', { name: /comentar/i });
+    expect(submitBtn).toBeDisabled();
+
+    const fileInput = screen.getByTestId('comment-attachment-file-input') as HTMLInputElement;
+    const file = new File(['dummy-pdf'], 'brief_rocky.pdf', { type: 'application/pdf' });
+
+    fireEvent.change(fileInput, { target: { files: [file] } });
+
+    // El preview del archivo PDF aparece
+    const previewContainer = await screen.findByTestId('attached-files-preview');
+    expect(previewContainer).toBeInTheDocument();
+    expect(screen.getByText('brief_rocky.pdf')).toBeInTheDocument();
+
+    // El botón comentar se habilita
+    expect(submitBtn).not.toBeDisabled();
+
+    // Click en Comentar
+    fireEvent.click(submitBtn);
+    expect(onAddComment).toHaveBeenCalledWith('[📎 brief_rocky.pdf](data:application/pdf;base64,mockPdfContent)');
   });
 });

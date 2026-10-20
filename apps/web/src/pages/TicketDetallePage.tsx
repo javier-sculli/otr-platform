@@ -34,15 +34,9 @@ import {
   TicketFormatPicker,
 } from '../components/ticket';
 import { SUB_DEF, STATUS_OPTIONS, PRENSA_STATUS_OPTIONS, getNextStatusInfo, type SubEstado } from '../lib/estados';
+import { createAttachmentFromFile, type AttachedFileItem } from '../lib/attachments';
 
-type AttachedFile = {
-  id: string;
-  name: string;
-  type: string;
-  size: number;
-  content: string | null;
-  contentType: 'text' | 'image' | 'other';
-};
+type AttachedFile = AttachedFileItem;
 
 const FORMATOS_PIEZA = [
   'Álbum de fotos', 'Carrusel', 'Hilo', 'Imagen', 'Placa gráfica',
@@ -87,27 +81,35 @@ export function TicketDetallePage() {
 
   const ticket = data?.data;
 
-  const updateMutation = useMutation({
-    mutationFn: (patch: Record<string, unknown>) => api.updateTicket(ticketId!, patch),
-    onMutate: async (patch: Record<string, unknown>) => {
-      await queryClient.cancelQueries({ queryKey: ['ticket', ticketId] });
-      const previous = queryClient.getQueryData(['ticket', ticketId]);
-      queryClient.setQueryData(['ticket', ticketId], (old: any) => {
-        if (!old?.data) return old;
-        return { ...old, data: { ...old.data, ...patch } };
-      });
-      return { previous };
-    },
-    onError: (_err, _vars, context: any) => {
-      if (context?.previous) {
-        queryClient.setQueryData(['ticket', ticketId], context.previous);
-      }
-    },
-    onSuccess: (res: any) => {
-      if (res?.data && ticketId) {
+  const isSavingRef = useRef(false);
+  const pendingPatchRef = useRef<Record<string, unknown>>({});
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [saveStatus, setSaveStatus] = useState<'saving' | 'saved' | 'unsaved'>('saved');
+
+  const flushSave = async () => {
+    if (!ticketId) return;
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+      saveTimeoutRef.current = null;
+    }
+    if (isSavingRef.current) {
+      return;
+    }
+    const patchToSend = { ...pendingPatchRef.current };
+    if (Object.keys(patchToSend).length === 0) {
+      setSaveStatus('saved');
+      return;
+    }
+    pendingPatchRef.current = {};
+    isSavingRef.current = true;
+    setSaveStatus('saving');
+
+    try {
+      const res = await api.updateTicket(ticketId, patchToSend);
+      if (res?.data) {
         queryClient.setQueryData(['ticket', ticketId], (old: any) => {
           if (!old?.data) return old;
-          return { ...old, data: { ...old.data, ...res.data } };
+          return { ...old, data: { ...old.data, ...res.data, ...pendingPatchRef.current } };
         });
         queryClient.setQueryData(['tickets'], (old: any) => {
           if (!old?.data) return old;
@@ -117,10 +119,61 @@ export function TicketDetallePage() {
           };
         });
       }
-      queryClient.invalidateQueries({ queryKey: ['ticket', ticketId] });
-      queryClient.invalidateQueries({ queryKey: ['tickets'] });
+      setSaveStatus('saved');
+    } catch (err) {
+      console.error('Error al guardar ticket:', err);
+      // Re-queue so failed changes are preserved for next attempt
+      pendingPatchRef.current = { ...patchToSend, ...pendingPatchRef.current };
+      setSaveStatus('unsaved');
+    } finally {
+      isSavingRef.current = false;
+      if (Object.keys(pendingPatchRef.current).length > 0) {
+        flushSave();
+      }
+    }
+  };
+
+  const queueSave = (patch: Record<string, unknown>, immediate = false) => {
+    pendingPatchRef.current = { ...pendingPatchRef.current, ...patch };
+    // Optimistic cache update for instant UI responsiveness
+    queryClient.setQueryData(['ticket', ticketId], (old: any) => {
+      if (!old?.data) return old;
+      return { ...old, data: { ...old.data, ...patch } };
+    });
+
+    if (immediate) {
+      flushSave();
+    } else {
+      setSaveStatus('unsaved');
+      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+      saveTimeoutRef.current = setTimeout(() => {
+        flushSave();
+      }, 700);
+    }
+  };
+
+  const updateMutation = {
+    mutate: (patch: Record<string, unknown>) => queueSave(patch, true),
+    mutateAsync: async (patch: Record<string, unknown>) => {
+      pendingPatchRef.current = { ...pendingPatchRef.current, ...patch };
+      await flushSave();
     },
-  });
+    isPending: saveStatus === 'saving',
+  };
+
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      if (Object.keys(pendingPatchRef.current).length > 0) {
+        flushSave();
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+      flushSave();
+    };
+  }, [ticketId]);
 
   // Comments
   const { data: commentsData } = useQuery({
@@ -206,6 +259,9 @@ export function TicketDetallePage() {
   const [briefTemp, setBriefTemp] = useState('');
 
   const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>(() => {
+    if (Array.isArray((ticket as any)?.referenciasGraficas) && (ticket as any).referenciasGraficas.length > 0) {
+      return (ticket as any).referenciasGraficas;
+    }
     if (!ticketId) return [];
     const saved = sessionStorage.getItem(`ticket-files-${ticketId}`);
     return saved ? JSON.parse(saved) : [];
@@ -234,6 +290,9 @@ export function TicketDetallePage() {
       setBriefTemp(ticket.objetivo || '');
       setNotasAudiovisual(ticket.notasAudiovisual || '');
       setEntregableInput(ticket.linkEntregable || '');
+      if (Array.isArray((ticket as any).referenciasGraficas)) {
+        setAttachedFiles((ticket as any).referenciasGraficas);
+      }
       const perCanal = (ticket.contentPerCanal && typeof ticket.contentPerCanal === 'object')
         ? { ...ticket.contentPerCanal }
         : {};
@@ -258,37 +317,14 @@ export function TicketDetallePage() {
       }
     });
 
-    setBriefTemp(prev => {
-      const next = highlightQuotesInHtml(prev || '', quotesWithIds);
-      if (next !== prev && ticket.objetivo && next !== ticket.objetivo) {
-        updateMutation.mutate({ objetivo: next });
-      }
-      return next;
-    });
-
-    setNotasAudiovisual(prev => {
-      const next = highlightQuotesInHtml(prev || '', quotesWithIds);
-      if (next !== prev && ticket.notasAudiovisual && next !== ticket.notasAudiovisual) {
-        updateMutation.mutate({ notasAudiovisual: next });
-      }
-      return next;
-    });
-
+    setBriefTemp(prev => highlightQuotesInHtml(prev || '', quotesWithIds));
+    setNotasAudiovisual(prev => highlightQuotesInHtml(prev || '', quotesWithIds));
     setCopyPerCanal(prev => {
-      let changed = false;
       const next: Record<string, string> = { ...prev };
       Object.keys(next).forEach(canal => {
-        const highlighted = highlightQuotesInHtml(next[canal] || '', quotesWithIds);
-        if (highlighted !== next[canal]) {
-          next[canal] = highlighted;
-          changed = true;
-        }
+        next[canal] = highlightQuotesInHtml(next[canal] || '', quotesWithIds);
       });
-      if (changed) {
-        updateMutation.mutate({ contentPerCanal: next });
-        return next;
-      }
-      return prev;
+      return next;
     });
   }, [commentsData?.data, ticket?.id]);
 
@@ -351,7 +387,7 @@ export function TicketDetallePage() {
     }
   };
 
-  const saveCopyTab = (tab: string, text: string) => {
+  const saveCopyTab = (tab: string, text: string, immediate = true) => {
     const updated = { ...copyPerCanal, [tab]: text };
     setCopyPerCanal(updated);
     const payload: any = { contentPerCanal: updated };
@@ -360,7 +396,7 @@ export function TicketDetallePage() {
       const prevText = (ticket as any)?.contentPerCanal?.[tab];
       payload.versionsPerCanal = recordCopyVersion(currentVersions, tab, text, prevText);
     }
-    updateMutation.mutate(payload);
+    queueSave(payload, immediate);
   };
 
   const deleteMutation = useMutation({
@@ -565,10 +601,15 @@ export function TicketDetallePage() {
             </div>
 
             <div className="flex items-center gap-1.5 text-[13px] font-semibold shrink-0">
-              {updateMutation.isPending ? (
+              {saveStatus === 'saving' ? (
                 <span className="text-[#8c96a3] flex items-center gap-1.5 animate-pulse">
                   <Loader2 className="w-3.5 h-3.5 animate-spin text-[#024fff]" />
                   Guardando…
+                </span>
+              ) : saveStatus === 'unsaved' ? (
+                <span className="text-[#e67e22] flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-[#e67e22] animate-ping" />
+                  Guardando cambios…
                 </span>
               ) : (
                 <span className="text-[#00a372] flex items-center gap-1">
@@ -729,7 +770,12 @@ export function TicketDetallePage() {
           <div className="border border-[#d6dde5] rounded-[12px] bg-white overflow-hidden shadow-xs">
             <button
               type="button"
-              onClick={() => setBriefOpen(!briefOpen)}
+              onClick={() => {
+                if (briefOpen) {
+                  flushSave();
+                }
+                setBriefOpen(!briefOpen);
+              }}
               className={`w-full flex items-center gap-4 p-4 px-5 border-0 cursor-pointer font-anek text-left transition-colors ${
                 briefOpen ? 'bg-[#f7fafc]' : 'bg-white hover:bg-[#f7fafc]'
               }`}
@@ -776,7 +822,7 @@ export function TicketDetallePage() {
                   value={briefTemp}
                   onChange={val => {
                     setBriefTemp(val);
-                    updateMutation.mutate({ objetivo: val || null });
+                    queueSave({ objetivo: val || null }, true);
                   }}
                   onComment={() => startInline(briefRef)}
                 />
@@ -786,11 +832,16 @@ export function TicketDetallePage() {
                   value={briefTemp}
                   onChange={val => {
                     setBriefTemp(val);
+                    const hasImage = val.includes('<img');
+                    queueSave({ objetivo: val || null }, hasImage);
                   }}
                   onBlur={() => {
-                    if (briefTemp !== (ticket.objetivo ?? '')) {
-                      updateMutation.mutate({ objetivo: briefTemp || null });
-                    }
+                    queueSave({ objetivo: briefTemp || null }, true);
+                  }}
+                  onImmediateSave={() => {
+                    const currentHtml = briefRef.current?.innerHTML || briefTemp;
+                    setBriefTemp(currentHtml);
+                    queueSave({ objetivo: currentHtml || null }, true);
                   }}
                   onMarkClick={handleMarkClick}
                   onMarkHover={handleMarkHover}
@@ -811,23 +862,35 @@ export function TicketDetallePage() {
                     const next = (ticket.links || []).filter((_: string, i: number) => i !== idx);
                     updateMutation.mutate({ links: next });
                   }}
-                  onAddFiles={(files) => {
-                    const newFiles: AttachedFile[] = files.map(file => {
-                      const id = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-                      const isImg = file.type.startsWith('image/');
-                      const isTxt = file.type.startsWith('text/') || file.name.endsWith('.md') || file.name.endsWith('.txt');
-                      return {
-                        id,
-                        name: file.name,
-                        type: file.type,
-                        size: file.size,
-                        content: null,
-                        contentType: isImg ? 'image' : isTxt ? 'text' : 'other',
-                      };
-                    });
-                    setAttachedFiles(prev => [...prev, ...newFiles]);
+                  onAddFiles={async (files) => {
+                    try {
+                      const newFiles: AttachedFile[] = [];
+                      for (const file of files) {
+                        const item = await createAttachmentFromFile(file);
+                        newFiles.push(item);
+                      }
+                      const nextFiles = [...attachedFiles, ...newFiles];
+                      setAttachedFiles(nextFiles);
+                      if (ticketId) {
+                        try {
+                          sessionStorage.setItem(`ticket-files-${ticketId}`, JSON.stringify(nextFiles));
+                        } catch {}
+                      }
+                      updateMutation.mutate({ referenciasGraficas: nextFiles });
+                    } catch (err: any) {
+                      alert(err?.message || 'Error al procesar archivo');
+                    }
                   }}
-                  onRemoveFile={(fileId) => setAttachedFiles(prev => prev.filter(f => f.id !== fileId))}
+                  onRemoveFile={(fileId) => {
+                    const nextFiles = attachedFiles.filter(f => f.id !== fileId);
+                    setAttachedFiles(nextFiles);
+                    if (ticketId) {
+                      try {
+                        sessionStorage.setItem(`ticket-files-${ticketId}`, JSON.stringify(nextFiles));
+                      } catch {}
+                    }
+                    updateMutation.mutate({ referenciasGraficas: nextFiles });
+                  }}
                   placeholder={isPieza ? 'Pegá un link a fotos, logos o documentos y presioná Enter' : 'Pegá un link a documentos o ejemplos y presioná Enter'}
                   variant="page"
                 />
@@ -984,8 +1047,14 @@ export function TicketDetallePage() {
                     value={currentCopy}
                     onChange={val => {
                       setCopyPerCanal(prev => ({ ...prev, [activeCopyTab]: val }));
+                      const hasImage = val.includes('<img');
+                      saveCopyTab(activeCopyTab, val, hasImage);
                     }}
-                    onBlur={() => saveCopyTab(activeCopyTab, currentCopy)}
+                    onBlur={() => saveCopyTab(activeCopyTab, currentCopy, true)}
+                    onImmediateSave={() => {
+                      const cur = copyRef.current?.innerHTML || currentCopy;
+                      saveCopyTab(activeCopyTab, cur, true);
+                    }}
                     onMarkClick={handleMarkClick}
                     onMarkHover={handleMarkHover}
                     placeholder={`Copy para ${activeCopyTab}…`}
@@ -1011,7 +1080,12 @@ export function TicketDetallePage() {
                   <>
                     <button
                       type="button"
-                      onClick={() => setNotasOpen(!notasOpen)}
+                      onClick={() => {
+                        if (notasOpen) {
+                          flushSave();
+                        }
+                        setNotasOpen(!notasOpen);
+                      }}
                       className="flex items-center gap-3 w-full p-3.5 px-4 border border-[#d6dde5] rounded-[12px] bg-[#f7fafc] hover:bg-[#eef3f7] cursor-pointer font-anek text-left transition-colors"
                     >
                       <div className="flex-1 min-w-0 flex flex-col gap-0.5">
@@ -1046,7 +1120,7 @@ export function TicketDetallePage() {
                           value={notasAudiovisual}
                           onChange={val => {
                             setNotasAudiovisual(val);
-                            updateMutation.mutate({ notasAudiovisual: val || null });
+                            queueSave({ notasAudiovisual: val || null }, true);
                           }}
                           onComment={() => startInline(notasRef)}
                         />
@@ -1056,11 +1130,16 @@ export function TicketDetallePage() {
                           value={notasAudiovisual}
                           onChange={val => {
                             setNotasAudiovisual(val);
+                            const hasImage = val.includes('<img');
+                            queueSave({ notasAudiovisual: val || null }, hasImage);
                           }}
                           onBlur={() => {
-                            if (notasAudiovisual !== (ticket.notasAudiovisual ?? '')) {
-                              updateMutation.mutate({ notasAudiovisual: notasAudiovisual || null });
-                            }
+                            queueSave({ notasAudiovisual: notasAudiovisual || null }, true);
+                          }}
+                          onImmediateSave={() => {
+                            const cur = notasRef.current?.innerHTML || notasAudiovisual;
+                            setNotasAudiovisual(cur);
+                            queueSave({ notasAudiovisual: cur || null }, true);
                           }}
                           onMarkClick={handleMarkClick}
                           onMarkHover={handleMarkHover}
@@ -1084,7 +1163,7 @@ export function TicketDetallePage() {
                         value={notasAudiovisual}
                         onChange={val => {
                           setNotasAudiovisual(val);
-                          updateMutation.mutate({ notasAudiovisual: val || null });
+                          queueSave({ notasAudiovisual: val || null }, true);
                         }}
                         onComment={() => startInline(notasRef)}
                       />
@@ -1094,11 +1173,16 @@ export function TicketDetallePage() {
                         value={notasAudiovisual}
                         onChange={val => {
                           setNotasAudiovisual(val);
+                          const hasImage = val.includes('<img');
+                          queueSave({ notasAudiovisual: val || null }, hasImage);
                         }}
                         onBlur={() => {
-                          if (notasAudiovisual !== (ticket.notasAudiovisual ?? '')) {
-                            updateMutation.mutate({ notasAudiovisual: notasAudiovisual || null });
-                          }
+                          queueSave({ notasAudiovisual: notasAudiovisual || null }, true);
+                        }}
+                        onImmediateSave={() => {
+                          const cur = notasRef.current?.innerHTML || notasAudiovisual;
+                          setNotasAudiovisual(cur);
+                          queueSave({ notasAudiovisual: cur || null }, true);
                         }}
                         onMarkClick={handleMarkClick}
                         onMarkHover={handleMarkHover}

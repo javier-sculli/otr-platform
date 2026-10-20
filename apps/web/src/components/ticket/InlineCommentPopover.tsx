@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect } from 'react';
-import { Check, X, Image as ImageIcon, Loader2 } from 'lucide-react';
+import { Check, X, Image as ImageIcon, Loader2, FileText, Paperclip } from 'lucide-react';
 import { MentionTextarea, formatCommentWithMentions } from '../MentionTextarea';
 import { compressImageFile, parseCommentContent, buildCommentContent } from '../../lib/imageCompression';
+import { readFileAsDataUrl, MAX_ATTACHMENT_SIZE_BYTES } from '../../lib/attachments';
 import { CommentImageViewerModal } from './CommentImageViewerModal';
 
 export interface CommentThreadItem {
@@ -48,9 +49,11 @@ export function InlineCommentPopover({
 }: InlineCommentPopoverProps) {
   const [popInput, setPopInput] = useState('');
   const [popImages, setPopImages] = useState<string[]>([]);
+  const [popFiles, setPopFiles] = useState<Array<{ name: string; url: string; size?: number }>>([]);
   const [isCompressing, setIsCompressing] = useState(false);
   const [viewerImage, setViewerImage] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const fileAttachmentInputRef = useRef<HTMLInputElement>(null);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
@@ -92,6 +95,7 @@ export function InlineCommentPopover({
     }
     setPopInput('');
     setPopImages([]);
+    setPopFiles([]);
     onClose();
   };
 
@@ -108,16 +112,38 @@ export function InlineCommentPopover({
     }
   };
 
+  const handleAttachFile = async (file: File) => {
+    if (file.size > MAX_ATTACHMENT_SIZE_BYTES) {
+      alert(`El archivo "${file.name}" supera el tamaño máximo permitido de 15MB.`);
+      return;
+    }
+    if (file.type.startsWith('image/')) {
+      await handleImageFile(file);
+      return;
+    }
+    try {
+      setIsCompressing(true);
+      const dataUrl = await readFileAsDataUrl(file);
+      setPopFiles(prev => [...prev, { name: file.name, url: dataUrl, size: file.size }]);
+    } catch (err: any) {
+      console.error(err);
+      alert(err?.message || 'Error al leer el archivo');
+    } finally {
+      setIsCompressing(false);
+    }
+  };
+
   const handleSend = async () => {
     const trimmed = popInput.trim();
-    if ((!trimmed && popImages.length === 0) || isCompressing || isSubmitting) return;
-    const fullContent = buildCommentContent(trimmed, popImages);
+    if ((!trimmed && popImages.length === 0 && popFiles.length === 0) || isCompressing || isSubmitting) return;
+    const fullContent = buildCommentContent(trimmed, popImages, popFiles);
     try {
       setIsSubmitting(true);
       setSendError(null);
       await onSend(fullContent);
       setPopInput('');
       setPopImages([]);
+      setPopFiles([]);
       if (draftStorageKey) {
         try {
           sessionStorage.removeItem(draftStorageKey);
@@ -134,7 +160,7 @@ export function InlineCommentPopover({
 
   const items = thread?.items || [];
   const hasItems = items.length > 0;
-  const canSend = (popInput.trim().length > 0 || popImages.length > 0) && !isCompressing;
+  const canSend = (popInput.trim().length > 0 || popImages.length > 0 || popFiles.length > 0) && !isCompressing;
 
   return (
     <>
@@ -153,7 +179,7 @@ export function InlineCommentPopover({
         {hasItems && (
           <div className="flex flex-col max-h-[220px] overflow-y-auto" data-testid="popover-thread-items">
             {items.map((it, idx) => {
-              const { text: cleanText, images: itemImages } = parseCommentContent(it.text);
+              const { text: cleanText, images: itemImages, files: itemFiles } = parseCommentContent(it.text);
               return (
                 <div key={idx} className="flex gap-2 p-2.5 px-3 pt-2">
                   <span className="w-5 h-5 rounded-full bg-[#eef3f7] text-[#024fff] text-[9px] font-bold flex items-center justify-center shrink-0">
@@ -182,6 +208,31 @@ export function InlineCommentPopover({
                         ))}
                       </div>
                     )}
+                    {itemFiles && itemFiles.length > 0 && (
+                      <div className="flex flex-col gap-1.5 mt-1.5">
+                        {itemFiles.map((cf, i) => {
+                          const isPdf = cf.name.toLowerCase().endsWith('.pdf');
+                          return (
+                            <a
+                              key={i}
+                              href={cf.url}
+                              download={cf.name}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              title={`Descargar ${cf.name}`}
+                              className="flex items-center gap-1.5 p-1.5 px-2 rounded border border-[#d6dde5] bg-[#f7fafc] text-[12px] text-[#1d2a3a] hover:text-[#024fff] no-underline truncate"
+                            >
+                              {isPdf ? (
+                                <FileText className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                              ) : (
+                                <Paperclip className="w-3.5 h-3.5 text-[#024fff] shrink-0" />
+                              )}
+                              <span className="truncate">{cf.name}</span>
+                            </a>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
                 </div>
               );
@@ -194,6 +245,7 @@ export function InlineCommentPopover({
             value={popInput}
             onChange={handleInputChange}
             onPasteImage={handleImageFile}
+            onPasteFile={handleAttachFile}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
@@ -203,7 +255,7 @@ export function InlineCommentPopover({
                 handleCancel();
               }
             }}
-            placeholder={hasItems ? 'Responder… (@ para mencionar, pegá imagen)' : 'Escribí un comentario… (@ o pegá imagen)'}
+            placeholder={hasItems ? 'Responder… (@ para mencionar, pegá imagen o archivo)' : 'Escribí un comentario… (@ o pegá imagen/archivo)'}
             rows={2}
             users={users}
             autoFocus
@@ -225,6 +277,32 @@ export function InlineCommentPopover({
                   </button>
                 </div>
               ))}
+            </div>
+          )}
+
+          {popFiles.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 pt-0.5" data-testid="inline-comment-files-preview">
+              {popFiles.map((file, idx) => {
+                const isPdf = file.name.toLowerCase().endsWith('.pdf');
+                return (
+                  <div key={idx} className="flex items-center gap-1 px-2 py-0.5 rounded-full border border-[#d6dde5] bg-[#f7fafc] text-[11px] text-[#1d2a3a]">
+                    {isPdf ? (
+                      <FileText className="w-3 h-3 text-rose-600 shrink-0" />
+                    ) : (
+                      <Paperclip className="w-3 h-3 text-[#024fff] shrink-0" />
+                    )}
+                    <span className="max-w-[130px] truncate">{file.name}</span>
+                    <button
+                      type="button"
+                      onClick={() => setPopFiles(prev => prev.filter((_, i) => i !== idx))}
+                      className="border-0 bg-transparent text-[#8c96a3] hover:text-[#0d0d0d] p-0.5 cursor-pointer flex items-center justify-center"
+                      title="Quitar"
+                    >
+                      <X className="w-2.5 h-2.5" />
+                    </button>
+                  </div>
+                );
+              })}
             </div>
           )}
 
@@ -263,6 +341,28 @@ export function InlineCommentPopover({
               onChange={(e) => {
                 const file = e.target.files?.[0];
                 if (file) handleImageFile(file);
+                e.target.value = '';
+              }}
+            />
+
+            <button
+              type="button"
+              onClick={() => fileAttachmentInputRef.current?.click()}
+              title="Adjuntar PDF o archivo"
+              aria-label="Adjuntar PDF o archivo"
+              className="p-1 rounded text-[#5b6675] hover:text-[#024fff] hover:bg-[#eef3f7] border-0 bg-transparent cursor-pointer flex items-center justify-center"
+            >
+              <Paperclip className="w-3.5 h-3.5" />
+            </button>
+            <input
+              type="file"
+              ref={fileAttachmentInputRef}
+              accept="application/pdf,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.zip"
+              className="hidden"
+              data-testid="inline-comment-attachment-input"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) handleAttachFile(file);
                 e.target.value = '';
               }}
             />

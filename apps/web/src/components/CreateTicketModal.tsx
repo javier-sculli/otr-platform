@@ -8,7 +8,7 @@ import {
 import { api } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 import { STATUS_OPTIONS, PRENSA_STATUS_OPTIONS, getNextStatusInfo } from '../lib/estados';
-import { ensureAbsoluteUrl, formatDateISO, getRedesObjetivoForClient, parseDeliverableLinks, serializeDeliverableLinks, highlightQuotesInHtml, getCollapsedRichTextSnippet } from '../lib/utils';
+import { ensureAbsoluteUrl, formatDateISO, getRedesObjetivoForClient, parseDeliverableLinks, serializeDeliverableLinks, highlightQuotesInHtml, getCollapsedRichTextSnippet, filterPilaresBySpeaker } from '../lib/utils';
 import { TextFormatToolbar } from './TextFormatToolbar';
 import { RichTextEditor } from './RichTextEditor';
 import {
@@ -23,15 +23,9 @@ import {
   TicketResources,
   TicketFormatPicker,
 } from './ticket';
+import { createAttachmentFromFile, type AttachedFileItem } from '../lib/attachments';
 
-export type AttachedFile = {
-  id: string;
-  name: string;
-  type: string;
-  size: number;
-  content: string | null;
-  contentType: 'text' | 'image' | 'other';
-};
+export type AttachedFile = AttachedFileItem;
 
 export interface TicketData {
   id: string;
@@ -161,6 +155,7 @@ function buildFormData(ticket?: TicketData | null, defaultClientId?: string) {
       aprobado: false,
       aprobadoPor: '',
       pub: {} as Record<string, string>,
+      referenciasGraficas: [] as AttachedFile[],
     };
   }
 
@@ -216,6 +211,7 @@ function buildFormData(ticket?: TicketData | null, defaultClientId?: string) {
     aprobado: (ticket as any).estadoAprobacionCliente === 'APROBADO',
     aprobadoPor: (ticket as any).aprobadoPor ?? '',
     pub: {} as Record<string, string>,
+    referenciasGraficas: Array.isArray((ticket as any).referenciasGraficas) ? (ticket as any).referenciasGraficas : [],
   };
 }
 
@@ -267,6 +263,7 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'error' | null>(null);
   const [isDuplicating, setIsDuplicating] = useState(false);
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const dragStartedInsideRef = useRef(false);
   const formDataRef = useRef(formData);
   formDataRef.current = formData;
 
@@ -312,6 +309,10 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
     staleTime: 5 * 60 * 1000,
   });
   const pilares = pilaresData?.data ?? [];
+
+  const filteredPilares = useMemo(() => {
+    return filterPilaresBySpeaker(pilares, formData.speakerId, false);
+  }, [pilares, formData.speakerId]);
 
   const { data: speakersData } = useQuery({
     queryKey: ['speakers', formData.clientId],
@@ -401,8 +402,12 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
         setError(null);
         setPop(null);
         if (ticket?.id) {
+          const backendFiles = Array.isArray((ticket as any).referenciasGraficas)
+            ? (ticket as any).referenciasGraficas
+            : [];
           const saved = sessionStorage.getItem(`ticket-files-${ticket.id}`);
-          setAttachedFiles(saved ? JSON.parse(saved) : []);
+          const sessionFiles = saved ? JSON.parse(saved) : [];
+          setAttachedFiles(backendFiles.length > 0 ? backendFiles : sessionFiles);
         } else {
           setAttachedFiles([]);
         }
@@ -439,6 +444,9 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
       if (!dirtyFieldsRef.current.has('canales')) {
         const canales = fullFormData.canales.length > 0 ? fullFormData.canales : ['LinkedIn'];
         setActiveCopyTab(prevTab => (canales.includes(prevTab) ? prevTab : canales[0]));
+      }
+      if (!dirtyFieldsRef.current.has('referenciasGraficas') && Array.isArray(full.referenciasGraficas)) {
+        setAttachedFiles(full.referenciasGraficas);
       }
 
       if (pendingSaveDataRef.current) {
@@ -557,6 +565,9 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
       ...(current.notasAudiovisual ? { notasAudiovisual: current.notasAudiovisual } : {}),
       content: noContenido ? undefined : (current.content || null),
       contentPerCanal: noContenido ? undefined : current.contentPerCanal,
+      referenciasGraficas: (current as any).referenciasGraficas !== undefined
+        ? (current as any).referenciasGraficas
+        : attachedFiles,
     };
 
     if (esPrensa) {
@@ -745,8 +756,15 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
         else handleClose();
       }
     };
+    const handleMouseUp = () => {
+      dragStartedInsideRef.current = false;
+    };
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    window.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
   }, [isOpen, pop, formData]);
 
   // Formats handling
@@ -863,6 +881,7 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
         links: formData.links.map(ensureAbsoluteUrl),
         linkEntregable: cleanDeliverableLinks(formData.linkEntregable),
         linkPublicacion: cleanDeliverableLinks(formData.linkPublicacion),
+        referenciasGraficas: attachedFiles,
       };
       if (esPrensa) {
         payload.area = 'PRENSA';
@@ -1015,10 +1034,25 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
 
   return (
     <div
-      onClick={handleClose}
+      onMouseDown={(e) => {
+        if (e.target === e.currentTarget) {
+          dragStartedInsideRef.current = false;
+        }
+      }}
+      onClick={(e) => {
+        if (e.target === e.currentTarget && !dragStartedInsideRef.current) {
+          handleClose();
+        }
+        dragStartedInsideRef.current = false;
+      }}
+      onDragOver={(e) => e.preventDefault()}
+      onDrop={(e) => e.preventDefault()}
       className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-3 md:p-4 bg-[rgba(0,14,31,.55)] bg-black/40 backdrop-blur-[2px]"
     >
       <div
+        onMouseDown={() => {
+          dragStartedInsideRef.current = true;
+        }}
         onClick={e => e.stopPropagation()}
         className="w-full max-w-[1100px] h-[calc(100vh-20px)] sm:h-[calc(100vh-32px)] bg-white rounded-[14px] flex flex-col overflow-hidden shadow-[0_24px_64px_rgba(0,14,31,.35)] font-anek animate-in fade-in zoom-in-95 duration-150"
       >
@@ -1237,23 +1271,35 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
                     attachedFiles={attachedFiles}
                     onAddLink={(url) => handleChange('links', [...formData.links, url], true)}
                     onRemoveLink={(idx) => handleChange('links', formData.links.filter((_, i) => i !== idx), true)}
-                    onAddFiles={(files) => {
-                      const newFiles: AttachedFile[] = files.map(file => {
-                        const id = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-                        const isImg = file.type.startsWith('image/');
-                        const isTxt = file.type.startsWith('text/') || file.name.endsWith('.md') || file.name.endsWith('.txt');
-                        return {
-                          id,
-                          name: file.name,
-                          type: file.type,
-                          size: file.size,
-                          content: null,
-                          contentType: isImg ? 'image' : isTxt ? 'text' : 'other',
-                        };
-                      });
-                      setAttachedFiles(prev => [...prev, ...newFiles]);
+                    onAddFiles={async (files) => {
+                      try {
+                        const newFiles: AttachedFile[] = [];
+                        for (const file of files) {
+                          const item = await createAttachmentFromFile(file);
+                          newFiles.push(item);
+                        }
+                        const nextFiles = [...attachedFiles, ...newFiles];
+                        setAttachedFiles(nextFiles);
+                        if (ticket?.id) {
+                          try {
+                            sessionStorage.setItem(`ticket-files-${ticket.id}`, JSON.stringify(nextFiles));
+                          } catch {}
+                        }
+                        handleChange('referenciasGraficas', nextFiles, true);
+                      } catch (err: any) {
+                        alert(err?.message || 'Error al procesar archivo');
+                      }
                     }}
-                    onRemoveFile={(fileId) => setAttachedFiles(prev => prev.filter(f => f.id !== fileId))}
+                    onRemoveFile={(fileId) => {
+                      const nextFiles = attachedFiles.filter(f => f.id !== fileId);
+                      setAttachedFiles(nextFiles);
+                      if (ticket?.id) {
+                        try {
+                          sessionStorage.setItem(`ticket-files-${ticket.id}`, JSON.stringify(nextFiles));
+                        } catch {}
+                      }
+                      handleChange('referenciasGraficas', nextFiles, true);
+                    }}
                     placeholder={isPieza ? 'Pegá un link a fotos, logos o documentos y presioná Enter' : 'Pegá un link a documentos o ejemplos y presioná Enter'}
                     variant="modal"
                   />
@@ -1721,7 +1767,9 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
                   <button
                     type="button"
                     onClick={() => {
-                      handleChange('speakerId', '', true);
+                      const nextFiltered = filterPilaresBySpeaker(pilares, '', false);
+                      const nextPilarId = nextFiltered.some(p => p.id === formData.pilarId) ? formData.pilarId : '';
+                      handleMultipleChanges({ speakerId: '', pilarId: nextPilarId }, true);
                       setIsChangingSpeaker(false);
                     }}
                     className={`flex-1 border-0 cursor-pointer font-anek text-[13px] font-bold h-[30px] rounded-md transition-all flex items-center justify-center leading-none ${
@@ -1735,7 +1783,9 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
                     onClick={() => {
                       if (!formData.speakerId) {
                         if (speakers.length === 1) {
-                          handleChange('speakerId', speakers[0].id, true);
+                          const nextFiltered = filterPilaresBySpeaker(pilares, speakers[0].id, false);
+                          const nextPilarId = nextFiltered.some(p => p.id === formData.pilarId) ? formData.pilarId : '';
+                          handleMultipleChanges({ speakerId: speakers[0].id, pilarId: nextPilarId }, true);
                           setIsChangingSpeaker(false);
                         } else {
                           setIsChangingSpeaker(true);
@@ -1756,7 +1806,9 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
                     <button
                       type="button"
                       onClick={() => {
-                        handleChange('speakerId', suggestedSpeaker.id, true);
+                        const nextFiltered = filterPilaresBySpeaker(pilares, suggestedSpeaker.id, false);
+                        const nextPilarId = nextFiltered.some(p => p.id === formData.pilarId) ? formData.pilarId : '';
+                        handleMultipleChanges({ speakerId: suggestedSpeaker.id, pilarId: nextPilarId }, true);
                         setIsChangingSpeaker(false);
                       }}
                       className="border-0 bg-[#024fff] text-white cursor-pointer font-anek text-[12px] font-bold h-6.5 px-2.5 rounded-md"
@@ -1792,7 +1844,9 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
                               key={sp.id}
                               type="button"
                               onClick={() => {
-                                handleChange('speakerId', sp.id, true);
+                                const nextFiltered = filterPilaresBySpeaker(pilares, sp.id, false);
+                                const nextPilarId = nextFiltered.some(p => p.id === formData.pilarId) ? formData.pilarId : '';
+                                handleMultipleChanges({ speakerId: sp.id, pilarId: nextPilarId }, true);
                                 setIsChangingSpeaker(false);
                               }}
                               className={`flex items-center gap-2.5 border-0 cursor-pointer font-anek p-2 px-2.5 rounded-md text-left transition-colors ${
@@ -1835,26 +1889,34 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
             )}
 
             {/* Pilares de contenido */}
-            {isPieza && pilares.length > 0 && (
+            {isPieza && (
               <div className="flex flex-col gap-2">
                 <label className="text-[11px] font-bold tracking-[0.06em] uppercase text-[#5b6675]">Pilar de contenido</label>
-                <div className="flex flex-wrap gap-1.5">
-                  {pilares.map((p: any) => {
-                    const on = formData.pilarId === p.id;
-                    return (
-                      <button
-                        key={p.id}
-                        type="button"
-                        onClick={() => handleChange('pilarId', on ? '' : p.id, true)}
-                        className={`border cursor-pointer font-anek text-[13px] font-bold px-3 py-1.5 rounded-full transition-all ${
-                          on ? 'border-[#024fff] bg-[#024fff] text-white' : 'border-[#d6dde5] bg-white text-[#1d2a3a] hover:bg-[#f7fafc]'
-                        }`}
-                      >
-                        {p.nombre}
-                      </button>
-                    );
-                  })}
-                </div>
+                {filteredPilares.length > 0 ? (
+                  <div className="flex flex-wrap gap-1.5">
+                    {filteredPilares.map((p: any) => {
+                      const on = formData.pilarId === p.id;
+                      return (
+                        <button
+                          key={p.id}
+                          type="button"
+                          onClick={() => handleChange('pilarId', on ? '' : p.id, true)}
+                          className={`border cursor-pointer font-anek text-[13px] font-bold px-3 py-1.5 rounded-full transition-all ${
+                            on ? 'border-[#024fff] bg-[#024fff] text-white' : 'border-[#d6dde5] bg-white text-[#1d2a3a] hover:bg-[#f7fafc]'
+                          }`}
+                        >
+                          {p.nombre}
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <span className="text-[12px] text-[#8c96a3] italic">
+                    {formData.speakerId
+                      ? 'Este vocero no tiene pilares específicos asignados.'
+                      : 'Esta marca no tiene pilares de contenido configurados.'}
+                  </span>
+                )}
               </div>
             )}
 
