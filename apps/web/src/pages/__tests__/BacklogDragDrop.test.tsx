@@ -10,7 +10,7 @@ vi.mock('../../lib/api', () => ({
     getTickets: vi.fn(),
     getClients: vi.fn().mockResolvedValue({ data: [] }),
     updateTicket: vi.fn().mockResolvedValue({ data: {} }),
-    getTicket: vi.fn(),
+    getTicket: vi.fn().mockResolvedValue({ data: null }),
     getUsers: vi.fn().mockResolvedValue({ data: [] }),
     getPilares: vi.fn().mockResolvedValue({ data: [] }),
     getSpeakers: vi.fn().mockResolvedValue({ data: [] }),
@@ -100,5 +100,97 @@ describe('BacklogPage Drag and Drop', () => {
     await waitFor(() => {
       expect(api.updateTicket).toHaveBeenCalledWith('ticket-1', { status: 'REDACCION' });
     });
+
+    // Verificar que la cache de detalle ['ticket', 'ticket-1'] también se actualizó optimísticamente
+    const detailCache = queryClient.getQueryData<any>(['ticket', 'ticket-1']);
+    expect(detailCache?.data?.status).toBe('REDACCION');
+  });
+
+  it('actualiza el ticket seleccionado cuando se actualiza la lista en segundo plano', async () => {
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={['/backlog?ticketId=ticket-1']}>
+          <BacklogPage />
+        </MemoryRouter>
+      </QueryClientProvider>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('Post de Lanzamiento')).toBeInTheDocument();
+    });
+
+    // Simular actualización externa de allTickets a REDACCION
+    queryClient.setQueryData(['tickets'], {
+      data: [{ ...mockTicket, status: 'REDACCION' }],
+    });
+
+    await waitFor(() => {
+      const updatedTickets = queryClient.getQueryData<any>(['tickets']);
+      expect(updatedTickets.data[0].status).toBe('REDACCION');
+    });
+  });
+
+  it('permite reordenar tarjetas dentro de la misma columna asignando sortOrder', async () => {
+    const ticketA = { ...mockTicket, id: 'ticket-a', title: 'Tarjeta Primera', sortOrder: 1024 };
+    const ticketB = { ...mockTicket, id: 'ticket-b', title: 'Tarjeta Segunda', sortOrder: 2048 };
+
+    vi.mocked(api.getTickets).mockResolvedValue({
+      data: [ticketA, ticketB],
+    });
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter>
+          <BacklogPage />
+        </MemoryRouter>
+      </QueryClientProvider>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('Tarjeta Primera')).toBeInTheDocument();
+      expect(screen.getByText('Tarjeta Segunda')).toBeInTheDocument();
+    });
+
+    const cardB = screen.getByText('Tarjeta Segunda').closest('[draggable="true"]')!;
+    const dataStore: Record<string, string> = {};
+    const mockDataTransfer = {
+      setData: vi.fn((key: string, val: string) => { dataStore[key] = val; }),
+      getData: vi.fn((key: string) => dataStore[key] || ''),
+      effectAllowed: 'move',
+      dropEffect: 'move',
+    };
+
+    // 1. Drag start en tarjeta B
+    fireEvent.dragStart(cardB, { dataTransfer: mockDataTransfer });
+    expect(mockDataTransfer.setData).toHaveBeenCalledWith('text/plain', 'ticket-b');
+
+    // 2. Mockear getBoundingClientRect en HTMLElement y drag over en la mitad superior de tarjeta A (clientY: 120 < 100 + 50)
+    const getBoundingClientRectSpy = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      top: 100,
+      bottom: 200,
+      height: 100,
+      left: 0,
+      right: 200,
+      width: 200,
+      x: 0,
+      y: 100,
+      toJSON: () => {},
+    });
+
+    const cardA = screen.getByText('Tarjeta Primera').closest('[draggable="true"]')!;
+    fireEvent.dragOver(cardA, { dataTransfer: mockDataTransfer, clientY: 120 });
+
+    // 3. Drop en la columna Pendiente
+    const pendienteCol = screen.getByRole('heading', { name: 'Pendiente' }).closest('.flex-col')!;
+    fireEvent.drop(pendienteCol, { dataTransfer: mockDataTransfer });
+
+    // 4. Verificar que se llamó a updateTicket con sortOrder menor al de tarjeta A (1024 - 1024 = 0)
+    await waitFor(() => {
+      expect(api.updateTicket).toHaveBeenCalledWith('ticket-b', { sortOrder: 0 });
+    });
+
+    getBoundingClientRectSpy.mockRestore();
   });
 });
+
+

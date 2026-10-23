@@ -1422,6 +1422,99 @@ describe('CreateTicketModal', () => {
     await screen.findByRole('button', { name: 'Pilar Exclusivo Marca' });
     expect(screen.queryByRole('button', { name: 'Pilar Exclusivo Vocero' })).not.toBeInTheDocument();
   });
+
+  it('no dispara autoguardado espurio en onBlur del título cuando no hubo cambios', async () => {
+    const mockTicket = {
+      id: 'ticket-clean-blur',
+      title: 'Título Original',
+      status: 'PENDIENTE',
+      clientId: 'c1',
+      client: { id: 'c1', name: 'Cliente A' },
+      ownerId: 'user-a',
+      owner: { id: 'user-a', name: 'Ana Perez' },
+      assigneeIds: ['user-a'],
+      tiposContenido: ['Post'],
+      canales: ['LinkedIn'],
+      links: [],
+    };
+
+    (api.getTicket as any).mockResolvedValue({
+      data: mockTicket,
+    });
+    (api.updateTicket as any).mockClear();
+
+    render(
+      <CreateTicketModal
+        isOpen={true}
+        onClose={vi.fn()}
+        ticket={mockTicket as any}
+      />,
+      { wrapper: createWrapper() }
+    );
+
+    const titleInput = await screen.findByDisplayValue('Título Original');
+    fireEvent.blur(titleInput);
+
+    // No debe haber llamado a updateTicket
+    expect(api.updateTicket).not.toHaveBeenCalled();
+  });
+
+  it('avanza de estado y actualiza la cache inmediatamente al presionar Pasar a Redacción', async () => {
+    const mockTicket = {
+      id: 'ticket-advance',
+      title: 'Ticket a Avanzar',
+      status: 'PENDIENTE',
+      clientId: 'c1',
+      client: { id: 'c1', name: 'Cliente A' },
+      ownerId: 'user-a',
+      owner: { id: 'user-a', name: 'Ana Perez' },
+      assigneeIds: ['user-a'],
+      tiposContenido: ['Post'],
+      canales: ['LinkedIn'],
+      links: [],
+    };
+
+    (api.getTicket as any).mockResolvedValue({
+      data: mockTicket,
+    });
+    (api.updateTicket as any).mockResolvedValue({
+      data: { ...mockTicket, status: 'REDACCION' },
+    });
+
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    queryClient.setQueryData(['tickets'], { data: [mockTicket] });
+
+    render(
+      <CreateTicketModal
+        isOpen={true}
+        onClose={vi.fn()}
+        ticket={mockTicket as any}
+      />,
+      {
+        wrapper: ({ children }) => (
+          <QueryClientProvider client={queryClient}>
+            <MemoryRouter>{children}</MemoryRouter>
+          </QueryClientProvider>
+        ),
+      }
+    );
+
+    const advanceBtn = await screen.findByRole('button', { name: /pasar a redacción/i });
+    fireEvent.click(advanceBtn);
+
+    await waitFor(() => {
+      expect(api.updateTicket).toHaveBeenCalledWith(
+        'ticket-advance',
+        expect.objectContaining({ status: 'REDACCION' })
+      );
+    });
+
+    // Validar que la cache de tickets se actualizó con el nuevo estado
+    const ticketsCache = queryClient.getQueryData<any>(['tickets']);
+    expect(ticketsCache.data[0].status).toBe('REDACCION');
+  });
 });
 
 

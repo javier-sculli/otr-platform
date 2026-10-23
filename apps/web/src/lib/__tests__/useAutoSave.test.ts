@@ -115,4 +115,67 @@ describe('useAutoSave', () => {
     expect(onError).toHaveBeenCalled();
     consoleSpy.mockRestore();
   });
+
+  it('merges pending object patches when an immediate save follows a debounced save', async () => {
+    const onSave = vi.fn().mockResolvedValue({ ok: true });
+    const { result } = renderHook(() => useAutoSave<Record<string, unknown>>({ onSave, debounceMs: 500 }));
+
+    act(() => {
+      result.current.save({ title: 'Título editado' }, false);
+    });
+
+    expect(onSave).not.toHaveBeenCalled();
+
+    await act(async () => {
+      await result.current.save({ status: 'REDACCION' }, true);
+    });
+
+    expect(onSave).toHaveBeenCalledTimes(1);
+    expect(onSave).toHaveBeenCalledWith({
+      title: 'Título editado',
+      status: 'REDACCION',
+    });
+  });
+
+  it('queues concurrent immediate saves sequentially using in-flight mutex without dropping patches', async () => {
+    let resolveFirstSave: (val: any) => void;
+    const firstSavePromise = new Promise(resolve => {
+      resolveFirstSave = resolve;
+    });
+
+    const onSave = vi.fn()
+      .mockImplementationOnce(() => firstSavePromise)
+      .mockResolvedValueOnce({ ok: true });
+
+    const { result } = renderHook(() => useAutoSave<Record<string, unknown>>({ onSave, debounceMs: 500 }));
+
+    // Start first immediate save (e.g. blur on input)
+    let p1: any;
+    act(() => {
+      p1 = result.current.save({ brief: 'Brief modificado' }, true);
+    });
+
+    expect(onSave).toHaveBeenCalledTimes(1);
+    expect(onSave).toHaveBeenLastCalledWith({ brief: 'Brief modificado' });
+
+    // While first save is still in flight, trigger second immediate save (e.g. click "Pasar a Redacción")
+    let p2: any;
+    act(() => {
+      p2 = result.current.save({ status: 'REDACCION' }, true);
+    });
+
+    // Second save should NOT have fired yet because first save is in flight
+    expect(onSave).toHaveBeenCalledTimes(1);
+
+    // Now resolve first save
+    await act(async () => {
+      resolveFirstSave!({ ok: true });
+      await p1;
+      await p2;
+    });
+
+    // Second save should have executed sequentially with the status patch
+    expect(onSave).toHaveBeenCalledTimes(2);
+    expect(onSave).toHaveBeenLastCalledWith({ status: 'REDACCION' });
+  });
 });

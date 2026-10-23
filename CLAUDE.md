@@ -83,8 +83,14 @@ Sistema de gestión de producción de contenido para On The Rocks (OTR), una age
 ## Backlog Oficial (Notion) y Bitácora (`docs/BITACORA.md`) — REGLA OBLIGATORIA
 
 > ⚠️ **REGLA MANDATORIA DE GESTIÓN Y SEGUIMIENTO:**
-> 1. **Backlog Oficial (Única Fuente de Verdad):** Todas las tareas, prioridades, pendientes y estados viven **exclusivamente en Notion**: [Notion Backlog Oficial](https://app.notion.com/p/Backlog-3ba617fc369281048bfdfc89c5041d9c?source=copy_link). **NUNCA** mantener tareas sueltas o checklists de pendientes (`[ ]`) en archivos Markdown.
-> 2. **Bitácora del Proyecto (`docs/BITACORA.md`):** Funciona estrictamente como **registro histórico de avances completados (changelog)**, decisiones de producto/arquitectura y registro de tests automatizados de cada release. Con cada avance completado, asentar una entrada formal en [`docs/BITACORA.md`](file:///Users/javiersculli/dev/OTR/docs/BITACORA.md) y pasar la tarea a `Done` en Notion.
+> 1. **Backlog Oficial (Única Fuente de Verdad):** Todas las tareas, prioridades, pendientes y estados viven **exclusivamente en Notion**: [Notion Backlog Oficial](https://app.notion.com/p/Backlog-3ba617fc369281048bfdfc89c5041d9c?source=copy_link) (Base de datos `Backlog OTR`: `e89b144d-1f3d-4dad-af15-06b756f7987d`). **NUNCA** mantener tareas sueltas o checklists de pendientes (`[ ]`) en archivos Markdown.
+> 2. **Sincronización automática por tarea (Entrada y Salida):**
+>    - **Al recibir una tarea:** Cada vez que el usuario pida una tarea (feature, ajuste, fix, pedido), verificar si existe en el Backlog de Notion. **Si no está en el backlog, sumarla inmediatamente** antes o durante su ejecución para que quede registrada.
+>    - **Al terminar una tarea:** Apenas se complete la tarea:
+>      1. Pasarla a estado **`Done`** en el Backlog de Notion.
+>      2. Completar la columna **`Fecha de terminado`** con la fecha del día (`YYYY-MM-DD`).
+>      3. **Ubicarla siempre arriba de todo en la lista de `Done`** (manteniendo el orden descendente por `Fecha de terminado` en los slots superiores de `Done`, dado que la API de Notion agrega filas nuevas al final del orden manual de la tabla).
+> 3. **Bitácora del Proyecto (`docs/BITACORA.md`):** Funciona estrictamente como **registro histórico de avances completados (changelog)**, decisiones de producto/arquitectura y registro de tests automatizados de cada release. Con cada avance completado, asentar una entrada formal en [`docs/BITACORA.md`](file:///Users/javiersculli/dev/OTR/docs/BITACORA.md) y pasar la tarea a `Done` arriba de todo en Notion con su `Fecha de terminado`.
 
 ## Regla de Calidad y Solidez: Test Obligatorio por Bugfix y Notificación
 

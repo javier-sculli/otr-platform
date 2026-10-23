@@ -357,5 +357,43 @@ describe('TicketDetallePage (Smoke / Montaje)', () => {
       );
     });
   });
+
+  it('mantiene barras de formato y comentario sticky en Brief, Copy y Notas de diseño al hacer scroll y calcula --header-sticky-offset tras cargar el ticket', async () => {
+    (api.getTicket as any).mockResolvedValue({
+      data: mockFullTicket,
+    });
+
+    renderTicketDetalle('ticket-999');
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('Ticket Completo Mock')).toBeInTheDocument();
+    });
+
+    // Abrir el brief para verificar las 3 barras sticky simultáneamente
+    fireEvent.click(screen.getByText('Ver brief'));
+
+    await waitFor(() => {
+      expect(document.querySelector('[data-sticky-toolbar="brief"]')).toBeInTheDocument();
+    });
+
+    const briefToolbar = document.querySelector('[data-sticky-toolbar="brief"]') as HTMLElement;
+    const copyToolbar = document.querySelector('[data-sticky-toolbar="copy"]') as HTMLElement;
+    const notasToolbar = document.querySelector('[data-sticky-toolbar="notas"]') as HTMLElement;
+
+    expect(briefToolbar).toBeInTheDocument();
+    expect(copyToolbar).toBeInTheDocument();
+    expect(notasToolbar).toBeInTheDocument();
+
+    // Todas deben ser sticky con top basado en var(--header-sticky-offset)
+    expect(briefToolbar).toHaveClass('sticky', 'editor-sticky-toolbar');
+    expect(copyToolbar).toHaveClass('sticky', 'editor-sticky-toolbar');
+    expect(notasToolbar).toHaveClass('sticky', 'editor-sticky-toolbar');
+
+    // Todas deben incluir los controles de formato y el botón Comentar
+    expect(within(briefToolbar).getByTitle('Seleccioná texto y dejá un comentario')).toBeInTheDocument();
+    expect(within(copyToolbar).getByTitle('Seleccioná texto y dejá un comentario')).toBeInTheDocument();
+    expect(within(notasToolbar).getByTitle('Seleccioná texto y dejá un comentario')).toBeInTheDocument();
+  });
 });
+
 

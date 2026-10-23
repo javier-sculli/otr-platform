@@ -179,6 +179,7 @@ function buildFormData(ticket?: TicketData | null, defaultClientId?: string) {
     speakerId: ticket.speakerId || ticket.speaker?.id || '',
     prioridad: ticket.prioridad || 'MEDIA',
     status: ticket.status || 'PENDIENTE',
+    subEstado: (ticket as any).subEstado || 'PENDIENTE',
     dueDate: formatDateISO(ticket.dueDate),
     fechaPub: formatDateISO((ticket as any).plannedDate),
     links: ticket.links ?? [],
@@ -391,6 +392,7 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
         loadedDetailTicketIdRef.current = null;
         dirtyFieldsRef.current.clear();
         const newFormData = buildFormData(ticket, defaultClientId);
+        formDataRef.current = newFormData;
         setFormData(newFormData);
         setTipoTicket(initTipo(ticket));
         const initialCanales = newFormData.canales.length > 0 ? newFormData.canales : ['LinkedIn'];
@@ -422,19 +424,29 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
   // Synchronize from GET /tickets/:id
   useEffect(() => {
     if (ticketDetailQuery?.data && isEditing && ticket?.id) {
+      if (isFetchingTicket) return;
       if (loadedDetailTicketIdRef.current === ticket.id) return;
       loadedDetailTicketIdRef.current = ticket.id;
 
       const full = ((ticketDetailQuery as any)?.data ?? ticketDetailQuery) as any;
       const fullFormData = buildFormData(full, defaultClientId);
+      if (ticket.status && !dirtyFieldsRef.current.has('status')) {
+        fullFormData.status = ticket.status;
+      }
+      if ((ticket as any).subEstado && !dirtyFieldsRef.current.has('subEstado')) {
+        fullFormData.subEstado = (ticket as any).subEstado;
+      }
 
       setFormData(prev => {
         const dirty = dirtyFieldsRef.current;
-        if (dirty.size === 0) return fullFormData;
-        const merged = { ...fullFormData };
-        dirty.forEach(field => {
-          (merged as any)[field] = (prev as any)[field];
-        });
+        const merged = dirty.size === 0 ? fullFormData : (() => {
+          const next = { ...fullFormData };
+          dirty.forEach(field => {
+            (next as any)[field] = (prev as any)[field];
+          });
+          return next;
+        })();
+        formDataRef.current = merged;
         return merged;
       });
 
@@ -455,12 +467,23 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
         performAutoSave(toSave);
       }
     }
-  }, [ticketDetailQuery?.data, isEditing, ticket?.id, defaultClientId]);
+  }, [ticketDetailQuery?.data, isFetchingTicket, isEditing, ticket?.id, defaultClientId]);
+
+  // Flush any queued save once ticket loading finishes
+  useEffect(() => {
+    if (!isTicketLoading && !isSavingRef.current && pendingSaveDataRef.current) {
+      const toSave = pendingSaveDataRef.current;
+      pendingSaveDataRef.current = null;
+      performAutoSave(toSave);
+    }
+  }, [isTicketLoading]);
 
   // Synchronize comment marks into formData when comments or ticket details load
   useEffect(() => {
     if (!isOpen) return;
+    if (ticket?.id && !commentsData) return;
 
+    const draftId = pop?.isDraft ? pop.id : null;
     const quotesWithIds: { quote: string; id: string }[] = [];
     (comments || []).forEach((cm: any) => {
       const rawContent = cm.content || cm.text || '';
@@ -473,15 +496,15 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
 
     setFormData(prev => {
       let changed = false;
-      const nextBrief = highlightQuotesInHtml(prev.brief || '', quotesWithIds);
+      const nextBrief = highlightQuotesInHtml(prev.brief || '', quotesWithIds, draftId);
       if (nextBrief !== prev.brief) changed = true;
 
-      const nextNotas = highlightQuotesInHtml(prev.notasAudiovisual || '', quotesWithIds);
+      const nextNotas = highlightQuotesInHtml(prev.notasAudiovisual || '', quotesWithIds, draftId);
       if (nextNotas !== prev.notasAudiovisual) changed = true;
 
       const nextPerCanal: Record<string, string> = { ...prev.contentPerCanal };
       Object.keys(nextPerCanal).forEach(canal => {
-        const highlighted = highlightQuotesInHtml(nextPerCanal[canal] || '', quotesWithIds);
+        const highlighted = highlightQuotesInHtml(nextPerCanal[canal] || '', quotesWithIds, draftId);
         if (highlighted !== nextPerCanal[canal]) {
           nextPerCanal[canal] = highlighted;
           changed = true;
@@ -495,12 +518,13 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
         notasAudiovisual: nextNotas,
         contentPerCanal: nextPerCanal,
       };
+      formDataRef.current = updated;
       if (ticket?.id) {
         triggerImmediateAutoSave(updated);
       }
       return updated;
     });
-  }, [comments, isOpen]);
+  }, [commentsData, ticketDetailQuery?.data, isOpen, ticket?.id]);
 
   // Click outside menus
   useEffect(() => {
@@ -528,15 +552,22 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
 
   // Auto-save logic
   const performAutoSave = async (overrideData?: Partial<typeof formData>) => {
-    if (!isEditing || !ticket?.id) return;
+    const targetTicketId = (overrideData as any)?.__ticketId || ticket?.id;
+    if (!targetTicketId) return;
+    if (!isEditing && !(overrideData as any)?.__ticketId) return;
     if (isTicketLoading || isSavingRef.current) {
-      pendingSaveDataRef.current = { ...(pendingSaveDataRef.current || {}), ...(overrideData || {}) };
+      pendingSaveDataRef.current = {
+        ...formDataRef.current,
+        ...(pendingSaveDataRef.current || {}),
+        ...(overrideData || {}),
+        __ticketId: targetTicketId,
+      } as any;
       return;
     }
 
     const current = { ...formDataRef.current, ...overrideData };
-    const primaryOwner = current.ownerId || current.assigneeIds?.[0];
-    if (!current.title || !current.clientId || !primaryOwner) return;
+    const primaryOwner = current.ownerId || current.assigneeIds?.[0] || null;
+    if (!current.title || !current.clientId) return;
 
     const resolvedType = esTarea
       ? (current.ticketTypeId ? ticketTypes.find(t => t.id === current.ticketTypeId) : null) || findTicketType(current.tiposContenido[0], 'TAREA') || defaultTareaType
@@ -572,7 +603,7 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
 
     if (esPrensa) {
       payload.area = 'PRENSA';
-      payload.subEstado = (ticket as any)?.subEstado ?? 'PENDIENTE';
+      payload.subEstado = current.subEstado || (ticket as any)?.subEstado || 'PENDIENTE';
       payload.medio = current.medio || null;
       payload.periodista = current.periodista || null;
       payload.estadoRespuesta = current.estadoRespuesta || null;
@@ -581,10 +612,13 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
     isSavingRef.current = true;
     setSaveStatus('saving');
     try {
-      const res = await api.updateTicket(ticket.id, payload);
+      const res = await api.updateTicket(targetTicketId, payload);
       if (res?.data) {
+        const pendingPatch = pendingSaveDataRef.current as any;
         const enrichedTicket = {
           ...res.data,
+          ...(pendingPatch?.status ? { status: pendingPatch.status } : {}),
+          ...(pendingPatch?.subEstado ? { subEstado: pendingPatch.subEstado } : {}),
           pilar: res.data.pilar !== undefined
             ? res.data.pilar
             : (res.data.pilarId ? pilares.find((p: any) => p.id === res.data.pilarId) || null : null),
@@ -599,15 +633,25 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
             data: old.data.map((t: any) => (t.id === res.data.id ? { ...t, ...enrichedTicket } : t)),
           };
         });
-        queryClient.setQueryData(['ticket', ticket.id], (old: any) => {
+        queryClient.setQueryData(['tickets', 'PRENSA'], (old: any) => {
+          if (!old?.data) return old;
+          return {
+            ...old,
+            data: old.data.map((t: any) => (t.id === res.data.id ? { ...t, ...enrichedTicket } : t)),
+          };
+        });
+        queryClient.setQueryData(['ticket', targetTicketId], (old: any) => {
           if (!old?.data) return old;
           return { ...old, data: { ...old.data, ...enrichedTicket } };
         });
-        queryClient.invalidateQueries({ queryKey: ['tickets'] });
-        queryClient.invalidateQueries({ queryKey: ['ticket', ticket.id] });
+        if (!pendingSaveDataRef.current) {
+          queryClient.invalidateQueries({ queryKey: ['tickets'] });
+        }
       }
       setSaveStatus('saved');
-      dirtyFieldsRef.current.clear();
+      if (!pendingSaveDataRef.current) {
+        dirtyFieldsRef.current.clear();
+      }
     } catch {
       setSaveStatus('error');
     } finally {
@@ -625,13 +669,21 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
     if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
     setSaveStatus('saving');
     saveTimeoutRef.current = setTimeout(() => {
+      saveTimeoutRef.current = null;
       performAutoSave(overrideData);
     }, 800);
   };
 
   const triggerImmediateAutoSave = (overrideData?: Partial<typeof formData>) => {
     if (!isEditing || !ticket?.id) return;
-    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    const hadPendingTimer = Boolean(saveTimeoutRef.current);
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+      saveTimeoutRef.current = null;
+    }
+    if (!overrideData && dirtyFieldsRef.current.size === 0 && !pendingSaveDataRef.current && !hadPendingTimer) {
+      return;
+    }
     performAutoSave(overrideData);
   };
 
@@ -734,14 +786,19 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
   });
 
   const handleClose = () => {
-    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
-    if (isEditing && dirtyFieldsRef.current.size > 0) {
-      performAutoSave();
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+      saveTimeoutRef.current = null;
+    }
+    if (isEditing && ticket?.id && dirtyFieldsRef.current.size > 0) {
+      performAutoSave({ ...formDataRef.current, __ticketId: ticket.id } as any);
     }
     setSaveStatus(null);
-    setFormData(buildFormData(null));
+    if (!isEditing) {
+      setFormData(buildFormData(null));
+      setAttachedFiles([]);
+    }
     setError(null);
-    if (!isEditing) setAttachedFiles([]);
     onClose();
   };
 
@@ -900,6 +957,25 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
 
   const handleSelectStatusModal = async (targetStatus: string) => {
     if (!ticket?.id) return;
+    const optimisticField = esPrensa ? { subEstado: targetStatus } : { status: targetStatus };
+    queryClient.setQueryData(['tickets'], (old: any) => {
+      if (!old?.data) return old;
+      return {
+        ...old,
+        data: old.data.map((t: any) => (t.id === ticket.id ? { ...t, ...optimisticField } : t)),
+      };
+    });
+    queryClient.setQueryData(['tickets', 'PRENSA'], (old: any) => {
+      if (!old?.data) return old;
+      return {
+        ...old,
+        data: old.data.map((t: any) => (t.id === ticket.id ? { ...t, ...optimisticField } : t)),
+      };
+    });
+    queryClient.setQueryData(['ticket', ticket.id], (old: any) => {
+      if (!old?.data) return old;
+      return { ...old, data: { ...old.data, ...optimisticField } };
+    });
     if (esPrensa) {
       handleChange('subEstado', targetStatus, true);
     } else {
@@ -910,7 +986,7 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
   const nextStatusInfo = getNextStatusInfo(
     formData.status,
     esPrensa,
-    (ticket as any)?.subEstado ?? formData.estadoRespuesta,
+    formData.subEstado || (ticket as any)?.subEstado || formData.estadoRespuesta,
     formData.tiposContenido,
     (ticket as any)?.ticketType,
     formData.title
@@ -1242,9 +1318,12 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
                   </div>
                 )}
 
-                <div className="border border-[#d6dde5] rounded-[10px] bg-white relative">
+                <div className="border border-[#d6dde5] rounded-[10px] bg-white relative editor-sticky-section">
                   {/* Sticky Toolbar */}
-                  <div className="sticky top-0 z-20 border-b border-[#d6dde5] bg-[#f7fafc] rounded-t-[9px]">
+                  <div
+                    data-sticky-toolbar="brief"
+                    className="sticky top-0 z-20 border-b border-[#d6dde5] bg-[#f7fafc]/95 backdrop-blur-xs rounded-t-[9px] shadow-[0_2px_8px_rgba(0,14,31,0.06)] editor-sticky-toolbar"
+                  >
                     <TextFormatToolbar
                       editorRef={briefRef}
                       value={formData.brief || ''}
@@ -1264,7 +1343,6 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
                     onMarkHover={handleMarkHover}
                     placeholder={isPieza ? 'Qué querés comunicar y por qué' : 'Descripción — detalle del pedido'}
                     minHeight="110px"
-                    maxHeight="320px"
                     className="p-3 sm:p-3.5"
                   />
 
@@ -1446,8 +1524,11 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
                           </span>
                         </div>
                       )}
-                      <div className="border border-[#d6dde5] rounded-[10px] bg-white relative">
-                        <div className="sticky top-0 z-20 border-b border-[#d6dde5] bg-[#f7fafc] rounded-t-[9px]">
+                      <div className="border border-[#d6dde5] rounded-[10px] bg-white relative editor-sticky-section">
+                        <div
+                          data-sticky-toolbar="notas"
+                          className="sticky top-0 z-20 border-b border-[#d6dde5] bg-[#f7fafc]/95 backdrop-blur-xs rounded-t-[9px] shadow-[0_2px_8px_rgba(0,14,31,0.06)] editor-sticky-toolbar"
+                        >
                           <TextFormatToolbar
                             editorRef={notasRef}
                             value={formData.notasAudiovisual || ''}
@@ -1538,9 +1619,12 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
                               <label className="text-[11px] font-bold tracking-[0.06em] uppercase text-[#5b6675]">Copy</label>
                             </div>
                           )}
-                          <div className="border border-[#d6dde5] rounded-[10px] bg-white relative">
+                          <div className="border border-[#d6dde5] rounded-[10px] bg-white relative editor-sticky-section">
                             {/* Sticky Tabs + Toolbar */}
-                            <div className="sticky top-0 z-20 border-b border-[#d6dde5] bg-[#f7fafc] rounded-t-[9px]">
+                            <div
+                              data-sticky-toolbar="copy"
+                              className="sticky top-0 z-20 border-b border-[#d6dde5] bg-[#f7fafc]/95 backdrop-blur-xs rounded-t-[9px] shadow-[0_2px_8px_rgba(0,14,31,0.06)] editor-sticky-toolbar"
+                            >
                               {/* Network tabs row */}
                               <div className="flex items-center justify-between gap-2 p-1.5 px-2 border-b border-[#d6dde5] flex-wrap">
                                 <div className="flex items-center gap-1 p-0.5 bg-[#eef3f7] rounded-lg">
@@ -2036,7 +2120,7 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
             variant="modal"
             currentStatus={
               esPrensa
-                ? ((ticket as any)?.subEstado ?? formData.estadoRespuesta)
+                ? (formData.subEstado || (ticket as any)?.subEstado || formData.estadoRespuesta)
                 : formData.status
             }
             nextStatusLabel={nextStatusInfo.label}

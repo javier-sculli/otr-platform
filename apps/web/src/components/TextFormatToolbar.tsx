@@ -175,6 +175,7 @@ export function TextFormatToolbar({
   sticky = false,
   stickyOffset,
 }: TextFormatToolbarProps) {
+  const toolbarRef = useRef<HTMLDivElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const [bubbleState, setBubbleState] = useState<{
     top: number;
@@ -205,7 +206,7 @@ export function TextFormatToolbar({
     const anchorNode = sel.anchorNode;
     const focusNode = sel.focusNode;
 
-    if (!anchorNode || !focusNode || !editor.contains(anchorNode) || !editor.contains(focusNode)) {
+    if (!anchorNode || !focusNode || (!editor.contains(anchorNode) && !editor.contains(focusNode))) {
       setBubbleState(null);
       return;
     }
@@ -229,12 +230,18 @@ export function TextFormatToolbar({
         return;
       }
 
-      const bubbleWidth = onComment ? 280 : 200;
+      const bubbleWidth = onComment ? 340 : 250;
       const bubbleHeight = 36;
 
+      const toolbarRect = toolbarRef.current?.getBoundingClientRect();
+      const toolbarBottom = toolbarRect && toolbarRect.bottom > 0 && toolbarRect.bottom < window.innerHeight - 80
+        ? toolbarRect.bottom
+        : 0;
+      const minVisibleTop = Math.max(60, toolbarBottom + 8);
+
       let top = rect.top - bubbleHeight - 8;
-      if (top < 60) {
-        top = rect.bottom + 8;
+      if (top < minVisibleTop) {
+        top = Math.min(window.innerHeight - bubbleHeight - 10, rect.bottom + 8);
       }
 
       let left = rect.left + rect.width / 2 - bubbleWidth / 2;
@@ -285,6 +292,7 @@ export function TextFormatToolbar({
   return (
     <>
       <div
+        ref={toolbarRef}
         style={stickyStyles}
         className={`flex items-center gap-1 p-1 px-1.5 border-b border-[#d6dde5] bg-[#f7fafc] flex-wrap ${sticky ? 'sticky z-20' : ''} ${className}`}
       >
@@ -477,6 +485,30 @@ export function TextFormatToolbar({
             type="button"
             onMouseDown={e => {
               e.preventDefault();
+              handleFormat('bullet');
+              setTimeout(updateBubble, 10);
+            }}
+            className="min-w-[26px] h-6 px-1.5 border-0 bg-transparent rounded cursor-pointer text-[12px] font-medium text-white hover:bg-white/20 transition-colors"
+            title="Lista con viñetas"
+          >
+            •
+          </button>
+          <button
+            type="button"
+            onMouseDown={e => {
+              e.preventDefault();
+              handleFormat('number');
+              setTimeout(updateBubble, 10);
+            }}
+            className="min-w-[26px] h-6 px-1.5 border-0 bg-transparent rounded cursor-pointer text-[12px] font-medium text-white hover:bg-white/20 transition-colors"
+            title="Lista numerada"
+          >
+            1.
+          </button>
+          <button
+            type="button"
+            onMouseDown={e => {
+              e.preventDefault();
               handleFormat('link');
               setTimeout(updateBubble, 10);
             }}
@@ -484,6 +516,17 @@ export function TextFormatToolbar({
             title="Enlace"
           >
             Link
+          </button>
+          <button
+            type="button"
+            onMouseDown={e => {
+              e.preventDefault();
+              imageInputRef.current?.click();
+            }}
+            className="min-w-[26px] h-6 px-1.5 border-0 bg-transparent rounded cursor-pointer text-[12px] font-medium text-white hover:bg-white/20 transition-colors flex items-center justify-center"
+            title="Insertar imagen"
+          >
+            <ImageIcon className="w-3.5 h-3.5" />
           </button>
 
           {onComment && (

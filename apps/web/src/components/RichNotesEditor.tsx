@@ -35,9 +35,12 @@ export function RichNotesEditor({
   const editorRef = useRef<HTMLDivElement>(null);
 
   return (
-    <div className={`border border-[#d6dde5] rounded-[10px] bg-white relative shadow-xs ${className}`}>
+    <div className={`editor-sticky-section border border-[#d6dde5] rounded-[10px] bg-white relative shadow-xs ${className}`}>
       {/* Toolbar */}
-      <div className="sticky top-0 z-20 border-b border-[#d6dde5] bg-[#f7fafc] rounded-t-[9px]">
+      <div
+        data-sticky-toolbar="notes"
+        className="editor-sticky-toolbar sticky top-0 z-20 border-b border-[#d6dde5] bg-[#f7fafc]/95 backdrop-blur-xs rounded-t-[9px] shadow-[0_2px_8px_rgba(0,0,51,0.04)]"
+      >
         <TextFormatToolbar
           editorRef={editorRef}
           value={value}

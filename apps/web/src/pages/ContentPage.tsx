@@ -1378,8 +1378,7 @@ export function ContentPage() {
                 onBlur={() => { if (hasChanges) saveMutation.mutate(); }}
                 onPaste={handleEditorPaste}
                 placeholder="Empieza a escribir o pedile a la IA que genere contenido..."
-                minHeight="100%"
-                maxHeight="100%"
+                minHeight="360px"
               />
             </div>
 

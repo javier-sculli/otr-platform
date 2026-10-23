@@ -22,6 +22,17 @@ export interface UseAutoSaveReturn<T> {
  * Standard auto-save hook with predictable debouncing, immediate flushing (blur/paste),
  * and safe cleanup on beforeunload / unmount.
  */
+function isPlainObject(val: unknown): val is Record<string, unknown> {
+  return typeof val === 'object' && val !== null && !Array.isArray(val);
+}
+
+function mergePending<T>(prev: T | null, next: T): T {
+  if (isPlainObject(prev) && isPlainObject(next)) {
+    return { ...prev, ...next } as T;
+  }
+  return next;
+}
+
 export function useAutoSave<T>({
   onSave,
   debounceMs = 750,
@@ -32,6 +43,8 @@ export function useAutoSave<T>({
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingDataRef = useRef<T | null>(null);
   const hasPendingRef = useRef(false);
+  const isSavingRef = useRef(false);
+  const immediateQueuedRef = useRef(false);
 
   const onSaveRef = useRef(onSave);
   const onSuccessRef = useRef(onSuccess);
@@ -43,18 +56,29 @@ export function useAutoSave<T>({
     onErrorRef.current = onError;
   });
 
-  const performSave = useCallback(async (data: T) => {
+  const performSave = useCallback(async (data: T): Promise<unknown> => {
+    if (isSavingRef.current) {
+      pendingDataRef.current = mergePending(pendingDataRef.current, data);
+      hasPendingRef.current = true;
+      immediateQueuedRef.current = true;
+      return;
+    }
+
     if (timerRef.current) {
       clearTimeout(timerRef.current);
       timerRef.current = null;
     }
     hasPendingRef.current = false;
     pendingDataRef.current = null;
+    immediateQueuedRef.current = false;
+    isSavingRef.current = true;
     setStatus('saving');
 
     try {
       const res = await onSaveRef.current(data);
-      setStatus('saved');
+      if (!hasPendingRef.current) {
+        setStatus('saved');
+      }
       onSuccessRef.current?.(res);
       return res;
     } catch (err) {
@@ -62,12 +86,19 @@ export function useAutoSave<T>({
       setStatus('error');
       onErrorRef.current?.(err);
       throw err;
+    } finally {
+      isSavingRef.current = false;
+      if (hasPendingRef.current && pendingDataRef.current !== null && (immediateQueuedRef.current || !timerRef.current)) {
+        const nextToSave = pendingDataRef.current;
+        await performSave(nextToSave);
+      }
     }
   }, []);
 
   const save = useCallback(
     (data: T, immediate = false) => {
-      pendingDataRef.current = data;
+      const merged = mergePending(hasPendingRef.current ? pendingDataRef.current : null, data);
+      pendingDataRef.current = merged;
       hasPendingRef.current = true;
 
       if (timerRef.current) {
@@ -76,10 +107,15 @@ export function useAutoSave<T>({
       }
 
       if (immediate) {
-        return performSave(data);
+        if (isSavingRef.current) {
+          immediateQueuedRef.current = true;
+          return;
+        }
+        return performSave(merged);
       } else {
-        setStatus('unsaved');
+        setStatus(isSavingRef.current ? 'saving' : 'unsaved');
         timerRef.current = setTimeout(() => {
+          timerRef.current = null;
           if (hasPendingRef.current && pendingDataRef.current !== null) {
             performSave(pendingDataRef.current);
           }
@@ -103,6 +139,7 @@ export function useAutoSave<T>({
     }
     hasPendingRef.current = false;
     pendingDataRef.current = null;
+    immediateQueuedRef.current = false;
     setStatus('saved');
   }, []);
 

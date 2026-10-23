@@ -295,7 +295,8 @@ export function shouldOmitTemperature(model: string | null | undefined): boolean
  */
 export function highlightQuotesInHtml(
   html: string,
-  quotesWithIds: { quote: string; id: string }[]
+  quotesWithIds: { quote: string; id: string }[],
+  preserveDraftId?: string | null
 ): string {
   if (!html || typeof document === 'undefined') return html;
 
@@ -307,6 +308,13 @@ export function highlightQuotesInHtml(
   const container = document.createElement('div');
   container.innerHTML = html;
 
+  // Unwrap empty marks if any
+  container.querySelectorAll('mark[data-c]').forEach(m => {
+    if (!(m.textContent || '').trim()) {
+      m.replaceWith(...Array.from(m.childNodes));
+    }
+  });
+
   // 1. Process existing <mark data-c="..."> elements:
   // Match with valid quotes, update data-c if needed, or unwrap orphan marks.
   const existingMarks = Array.from(container.querySelectorAll('mark[data-c]')) as HTMLElement[];
@@ -316,13 +324,17 @@ export function highlightQuotesInHtml(
     const markId = m.dataset.c || '';
     const markText = (m.textContent || '').trim();
 
+    if (preserveDraftId && markId === preserveDraftId) {
+      continue;
+    }
+
     // Find if this mark matches any valid comment quote
     const matched = validQuotes.find(q => {
-      if (matchedQuoteIds.has(q.id)) return false;
       // Direct ID match (e.g. data-c="c_123" or data-c="123")
       if (markId === q.id || markId === q.id.replace(/^c_/, '') || `c_${markId}` === q.id) {
         return true;
       }
+      if (matchedQuoteIds.has(q.id)) return false;
       // Text match (exact or containing, e.g. from timestamp draft mark)
       if (markText && q.quote && (markText === q.quote || markText.includes(q.quote) || q.quote.includes(markText))) {
         return true;
@@ -561,5 +573,68 @@ export function getCollapsedRichTextSnippet(
   return { html: lineHtml, isEmpty: false };
 }
 
+/**
+ * Sorts an array of tickets by sortOrder ASC, preserving relative order when sortOrder is equal.
+ */
+export function sortTicketsByOrder<T extends { sortOrder?: number | null }>(tickets: T[]): T[] {
+  return [...tickets].sort((a, b) => {
+    const orderA = typeof a.sortOrder === 'number' ? a.sortOrder : 0;
+    const orderB = typeof b.sortOrder === 'number' ? b.sortOrder : 0;
+    return orderA - orderB;
+  });
+}
 
+/**
+ * Calculates the new floating-point sortOrder when dropping `draggedId` into `columnTickets`.
+ * Returns `null` if the card stays in the exact same position within the same column,
+ * or `undefined` if the target column is empty (no sortOrder change needed).
+ */
+export function calculateDropSortOrder<T extends { id: string; sortOrder?: number | null }>(
+  columnTickets: T[],
+  draggedId: string,
+  targetTicketId?: string | null,
+  position?: 'before' | 'after' | null
+): number | null | undefined {
+  const oldIdx = columnTickets.findIndex(t => t.id === draggedId);
+  const isSameColumn = oldIdx !== -1;
 
+  const others = columnTickets.filter(t => t.id !== draggedId);
+  if (others.length === 0) {
+    return isSameColumn ? null : undefined;
+  }
+
+  let insertIndex = others.length;
+  if (targetTicketId) {
+    const targetIdx = others.findIndex(t => t.id === targetTicketId);
+    if (targetIdx !== -1) {
+      insertIndex = position === 'before' ? targetIdx : targetIdx + 1;
+    }
+  }
+
+  if (isSameColumn && insertIndex === oldIdx) {
+    return null;
+  }
+
+  const effectiveOrders: number[] = [];
+  for (let i = 0; i < others.length; i++) {
+    const raw = others[i]?.sortOrder;
+    if (typeof raw === 'number' && Number.isFinite(raw)) {
+      if (i === 0 || raw > effectiveOrders[i - 1]) {
+        effectiveOrders.push(raw);
+      } else {
+        effectiveOrders.push(effectiveOrders[i - 1] + 1024);
+      }
+    } else {
+      effectiveOrders.push(i === 0 ? 1024 : effectiveOrders[i - 1] + 1024);
+    }
+  }
+
+  if (insertIndex <= 0) {
+    return effectiveOrders[0] - 1024;
+  }
+  if (insertIndex >= others.length) {
+    return effectiveOrders[others.length - 1] + 1024;
+  }
+
+  return (effectiveOrders[insertIndex - 1] + effectiveOrders[insertIndex]) / 2;
+}

@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import { api } from '../lib/api';
 import { CreateTicketModal } from '../components/CreateTicketModal';
-import { parseLocalDate, formatDateSpan } from '../lib/utils';
+import { parseLocalDate, formatDateSpan, sortTicketsByOrder } from '../lib/utils';
 import {
   MACROS, PRENSA_SUBESTADOS, SUB_DEF, subsDeMacro,
   ESTADO_RESPUESTA_LABEL, TIPO_GESTION_PITCH, MACRO_DEFAULT_SUB,
@@ -20,6 +20,7 @@ interface Ticket {
   objetivo?: string | null;
   status: string;
   prioridad: string;
+  sortOrder?: number | null;
   area?: string;
   macroEstado?: string | null;
   subEstado?: SubEstado | null;
@@ -209,7 +210,7 @@ export function PrensaBacklogPage() {
     const found = allTickets.find(t => t.id === queryTicketId);
     if (found) {
       setSelectedTicket(found);
-    } else {
+    } else if (!selectedTicket || selectedTicket.id !== queryTicketId) {
       api.getTicket(queryTicketId)
         .then(res => {
           if (res?.data) setSelectedTicket(res.data);
@@ -244,19 +245,70 @@ export function PrensaBacklogPage() {
       api.updateTicket(id, { subEstado }),
     onMutate: async ({ id, subEstado }) => {
       await queryClient.cancelQueries({ queryKey: ['tickets', 'PRENSA'] });
-      const prev = queryClient.getQueryData(['tickets', 'PRENSA']);
+      await queryClient.cancelQueries({ queryKey: ['tickets'] });
+      await queryClient.cancelQueries({ queryKey: ['ticket', id] });
+
+      const prevPrensa = queryClient.getQueryData(['tickets', 'PRENSA']);
+      const prevTickets = queryClient.getQueryData(['tickets']);
+      const prevTicket = queryClient.getQueryData(['ticket', id]);
+
       const macro = SUB_DEF[subEstado]?.macro;
       queryClient.setQueryData(['tickets', 'PRENSA'], (old: any) => ({
         ...old,
         data: old?.data?.map((t: Ticket) =>
           t.id === id ? { ...t, subEstado, macroEstado: macro } : t) ?? [],
       }));
-      return { prev };
+      queryClient.setQueryData(['tickets'], (old: any) => {
+        if (!old) return old;
+        if (Array.isArray(old)) {
+          return old.map((t: Ticket) => (t.id === id ? { ...t, subEstado, macroEstado: macro } : t));
+        }
+        return {
+          ...old,
+          data: old.data?.map((t: Ticket) => (t.id === id ? { ...t, subEstado, macroEstado: macro } : t)) ?? [],
+        };
+      });
+      queryClient.setQueryData(['ticket', id], (old: any) => {
+        if (!old?.data) return old;
+        return { ...old, data: { ...old.data, subEstado, macroEstado: macro } };
+      });
+
+      return { prevPrensa, prevTickets, prevTicket };
     },
-    onError: (_e, _v, ctx) => {
-      if (ctx?.prev) queryClient.setQueryData(['tickets', 'PRENSA'], ctx.prev);
+    onSuccess: (res, vars) => {
+      if (res?.data) {
+        queryClient.setQueryData(['tickets', 'PRENSA'], (old: any) => ({
+          ...old,
+          data: old?.data?.map((t: Ticket) => (t.id === vars.id ? { ...t, ...res.data } : t)) ?? [],
+        }));
+        queryClient.setQueryData(['tickets'], (old: any) => {
+          if (!old) return old;
+          if (Array.isArray(old)) {
+            return old.map((t: Ticket) => (t.id === vars.id ? { ...t, ...res.data } : t));
+          }
+          return {
+            ...old,
+            data: old.data?.map((t: Ticket) => (t.id === vars.id ? { ...t, ...res.data } : t)) ?? [],
+          };
+        });
+        queryClient.setQueryData(['ticket', vars.id], (old: any) => {
+          if (!old?.data) return old;
+          return { ...old, data: { ...old.data, ...res.data } };
+        });
+      }
     },
-    onSettled: () => queryClient.invalidateQueries({ queryKey: ['tickets'] }),
+    onError: (_e, vars, ctx) => {
+      if (ctx?.prevPrensa) queryClient.setQueryData(['tickets', 'PRENSA'], ctx.prevPrensa);
+      if (ctx?.prevTickets) queryClient.setQueryData(['tickets'], ctx.prevTickets);
+      if (ctx?.prevTicket) queryClient.setQueryData(['ticket', vars.id], ctx.prevTicket);
+    },
+    onSettled: (_data, _error, vars) => {
+      queryClient.invalidateQueries({ queryKey: ['tickets', 'PRENSA'] });
+      queryClient.invalidateQueries({ queryKey: ['tickets'] });
+      if (vars?.id) {
+        queryClient.invalidateQueries({ queryKey: ['ticket', vars.id] });
+      }
+    },
   });
 
   // Date ranges calculation
@@ -362,7 +414,7 @@ export function PrensaBacklogPage() {
         return timeB - timeA;
       });
     }
-    return list;
+    return sortTicketsByOrder(list);
   };
 
   const countMacro = (macro: GeneralStatus, items = ticketsFiltrados) =>
@@ -415,8 +467,10 @@ export function PrensaBacklogPage() {
   };
 
   const handleDragEnd = () => {
-    draggedIdRef.current = null;
-    setDraggedId(null);
+    setTimeout(() => {
+      draggedIdRef.current = null;
+      setDraggedId(null);
+    }, 250);
   };
 
   const handleDrop = (subEstado: SubEstado, e?: React.DragEvent) => {
@@ -649,7 +703,7 @@ export function PrensaBacklogPage() {
                   key={macro.id} 
                   className="flex flex-col flex-1 min-w-[240px]"
                   onDragOver={e => e.preventDefault()}
-                  onDrop={() => handleDrop(MACRO_DEFAULT_SUB[macro.id])}
+                  onDrop={e => handleDrop(MACRO_DEFAULT_SUB[macro.id], e)}
                 >
                   <div className={`${macro.color} border-2 ${macro.border} rounded-t-xl px-3 py-2 flex items-center justify-between`}>
                     <div className="flex items-center gap-1.5">
@@ -693,7 +747,7 @@ export function PrensaBacklogPage() {
                             <div
                               key={subDef.sub}
                               onDragOver={e => e.preventDefault()}
-                              onDrop={(e) => { e.stopPropagation(); handleDrop(subDef.sub); }}
+                              onDrop={(e) => { e.stopPropagation(); handleDrop(subDef.sub, e); }}
                               className="rounded-lg"
                             >
                               {si > 0 && <div className="border-t border-[#000033]/[0.07] my-3" />}
@@ -749,7 +803,7 @@ export function PrensaBacklogPage() {
                     key={subDef.sub}
                     className="flex flex-col w-[260px] flex-shrink-0"
                     onDragOver={e => e.preventDefault()}
-                    onDrop={() => handleDrop(subDef.sub)}
+                    onDrop={e => handleDrop(subDef.sub, e)}
                   >
                     <div className={`bg-white border-2 rounded-t-xl px-3 py-2 flex items-center justify-between border-[#000033]/15`}>
                       <div className="flex items-center gap-1.5">
@@ -844,7 +898,7 @@ export function PrensaBacklogPage() {
                             key={macro.id}
                             className="flex flex-col flex-1 min-w-[200px]"
                             onDragOver={e => e.preventDefault()}
-                            onDrop={() => handleDrop(MACRO_DEFAULT_SUB[macro.id])}
+                            onDrop={e => handleDrop(MACRO_DEFAULT_SUB[macro.id], e)}
                           >
                             <div className={`${macro.color} border-2 ${macro.border} rounded-t-xl px-3 py-2 flex items-center justify-between`}>
                               <div className="flex items-center gap-1.5">
@@ -884,7 +938,7 @@ export function PrensaBacklogPage() {
                                       <div
                                         key={subDef.sub}
                                         onDragOver={e => e.preventDefault()}
-                                        onDrop={(e) => { e.stopPropagation(); handleDrop(subDef.sub); }}
+                                        onDrop={(e) => { e.stopPropagation(); handleDrop(subDef.sub, e); }}
                                       >
                                         {si > 0 && <div className="border-t border-[#000033]/[0.07] my-2" />}
                                         <div className="flex items-center justify-between mb-1">
@@ -949,7 +1003,7 @@ export function PrensaBacklogPage() {
                                 key={subDef.sub}
                                 className="flex-shrink-0 w-[220px] flex flex-col"
                                 onDragOver={e => e.preventDefault()}
-                                onDrop={() => handleDrop(subDef.sub)}
+                                onDrop={e => handleDrop(subDef.sub, e)}
                               >
                                 <div className="bg-white border-2 border-[#000033]/15 rounded-t-xl px-2.5 py-1.5 flex items-center justify-between">
                                   <span className={`inline-flex items-center px-1.5 py-0.5 text-[9px] font-bold rounded border ${subDef.chip}`}>

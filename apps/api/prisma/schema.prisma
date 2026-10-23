@@ -278,6 +278,7 @@ model Ticket {
   referenciasGraficas Json?      @map("referencias_graficas")
   chatHistory     Json?          @map("chat_history")
   versionsPerCanal Json?         @default("{}") @map("versions_per_canal")
+  sortOrder       Float          @default(0) @map("sort_order")
   createdAt       DateTime       @default(now()) @map("created_at")
   updatedAt    DateTime       @updatedAt @map("updated_at")
 
@@ -308,6 +309,7 @@ model Ticket {
   @@index([isDraftPlan, area])
   @@index([isDraftPlan, createdAt])
   @@index([isDraftPlan, plannedDate])
+  @@index([sortOrder])
   @@map("tickets")
 }
 

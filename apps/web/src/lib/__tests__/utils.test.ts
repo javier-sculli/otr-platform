@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseLocalDate, formatDateSpan, formatDateISO, ensureAbsoluteUrl, mergeContentPerCanal, getRedesObjetivoForClient, stripHtmlToPlainText, recordCopyVersion, filterPilaresBySpeaker, shouldOmitTemperature, parseDeliverableLinks, serializeDeliverableLinks, getCollapsedRichTextSnippet } from '../utils';
+import { parseLocalDate, formatDateSpan, formatDateISO, ensureAbsoluteUrl, mergeContentPerCanal, getRedesObjetivoForClient, stripHtmlToPlainText, recordCopyVersion, filterPilaresBySpeaker, shouldOmitTemperature, parseDeliverableLinks, serializeDeliverableLinks, getCollapsedRichTextSnippet, sortTicketsByOrder, calculateDropSortOrder } from '../utils';
 
 describe('lib/utils', () => {
   describe('parseLocalDate & Date shift prevention', () => {
@@ -327,6 +327,63 @@ describe('lib/utils', () => {
       expect(serializeDeliverableLinks(['https://a.com', 'https://b.com'])).toBe('https://a.com\nhttps://b.com');
       expect(serializeDeliverableLinks([])).toBeNull();
       expect(serializeDeliverableLinks(['  ', ''])).toBeNull();
+    });
+  });
+
+  describe('sortTicketsByOrder & calculateDropSortOrder', () => {
+    it('ordena tickets por sortOrder ascendente', () => {
+      const tickets = [
+        { id: '3', sortOrder: 3072 },
+        { id: '1', sortOrder: 1024 },
+        { id: '2', sortOrder: 2048 },
+      ];
+      expect(sortTicketsByOrder(tickets).map(t => t.id)).toEqual(['1', '2', '3']);
+    });
+
+    it('calcula sortOrder al soltar arriba del primer ticket', () => {
+      const column = [
+        { id: '1', sortOrder: 1024 },
+        { id: '2', sortOrder: 2048 },
+      ];
+      // Mover ticket '2' arriba de ticket '1'
+      const order = calculateDropSortOrder(column, '2', '1', 'before');
+      expect(order).toBe(0); // 1024 - 1024 = 0
+    });
+
+    it('calcula sortOrder al soltar entre dos tickets', () => {
+      const column = [
+        { id: '1', sortOrder: 1024 },
+        { id: '2', sortOrder: 2048 },
+        { id: '3', sortOrder: 3072 },
+      ];
+      // Mover ticket '3' entre '1' y '2'
+      const order = calculateDropSortOrder(column, '3', '1', 'after');
+      expect(order).toBe(1536); // (1024 + 2048) / 2
+    });
+
+    it('calcula sortOrder al soltar abajo del último ticket', () => {
+      const column = [
+        { id: '1', sortOrder: 1024 },
+        { id: '2', sortOrder: 2048 },
+      ];
+      // Mover ticket '1' al final
+      const order = calculateDropSortOrder(column, '1', '2', 'after');
+      expect(order).toBe(3072); // 2048 + 1024
+    });
+
+    it('retorna null si la tarjeta queda en su misma posición en la misma columna', () => {
+      const column = [
+        { id: '1', sortOrder: 1024 },
+        { id: '2', sortOrder: 2048 },
+      ];
+      // Soltar ticket '1' antes de ticket '2' (su misma posición)
+      expect(calculateDropSortOrder(column, '1', '2', 'before')).toBeNull();
+      // Soltar ticket '2' después de ticket '1' (su misma posición)
+      expect(calculateDropSortOrder(column, '2', '1', 'after')).toBeNull();
+    });
+
+    it('retorna undefined al mover a una columna vacía', () => {
+      expect(calculateDropSortOrder([], '1', null, null)).toBeUndefined();
     });
   });
 });

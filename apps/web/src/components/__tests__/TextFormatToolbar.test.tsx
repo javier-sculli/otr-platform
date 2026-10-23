@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, act } from '@testing-library/react';
+import { render, screen, fireEvent, act, within } from '@testing-library/react';
 import { TextFormatToolbar } from '../TextFormatToolbar';
 
 describe('TextFormatToolbar', () => {
@@ -146,6 +146,12 @@ describe('TextFormatToolbar', () => {
     const floatingBar = document.querySelector('[data-floating-format-bar="1"]');
     expect(floatingBar).toBeInTheDocument();
 
+    // La barra flotante también incluye listas e imagen además de negrita/cursiva/enlace
+    const floatingScope = within(floatingBar as HTMLElement);
+    expect(floatingScope.getByTitle('Lista con viñetas')).toBeInTheDocument();
+    expect(floatingScope.getByTitle('Lista numerada')).toBeInTheDocument();
+    expect(floatingScope.getByTitle('Insertar imagen')).toBeInTheDocument();
+
     // El botón comentar de la barra flotante debe ejecutar onComment
     const commentFloatingBtn = screen.getByTitle('Comentar selección');
     expect(commentFloatingBtn).toBeInTheDocument();
@@ -162,4 +168,66 @@ describe('TextFormatToolbar', () => {
     (window.getSelection as any).mockRestore();
     document.body.removeChild(editor);
   });
+
+  it('posiciona la barra flotante debajo de la selección cuando está cerca de la barra sticky superior para no taparla', () => {
+    const editor = document.createElement('div');
+    const textNode = document.createTextNode('Texto cerca del borde superior');
+    editor.appendChild(textNode);
+    document.body.appendChild(editor);
+
+    const editorRef = { current: editor };
+    const { container } = render(
+      <TextFormatToolbar
+        editorRef={editorRef}
+        sticky={true}
+        stickyOffset="140px"
+      />
+    );
+
+    const stickyToolbar = container.querySelector('.sticky') as HTMLElement;
+    vi.spyOn(stickyToolbar, 'getBoundingClientRect').mockReturnValue({
+      top: 140,
+      bottom: 184,
+      left: 0,
+      right: 800,
+      width: 800,
+      height: 44,
+      x: 0,
+      y: 140,
+      toJSON: () => {},
+    });
+
+    const mockRange = {
+      getBoundingClientRect: () => ({
+        top: 190, // 190 - 48 = 142 < 184 + 8 (colisionaría con la barra sticky)
+        bottom: 212,
+        left: 120,
+        right: 260,
+        width: 140,
+        height: 22,
+      }),
+    };
+
+    vi.spyOn(window, 'getSelection').mockReturnValue({
+      isCollapsed: false,
+      rangeCount: 1,
+      anchorNode: textNode,
+      focusNode: textNode,
+      toString: () => 'Texto cerca',
+      getRangeAt: () => mockRange,
+    } as any);
+
+    act(() => {
+      document.dispatchEvent(new Event('selectionchange'));
+    });
+
+    const floatingBar = document.querySelector('[data-floating-format-bar="1"]') as HTMLElement;
+    expect(floatingBar).toBeInTheDocument();
+    // Debe ubicarse debajo de la selección (bottom 212 + 8 = 220px)
+    expect(floatingBar.style.top).toBe('220px');
+
+    (window.getSelection as any).mockRestore();
+    document.body.removeChild(editor);
+  });
 });
+

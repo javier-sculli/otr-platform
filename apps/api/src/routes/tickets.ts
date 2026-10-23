@@ -173,8 +173,10 @@ async function attachAssignees(tickets: any[]) {
   });
 }
 
-const ticketsCache = new Map<string, { timestamp: number; data: any }>();
-const ticketDetailCache = new Map<string, { timestamp: number; data: any }>();
+const ticketsCache = new Map<string, { timestamp: number; epoch: number; data: any }>();
+const ticketDetailCache = new Map<string, { timestamp: number; epoch: number; data: any }>();
+const inflightTicketsFetches = new Map<string, { epoch: number; promise: Promise<any> }>();
+let ticketsCacheEpoch = 0;
 const CACHE_TTL_MS = 60 * 1000;
 
 let catalogCache: {
@@ -192,7 +194,9 @@ export function clearCatalogMemoryCache() {
 }
 
 export function clearTicketsCache(ticketId?: string) {
+  ticketsCacheEpoch += 1;
   ticketsCache.clear();
+  inflightTicketsFetches.clear();
   if (ticketId) {
     ticketDetailCache.delete(`ticket_detail_${ticketId}`);
   } else {
@@ -227,95 +231,124 @@ async function getCatalogs() {
   return catalogCache;
 }
 
-async function fetchAndCacheTickets(query: any = {}) {
+async function fetchAndCacheTickets(query: any = {}, allowRetry = true): Promise<{ data: any[] }> {
   const cacheKey = JSON.stringify(query || {});
-  const { clientId, ownerId, status, speakerId, area, isDraftPlan } = query;
+  const startEpoch = ticketsCacheEpoch;
 
-  const where: any = {};
-  if (clientId) where.clientId = clientId;
-  if (ownerId) where.ownerId = ownerId;
-  if (status) where.status = status;
-  if (speakerId) where.speakerId = speakerId;
-  if (area) where.area = area;
-
-  if (isDraftPlan === 'true') {
-    where.isDraftPlan = true;
-  } else if (isDraftPlan === 'false') {
-    where.isDraftPlan = false;
-  } else if (isDraftPlan === 'all') {
-    // No filter
-  } else {
-    where.isDraftPlan = false;
+  const existingInflight = inflightTicketsFetches.get(cacheKey);
+  if (existingInflight && existingInflight.epoch === startEpoch) {
+    return existingInflight.promise;
   }
 
-  const orderBy: any = (isDraftPlan === 'true' || isDraftPlan === 'all') 
-    ? { plannedDate: 'asc' } 
-    : { createdAt: 'desc' };
+  const runFetch = async (): Promise<{ data: any[] }> => {
+    const { clientId, ownerId, status, speakerId, area, isDraftPlan } = query;
 
-  const [catalogs, tickets] = await Promise.all([
-    getCatalogs(),
-    prisma.ticket.findMany({
-      where,
-      select: {
-        id: true,
-        title: true,
-        objetivo: true,
-        canales: true,
-        clientId: true,
-        ownerId: true,
-        assigneeIds: true,
-        ticketTypeId: true,
-        tipoTicket: true,
-        pilarId: true,
-        speakerId: true,
-        status: true,
-        prioridad: true,
-        area: true,
-        macroEstado: true,
-        subEstado: true,
-        reviewerId: true,
-        medio: true,
-        periodista: true,
-        estadoRespuesta: true,
-        dueDate: true,
-        plannedDate: true,
-        isDraftPlan: true,
-        publishedAt: true,
-        estadoAprobacionCliente: true,
-        links: true,
-        linkEntregable: true,
-        linkPublicacion: true,
-        description: true,
-        tiposContenido: true,
-        referenciasGraficas: true,
-        createdAt: true,
-        updatedAt: true,
-      },
-      orderBy,
-    }),
-  ]);
+    const where: any = {};
+    if (clientId) where.clientId = clientId;
+    if (ownerId) where.ownerId = ownerId;
+    if (status) where.status = status;
+    if (speakerId) where.speakerId = speakerId;
+    if (area) where.area = area;
 
-  const enriched = tickets.map(t => {
-    const rawIds: string[] = (Array.isArray(t.assigneeIds) && t.assigneeIds.length > 0)
-      ? t.assigneeIds
-      : (t.ownerId ? [t.ownerId] : []);
-    const assignees = rawIds.map(id => catalogs.users.get(id)).filter(Boolean);
-    return {
-      ...t,
-      client: catalogs.clients.get(t.clientId) || null,
-      owner: catalogs.users.get(t.ownerId) || null,
-      reviewer: t.reviewerId ? catalogs.users.get(t.reviewerId) || null : null,
-      ticketType: t.ticketTypeId ? catalogs.ticketTypes.get(t.ticketTypeId) || null : null,
-      pilar: t.pilarId ? catalogs.pilares.get(t.pilarId) || null : null,
-      speaker: t.speakerId ? catalogs.speakers.get(t.speakerId) || null : null,
-      assigneeIds: rawIds,
-      assignees,
-    };
+    if (isDraftPlan === 'true') {
+      where.isDraftPlan = true;
+    } else if (isDraftPlan === 'false') {
+      where.isDraftPlan = false;
+    } else if (isDraftPlan === 'all') {
+      // No filter
+    } else {
+      where.isDraftPlan = false;
+    }
+
+    const orderBy: any = (isDraftPlan === 'true' || isDraftPlan === 'all') 
+      ? { plannedDate: 'asc' } 
+      : [{ sortOrder: 'asc' }, { createdAt: 'desc' }];
+
+    const [catalogs, tickets] = await Promise.all([
+      getCatalogs(),
+      prisma.ticket.findMany({
+        where,
+        select: {
+          id: true,
+          title: true,
+          objetivo: true,
+          canales: true,
+          clientId: true,
+          ownerId: true,
+          assigneeIds: true,
+          ticketTypeId: true,
+          tipoTicket: true,
+          pilarId: true,
+          speakerId: true,
+          status: true,
+          prioridad: true,
+          area: true,
+          macroEstado: true,
+          subEstado: true,
+          reviewerId: true,
+          medio: true,
+          periodista: true,
+          estadoRespuesta: true,
+          dueDate: true,
+          plannedDate: true,
+          isDraftPlan: true,
+          publishedAt: true,
+          estadoAprobacionCliente: true,
+          links: true,
+          linkEntregable: true,
+          linkPublicacion: true,
+          description: true,
+          tiposContenido: true,
+          referenciasGraficas: true,
+          sortOrder: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+        orderBy,
+      }),
+    ]);
+
+    const enriched = tickets.map(t => {
+      const rawIds: string[] = (Array.isArray(t.assigneeIds) && t.assigneeIds.length > 0)
+        ? t.assigneeIds
+        : (t.ownerId ? [t.ownerId] : []);
+      const assignees = rawIds.map(id => catalogs.users.get(id)).filter(Boolean);
+      return {
+        ...t,
+        client: catalogs.clients.get(t.clientId) || null,
+        owner: catalogs.users.get(t.ownerId) || null,
+        reviewer: t.reviewerId ? catalogs.users.get(t.reviewerId) || null : null,
+        ticketType: t.ticketTypeId ? catalogs.ticketTypes.get(t.ticketTypeId) || null : null,
+        pilar: t.pilarId ? catalogs.pilares.get(t.pilarId) || null : null,
+        speaker: t.speakerId ? catalogs.speakers.get(t.speakerId) || null : null,
+        assigneeIds: rawIds,
+        assignees,
+      };
+    });
+
+    const result = { data: enriched };
+
+    if (startEpoch === ticketsCacheEpoch) {
+      ticketsCache.set(cacheKey, { timestamp: Date.now(), epoch: startEpoch, data: result });
+      return result;
+    }
+
+    // A mutation occurred while findMany was in flight: do NOT poison ticketsCache with stale data
+    if (allowRetry) {
+      return fetchAndCacheTickets(query, false);
+    }
+    return result;
+  };
+
+  const promise = runFetch().finally(() => {
+    const current = inflightTicketsFetches.get(cacheKey);
+    if (current?.promise === promise) {
+      inflightTicketsFetches.delete(cacheKey);
+    }
   });
 
-  const result = { data: enriched };
-  ticketsCache.set(cacheKey, { timestamp: Date.now(), data: result });
-  return result;
+  inflightTicketsFetches.set(cacheKey, { epoch: startEpoch, promise });
+  return promise;
 }
 
 export async function ticketsRoutes(fastify: FastifyInstance) {
@@ -331,7 +364,7 @@ export async function ticketsRoutes(fastify: FastifyInstance) {
     const t0 = Date.now();
     const cacheKey = JSON.stringify(request.query || {});
     const cached = ticketsCache.get(cacheKey);
-    if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
+    if (cached && cached.epoch === ticketsCacheEpoch && Date.now() - cached.timestamp < CACHE_TTL_MS) {
       reply.header('x-cache', 'HIT');
       reply.header('x-response-time', `${Date.now() - t0}ms`);
       return cached.data;
@@ -350,12 +383,13 @@ export async function ticketsRoutes(fastify: FastifyInstance) {
 
     const detailCacheKey = `ticket_detail_${id}`;
     const cached = ticketDetailCache.get(detailCacheKey);
-    if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
+    if (cached && cached.epoch === ticketsCacheEpoch && Date.now() - cached.timestamp < CACHE_TTL_MS) {
       reply.header('x-cache', 'HIT');
       reply.header('x-response-time', `${Date.now() - t0}ms`);
       return cached.data;
     }
 
+    const startEpoch = ticketsCacheEpoch;
     const ticket = await prisma.ticket.findUnique({
       where: { id },
       relationLoadStrategy: 'join',
@@ -409,7 +443,9 @@ export async function ticketsRoutes(fastify: FastifyInstance) {
     };
 
     const result = { data: enriched };
-    ticketDetailCache.set(detailCacheKey, { timestamp: Date.now(), data: result });
+    if (startEpoch === ticketsCacheEpoch) {
+      ticketDetailCache.set(detailCacheKey, { timestamp: Date.now(), epoch: startEpoch, data: result });
+    }
     reply.header('x-cache', 'MISS');
     reply.header('x-response-time', `${Date.now() - t0}ms`);
     return result;
@@ -501,6 +537,14 @@ async function resolveTicketTypeForCreation(prismaInstance: typeof prisma, data:
       canales = ['LinkedIn'];
     }
 
+    let initialSortOrder: number;
+    if (typeof data.sortOrder === 'number' && Number.isFinite(data.sortOrder)) {
+      initialSortOrder = data.sortOrder;
+    } else {
+      const minTicket = await prisma.ticket.aggregate({ _min: { sortOrder: true } });
+      initialSortOrder = (minTicket._min.sortOrder ?? 0) - 1024;
+    }
+
     const ticket = await prisma.ticket.create({
       data: {
         title: data.title,
@@ -534,6 +578,7 @@ async function resolveTicketTypeForCreation(prismaInstance: typeof prisma, data:
         notasAudiovisual: data.notasAudiovisual !== undefined ? data.notasAudiovisual : null,
         referenciasGraficas: data.referenciasGraficas || null,
         contentPerCanal: (data.contentPerCanal && typeof data.contentPerCanal === 'object') ? data.contentPerCanal : {},
+        sortOrder: initialSortOrder,
       },
       include: {
         client: true,
@@ -683,6 +728,9 @@ async function resolveTicketTypeForCreation(prismaInstance: typeof prisma, data:
     if (data.tiposContenido !== undefined) updateData.tiposContenido = data.tiposContenido;
     if (data.referenciasGraficas !== undefined) updateData.referenciasGraficas = data.referenciasGraficas;
     if (data.versionsPerCanal !== undefined) updateData.versionsPerCanal = data.versionsPerCanal;
+    if (typeof data.sortOrder === 'number' && Number.isFinite(data.sortOrder)) {
+      updateData.sortOrder = data.sortOrder;
+    }
     // Tickets de referencia (N:N) — máx 3, excluye self, dedup
     if (data.referenceIds !== undefined) {
       const ids = [...new Set(data.referenceIds as string[])]
@@ -704,7 +752,7 @@ async function resolveTicketTypeForCreation(prismaInstance: typeof prisma, data:
         isDraftPlan: true, publishedAt: true, estadoAprobacionCliente: true,
         keywords: true, links: true, linkEntregable: true, linkPublicacion: true, tiposContenido: true,
         referenciasGraficas: true, contentPerCanal: true, versionsPerCanal: true,
-        notasAudiovisual: true, createdAt: true, updatedAt: true,
+        notasAudiovisual: true, sortOrder: true, createdAt: true, updatedAt: true,
         owner: { select: { id: true, name: true, email: true } },
         reviewer: { select: { id: true, name: true, email: true } },
         ticketType: { select: { id: true, name: true, kind: true } },
@@ -887,7 +935,6 @@ async function resolveTicketTypeForCreation(prismaInstance: typeof prisma, data:
       return { count: 0 };
     }
 
-    clearTicketsCache();
     const result = await prisma.ticket.updateMany({
       where: { id: { in: ids } },
       data: {
@@ -895,6 +942,7 @@ async function resolveTicketTypeForCreation(prismaInstance: typeof prisma, data:
         status: 'PENDIENTE',
       },
     });
+    clearTicketsCache();
 
     return { count: result.count };
   });
@@ -907,7 +955,6 @@ async function resolveTicketTypeForCreation(prismaInstance: typeof prisma, data:
       return { count: 0 };
     }
 
-    clearTicketsCache();
     const created = [];
     for (const t of tickets) {
       const ticket = await prisma.ticket.create({
@@ -934,6 +981,7 @@ async function resolveTicketTypeForCreation(prismaInstance: typeof prisma, data:
       });
       created.push(ticket);
     }
+    clearTicketsCache();
 
     return { count: created.length, data: created };
   });
@@ -966,6 +1014,7 @@ async function resolveTicketTypeForCreation(prismaInstance: typeof prisma, data:
       where: { id: { in: ids } },
       data,
     });
+    clearTicketsCache();
 
     return { count: result.count };
   });

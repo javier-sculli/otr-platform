@@ -112,9 +112,9 @@ export function useInlineComments({
       const currentThreads = threadsRefVal.current;
       const t = currentThreads[currentPop.id];
       if (!t || !t.items || !t.items.length) {
-        const mark = document.querySelector(`mark[data-c="${currentPop.id}"]`);
-        if (mark) {
-          mark.replaceWith(...Array.from(mark.childNodes));
+        const marks = document.querySelectorAll(`mark[data-c="${currentPop.id}"]`);
+        if (marks.length > 0) {
+          marks.forEach(m => m.replaceWith(...Array.from(m.childNodes)));
           if (draftCleanupRef.current?.ref?.current && draftCleanupRef.current.onHtmlChange) {
             draftCleanupRef.current.onHtmlChange(draftCleanupRef.current.ref.current.innerHTML);
           }
@@ -134,8 +134,9 @@ export function useInlineComments({
   const resolvePop = useCallback(() => {
     const currentPop = popRefVal.current;
     if (!currentPop) return;
-    const mark = document.querySelector(`mark[data-c="${currentPop.id}"]`);
-    if (mark) mark.replaceWith(...Array.from(mark.childNodes));
+    document.querySelectorAll(`mark[data-c="${currentPop.id}"]`).forEach(m => {
+      m.replaceWith(...Array.from(m.childNodes));
+    });
     setThreads(prev => {
       const c = { ...prev };
       delete c[currentPop.id];
@@ -181,9 +182,9 @@ export function useInlineComments({
     if (popRefVal.current?.isDraft && popRefVal.current.id !== id) {
       const prevT = threadsRefVal.current[popRefVal.current.id];
       if (!prevT || !prevT.items || !prevT.items.length) {
-        const prevMark = document.querySelector(`mark[data-c="${popRefVal.current.id}"]`);
-        if (prevMark) {
-          prevMark.replaceWith(...Array.from(prevMark.childNodes));
+        const prevMarks = document.querySelectorAll(`mark[data-c="${popRefVal.current.id}"]`);
+        if (prevMarks.length > 0) {
+          prevMarks.forEach(pm => pm.replaceWith(...Array.from(pm.childNodes)));
           if (draftCleanupRef.current?.ref?.current && draftCleanupRef.current.onHtmlChange) {
             draftCleanupRef.current.onHtmlChange(draftCleanupRef.current.ref.current.innerHTML);
           }
@@ -293,9 +294,9 @@ export function useInlineComments({
     if (popRefVal.current?.isDraft) {
       const prevT = threadsRefVal.current[popRefVal.current.id];
       if (!prevT || !prevT.items || prevT.items.length === 0) {
-        const prevMark = document.querySelector(`mark[data-c="${popRefVal.current.id}"]`);
-        if (prevMark) {
-          prevMark.replaceWith(...Array.from(prevMark.childNodes));
+        const prevMarks = document.querySelectorAll(`mark[data-c="${popRefVal.current.id}"]`);
+        if (prevMarks.length > 0) {
+          prevMarks.forEach(pm => pm.replaceWith(...Array.from(pm.childNodes)));
           if (draftCleanupRef.current?.ref?.current && draftCleanupRef.current.onHtmlChange) {
             draftCleanupRef.current.onHtmlChange(draftCleanupRef.current.ref.current.innerHTML);
           }

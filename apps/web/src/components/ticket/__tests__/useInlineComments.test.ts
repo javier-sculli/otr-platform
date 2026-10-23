@@ -307,4 +307,33 @@ describe('useInlineComments', () => {
     expect(container.querySelector('mark[data-c="c1791983824460"]')).toBeNull();
     expect(result.current.pop?.isDraft).toBe(true);
   });
+
+  it('startInlineComment crea una marca de borrador en el texto seleccionado y notifica onHtmlChange', () => {
+    const onHtmlChange = vi.fn();
+    const { result } = renderHook(() => useInlineComments());
+
+    const container = document.createElement('div');
+    const p = document.createElement('p');
+    p.textContent = 'Over four days, we talked with finance and payments leaders.';
+    container.appendChild(p);
+    document.body.appendChild(container);
+
+    const ref = { current: container };
+
+    const range = document.createRange();
+    range.selectNodeContents(p.firstChild!);
+    const sel = window.getSelection();
+    sel?.removeAllRanges();
+    sel?.addRange(range);
+
+    act(() => {
+      result.current.startInlineComment(ref, onHtmlChange);
+    });
+
+    const mark = container.querySelector('mark[data-c]');
+    expect(mark).not.toBeNull();
+    expect(mark?.textContent).toBe('Over four days, we talked with finance and payments leaders.');
+    expect(onHtmlChange).toHaveBeenCalled();
+    expect(result.current.pop?.isDraft).toBe(true);
+  });
 });

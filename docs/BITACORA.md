@@ -4,6 +4,136 @@
 > 
 > 🎯 **BACKLOG OFICIAL Y PRIORIDADES (FUENTE DE VERDAD):** [Notion Backlog Oficial](https://app.notion.com/p/Backlog-3ba617fc369281048bfdfc89c5041d9c?source=copy_link). Todas las prioridades y tareas activas se gestionan directamente allí.
 
+### [2026-10-23] — Reordenamiento y Priorización de Tarjetas dentro de Columnas en Kanban (Drag & Drop con Floating-Point)
+- **Desarrollador:** Antigravity (Pair Programming con Javier Sculli)
+- **Reporte y Consulta del Usuario:**
+  - *"Buenos dias! Dejo este mensaje programado, porque capaz entendí mal, pero creí que ya se podía cambiar el orden de las tarjetas dentro de las columnas. Hice video, pero capaz es una mejor próxima y no algo ya implementado. Sería útil para poder priorizar tareas internamente... hasta que esté resuelto, cuál es el criterio de orden? Para tenerlo en cuenta y editar tarjetas para que se visualicen en el orden que quisiera que el equipo tome."*
+  - *"Pensemos primero la logica y como lo vamos a guardar, no quiero complejizar esto, busquemos la solucion mas simple"*
+  - *"si el de numero flotante corre mas rapido y simple usemos ese approach y no el ultimo que me da mas complejo"*
+- **Criterio Previo de Orden (Línea Base):**
+  - Anteriormente, el backend ordenaba los tickets exclusivamente por `createdAt: 'desc'` (`fetchAndCacheTickets` en `apps/api/src/routes/tickets.ts`). Las tarjetas nuevas quedaban arriba y editar una tarjeta no alteraba su posición.
+- **Decisión de Arquitectura y Diseño:**
+  - Se evaluaron alternativas de la industria (reindexación masiva de enteros vs strings LexoRank vs números flotantes).
+  - Se optó por el enfoque de **punto flotante (`sortOrder Float`)**, que actualiza **estrictamente una sola tarjeta por evento de drag-and-drop** (`O(1)` en red y base de datos) sin requerir reordenar ni bloquear la columna entera.
+  - Se resolvió el riesgo clásico de precisión float espaciando los tickets con paso inicial de `1024` (en lugar de arrancar en `0` o `1`). Esto permite más de 50 subdivisiones consecutivas entre dos tarjetas antes de aproximarse al límite de precisión de IEEE 754 (64-bit float).
+- **Cambios Implementados:**
+  1. **Modelo de Base de Datos y Migración (`apps/api/prisma`):**
+     - `schema.prisma`: Se añadió `sortOrder Float @default(0) @map("sort_order")` y `@@index([sortOrder])` en el modelo `Ticket`.
+     - Migración `20261023120000_add_sort_order_to_tickets`: Aplica la columna en PostgreSQL e inicializa los tickets existentes con `ROW_NUMBER() OVER (ORDER BY created_at DESC) * 1024.0`, garantizando que todos los registros comiencen con valores espaciados no nulos.
+  2. **Backend API (`apps/api/src/routes/tickets.ts`):**
+     - `fetchAndCacheTickets`: `orderBy: [{ sortOrder: 'asc' }, { createdAt: 'desc' }]`, e incluye `sortOrder: true` en el `select`.
+     - `POST /tickets`: Los nuevos tickets se insertan automáticamente al tope de la columna asignándoles `(minSortOrder ?? 0) - 1024` (o el valor recibido en el payload).
+     - `PATCH /tickets/:id`: Acepta `sortOrder` opcionalmente y lo actualiza en la base de datos y en la respuesta devuelta.
+  3. **Utilidades Frontend (`apps/web/src/lib/utils.ts`):**
+     - `sortTicketsByOrder<T>(tickets: T[]): T[]`: Ordena cualquier colección de tickets por `sortOrder ASC`.
+     - `calculateDropSortOrder<T>(columnTickets, draggedId, targetTicketId, position)`:
+       - Si se suelta antes del primer ticket de la columna: `primerSortOrder - 1024`.
+       - Si se suelta después del último ticket: `ultimoSortOrder + 1024`.
+       - Si se suelta entre dos tickets: `(prevOrder + nextOrder) / 2`.
+       - Si la tarjeta se suelta en su misma posición relativa dentro de la columna: retorna `null` para no emitir mutaciones redundantes.
+       - Si la columna destino está vacía: retorna `undefined` (dejando intacto el `sortOrder` previo).
+  4. **Experiencia de Usuario en Tableros (`BacklogPage.tsx` y `PrensaBacklogPage.tsx`):**
+     - Soporte visual de inserción: Al arrastrar sobre una tarjeta (`handleCardDragOver`), se detecta si el cursor se encuentra en la mitad superior o inferior (`position: 'before' | 'after'`) y se dibuja una línea indicadora azul `#024fff` exactamente donde caerá la tarjeta.
+     - `BacklogPage`: Ordena las columnas con `sortTicketsByOrder` y actualiza `{ sortOrder }` (o `{ status, sortOrder }` al cambiar de columna) con mutación optimista.
+     - `PrensaBacklogPage`: Aplica `sortTicketsByOrder` a los tickets de cada sub-estado no finalizado, manteniendo el orden cronológico por `updatedAt: 'desc'` para `FINALIZADO`.
+- **Cobertura de Tests Automatizados:**
+  - `apps/web/src/lib/__tests__/utils.test.ts`: 6 tests unitarios nuevos validando los cálculos de `calculateDropSortOrder` y `sortTicketsByOrder`.
+  - `apps/web/src/pages/__tests__/BacklogDragDrop.test.tsx`: Nuevo test de integración verificando el reordenamiento dentro de la misma columna y la llamada a `api.updateTicket` con el nuevo `sortOrder`.
+  - **241 tests pasando al 100%** en Vitest y TypeScript sin errores (`pnpm typecheck` limpio en `web` y `api`).
+
+### [2026-10-23] — Corrección del "Efecto Rebote" / Doble Paso al Mover Tickets de Columna en Kanban y Modal de Edición
+- **Desarrollador:** Antigravity (Pair Programming con Javier Sculli)
+- **Reporte del Usuario (Audio / WhatsApp):**
+  - *"Está volviendo a pasar el tema de que cuando pasas de columna el ticket, como que tenés que hacer un doble check o un doble paso porque vuelve a la columna anterior, no sé qué onda hay."*
+- **Diagnóstico y Causas Raíz Identificadas:**
+  1. **Condición de carrera e intoxicación de la caché en el Backend (`apps/api/src/routes/tickets.ts`):**
+     - Tras la adición de `referenciasGraficas: true` el 2026-10-20, la consulta `prisma.ticket.findMany` en `fetchAndCacheTickets` se volvió más pesada.
+     - Cuando una consulta de lectura `findMany` arrancaba justo antes de un `PATCH /tickets/:id` (que cambiaba el estado y ejecutaba `clearTicketsCache(id)`), la consulta de lectura vieja terminaba *después* del `PATCH` y escribía en `ticketsCache` los datos obsoletos (con la columna anterior).
+     - Al dispararse `invalidateQueries(['tickets'])` en el frontend, el nuevo `GET /tickets` devolvía un `Cache HIT` con el estado viejo, haciendo que la tarjeta saltara de vuelta a la columna anterior ("efecto rebote").
+     - Además, endpoints masivos (`bulk-publish`, `bulk-create`, `bulk-update`) invocaban `clearTicketsCache()` antes de que terminaran sus escrituras en la base de datos.
+  2. **`autoFocus` en el Título + `onBlur` incondicional + Hidratación de Detalle en `CreateTicketModal.tsx`:**
+     - El `<input>` de Título tenía `autoFocus` y `onBlur={() => triggerImmediateAutoSave()}`. Al abrir el modal, el título tomaba el foco automáticamente.
+     - Cuando el usuario hacía clic en *"Pasar a [Estado]"* o en el selector de estados, el evento `onBlur` del título se disparaba primero sobre la red (`PATCH #1`), enviando el estado anterior antes del cambio.
+     - Al responder el primer guardado, el frontend ejecutaba `invalidateQueries(['ticket', id])`, lo que encendía `isTicketLoading = true`. Si el usuario avanzaba de estado mientras `isTicketLoading` estaba activo, el guardado quedaba en `pendingSaveDataRef.current`. Pero el efecto de sincronización con `ticketDetailQuery` salía tempranamente (`if (loadedDetailTicketIdRef.current === ticket.id) return;`), descartando o congelando el guardado pendiente.
+     - Al cerrar el modal (`handleClose`) inmediatamente después de avanzar, se ejecutaba `setFormData(buildFormData(null))` antes de vaciar la cola, perdiendo el cambio de columna pendiente.
+     - En tickets de Prensa, `buildFormData` no incluía `subEstado`, y `performAutoSave` leía `(ticket as any)?.subEstado` ignorando `current.subEstado`.
+  3. **Arrastre en Kanban no actualizaba la caché de detalle (`BacklogPage.tsx` y `PrensaBacklogPage.tsx`):**
+     - Al mover una tarjeta por drag-and-drop, `updateStatusMutation` / `updateSubEstadoMutation` actualizaba `['tickets']`, pero nunca actualizaba ni invalidaba la caché de detalle `['ticket', id]`. Si el ticket ya había sido abierto en la sesión, reabrirlo hidrataba el modal con la versión vieja de la caché de detalle, y el primer `onBlur` (del título con `autoFocus`) guardaba la columna vieja en el backend.
+     - En `PrensaBacklogPage.tsx`, los handlers `onDrop` no pasaban el evento `e` a `handleDrop(subEstado, e)` y `handleDragEnd` limpiaba el `draggedId` sin buffer de tiempo para el drop.
+  4. **Sobrescritura concurrente por respuestas tardías en `TicketDetallePage.tsx`:**
+     - Los eventos `onBlur` de Brief, Copy y Notas llamaban a `queueSave(..., true)` incluso cuando el contenido no había cambiado. Una respuesta tardía de un `PATCH` de texto en vuelo sobrescribía la caché optimista de un cambio de estado posterior.
+- **Cambios Implementados:**
+  1. **Backend con Épocas y Deduplicación (`apps/api/src/routes/tickets.ts`):**
+     - Se incorporó `ticketsCacheEpoch` e `inflightTicketsFetches`. Cada mutación (`PATCH`, `POST`, `DELETE`, `bulk-*`) incrementa la época e invalida la caché. Si una lectura lenta finaliza habiendo iniciado en una época anterior (`startEpoch !== ticketsCacheEpoch`), descarta el resultado obsoleto e invoca la lectura fresca, garantizando que nunca se intoxique la memoria con estados viejos.
+     - En `bulk-publish`, `bulk-create` y `bulk-update`, `clearTicketsCache()` se ejecuta estrictamente tras completar las operaciones de base de datos.
+  2. **Motor Robusto de Auto-guardado y Concurrencia (`apps/web/src/lib/useAutoSave.ts`):**
+     - Fusión profunda de parches pendientes (`mergePending`): los cambios debounced e inmediatos consecutivos se combinan acumulativamente sin perder propiedades ni estados.
+     - Mutex secuencial con `isSavingRef` e `immediateQueuedRef`: dos guardados inmediatos consecutivos (ej. `onBlur` seguido de click en *"Pasar a..."*) se ejecutan en orden secuencial estricto en lugar de competir por la red.
+  3. **Blindaje de `CreateTicketModal.tsx`:**
+     - En `triggerImmediateAutoSave`, si se invoca sin cambios sucios (`dirtyFieldsRef.current.size === 0 && !pendingSaveDataRef.current`), no emite peticiones redundantes por simple `onBlur` del título con `autoFocus`.
+     - Hidratación segura en `useEffect`: si `ticket.status` o `subEstado` en props es más reciente que el detalle en caché, se preserva el estado del prop.
+     - Efecto de vaciado reactivo: cuando `isTicketLoading` pasa a `false`, se despacha automáticamente cualquier cambio pendiente en `pendingSaveDataRef.current`.
+     - En `performAutoSave`: tolera tickets sin owner asignado (`ownerId: primaryOwner || null`), captura `targetTicketId` y snapshot completo para persistir incluso si el usuario cierra el modal inmediatamente, y sincroniza optimistamente las cachés `['tickets']`, `['tickets', 'PRENSA']` y `['ticket', id]`.
+     - Soporte integral de `subEstado` en Prensa en `buildFormData`, `performAutoSave`, `nextStatusInfo` y `TicketStatusPicker`.
+  4. **Sincronización Total de Caché en Drag-and-Drop (`BacklogPage.tsx` y `PrensaBacklogPage.tsx`):**
+     - `updateStatusMutation` y `updateSubEstadoMutation` ahora cancelan, actualizan de forma optimista e invalidan tanto `['tickets']` como `['ticket', id]`.
+     - `selectedTicket` se mantiene reactivamente sincronizado con `allTickets`.
+     - En `PrensaBacklogPage.tsx`, se pasa `e` a todos los eventos `onDrop` y se añade el buffer de 250ms en `handleDragEnd`.
+  5. **Protección en `TicketDetallePage.tsx`:**
+     - Se agregó `pendingOptimisticRef` para que una respuesta de red de un `PATCH` de texto anterior nunca pise un cambio de columna posterior.
+     - En `onBlur` de Brief, Copy y Notas, solo se emite petición si el contenido realmente difiere del guardado; en caso contrario solo se ejecuta `flushSave()`.
+- **Tests Automatizados y Calidad:**
+  - `useAutoSave.test.ts`: Nuevos tests validando la fusión de parches pendientes (`mergePending`) y la ejecución secuencial mediante mutex sin descartar cambios en guardados inmediatos concurrentes.
+  - `BacklogDragDrop.test.tsx`: Nuevos tests verificando que al soltar un ticket en otra columna se actualiza de inmediato tanto la lista de tickets como la caché de detalle `['ticket', id]`, y que el ticket seleccionado se mantiene sincronizado.
+  - `ticketModals.test.tsx`: Nuevos tests validando que el `onBlur` del título no emite peticiones espurias si no hubo cambios, y que al hacer click en *"Pasar a Redacción"* se avanza y actualiza la caché inmediatamente sin rebotes.
+  - **240 tests pasando al 100%** en Vitest (24 suites, `pnpm test`) y verificación estricta de tipos (`pnpm typecheck`). Build limpio en todo el monorepo.
+
+### [2026-10-23] — Corrección de Resaltado de Comentarios Inline en Párrafos Completos y Sincronización de Marcas
+- **Desarrollador:** Antigravity (Pair Programming con Javier Sculli)
+- **Diagnóstico y Causa Raíz:**
+  1. **Barras verticales verdes (`|`) sin resaltado al seleccionar un párrafo completo:** Al seleccionar un párrafo completo con el mouse (o triple-click), la API de selección del navegador abarca el elemento de bloque `<p>` entero. Al envolverlo en `<mark data-c="...">` (`<mark><p>...</p></mark>`), la regla estándar de CSS que prohíbe bloques dentro de inlines partía el `<mark>` en dos cajas vacías antes y después del párrafo (renderizadas como barritas verticales verdes de `4px` por el `padding: 1px 2px`) y dejaba el texto del `<p>` sin fondo.
+  2. **Limpieza prematura de marcas mientras cargan los comentarios (`CreateTicketModal.tsx`, `TicketDetallePage.tsx`):** Al abrir un ticket, el efecto de sincronización corría mientras `commentsData` seguía `undefined` (usando `[]`), tratando las marcas `<mark data-c>` existentes como huérfanas y desenvolviéndolas antes de terminar el fetch.
+- **Solución Implementada (Cero Mutación de HTML, Solución Robusta y Nativa):**
+  1. **Regla de Bloque Puro en CSS (`index.css`):**
+     ```css
+     mark[data-c]:has(p, div),
+     [contenteditable] mark:has(p, div) {
+       display: block;
+       padding: 2px 4px;
+     }
+     ```
+     Al instruir al navegador a renderizar el `<mark>` como bloque cuando contiene `<p>` o `<div>`, se elimina el particionamiento de cajas inline, pinta todo el párrafo de verde naturalmente y garantiza 0 riesgo de romper formatos, HTML o compatibilidad hacia atrás.
+  2. **Preservación Segura de Marcas de Tickets Anteriores (`CreateTicketModal.tsx`, `TicketDetallePage.tsx`):** El efecto de sincronización espera a que `commentsData` esté definido antes de reconciliar marcas y preserva cualquier borrador activo (`preserveDraftId`).
+- **Tests Automatizados y Calidad:**
+  - `highlightQuotes.test.ts`: Valida sincronización de IDs y preservación de borradores activos (`preserveDraftId`).
+  - `useInlineComments.test.ts`: Valida creación de marcas de borrador y sincronización con `onHtmlChange`.
+  - **228 tests pasando al 100%** en Vitest (`pnpm test`). Build limpio en todo el monorepo (`pnpm build`).
+
+### [2026-10-23] — Barra de Formato y Comentario Sticky + Flotante al Hacer Scroll en Copy, Notas de Diseño y Brief
+- **Desarrollador:** Antigravity (Pair Programming con Javier Sculli)
+- **Pedido de Usuario (Slack `#int-ai-otr` / Notion Backlog):**
+  - *"Hay que incorporar el tema de que si bajo dentro del campo de copy, notas de diseño o brief, me siga una barrita para ajustar formato de texto o comentar, porque si no, tengo que subir para poder encontrar el botón."*
+- **Diagnóstico y Causa Raíz:**
+  1. **En `TicketDetallePage.tsx`:** El `useEffect` que calculaba `--header-sticky-offset` tenía dependencias vacías `[]`. Al montar la página mientras `isLoading === true`, `headerRef.current` era `null` y el efecto salía tempranamente sin registrar el `ResizeObserver`, dejando el offset desfasado respecto al navbar global (`64px`) y al header del ticket. Además, el header tenía `top-0 lg:top-[64px]` cuando el navbar de `Layout.tsx` es `h-16 sticky top-0` en todos los viewports.
+  2. **En `CreateTicketModal.tsx` y `ContentPage.tsx`:** El editor de Brief en `CreateTicketModal.tsx` tenía `maxHeight="320px"`, creando un scroll interno que impedía que su barra de herramientas acompañara el scroll general del modal como sí ocurría con Copy y Notas de diseño. En `ContentPage.tsx`, `RichNotesEditor` tenía `maxHeight="100%"`, atrapando el scroll e impidiendo que su toolbar sticky permaneciera visible.
+  3. **En `TextFormatToolbar.tsx`:** La barra flotante de selección (`data-floating-format-bar="1"`) carecía de los botones de lista con viñetas (`•`), lista numerada (`1.`) e insertar imagen (`ImageIcon`), y usaba un umbral fijo `top < 60` que provocaba colisiones visuales con la barra sticky superior al seleccionar texto cerca del borde superior.
+- **Cambios Implementados:**
+  1. **Cálculo Dinámico y Exacto de Sticky Offset (`TicketDetallePage.tsx`):**
+     - Se corrigió el `useEffect` de medición para depender de `[isLoading, Boolean(ticket)]`, midiendo dinámicamente la altura real del `<nav>` superior más `headerRef.current.offsetHeight` mediante `ResizeObserver`.
+     - Se unificó `sticky top-[64px]` en el header del ticket y se aplicaron contenedores `.editor-sticky-section` (`overflow-anchor: none`) y `.editor-sticky-toolbar` (`container-type: scroll-state`, `backdrop-blur-xs` y sombra al quedar fijo) en **Brief**, **Copy** y **Notas de diseño**.
+  2. **Unificación de Scroll y Sticky Toolbars en Modal y AI Workspace (`CreateTicketModal.tsx`, `RichNotesEditor.tsx`, `ContentPage.tsx`):**
+     - En `CreateTicketModal.tsx`, se removió `maxHeight="320px"` del Brief para que acompañe el scroll del modal con su barra sticky (`top-0 z-20`) igual que Copy y Notas de diseño.
+     - En `RichNotesEditor.tsx` y `ContentPage.tsx`, se habilitó el scroll continuo con `editor-sticky-toolbar` para que la barra acompañe al bajar en textos largos.
+  3. **Barra Flotante de Selección Completa y Anti-Colisión (`TextFormatToolbar.tsx`, `index.css`):**
+     - Se sumaron a la barra flotante (`data-floating-format-bar="1"`) los botones de **Lista con viñetas**, **Lista numerada** e **Insertar imagen**, además de Negrita, Cursiva, Subrayado, Tachado, Enlace y **Comentar**.
+     - Posicionamiento inteligente: mide `toolbarRef.current.getBoundingClientRect().bottom` para posicionar la burbuja flotante debajo de la selección (`rect.bottom + 8`) cuando el texto seleccionado está cerca del borde superior o debajo de una barra sticky.
+     - Se relajó la validación de selección para mantener la barra flotante activa incluso si el arrastre del mouse termina levemente fuera del contenedor del editor.
+- **Tests Automatizados y Calidad:**
+  - `TextFormatToolbar.test.tsx`: Ampliado para validar los nuevos botones en la barra flotante (viñetas, lista numerada, imagen, comentar) y el posicionamiento automático debajo de la selección cuando está próxima a la barra sticky superior.
+  - `TicketDetallePage.test.tsx`: Nuevo test verificando que Brief, Copy y Notas de diseño renderizan sus barras sticky (`data-sticky-toolbar="brief|copy|notas"`) con botones de formato y comentario tras cargar el ticket.
+  - **226 tests pasando al 100%** en Vitest (`pnpm test`). Build limpio en todo el monorepo (`pnpm build`).
+  - Tarea registrada y marcada como `Done` en el [Backlog Oficial de Notion](https://www.notion.so/402617fc369281859ce8f2dfe9816138).
+
 ### [2026-10-20] — Corrección Crítica en Ticket Detalle: Auto-guardado Secuencial en Brief/Copy/Notas y Soporte de Imágenes Pegadas desde Google Drive
 - **Desarrollador:** Antigravity (Pair Programming con Javier Sculli)
 - **Diagnóstico y Causa Raíz:**

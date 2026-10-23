@@ -91,9 +91,31 @@ body {
 [contenteditable] a:hover {
   color: #0c57d3;
 }
+mark[data-c],
 [contenteditable] mark {
   background-color: rgba(0, 255, 178, 0.35);
   border-radius: 2px;
   padding: 1px 2px;
   cursor: pointer;
+}
+
+mark[data-c]:has(p, div),
+[contenteditable] mark:has(p, div) {
+  display: block;
+  padding: 2px 4px;
+}
+
+.editor-sticky-section {
+  overflow-anchor: none;
+}
+
+.editor-sticky-toolbar {
+  container-type: scroll-state;
+  container-name: editor-toolbar;
+}
+
+@container editor-toolbar scroll-state(stuck: top) {
+  .editor-sticky-toolbar > * {
+    box-shadow: 0 4px 12px rgba(0, 14, 31, 0.08);
+  }
 }

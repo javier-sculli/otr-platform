@@ -68,4 +68,11 @@ describe('highlightQuotesInHtml', () => {
     expect(result).toContain('Comentario borrado');
     expect(result).toContain('<mark data-c="c_active"');
   });
+
+  it('preserves active draft mark when preserveDraftId is passed even before comment is persisted', () => {
+    const html = '<p>Texto con <mark data-c="c_draft_999">borrador en curso</mark> aquí.</p>';
+    const result = highlightQuotesInHtml(html, [], 'c_draft_999');
+    expect(result).toContain('data-c="c_draft_999"');
+    expect(result).toContain('borrador en curso</mark>');
+  });
 });

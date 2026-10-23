@@ -9,7 +9,7 @@ import {
 import { api } from '../lib/api';
 import { CreateTicketModal } from '../components/CreateTicketModal';
 import { CalendarioBacklog } from '../components/CalendarioBacklog';
-import { parseLocalDate, formatDateSpan } from '../lib/utils';
+import { parseLocalDate, formatDateSpan, sortTicketsByOrder, calculateDropSortOrder } from '../lib/utils';
 
 interface Ticket {
   id: string;
@@ -33,6 +33,7 @@ interface Ticket {
   pilar?: { id: string; nombre: string } | null;
   speakerId?: string | null;
   speaker?: { id: string; nombre: string } | null;
+  sortOrder?: number | null;
 }
 
 interface Cliente {
@@ -104,6 +105,16 @@ export function BacklogPage() {
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const [dragOverColId, setDragOverColId] = useState<string | null>(null);
   const draggedIdRef = useRef<string | null>(null);
+  const [dropTarget, setDropTarget] = useState<{
+    ticketId: string;
+    position: 'before' | 'after';
+    colId: string;
+  } | null>(null);
+  const dropTargetRef = useRef<{
+    ticketId: string;
+    position: 'before' | 'after';
+    colId: string;
+  } | null>(null);
 
   const queryTicketId = searchParams.get('ticketId');
 
@@ -155,13 +166,11 @@ export function BacklogPage() {
       return;
     }
 
-    if (selectedTicket?.id === queryTicketId) return;
-
     const found = allTickets.find(t => t.id === queryTicketId);
     if (found) {
       setSelectedTicket(found);
-    } else {
-      api.getTicket(queryTicketId)
+    } else if (!selectedTicket || selectedTicket.id !== queryTicketId) {
+      Promise.resolve(api.getTicket(queryTicketId))
         .then(res => {
           if (res?.data) setSelectedTicket(res.data);
         })
@@ -191,27 +200,78 @@ export function BacklogPage() {
   };
 
   const updateStatusMutation = useMutation({
-    mutationFn: ({ id, status }: { id: string; status: string }) =>
-      api.updateTicket(id, { status }),
-    onMutate: async ({ id, status }) => {
+    mutationFn: ({ id, status, sortOrder }: { id: string; status?: string; sortOrder?: number }) => {
+      const payload: { status?: string; sortOrder?: number } = {};
+      if (status !== undefined) payload.status = status;
+      if (sortOrder !== undefined) payload.sortOrder = sortOrder;
+      return api.updateTicket(id, payload);
+    },
+    onMutate: async ({ id, status, sortOrder }) => {
       await queryClient.cancelQueries({ queryKey: ['tickets'] });
-      const prev = queryClient.getQueryData(['tickets']);
+      await queryClient.cancelQueries({ queryKey: ['ticket', id] });
+      const prevTickets = queryClient.getQueryData(['tickets']);
+      const prevTicket = queryClient.getQueryData(['ticket', id]);
+
       queryClient.setQueryData(['tickets'], (old: any) => {
         if (!old) return old;
+        const updater = (t: Ticket) =>
+          t.id === id
+            ? {
+                ...t,
+                ...(status !== undefined ? { status } : {}),
+                ...(sortOrder !== undefined ? { sortOrder } : {}),
+              }
+            : t;
         if (Array.isArray(old)) {
-          return old.map((t: Ticket) => t.id === id ? { ...t, status } : t);
+          return old.map(updater);
         }
         return {
           ...old,
-          data: old.data?.map((t: Ticket) => t.id === id ? { ...t, status } : t) ?? [],
+          data: old.data?.map(updater) ?? [],
         };
       });
-      return { prev };
+      queryClient.setQueryData(['ticket', id], (old: any) => {
+        const prevData = old?.data || allTickets.find(t => t.id === id) || { id };
+        return {
+          ...old,
+          data: {
+            ...prevData,
+            ...(status !== undefined ? { status } : {}),
+            ...(sortOrder !== undefined ? { sortOrder } : {}),
+          },
+        };
+      });
+
+      return { prevTickets, prevTicket };
     },
-    onError: (_err, _vars, ctx) => {
-      if (ctx?.prev) queryClient.setQueryData(['tickets'], ctx.prev);
+    onSuccess: (res, vars) => {
+      if (res?.data) {
+        queryClient.setQueryData(['tickets'], (old: any) => {
+          if (!old) return old;
+          if (Array.isArray(old)) {
+            return old.map((t: Ticket) => (t.id === vars.id ? { ...t, ...res.data } : t));
+          }
+          return {
+            ...old,
+            data: old.data?.map((t: Ticket) => (t.id === vars.id ? { ...t, ...res.data } : t)) ?? [],
+          };
+        });
+        queryClient.setQueryData(['ticket', vars.id], (old: any) => {
+          if (!old?.data) return old;
+          return { ...old, data: { ...old.data, ...res.data } };
+        });
+      }
     },
-    onSettled: () => queryClient.invalidateQueries({ queryKey: ['tickets'] }),
+    onError: (_err, vars, ctx) => {
+      if (ctx?.prevTickets) queryClient.setQueryData(['tickets'], ctx.prevTickets);
+      if (ctx?.prevTicket) queryClient.setQueryData(['ticket', vars.id], ctx.prevTicket);
+    },
+    onSettled: (_data, _error, vars) => {
+      queryClient.invalidateQueries({ queryKey: ['tickets'] });
+      if (vars?.id) {
+        queryClient.invalidateQueries({ queryKey: ['ticket', vars.id] });
+      }
+    },
   });
 
   const ticketsParaVoceros = effectiveClientIds.length > 0
@@ -296,7 +356,7 @@ export function BacklogPage() {
   });
 
   const getTicketsPorColumna = (colId: string) =>
-    ticketsFiltrados.filter(t => t.status === colId);
+    sortTicketsByOrder(ticketsFiltrados.filter(t => t.status === colId));
 
   const toggleCliente = (id: string) => {
     setClientesSeleccionados(prev =>
@@ -320,9 +380,35 @@ export function BacklogPage() {
     e.dataTransfer.effectAllowed = 'move';
   };
 
+  const handleCardDragOver = (e: React.DragEvent, cardId: string, colId: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    e.dataTransfer.dropEffect = 'move';
+    if (draggedIdRef.current === cardId) {
+      if (dropTargetRef.current) {
+        dropTargetRef.current = null;
+        setDropTarget(null);
+      }
+      return;
+    }
+    const rect = e.currentTarget.getBoundingClientRect();
+    const clientY = typeof e.clientY === 'number' && Number.isFinite(e.clientY) ? e.clientY : rect.top;
+    const position: 'before' | 'after' = clientY < rect.top + rect.height / 2 ? 'before' : 'after';
+    const nextTarget = { ticketId: cardId, position, colId };
+    dropTargetRef.current = nextTarget;
+    setDropTarget(nextTarget);
+    if (dragOverColId !== colId) {
+      setDragOverColId(colId);
+    }
+  };
+
   const handleDragOver = (e: React.DragEvent, colId: string) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
+    if (dropTargetRef.current && dropTargetRef.current.colId !== colId) {
+      dropTargetRef.current = null;
+      setDropTarget(null);
+    }
     if (dragOverColId !== colId) {
       setDragOverColId(colId);
     }
@@ -330,6 +416,8 @@ export function BacklogPage() {
 
   const handleDragEnd = () => {
     setDragOverColId(null);
+    setDropTarget(null);
+    dropTargetRef.current = null;
     setTimeout(() => {
       draggedIdRef.current = null;
       setDraggedId(null);
@@ -340,6 +428,7 @@ export function BacklogPage() {
     e.preventDefault();
     e.stopPropagation();
     setDragOverColId(null);
+
     let id: string | null = null;
     try {
       id = e.dataTransfer.getData('text/plain') || e.dataTransfer.getData('text');
@@ -347,12 +436,47 @@ export function BacklogPage() {
     if (!id) {
       id = draggedIdRef.current || draggedId;
     }
+
+    const currentTarget = dropTargetRef.current;
+    setDropTarget(null);
+    dropTargetRef.current = null;
+
     if (id) {
       const ticket = allTickets.find(t => t.id === id);
-      if (ticket && ticket.status !== status) {
-        updateStatusMutation.mutate({ id, status });
+      if (ticket) {
+        const columnTickets = getTicketsPorColumna(status);
+        const targetTicketId = currentTarget?.colId === status ? currentTarget.ticketId : null;
+        const position = currentTarget?.colId === status ? currentTarget.position : null;
+
+        const newSortOrder = calculateDropSortOrder(
+          columnTickets,
+          id,
+          targetTicketId,
+          position
+        );
+
+        const statusChanged = ticket.status !== status;
+        // If dropped in same column and didn't move, do nothing
+        if (!statusChanged && newSortOrder === null) {
+          setTimeout(() => {
+            draggedIdRef.current = null;
+            setDraggedId(null);
+          }, 50);
+          return;
+        }
+
+        const payload: { id: string; status?: string; sortOrder?: number } = { id };
+        if (statusChanged) payload.status = status;
+        if (typeof newSortOrder === 'number' && Number.isFinite(newSortOrder)) {
+          payload.sortOrder = newSortOrder;
+        }
+
+        if (payload.status !== undefined || payload.sortOrder !== undefined) {
+          updateStatusMutation.mutate(payload);
+        }
       }
     }
+
     setTimeout(() => {
       draggedIdRef.current = null;
       setDraggedId(null);
@@ -692,8 +816,11 @@ export function BacklogPage() {
                         key={ticket.id}
                         ticket={ticket}
                         isDragging={draggedId === ticket.id}
+                        dropPosition={dropTarget?.ticketId === ticket.id ? dropTarget.position : null}
                         onDragStart={e => handleDragStart(e, ticket.id)}
                         onDragEnd={handleDragEnd}
+                        onDragOverCard={e => handleCardDragOver(e, ticket.id, col.id)}
+                        onDropOnCard={e => handleDrop(e, col.id)}
                         onClick={() => handleOpenTicket(ticket)}
                       />
                     ))}
@@ -753,104 +880,120 @@ export function BacklogPage() {
 function TicketCard({
   ticket,
   isDragging,
+  dropPosition,
   onDragStart,
   onDragEnd,
+  onDragOverCard,
+  onDropOnCard,
   onClick,
 }: {
   ticket: Ticket;
   isDragging: boolean;
+  dropPosition?: 'before' | 'after' | null;
   onDragStart: (e: React.DragEvent) => void;
   onDragEnd: () => void;
+  onDragOverCard?: (e: React.DragEvent) => void;
+  onDropOnCard?: (e: React.DragEvent) => void;
   onClick: () => void;
 }) {
   const esTarea = ticket.tipoTicket === 'TAREA' || ticket.ticketType?.kind === 'TAREA';
   return (
-    <div
-      draggable
-      onDragStart={onDragStart}
-      onDragEnd={onDragEnd}
-      onClick={onClick}
-      className={`bg-white border-2 rounded-lg p-3 hover:shadow-lg transition-all cursor-grab active:cursor-grabbing select-none ${
-        esTarea ? 'border-[#000033]/15 hover:border-[#000033]/30' : 'border-[#024fff]/40 hover:border-[#024fff]/70'
-      } ${isDragging ? 'opacity-35 scale-[0.98] border-dashed border-[#024fff]' : ''}`}
-    >
-      <div className="flex items-center justify-between mb-2 gap-1.5">
-        <span className="text-xs font-bold text-[#024fff]/70 truncate">
-          {ticket.client.name}
-        </span>
-        <div className="flex items-center gap-1 flex-shrink-0">
-          {esTarea && (
-            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-[#000033] text-white text-[10px] font-bold rounded">
-              <ClipboardList className="w-2.5 h-2.5" />
-              Tarea
-            </span>
-          )}
-          <button className="text-[#000033]/20 hover:text-[#000033] opacity-0 group-hover:opacity-100 transition-opacity">
-            <MoreVertical className="w-3 h-3" />
-          </button>
+    <div className="relative">
+      {dropPosition === 'before' && (
+        <div className="h-1 bg-[#024fff] rounded-full -mt-1 mb-1.5 shadow-sm shadow-[#024fff]/50 transition-all pointer-events-none" />
+      )}
+      <div
+        draggable={true}
+        onDragStart={onDragStart}
+        onDragEnd={onDragEnd}
+        onDragOver={onDragOverCard}
+        onDrop={onDropOnCard}
+        onClick={onClick}
+        className={`bg-white border-2 rounded-lg p-3 hover:shadow-lg transition-all cursor-grab active:cursor-grabbing select-none ${
+          esTarea ? 'border-[#000033]/15 hover:border-[#000033]/30' : 'border-[#024fff]/40 hover:border-[#024fff]/70'
+        } ${isDragging ? 'opacity-35 scale-[0.98] border-dashed border-[#024fff]' : ''}`}
+      >
+        <div className="flex items-center justify-between mb-2 gap-1.5">
+          <span className="text-xs font-bold text-[#024fff]/70 truncate">
+            {ticket.client.name}
+          </span>
+          <div className="flex items-center gap-1 flex-shrink-0">
+            {esTarea && (
+              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-[#000033] text-white text-[10px] font-bold rounded">
+                <ClipboardList className="w-2.5 h-2.5" />
+                Tarea
+              </span>
+            )}
+            <button className="text-[#000033]/20 hover:text-[#000033] opacity-0 group-hover:opacity-100 transition-opacity">
+              <MoreVertical className="w-3 h-3" />
+            </button>
+          </div>
         </div>
-      </div>
 
-      <p className="text-xs font-medium text-[#000033] mb-3 leading-relaxed line-clamp-3">
-        {ticket.title}
-      </p>
+        <p className="text-xs font-medium text-[#000033] mb-3 leading-relaxed line-clamp-3">
+          {ticket.title}
+        </p>
 
-      {(ticket as any).tiposContenido?.length > 0 ? (
-        <div className="flex items-center gap-1 flex-wrap mb-2 pb-2 border-b border-[#000033]/10">
-          {(ticket as any).tiposContenido.map((fmt: string, idx: number) => (
-            <span
-              key={idx}
-              className={`inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-bold rounded border ${
-                esTarea
-                  ? 'bg-[#000033]/5 text-[#000033] border-[#000033]/15'
-                  : 'bg-[#024fff]/10 text-[#024fff] border-[#024fff]/20'
-              }`}
-            >
-              <Package className="w-2.5 h-2.5" />
-              {fmt}
-            </span>
-          ))}
-        </div>
-      ) : (ticket.canales?.length > 0 || ticket.ticketType) ? (
-        <div className="flex items-center gap-1.5 text-xs text-[#000033]/60 mb-2 pb-2 border-b border-[#000033]/10">
-          {!esTarea && ticket.canales?.length > 0 && <span className="font-medium">{ticket.canales.join(', ')}</span>}
-          {!esTarea && ticket.canales?.length > 0 && ticket.ticketType && <span>•</span>}
-          {ticket.ticketType && <span className="font-medium">{ticket.ticketType.name}</span>}
-        </div>
-      ) : null}
+        {(ticket as any).tiposContenido?.length > 0 ? (
+          <div className="flex items-center gap-1 flex-wrap mb-2 pb-2 border-b border-[#000033]/10">
+            {(ticket as any).tiposContenido.map((fmt: string, idx: number) => (
+              <span
+                key={idx}
+                className={`inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-bold rounded border ${
+                  esTarea
+                    ? 'bg-[#000033]/5 text-[#000033] border-[#000033]/15'
+                    : 'bg-[#024fff]/10 text-[#024fff] border-[#024fff]/20'
+                }`}
+              >
+                <Package className="w-2.5 h-2.5" />
+                {fmt}
+              </span>
+            ))}
+          </div>
+        ) : (ticket.canales?.length > 0 || ticket.ticketType) ? (
+          <div className="flex items-center gap-1.5 text-xs text-[#000033]/60 mb-2 pb-2 border-b border-[#000033]/10">
+            {!esTarea && ticket.canales?.length > 0 && <span className="font-medium">{ticket.canales.join(', ')}</span>}
+            {!esTarea && ticket.canales?.length > 0 && ticket.ticketType && <span>•</span>}
+            {ticket.ticketType && <span className="font-medium">{ticket.ticketType.name}</span>}
+          </div>
+        ) : null}
 
-      <div className="flex items-center justify-between text-xs">
-        <div className="flex items-center gap-1 flex-wrap">
-          {(ticket.assignees && ticket.assignees.length > 0
-            ? ticket.assignees
-            : ticket.owner ? [ticket.owner] : []
-          ).map((u: any) => (
-            <div key={u.id} className="flex items-center gap-1 bg-[#024fff]/10 px-1.5 py-0.5 rounded border border-[#024fff]/20" title={u.name}>
-              <div className="w-3.5 h-3.5 rounded-full bg-[#024fff]/20 flex items-center justify-center flex-shrink-0">
-                <span className="text-[8px] font-extrabold text-[#024fff] leading-none">
-                  {u.name ? u.name.charAt(0).toUpperCase() : '?'}
+        <div className="flex items-center justify-between text-xs">
+          <div className="flex items-center gap-1 flex-wrap">
+            {(ticket.assignees && ticket.assignees.length > 0
+              ? ticket.assignees
+              : ticket.owner ? [ticket.owner] : []
+            ).map((u: any) => (
+              <div key={u.id} className="flex items-center gap-1 bg-[#024fff]/10 px-1.5 py-0.5 rounded border border-[#024fff]/20" title={u.name}>
+                <div className="w-3.5 h-3.5 rounded-full bg-[#024fff]/20 flex items-center justify-center flex-shrink-0">
+                  <span className="text-[8px] font-extrabold text-[#024fff] leading-none">
+                    {u.name ? u.name.charAt(0).toUpperCase() : '?'}
+                  </span>
+                </div>
+                <span className="font-bold text-[#024fff] text-[10px] truncate max-w-[65px]">
+                  {u.name ? u.name.split(' ')[0] : ''}
                 </span>
               </div>
-              <span className="font-bold text-[#024fff] text-[10px] truncate max-w-[65px]">
-                {u.name ? u.name.split(' ')[0] : ''}
-              </span>
-            </div>
-          ))}
-        </div>
-        <div className="flex items-center gap-1.5">
-          {ticket.dueDate && (
-            <div className="flex items-center gap-1 text-[#000033]/60">
-              <Calendar className="w-2.5 h-2.5" />
-              <span className="font-medium">
-                {formatDateSpan(ticket.dueDate, { day: '2-digit', month: 'short' })}
-              </span>
-            </div>
-          )}
-          <span className={`text-xs font-bold px-1.5 py-0.5 rounded border ${PRIORIDAD_STYLES[ticket.prioridad] ?? ''}`}>
-            {PRIORIDAD_LABEL[ticket.prioridad] ?? ticket.prioridad}
-          </span>
+            ))}
+          </div>
+          <div className="flex items-center gap-1.5">
+            {ticket.dueDate && (
+              <div className="flex items-center gap-1 text-[#000033]/60">
+                <Calendar className="w-2.5 h-2.5" />
+                <span className="font-medium">
+                  {formatDateSpan(ticket.dueDate, { day: '2-digit', month: 'short' })}
+                </span>
+              </div>
+            )}
+            <span className={`text-xs font-bold px-1.5 py-0.5 rounded border ${PRIORIDAD_STYLES[ticket.prioridad] ?? ''}`}>
+              {PRIORIDAD_LABEL[ticket.prioridad] ?? ticket.prioridad}
+            </span>
+          </div>
         </div>
       </div>
+      {dropPosition === 'after' && (
+        <div className="h-1 bg-[#024fff] rounded-full -mb-1 mt-1.5 shadow-sm shadow-[#024fff]/50 transition-all pointer-events-none" />
+      )}
     </div>
   );
 }

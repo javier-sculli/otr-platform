@@ -82,6 +82,8 @@ export function TicketDetallePage() {
 
   const ticket = data?.data;
 
+  const pendingOptimisticRef = useRef<Record<string, unknown>>({});
+
   const {
     status: saveStatus,
     save: saveTicketPatch,
@@ -89,17 +91,28 @@ export function TicketDetallePage() {
   } = useAutoSave<Record<string, unknown>>({
     onSave: async (patch) => {
       if (!ticketId) return;
+      Object.keys(patch).forEach((k) => {
+        delete pendingOptimisticRef.current[k];
+      });
       const res = await api.updateTicket(ticketId, patch);
       if (res?.data) {
+        const mergedData = { ...res.data, ...pendingOptimisticRef.current };
         queryClient.setQueryData(['ticket', ticketId], (old: any) => {
           if (!old?.data) return old;
-          return { ...old, data: { ...old.data, ...res.data } };
+          return { ...old, data: { ...old.data, ...mergedData } };
         });
         queryClient.setQueryData(['tickets'], (old: any) => {
           if (!old?.data) return old;
           return {
             ...old,
-            data: old.data.map((t: any) => (t.id === res.data.id ? { ...t, ...res.data } : t)),
+            data: old.data.map((t: any) => (t.id === res.data.id ? { ...t, ...mergedData } : t)),
+          };
+        });
+        queryClient.setQueryData(['tickets', 'PRENSA'], (old: any) => {
+          if (!old?.data) return old;
+          return {
+            ...old,
+            data: old.data.map((t: any) => (t.id === res.data.id ? { ...t, ...mergedData } : t)),
           };
         });
       }
@@ -109,10 +122,27 @@ export function TicketDetallePage() {
   });
 
   const queueSave = (patch: Record<string, unknown>, immediate = false) => {
+    pendingOptimisticRef.current = { ...pendingOptimisticRef.current, ...patch };
     queryClient.setQueryData(['ticket', ticketId], (old: any) => {
       if (!old?.data) return old;
       return { ...old, data: { ...old.data, ...patch } };
     });
+    if (patch.status !== undefined || patch.subEstado !== undefined) {
+      queryClient.setQueryData(['tickets'], (old: any) => {
+        if (!old?.data) return old;
+        return {
+          ...old,
+          data: old.data.map((t: any) => (t.id === ticketId ? { ...t, ...patch } : t)),
+        };
+      });
+      queryClient.setQueryData(['tickets', 'PRENSA'], (old: any) => {
+        if (!old?.data) return old;
+        return {
+          ...old,
+          data: old.data.map((t: any) => (t.id === ticketId ? { ...t, ...patch } : t)),
+        };
+      });
+    }
     saveTicketPatch(patch, immediate);
   };
 
@@ -224,25 +254,27 @@ export function TicketDetallePage() {
   const [stickyOffset, setStickyOffset] = useState(180);
 
   useEffect(() => {
-    const updateOffset = () => {
-      if (headerRef.current) {
-        const isLg = typeof window !== 'undefined' && window.innerWidth >= 1024;
-        const navH = 64;
-        const h = headerRef.current.offsetHeight;
-        setStickyOffset((isLg ? navH : 0) + h);
-      }
-    };
-    updateOffset();
     const el = headerRef.current;
     if (!el) return;
-    const ro = new ResizeObserver(updateOffset);
-    ro.observe(el);
+
+    const updateOffset = () => {
+      if (headerRef.current) {
+        const navEl = typeof document !== 'undefined' ? document.querySelector('nav') : null;
+        const navH = navEl ? navEl.getBoundingClientRect().height : 64;
+        const h = headerRef.current.offsetHeight;
+        setStickyOffset(Math.round(navH + h));
+      }
+    };
+
+    updateOffset();
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(updateOffset) : null;
+    ro?.observe(el);
     window.addEventListener('resize', updateOffset);
     return () => {
-      ro.disconnect();
+      ro?.disconnect();
       window.removeEventListener('resize', updateOffset);
     };
-  }, []);
+  }, [isLoading, Boolean(ticket)]);
 
   const { data: speakersData } = useQuery({
     queryKey: ['speakers', ticket?.clientId],
@@ -276,8 +308,9 @@ export function TicketDetallePage() {
 
   // Synchronize comment marks into editors when comments or ticket load
   useEffect(() => {
-    if (!ticket) return;
-    const commentsList = commentsData?.data || [];
+    if (!ticket || !commentsData) return;
+    const commentsList = commentsData.data || [];
+    const draftId = popRefVal.current?.isDraft ? popRefVal.current.id : null;
 
     const quotesWithIds: { quote: string; id: string }[] = [];
     commentsList.forEach((cm: any) => {
@@ -289,16 +322,16 @@ export function TicketDetallePage() {
       }
     });
 
-    setBriefTemp(prev => highlightQuotesInHtml(prev || '', quotesWithIds));
-    setNotasAudiovisual(prev => highlightQuotesInHtml(prev || '', quotesWithIds));
+    setBriefTemp(prev => highlightQuotesInHtml(prev || '', quotesWithIds, draftId));
+    setNotasAudiovisual(prev => highlightQuotesInHtml(prev || '', quotesWithIds, draftId));
     setCopyPerCanal(prev => {
       const next: Record<string, string> = { ...prev };
       Object.keys(next).forEach(canal => {
-        next[canal] = highlightQuotesInHtml(next[canal] || '', quotesWithIds);
+        next[canal] = highlightQuotesInHtml(next[canal] || '', quotesWithIds, draftId);
       });
       return next;
     });
-  }, [commentsData?.data, ticket?.id]);
+  }, [commentsData, ticket?.id]);
 
   useEffect(() => {
     if (ticketId) {
@@ -552,7 +585,7 @@ export function TicketDetallePage() {
     <div className="min-h-[calc(100vh-64px)] bg-[#f7fafc] font-anek">
 
       {/* TOP HEADER STICKY */}
-      <div ref={headerRef} className="sticky top-0 lg:top-[64px] z-30 bg-white border-b border-[#d6dde5]">
+      <div ref={headerRef} className="sticky top-[64px] z-30 bg-white border-b border-[#d6dde5]">
         <div className="max-w-[1440px] mx-auto px-4 sm:px-9 py-4 sm:py-[16px] pb-[18px] flex flex-col gap-2 box-border">
 
           {/* Breadcrumbs & Autosave indicator */}
@@ -791,9 +824,10 @@ export function TicketDetallePage() {
             </button>
 
             {briefOpen && (
-              <div className="border-t border-[#eef3f7]">
+              <div className="border-t border-[#eef3f7] editor-sticky-section">
                 <div
-                  className="sticky z-20 border-b border-[#d6dde5] bg-[#f7fafc]"
+                  data-sticky-toolbar="brief"
+                  className="sticky z-20 border-b border-[#d6dde5] bg-[#f7fafc]/95 backdrop-blur-xs shadow-[0_2px_8px_rgba(0,14,31,0.06)] editor-sticky-toolbar"
                   style={{ top: 'var(--header-sticky-offset, 180px)' }}
                 >
                   <TextFormatToolbar
@@ -817,7 +851,11 @@ export function TicketDetallePage() {
                     queueSave({ objetivo: val || null }, hasImage);
                   }}
                   onBlur={() => {
-                    queueSave({ objetivo: briefTemp || null }, true);
+                    if ((briefTemp || '') !== (ticket?.objetivo || '')) {
+                      queueSave({ objetivo: briefTemp || null }, true);
+                    } else {
+                      flushSave();
+                    }
                   }}
                   onImmediateSave={() => {
                     const currentHtml = briefRef.current?.innerHTML || briefTemp;
@@ -974,10 +1012,11 @@ export function TicketDetallePage() {
                   </button>
                 </div>
 
-                <div className="border border-[#d6dde5] rounded-[12px] bg-white relative shadow-xs">
+                <div className="border border-[#d6dde5] rounded-[12px] bg-white relative shadow-xs editor-sticky-section">
                   {/* Sticky Tabs + Toolbar */}
                   <div
-                    className="sticky z-20 border-b border-[#d6dde5] bg-[#f7fafc] rounded-t-[11px]"
+                    data-sticky-toolbar="copy"
+                    className="sticky z-20 border-b border-[#d6dde5] bg-[#f7fafc]/95 backdrop-blur-xs rounded-t-[11px] shadow-[0_2px_8px_rgba(0,14,31,0.06)] editor-sticky-toolbar"
                     style={{ top: 'var(--header-sticky-offset, 180px)' }}
                   >
                     {/* Redes tabs */}
@@ -1038,7 +1077,14 @@ export function TicketDetallePage() {
                       const hasImage = val.includes('<img');
                       saveCopyTab(activeCopyTab, val, hasImage);
                     }}
-                    onBlur={() => saveCopyTab(activeCopyTab, currentCopy, true)}
+                    onBlur={() => {
+                      const savedCopy = (ticket as any)?.contentPerCanal?.[activeCopyTab] ?? '';
+                      if ((currentCopy || '') !== savedCopy) {
+                        saveCopyTab(activeCopyTab, currentCopy, true);
+                      } else {
+                        flushSave();
+                      }
+                    }}
                     onImmediateSave={() => {
                       const cur = copyRef.current?.innerHTML || currentCopy;
                       saveCopyTab(activeCopyTab, cur, true);
@@ -1102,9 +1148,10 @@ export function TicketDetallePage() {
                     </button>
 
                     {notasOpen && (
-                      <div className="border border-[#d6dde5] rounded-[12px] bg-white relative shadow-xs">
+                      <div className="border border-[#d6dde5] rounded-[12px] bg-white relative shadow-xs editor-sticky-section">
                         <div
-                          className="sticky z-20 border-b border-[#d6dde5] bg-[#f7fafc] rounded-t-[11px]"
+                          data-sticky-toolbar="notas"
+                          className="sticky z-20 border-b border-[#d6dde5] bg-[#f7fafc]/95 backdrop-blur-xs rounded-t-[11px] shadow-[0_2px_8px_rgba(0,14,31,0.06)] editor-sticky-toolbar"
                           style={{ top: 'var(--header-sticky-offset, 180px)' }}
                         >
                           <TextFormatToolbar
@@ -1128,7 +1175,11 @@ export function TicketDetallePage() {
                             queueSave({ notasAudiovisual: val || null }, hasImage);
                           }}
                           onBlur={() => {
-                            queueSave({ notasAudiovisual: notasAudiovisual || null }, true);
+                            if ((notasAudiovisual || '') !== ((ticket as any)?.notasAudiovisual || '')) {
+                              queueSave({ notasAudiovisual: notasAudiovisual || null }, true);
+                            } else {
+                              flushSave();
+                            }
                           }}
                           onImmediateSave={() => {
                             const cur = notasRef.current?.innerHTML || notasAudiovisual;
@@ -1151,9 +1202,10 @@ export function TicketDetallePage() {
                       <span className="text-[14px] text-[#5b6675]">Indicaciones para quien diseña: estilo, referencias, textos que van en la pieza.</span>
                     </div>
 
-                    <div className="border border-[#d6dde5] rounded-[12px] bg-white relative shadow-xs">
+                    <div className="border border-[#d6dde5] rounded-[12px] bg-white relative shadow-xs editor-sticky-section">
                       <div
-                        className="sticky z-20 border-b border-[#d6dde5] bg-[#f7fafc] rounded-t-[11px]"
+                        data-sticky-toolbar="notas"
+                        className="sticky z-20 border-b border-[#d6dde5] bg-[#f7fafc]/95 backdrop-blur-xs rounded-t-[11px] shadow-[0_2px_8px_rgba(0,14,31,0.06)] editor-sticky-toolbar"
                         style={{ top: 'var(--header-sticky-offset, 180px)' }}
                       >
                         <TextFormatToolbar
@@ -1177,7 +1229,11 @@ export function TicketDetallePage() {
                           queueSave({ notasAudiovisual: val || null }, hasImage);
                         }}
                         onBlur={() => {
-                          queueSave({ notasAudiovisual: notasAudiovisual || null }, true);
+                          if ((notasAudiovisual || '') !== ((ticket as any)?.notasAudiovisual || '')) {
+                            queueSave({ notasAudiovisual: notasAudiovisual || null }, true);
+                          } else {
+                            flushSave();
+                          }
                         }}
                         onImmediateSave={() => {
                           const cur = notasRef.current?.innerHTML || notasAudiovisual;
