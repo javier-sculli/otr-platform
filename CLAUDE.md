@@ -11,7 +11,8 @@ Sistema de gestión de producción de contenido para On The Rocks (OTR), una age
 ## Stack
 - Monorepo (pnpm workspaces)
 - `apps/web` — frontend React + TypeScript + Vite + shadcn/ui
-- `apps/api` — backend
+- `apps/api` — backend Fastify + Prisma + JWT / Google OAuth
+- **Base de datos:** PostgreSQL nativo en **Railway** (migrado en Sep 2026; **NO se usa Supabase**). En desarrollo local se apunta directamente a Railway via `DATABASE_URL` en `apps/api/.env`.
 - `packages/schemas` / `packages/types` — tipos compartidos
 
 ## Modelo de datos (real, en código)

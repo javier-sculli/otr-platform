@@ -5,7 +5,7 @@ Plataforma operativa interna para gestión de tickets y contenido.
 ## 🏗️ Arquitectura
 
 Monorepo TypeScript con:
-- **Backend**: Fastify + Prisma + PostgreSQL
+- **Backend**: Fastify + Prisma + PostgreSQL (Railway)
 - **Frontend**: React + Vite + TailwindCSS + TanStack Query
 - **Packages**: Tipos y schemas compartidos
 
@@ -29,7 +29,6 @@ otr-platform/
 Requerimientos:
 - Node.js 18+
 - pnpm 8+
-- PostgreSQL 14+
 
 ```bash
 # Instalar pnpm si no lo tenés
@@ -41,59 +40,43 @@ pnpm install
 
 ### 2. Configurar base de datos
 
-Crear una base de datos PostgreSQL:
+La base de datos oficial del proyecto es un PostgreSQL alojado en **Railway** (**NO se usa Supabase**).
 
-```bash
-# Opción 1: PostgreSQL local
-createdb otr_platform
-
-# Opción 2: Usar Docker
-docker run --name otr-postgres -e POSTGRES_PASSWORD=password -e POSTGRES_DB=otr_platform -p 5432:5432 -d postgres:14
-
-# Opción 3: Usar un servicio gratuito
-# - Supabase (https://supabase.com)
-# - Render (https://render.com)
-# - Railway (https://railway.app)
-```
+- **Opción recomendada (desarrollo):** Conectarse directamente a la base de datos de Railway configurando la `DATABASE_URL` provista en `apps/api/.env`.
+- **Opción local aislada (Docker):** Si preferís correr una base de datos propia:
+  ```bash
+  docker run --name otr-postgres -e POSTGRES_PASSWORD=password -e POSTGRES_DB=otr_platform -p 5432:5432 -d postgres:14
+  ```
 
 ### 3. Configurar variables de entorno
 
-```bash
-# Copiar ejemplo de .env
-cp .env.example .env
+Copiar los archivos de ejemplo:
 
-# Editar .env con tus valores
-# DATABASE_URL="postgresql://user:password@localhost:5432/otr_platform"
-# JWT_SECRET="tu-secret-key-aqui"
+```bash
+cp apps/api/.env.example apps/api/.env
+cp apps/web/.env.example apps/web/.env
 ```
 
-Para generar un JWT_SECRET seguro:
-```bash
-openssl rand -base64 32
-```
+Configurar `DATABASE_URL` y `JWT_SECRET` en `apps/api/.env`.
 
-### 4. Ejecutar migraciones de Prisma
-
+### 4. Generar Prisma y migraciones
 ```bash
 cd apps/api
-pnpm prisma migrate dev --name init
 pnpm prisma generate
+# (Solo si usás una base de datos local propia vacía):
+# pnpm prisma migrate dev
+# pnpm prisma:seed
+cd ../..
 ```
 
-### 5. Seed inicial (opcional)
+### 5. Prisma Studio (opcional)
 
-Crear datos de prueba manualmente o con Prisma Studio:
+Para explorar los datos existentes de la base de datos de Railway o local:
 
 ```bash
 cd apps/api
-pnpm prisma studio
+pnpm prisma:studio
 ```
-
-Crea al menos:
-- 1 Usuario (con password hasheado)
-- 1 Cliente
-- 1 Área
-- 1 TicketType
 
 ## 🛠️ Desarrollo
 
@@ -216,11 +199,10 @@ Authorization: Bearer <token>
    - `NODE_ENV`: `production`
    - `FRONTEND_URL`: URL de Vercel
 
-### Otras opciones
+### Arquitectura de Producción
 
-- **Railway**: Frontend + Backend + DB en un solo lugar
-- **Fly.io**: Backend
-- **Supabase**: Solo DB (gratis)
+- **Railway**: Backend (`apps/api`), Frontend (`apps/web`) y PostgreSQL alojados en Railway.
+- **Vercel**: Opción alternativa para frontend (`apps/web`).
 
 ## 📝 Próximos pasos (fuera del MVP)
 
