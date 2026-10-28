@@ -9,6 +9,7 @@ export interface AttachedFileItem {
 }
 
 export const MAX_ATTACHMENT_SIZE_BYTES = 15 * 1024 * 1024; // 15MB
+export const MAX_COMMENT_ATTACHMENT_SIZE_BYTES = 4 * 1024 * 1024; // 4MB for fast comment delivery
 
 export function formatFileSize(bytes?: number): string {
   if (bytes === undefined || bytes === null || isNaN(bytes) || bytes <= 0) return '';

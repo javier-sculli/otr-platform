@@ -20,11 +20,11 @@ Por favor, realizá los siguientes pasos:
 VITE_API_URL=http://localhost:3001
 
 2. Creá el archivo `apps/api/.env` con el siguiente contenido:
-# Railway Postgres Database (Producción / Local)
-DATABASE_URL="postgresql://postgres:ijpppdYdzmFVDaJEDLXaRBollTPYoxZj@altaria.proxy.rlwy.net:23673/railway"
-DIRECT_URL="postgresql://postgres:ijpppdYdzmFVDaJEDLXaRBollTPYoxZj@altaria.proxy.rlwy.net:23673/railway"
+# Railway Postgres Database (solicitar credenciales a Javi o usar local)
+DATABASE_URL="postgresql://postgres:TU_PASSWORD@altaria.proxy.rlwy.net:23673/railway"
+DIRECT_URL="postgresql://postgres:TU_PASSWORD@altaria.proxy.rlwy.net:23673/railway"
 
-JWT_SECRET="JEexfN04Xj2+p1YF2DhA4x/z2MvgBY/Ok9fnk1o3RZk="
+JWT_SECRET="dev-jwt-secret-change-in-production"
 API_PORT=3001
 NODE_ENV=development
 
@@ -80,11 +80,11 @@ VITE_API_URL=http://localhost:3001
 #### Backend (`apps/api/.env`)
 Crear el archivo `apps/api/.env`:
 ```env
-# Railway Postgres Database
-DATABASE_URL="postgresql://postgres:ijpppdYdzmFVDaJEDLXaRBollTPYoxZj@altaria.proxy.rlwy.net:23673/railway"
-DIRECT_URL="postgresql://postgres:ijpppdYdzmFVDaJEDLXaRBollTPYoxZj@altaria.proxy.rlwy.net:23673/railway"
+# Railway Postgres Database (solicitar credenciales o usar local)
+DATABASE_URL="postgresql://postgres:TU_PASSWORD@altaria.proxy.rlwy.net:23673/railway"
+DIRECT_URL="postgresql://postgres:TU_PASSWORD@altaria.proxy.rlwy.net:23673/railway"
 
-JWT_SECRET="JEexfN04Xj2+p1YF2DhA4x/z2MvgBY/Ok9fnk1o3RZk="
+JWT_SECRET="dev-jwt-secret-change-in-production"
 API_PORT=3001
 NODE_ENV=development
 

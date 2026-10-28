@@ -1802,9 +1802,10 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
               currentUserName={user?.name || user?.email || 'YO'}
               teamList={teamList}
               onAddComment={async (content) => {
-                if (ticket?.id) {
-                  await createCommentMutation.mutateAsync(content);
+                if (!ticket?.id) {
+                  throw new Error('Primero debés guardar el ticket para poder agregar comentarios.');
                 }
+                await createCommentMutation.mutateAsync(content);
               }}
               onDeleteComment={(commentId) => {
                 deleteCommentMutation.mutate(commentId);

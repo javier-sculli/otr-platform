@@ -176,45 +176,61 @@ export const MentionTextarea: React.FC<MentionTextareaProps> = ({
 
   const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
     const items = Array.from(e.clipboardData.items || []);
+    let handled = false;
+
     if (onPasteImage) {
-      const imageItem = items.find((item) => item.type.startsWith('image/'));
-      if (imageItem) {
-        const file = imageItem.getAsFile();
+      const imgItems = items.filter((item) => item.type.startsWith('image/'));
+      for (const item of imgItems) {
+        const file = item.getAsFile();
         if (file) {
-          e.preventDefault();
+          handled = true;
           onPasteImage(file);
-          return;
         }
       }
     }
+
     if (onPasteFile) {
-      const fileItem = items.find((item) => item.kind === 'file');
-      if (fileItem) {
-        const file = fileItem.getAsFile();
+      const fileItems = items.filter((item) => item.kind === 'file' && !item.type.startsWith('image/'));
+      for (const item of fileItems) {
+        const file = item.getAsFile();
         if (file) {
-          e.preventDefault();
+          handled = true;
           onPasteFile(file);
-          return;
         }
       }
     }
+
+    if (handled) {
+      e.preventDefault();
+      return;
+    }
+
     onPaste?.(e);
   };
 
   const handleDrop = (e: React.DragEvent<HTMLTextAreaElement>) => {
     const files = Array.from(e.dataTransfer.files || []);
     if (files.length === 0) return;
-    const imgFile = files.find(f => f.type.startsWith('image/'));
-    if (imgFile && onPasteImage) {
-      e.preventDefault();
-      onPasteImage(imgFile);
-      return;
+    let handled = false;
+
+    const imgFiles = files.filter((f) => f.type.startsWith('image/'));
+    if (imgFiles.length > 0 && onPasteImage) {
+      handled = true;
+      for (const file of imgFiles) {
+        onPasteImage(file);
+      }
     }
-    const docFile = files.find(f => !f.type.startsWith('image/'));
-    if (docFile && onPasteFile) {
+
+    const docFiles = files.filter((f) => !f.type.startsWith('image/'));
+    if (docFiles.length > 0 && onPasteFile) {
+      handled = true;
+      for (const file of docFiles) {
+        onPasteFile(file);
+      }
+    }
+
+    if (handled) {
       e.preventDefault();
-      onPasteFile(docFile);
-      return;
     }
   };
 

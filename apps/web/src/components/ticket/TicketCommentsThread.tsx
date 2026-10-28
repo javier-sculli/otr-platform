@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Trash2, Loader2, Image as ImageIcon, X, Paperclip, FileText, Download } from 'lucide-react';
 import { MentionTextarea } from '../MentionTextarea';
 import { compressImageFile, parseCommentContent, buildCommentContent } from '../../lib/imageCompression';
-import { readFileAsDataUrl, formatFileSize, MAX_ATTACHMENT_SIZE_BYTES } from '../../lib/attachments';
+import { readFileAsDataUrl, formatFileSize, MAX_COMMENT_ATTACHMENT_SIZE_BYTES } from '../../lib/attachments';
 import { CommentImageViewerModal } from './CommentImageViewerModal';
 
 export interface TicketCommentItem {
@@ -139,37 +139,60 @@ export const TicketCommentsThread: React.FC<TicketCommentsThreadProps> = ({
     }
   };
 
-  const handleImageFile = async (file: File) => {
-    if (!file.type.startsWith('image/')) return;
+  const handleImageFile = async (files: File | File[]) => {
+    const list = Array.isArray(files) ? files : [files];
+    const valid = list.filter(f => f.type.startsWith('image/'));
+    if (valid.length === 0) return;
     try {
       setIsCompressing(true);
-      const compressed = await compressImageFile(file);
-      setPastedImages(prev => [...prev, compressed]);
+      const compressedList = await Promise.all(
+        valid.map(f => compressImageFile(f))
+      );
+      setPastedImages(prev => [...prev, ...compressedList]);
     } catch (err) {
-      console.error('Error al procesar imagen pegada:', err);
+      console.error('Error al procesar imágenes:', err);
     } finally {
       setIsCompressing(false);
     }
   };
 
-  const handleAttachFile = async (file: File) => {
-    if (file.size > MAX_ATTACHMENT_SIZE_BYTES) {
-      alert(`El archivo "${file.name}" supera el tamaño máximo permitido de 15MB.`);
-      return;
+  const handleAttachFile = async (files: File | File[]) => {
+    const list = Array.isArray(files) ? files : [files];
+    const imageFiles: File[] = [];
+    const docFiles: File[] = [];
+
+    for (const f of list) {
+      if (f.size > MAX_COMMENT_ATTACHMENT_SIZE_BYTES) {
+        alert(`El archivo "${f.name}" supera el tamaño máximo permitido de 4MB para comentarios.`);
+        continue;
+      }
+      if (f.type.startsWith('image/')) {
+        imageFiles.push(f);
+      } else {
+        docFiles.push(f);
+      }
     }
-    if (file.type.startsWith('image/')) {
-      await handleImageFile(file);
-      return;
+
+    if (imageFiles.length > 0) {
+      await handleImageFile(imageFiles);
     }
-    try {
-      setIsCompressing(true);
-      const dataUrl = await readFileAsDataUrl(file);
-      setAttachedCommentFiles(prev => [...prev, { name: file.name, url: dataUrl, size: file.size }]);
-    } catch (err: any) {
-      console.error('Error al procesar archivo adjunto:', err);
-      alert(err?.message || 'Error al leer el archivo');
-    } finally {
-      setIsCompressing(false);
+
+    if (docFiles.length > 0) {
+      try {
+        setIsCompressing(true);
+        const docs = await Promise.all(
+          docFiles.map(async f => {
+            const dataUrl = await readFileAsDataUrl(f);
+            return { name: f.name, url: dataUrl, size: f.size };
+          })
+        );
+        setAttachedCommentFiles(prev => [...prev, ...docs]);
+      } catch (err: any) {
+        console.error('Error al procesar archivos adjuntos:', err);
+        alert(err?.message || 'Error al leer el archivo');
+      } finally {
+        setIsCompressing(false);
+      }
     }
   };
 
@@ -501,11 +524,12 @@ export const TicketCommentsThread: React.FC<TicketCommentsThreadProps> = ({
                 type="file"
                 ref={fileInputRef}
                 accept="image/*"
+                multiple
                 className="hidden"
                 data-testid="comment-file-input"
                 onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (file) handleImageFile(file);
+                  const files = Array.from(e.target.files || []);
+                  if (files.length > 0) handleImageFile(files);
                   e.target.value = '';
                 }}
               />
@@ -513,11 +537,12 @@ export const TicketCommentsThread: React.FC<TicketCommentsThreadProps> = ({
                 type="file"
                 ref={fileAttachmentInputRef}
                 accept="application/pdf,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.zip,image/*"
+                multiple
                 className="hidden"
                 data-testid="comment-attachment-file-input"
                 onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (file) handleAttachFile(file);
+                  const files = Array.from(e.target.files || []);
+                  if (files.length > 0) handleAttachFile(files);
                   e.target.value = '';
                 }}
               />

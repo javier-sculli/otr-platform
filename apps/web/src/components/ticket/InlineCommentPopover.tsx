@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { Check, X, Image as ImageIcon, Loader2, FileText, Paperclip } from 'lucide-react';
 import { MentionTextarea, formatCommentWithMentions } from '../MentionTextarea';
 import { compressImageFile, parseCommentContent, buildCommentContent } from '../../lib/imageCompression';
-import { readFileAsDataUrl, MAX_ATTACHMENT_SIZE_BYTES } from '../../lib/attachments';
+import { readFileAsDataUrl, MAX_COMMENT_ATTACHMENT_SIZE_BYTES } from '../../lib/attachments';
 import { CommentImageViewerModal } from './CommentImageViewerModal';
 
 export interface CommentThreadItem {
@@ -100,12 +100,16 @@ export function InlineCommentPopover({
     onClose();
   };
 
-  const handleImageFile = async (file: File) => {
-    if (!file.type.startsWith('image/')) return;
+  const handleImageFile = async (files: File | File[]) => {
+    const list = Array.isArray(files) ? files : [files];
+    const valid = list.filter(f => f.type.startsWith('image/'));
+    if (valid.length === 0) return;
     try {
       setIsCompressing(true);
-      const compressed = await compressImageFile(file);
-      setPopImages(prev => [...prev, compressed]);
+      const compressedList = await Promise.all(
+        valid.map(f => compressImageFile(f))
+      );
+      setPopImages(prev => [...prev, ...compressedList]);
     } catch (e) {
       console.error(e);
     } finally {
@@ -113,24 +117,43 @@ export function InlineCommentPopover({
     }
   };
 
-  const handleAttachFile = async (file: File) => {
-    if (file.size > MAX_ATTACHMENT_SIZE_BYTES) {
-      alert(`El archivo "${file.name}" supera el tamaño máximo permitido de 15MB.`);
-      return;
+  const handleAttachFile = async (files: File | File[]) => {
+    const list = Array.isArray(files) ? files : [files];
+    const imageFiles: File[] = [];
+    const docFiles: File[] = [];
+
+    for (const f of list) {
+      if (f.size > MAX_COMMENT_ATTACHMENT_SIZE_BYTES) {
+        alert(`El archivo "${f.name}" supera el tamaño máximo permitido de 4MB para comentarios.`);
+        continue;
+      }
+      if (f.type.startsWith('image/')) {
+        imageFiles.push(f);
+      } else {
+        docFiles.push(f);
+      }
     }
-    if (file.type.startsWith('image/')) {
-      await handleImageFile(file);
-      return;
+
+    if (imageFiles.length > 0) {
+      await handleImageFile(imageFiles);
     }
-    try {
-      setIsCompressing(true);
-      const dataUrl = await readFileAsDataUrl(file);
-      setPopFiles(prev => [...prev, { name: file.name, url: dataUrl, size: file.size }]);
-    } catch (err: any) {
-      console.error(err);
-      alert(err?.message || 'Error al leer el archivo');
-    } finally {
-      setIsCompressing(false);
+
+    if (docFiles.length > 0) {
+      try {
+        setIsCompressing(true);
+        const docs = await Promise.all(
+          docFiles.map(async f => {
+            const dataUrl = await readFileAsDataUrl(f);
+            return { name: f.name, url: dataUrl, size: f.size };
+          })
+        );
+        setPopFiles(prev => [...prev, ...docs]);
+      } catch (err: any) {
+        console.error(err);
+        alert(err?.message || 'Error al leer el archivo');
+      } finally {
+        setIsCompressing(false);
+      }
     }
   };
 
@@ -338,10 +361,11 @@ export function InlineCommentPopover({
               type="file"
               ref={fileInputRef}
               accept="image/*"
+              multiple
               className="hidden"
               onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (file) handleImageFile(file);
+                const files = Array.from(e.target.files || []);
+                if (files.length > 0) handleImageFile(files);
                 e.target.value = '';
               }}
             />
@@ -359,11 +383,12 @@ export function InlineCommentPopover({
               type="file"
               ref={fileAttachmentInputRef}
               accept="application/pdf,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.zip"
+              multiple
               className="hidden"
               data-testid="inline-comment-attachment-input"
               onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (file) handleAttachFile(file);
+                const files = Array.from(e.target.files || []);
+                if (files.length > 0) handleAttachFile(files);
                 e.target.value = '';
               }}
             />

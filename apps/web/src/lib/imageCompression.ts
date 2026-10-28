@@ -9,8 +9,8 @@
  */
 export function compressImageFile(
   file: File | Blob,
-  maxDimension = 1400,
-  quality = 0.82
+  maxDimension = 1000,
+  quality = 0.72
 ): Promise<string> {
   return new Promise((resolve, reject) => {
     if (!file.type.startsWith('image/')) {
@@ -91,8 +91,8 @@ export function compressImageFile(
  */
 export async function convertImageUrlToDataUrl(
   url: string,
-  maxDimension = 1400,
-  quality = 0.82
+  maxDimension = 1000,
+  quality = 0.72
 ): Promise<string> {
   if (!url || typeof url !== 'string') return url;
   if (url.startsWith('data:image/')) return url;

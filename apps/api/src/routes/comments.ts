@@ -51,15 +51,19 @@ export async function commentsRoutes(fastify: FastifyInstance) {
     });
     if (!ticket) return reply.status(404).send({ error: 'Ticket no encontrado' });
 
-    // Detectar @menciones en el contenido
+    // Detectar @menciones en el contenido (solo en texto legible, ignorando data URLs de medios)
     let mentionedIds: string[] = [];
-    if (content.includes('@')) {
+    const textOnly = content
+      .replace(/!\[[^\]]*\]\((?:data:[^)]+|https?:\/\/[^\s)]+)\)/g, '')
+      .replace(/\[[^\]]*\]\((?:data:[^)]+|https?:\/\/[^\s)]+)\)/g, '');
+
+    if (textOnly.includes('@')) {
       const allUsers = await prisma.user.findMany({
         select: { id: true, name: true, email: true }
       });
 
       const matchedUserIds = new Set<string>();
-      const normContent = normalizeStr(content);
+      const normContent = normalizeStr(textOnly);
 
       for (const u of allUsers) {
         if (u.id === user.id) continue; // Ignorar auto-mención
