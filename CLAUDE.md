@@ -133,33 +133,37 @@ Sistema de gestión de producción de contenido para On The Rocks (OTR), una age
 > **Al iniciar una conversacion, leer `/memory/INDEX.md`** para tener contexto de lo implementado y las decisiones tomadas.
 > **Al terminar algo nuevo, actualizar la memoria**: crear o editar el archivo correspondiente en `/memory/` y actualizar `INDEX.md`.
 
-## Deployment (Railway)
+## Deployment y Publicación a Producción
 
-**Estado actual (2026-05-26):**
-- `apps/web` (frontend) — Se despliega **automaticamente** en Railway al hacer push a `main` (webhook configurado)
-- `apps/api` (backend) — Requiere **deploy manual** via Railway CLI
+> ⚠️ **REGLA MANDATORIA AL SUBIR CAMBIOS ("subí esto", "comitear y subir", "deploy"):**
+> Claude debe realizar el proceso completo de forma autónoma sin que el usuario tenga que ejecutar pasos manuales:
+> 
+> 1. **Tests locales obligatorios:**
+>    ```bash
+>    pnpm test
+>    ```
+> 2. **Git Commit y Push a `main`:**
+>    ```bash
+>    git add <archivos modificados>
+>    git commit -m "<tipo>: <descripción concisa>"
+>    git push origin main
+>    ```
+> 3. **Deploy de Frontend a Vercel (`apps/web`):**
+>    Si hubo cambios en `apps/web` o paquetes compartidos (`packages/`):
+>    ```bash
+>    cd apps/web && vercel --prod --yes && cd ../..
+>    ```
+> 4. **Deploy de Backend a Railway (`apps/api`):**
+>    Si hubo cambios en `apps/api` o migraciones de base de datos:
+>    ```bash
+>    railway up --service api --detach -m "descripcion del cambio"
+>    ```
+> 5. **Confirmación:** Confirmar al usuario que el commit fue pusheado y los servicios desplegados.
 
-### Deploy del API (manual)
-
-```bash
-# 1. Instalar CLI de Railway (si no esta)
-npm install -g @railway/cli
-
-# 2. Login en Railway
-railway login
-
-# 3. Deploy del API
-railway up --service api -m "descripcion del cambio"
-
-# Con detach (no espera a que termine):
-railway up --service api --detach -m "descripcion del cambio"
-```
-
-**Notas:**
-- El comando `railway up` sube el codigo del proyecto actual y lo despliega
-- Usa `--service api` para especificar que es el servicio API
-- Usa `-m` para agregar un mensaje descriptivo al deployment
-- Usa `--detach` si quieres que termine rapido sin esperar logs
+### Servicios de Producción:
+- **Frontend (`apps/web`)**: Alojado en **Vercel** (`otr-platform-web`). Requiere `cd apps/web && vercel --prod --yes` (o webhook de GitHub si está vinculado).
+- **Backend (`apps/api`)**: Alojado en **Railway**. Se despliega con `railway up --service api --detach -m "mensaje"`.
+- **Base de Datos**: PostgreSQL nativo en **Railway** (`altaria.proxy.rlwy.net:23673/railway`).
 
 ## Notion del proyecto
 - Hub principal: https://www.notion.so/2f1617fc36928073874dcd55f6937327
