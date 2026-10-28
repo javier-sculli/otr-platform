@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseLocalDate, formatDateSpan, formatDateISO, ensureAbsoluteUrl, mergeContentPerCanal, getRedesObjetivoForClient, stripHtmlToPlainText, recordCopyVersion, filterPilaresBySpeaker, shouldOmitTemperature, parseDeliverableLinks, serializeDeliverableLinks, getCollapsedRichTextSnippet, sortTicketsByOrder, calculateDropSortOrder } from '../utils';
+import { parseLocalDate, formatDateSpan, formatDateISO, ensureAbsoluteUrl, mergeContentPerCanal, getRedesObjetivoForClient, stripHtmlToPlainText, recordCopyVersion, filterPilaresBySpeaker, shouldOmitTemperature, parseDeliverableLinks, serializeDeliverableLinks, getCollapsedRichTextSnippet, sortTicketsByOrder, calculateDropSortOrder, MESES_OFFSETS, filtrarMesesValidos } from '../utils';
 
 describe('lib/utils', () => {
   describe('parseLocalDate & Date shift prevention', () => {
@@ -384,6 +384,17 @@ describe('lib/utils', () => {
 
     it('retorna undefined al mover a una columna vacía', () => {
       expect(calculateDropSortOrder([], '1', null, null)).toBeUndefined();
+    });
+  });
+
+  describe('filtro de meses del backlog', () => {
+    it('muestra solo mes anterior, actual y próximo (sin "hace 2 meses")', () => {
+      expect(MESES_OFFSETS).toEqual([1, 0, -1]);
+    });
+
+    it('descarta meses guardados que ya no tienen chip (mes_2)', () => {
+      expect(filtrarMesesValidos(['mes_2', 'mes_0', 'mes_-1'])).toEqual(['mes_0', 'mes_-1']);
+      expect(filtrarMesesValidos(['mes_2'])).toEqual([]);
     });
   });
 });

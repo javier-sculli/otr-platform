@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import { api } from '../lib/api';
 import { CreateTicketModal } from '../components/CreateTicketModal';
-import { parseLocalDate, formatDateSpan, sortTicketsByOrder } from '../lib/utils';
+import { parseLocalDate, formatDateSpan, sortTicketsByOrder, MESES_OFFSETS, filtrarMesesValidos } from '../lib/utils';
 import {
   MACROS, PRENSA_SUBESTADOS, SUB_DEF, subsDeMacro,
   ESTADO_RESPUESTA_LABEL, TIPO_GESTION_PITCH, MACRO_DEFAULT_SUB,
@@ -160,7 +160,7 @@ export function PrensaBacklogPage() {
   const [expandedClientes, setExpandedClientes] = useState<Set<string>>(new Set());
 
   // Date filters states
-  const [mesesSeleccionados, setMesesSeleccionados] = useState<string[]>(() => savedFilters?.mesesSeleccionados ?? ['mes_0']);
+  const [mesesSeleccionados, setMesesSeleccionados] = useState<string[]>(() => filtrarMesesValidos(savedFilters?.mesesSeleccionados ?? ['mes_0']));
   const [filtroQuick, setFiltroQuick] = useState<'hoy' | 'semana' | 'rango' | null>(() => savedFilters?.filtroQuick ?? null);
   const [fechaDesde, setFechaDesde] = useState(() => savedFilters?.fechaDesde ?? '');
   const [fechaHasta, setFechaHasta] = useState(() => savedFilters?.fechaHasta ?? '');
@@ -329,8 +329,8 @@ export function PrensaBacklogPage() {
   finSemana.setDate(inicioSemana.getDate() + 6);
   finSemana.setHours(23, 59, 59, 999);
 
-  // Lista de meses cronológica: 2 (hace 2 meses), 1 (anterior), 0 (actual), -1 (próximo mes, ej. Agosto)
-  const listaMeses = [2, 1, 0, -1].map(offset => {
+  // Lista de meses cronológica: 1 (anterior), 0 (actual), -1 (próximo mes)
+  const listaMeses = MESES_OFFSETS.map(offset => {
     const d = new Date(ahora.getFullYear(), ahora.getMonth() - offset, 1);
     const key = `mes_${offset}`;
     const labelRaw = d.toLocaleDateString('es-ES', { month: 'long' });

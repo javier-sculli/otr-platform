@@ -574,6 +574,21 @@ export function getCollapsedRichTextSnippet(
 }
 
 /**
+ * Offsets de los chips de mes en los filtros de backlog (Contenido y Prensa):
+ * 1 = mes anterior, 0 = mes actual, -1 = próximo mes.
+ */
+export const MESES_OFFSETS = [1, 0, -1];
+
+/**
+ * Descarta claves de mes guardadas (localStorage) que ya no tienen chip, p. ej. 'mes_2'.
+ * Sin esto, un mes guardado e invisible filtraría todo el tablero sin forma de desmarcarlo.
+ */
+export function filtrarMesesValidos(keys: string[]): string[] {
+  const validas = MESES_OFFSETS.map(offset => `mes_${offset}`);
+  return keys.filter(key => validas.includes(key));
+}
+
+/**
  * Sorts an array of tickets by sortOrder ASC, preserving relative order when sortOrder is equal.
  */
 export function sortTicketsByOrder<T extends { sortOrder?: number | null }>(tickets: T[]): T[] {

@@ -9,7 +9,7 @@ import {
 import { api } from '../lib/api';
 import { CreateTicketModal } from '../components/CreateTicketModal';
 import { CalendarioBacklog } from '../components/CalendarioBacklog';
-import { parseLocalDate, formatDateSpan, sortTicketsByOrder, calculateDropSortOrder } from '../lib/utils';
+import { parseLocalDate, formatDateSpan, sortTicketsByOrder, calculateDropSortOrder, MESES_OFFSETS, filtrarMesesValidos } from '../lib/utils';
 
 interface Ticket {
   id: string;
@@ -92,7 +92,7 @@ export function BacklogPage() {
   const [showDropdownClientes, setShowDropdownClientes] = useState(false);
   const [vocerosSeleccionados, setVocerosSeleccionados] = useState<string[]>(() => savedFilters?.vocerosSeleccionados ?? []);
   const [showDropdownVoceros, setShowDropdownVoceros] = useState(false);
-  const [mesesSeleccionados, setMesesSeleccionados] = useState<string[]>(() => savedFilters?.mesesSeleccionados ?? []);
+  const [mesesSeleccionados, setMesesSeleccionados] = useState<string[]>(() => filtrarMesesValidos(savedFilters?.mesesSeleccionados ?? []));
   const [filtroQuick, setFiltroQuick] = useState<'semana' | 'rango' | null>(() => savedFilters?.filtroQuick ?? null);
   const [filtroTipo, setFiltroTipo] = useState<'TODOS' | 'CONTENIDO' | 'TAREA'>(() => savedFilters?.filtroTipo ?? 'TODOS');
   const [busqueda, setBusqueda] = useState(() => savedFilters?.busqueda ?? '');
@@ -292,8 +292,8 @@ export function BacklogPage() {
   const finSemana = new Date(inicioSemana);
   finSemana.setDate(inicioSemana.getDate() + 6);
 
-  // Lista de meses cronológica: 2 (hace 2 meses), 1 (anterior), 0 (actual), -1 (próximo mes, ej. Agosto)
-  const listaMeses = [2, 1, 0, -1].map(offset => {
+  // Lista de meses cronológica: 1 (anterior), 0 (actual), -1 (próximo mes)
+  const listaMeses = MESES_OFFSETS.map(offset => {
     const d = new Date(ahora.getFullYear(), ahora.getMonth() - offset, 1);
     const key = `mes_${offset}`;
     const labelRaw = d.toLocaleDateString('es-ES', { month: 'long' });
