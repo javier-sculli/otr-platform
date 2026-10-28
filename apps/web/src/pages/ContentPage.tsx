@@ -12,7 +12,7 @@ import { api } from '../lib/api';
 import { TicketsReferencia } from '../components/TicketsReferencia';
 import { RichNotesEditor } from '../components/RichNotesEditor';
 import { AutoResizeTextarea } from '../components/AutoResizeTextarea';
-import { ensureAbsoluteUrl, copyHtmlToClipboard, recordCopyVersion, stripHtmlToPlainText } from '../lib/utils';
+import { ensureAbsoluteUrl, copyHtmlToClipboard, recordCopyVersion, stripHtmlToPlainText, parseDeliverableLinks, serializeDeliverableLinks } from '../lib/utils';
 import { getNextStatusForTicket } from '../lib/workflow';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
@@ -402,15 +402,19 @@ export function ContentPage() {
         updateVersions(versionsToSave);
       }
 
-      return api.updateTicket(ticketId!, {
+      const patchData: any = {
         title,
         objetivo: brief,
         keywords,
         contentPerCanal: getSafeContentPerCanal(),
         versionsPerCanal: versionsToSave,
         links: contextLinks,
-        linkEntregable: linkEntregable || null,
-      });
+      };
+      if (linkEntregable !== (ticket?.linkEntregable ?? null)) {
+        patchData.linkEntregable = linkEntregable || null;
+      }
+
+      return api.updateTicket(ticketId!, patchData);
     },
     onSuccess: (res: any) => {
       if (res?.data && ticketId) {
@@ -434,17 +438,22 @@ export function ContentPage() {
   const nextStatus = getNextStatusForTicket(ticket);
 
   const advanceMutation = useMutation({
-    mutationFn: () => api.updateTicket(ticketId!, {
-      title,
-      objetivo: brief,
-      keywords,
-      contentPerCanal: getSafeContentPerCanal(),
-      versionsPerCanal: versionsPerCanalRef.current,
-      links: contextLinks,
-      linkEntregable: linkEntregable || null,
-      notasAudiovisual: notasAudiovisual || null,
-      status: nextStatus,
-    }),
+    mutationFn: () => {
+      const patchData: any = {
+        title,
+        objetivo: brief,
+        keywords,
+        contentPerCanal: getSafeContentPerCanal(),
+        versionsPerCanal: versionsPerCanalRef.current,
+        links: contextLinks,
+        notasAudiovisual: notasAudiovisual || null,
+        status: nextStatus,
+      };
+      if (linkEntregable !== (ticket?.linkEntregable ?? null)) {
+        patchData.linkEntregable = linkEntregable || null;
+      }
+      return api.updateTicket(ticketId!, patchData);
+    },
     onSuccess: (res: any) => {
       if (res?.data && ticketId) {
         queryClient.setQueryData(['ticket', ticketId], (old: any) => {
@@ -847,8 +856,16 @@ export function ContentPage() {
                   className="flex items-center gap-1 flex-shrink-0"
                   onSubmit={e => {
                     e.preventDefault();
-                    const url = ensureAbsoluteUrl(entregableInput.trim()) || null;
-                    setLinkEntregable(url);
+                    const trimmed = entregableInput.trim();
+                    if (!trimmed) {
+                      setEditingEntregable(false);
+                      return;
+                    }
+                    const currentLinks = parseDeliverableLinks(linkEntregable);
+                    const incoming = parseDeliverableLinks(trimmed).map(ensureAbsoluteUrl).filter(Boolean);
+                    const combined = Array.from(new Set([...currentLinks, ...incoming]));
+                    const nextVal = serializeDeliverableLinks(combined);
+                    setLinkEntregable(nextVal);
                     setHasChanges(true);
                     setEditingEntregable(false);
                   }}
@@ -858,28 +875,45 @@ export function ContentPage() {
                     type="url"
                     value={entregableInput}
                     onChange={e => setEntregableInput(e.target.value)}
-                    placeholder="https://drive.google.com/..."
+                    placeholder="Pegá un link y presioná Enter..."
                     className="px-2 py-0.5 border border-[#00ff99]/50 rounded text-xs text-[#000033] focus:outline-none focus:ring-1 focus:ring-[#00ff99] w-52"
                   />
                   <button type="submit" className="text-xs px-1.5 py-0.5 bg-[#00ff99]/30 border border-[#00ff99]/50 rounded font-bold hover:bg-[#00ff99]/50 transition-all">OK</button>
                   <button type="button" onClick={() => setEditingEntregable(false)} className="text-xs px-1.5 py-0.5 border border-[#000033]/10 rounded hover:bg-[#000033]/5 transition-all">✕</button>
                 </form>
-              ) : linkEntregable ? (
-                <div className="flex items-center gap-1 flex-shrink-0">
-                  <a
-                    href={ensureAbsoluteUrl(linkEntregable)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-1.5 px-2 py-1 border border-[#00ff99]/40 rounded-md bg-[#00ff99]/10 hover:bg-[#00ff99]/20 text-xs font-bold text-[#000033] transition-all"
-                  >
-                    <ImageIcon className="w-3 h-3" />
-                    Entregable
-                    <ExternalLink className="w-2.5 h-2.5 opacity-60" />
-                  </a>
+              ) : parseDeliverableLinks(linkEntregable).length > 0 ? (
+                <div className="flex items-center gap-1.5 flex-shrink-0 flex-wrap">
+                  {parseDeliverableLinks(linkEntregable).map((link, idx, arr) => (
+                    <div key={`content-entregable-${idx}`} className="flex items-center gap-1">
+                      <a
+                        href={ensureAbsoluteUrl(link)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-1.5 px-2 py-1 border border-[#00ff99]/40 rounded-md bg-[#00ff99]/10 hover:bg-[#00ff99]/20 text-xs font-bold text-[#000033] transition-all max-w-[200px] truncate"
+                        title={link}
+                      >
+                        <ImageIcon className="w-3 h-3 shrink-0" />
+                        <span className="truncate">{arr.length > 1 ? `Entregable ${idx + 1}` : 'Entregable'}</span>
+                        <ExternalLink className="w-2.5 h-2.5 opacity-60 shrink-0" />
+                      </a>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const nextLinks = arr.filter((_, i) => i !== idx);
+                          setLinkEntregable(serializeDeliverableLinks(nextLinks));
+                          setHasChanges(true);
+                        }}
+                        className="p-0.5 hover:bg-[#000033]/5 rounded transition-all text-[#000033]/40 hover:text-red-500"
+                        title="Eliminar link"
+                      >
+                        <span className="text-[10px] leading-none">✕</span>
+                      </button>
+                    </div>
+                  ))}
                   <button
-                    onClick={() => { setEntregableInput(linkEntregable); setEditingEntregable(true); }}
-                    className="p-0.5 hover:bg-[#000033]/5 rounded transition-all text-[#000033]/40 hover:text-[#000033]"
-                    title="Editar link entregable"
+                    onClick={() => { setEntregableInput(''); setEditingEntregable(true); }}
+                    className="p-1 hover:bg-[#000033]/5 rounded transition-all text-[#000033]/60 hover:text-[#000033]"
+                    title="Agregar otro link entregable"
                   >
                     <Link2 className="w-3 h-3" />
                   </button>

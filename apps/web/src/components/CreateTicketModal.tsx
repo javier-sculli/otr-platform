@@ -591,8 +591,12 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
       pilarId: noContenido ? null : (current.pilarId || null),
       speakerId: noContenido ? null : (current.speakerId || null),
       ...(current.links.length > 0 ? { links: current.links.map(ensureAbsoluteUrl) } : { links: [] }),
-      ...(current.linkEntregable ? { linkEntregable: cleanDeliverableLinks(current.linkEntregable) } : { linkEntregable: null }),
-      ...(current.linkPublicacion ? { linkPublicacion: cleanDeliverableLinks(current.linkPublicacion) } : { linkPublicacion: null }),
+      ...(dirtyFieldsRef.current.has('linkEntregable')
+        ? { linkEntregable: cleanDeliverableLinks(current.linkEntregable) }
+        : {}),
+      ...(dirtyFieldsRef.current.has('linkPublicacion')
+        ? { linkPublicacion: cleanDeliverableLinks(current.linkPublicacion) }
+        : {}),
       ...(current.notasAudiovisual ? { notasAudiovisual: current.notasAudiovisual } : {}),
       content: noContenido ? undefined : (current.content || null),
       contentPerCanal: noContenido ? undefined : current.contentPerCanal,

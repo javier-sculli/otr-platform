@@ -293,7 +293,7 @@ export function TicketDetallePage() {
       setTituloTemp(ticket.title || '');
       setBriefTemp(ticket.objetivo || '');
       setNotasAudiovisual(ticket.notasAudiovisual || '');
-      setEntregableInput(ticket.linkEntregable || '');
+      setEntregableInput('');
       if (Array.isArray((ticket as any).referenciasGraficas)) {
         setAttachedFiles((ticket as any).referenciasGraficas);
       }
