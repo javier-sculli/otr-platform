@@ -174,32 +174,105 @@ export function TicketDetallePage() {
     },
   });
 
+  const stripMarkAndPersist = (targetId: string, quote?: string) => {
+    const rawId = targetId.startsWith('c_') ? targetId.slice(2) : targetId;
+    const markSelector = `mark[data-c="${targetId}"], mark[data-c="c_${rawId}"], mark[data-c="${rawId}"]`;
+    document.querySelectorAll(markSelector).forEach(m => m.replaceWith(...Array.from(m.childNodes)));
+
+    const stripRegex = new RegExp(`<mark[^>]*data-c=["'](c_)?(${rawId}|${targetId})["'][^>]*>([\\s\\S]*?)</mark>`, 'gi');
+
+    let briefChanged = false;
+    let notasChanged = false;
+    let copyChanged = false;
+
+    let nextBrief = briefTemp;
+    if (briefTemp && stripRegex.test(briefTemp)) {
+      nextBrief = briefTemp.replace(stripRegex, '$3');
+      briefChanged = true;
+    }
+
+    let nextNotas = notasAudiovisual;
+    if (notasAudiovisual && stripRegex.test(notasAudiovisual)) {
+      nextNotas = notasAudiovisual.replace(stripRegex, '$3');
+      notasChanged = true;
+    }
+
+    const nextCopy = { ...copyPerCanal };
+    Object.keys(nextCopy).forEach(canal => {
+      if (nextCopy[canal] && stripRegex.test(nextCopy[canal])) {
+        nextCopy[canal] = nextCopy[canal].replace(stripRegex, '$3');
+        copyChanged = true;
+      }
+    });
+
+    if (quote && quote.trim()) {
+      const quoteRegex = new RegExp(`<mark[^>]*>(${quote.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})</mark>`, 'gi');
+      if (nextBrief && quoteRegex.test(nextBrief)) {
+        nextBrief = nextBrief.replace(quoteRegex, '$1');
+        briefChanged = true;
+      }
+      if (nextNotas && quoteRegex.test(nextNotas)) {
+        nextNotas = nextNotas.replace(quoteRegex, '$1');
+        notasChanged = true;
+      }
+      Object.keys(nextCopy).forEach(canal => {
+        if (nextCopy[canal] && quoteRegex.test(nextCopy[canal])) {
+          nextCopy[canal] = nextCopy[canal].replace(quoteRegex, '$1');
+          copyChanged = true;
+        }
+      });
+    }
+
+    if (briefChanged) setBriefTemp(nextBrief);
+    if (notasChanged) setNotasAudiovisual(nextNotas);
+    if (copyChanged) setCopyPerCanal(nextCopy);
+
+    const patch: Record<string, any> = {};
+    if (briefChanged) patch.objetivo = nextBrief || null;
+    if (notasChanged) patch.notasAudiovisual = nextNotas || null;
+    if (copyChanged) patch.contentPerCanal = nextCopy;
+
+    if (Object.keys(patch).length > 0) {
+      updateMutation.mutate(patch);
+    }
+  };
+
+  const handleResolveInlineComment = async (markId: string, quote?: string) => {
+    if (!ticketId) return;
+    const rawId = markId.startsWith('c_') ? markId.slice(2) : markId;
+    const commentsList = commentsData?.data || [];
+
+    const matching = commentsList.filter((cm: any) => {
+      const cmId = String(cm.id);
+      if (cmId === rawId || `c_${cmId}` === markId) return true;
+      if (quote && quote.trim()) {
+        const rawContent = cm.content || cm.text || '';
+        const match = rawContent.match(/^«([^»]+)»:\s*([\s\S]*)$/);
+        const q = cm.quote || (match ? match[1] : null);
+        if (q && (q.trim() === quote.trim() || quote.trim().includes(q.trim()) || q.trim().includes(quote.trim()))) {
+          return true;
+        }
+      }
+      return false;
+    });
+
+    for (const cm of matching) {
+      try {
+        await api.deleteComment(ticketId, cm.id);
+      } catch (err) {
+        console.error('Error al eliminar comentario resuelto:', err);
+      }
+    }
+    queryClient.invalidateQueries({ queryKey: ['comments', ticketId] });
+
+    stripMarkAndPersist(markId, quote);
+  };
+
   const deleteCommentMutation = useMutation({
     mutationFn: (commentId: string) => api.deleteComment(ticketId!, commentId),
     onSuccess: (_data, commentId) => {
       queryClient.invalidateQueries({ queryKey: ['comments', ticketId] });
-      const markSelector = `mark[data-c="c_${commentId}"], mark[data-c="${commentId}"]`;
-      document.querySelectorAll(markSelector).forEach(m => m.replaceWith(...Array.from(m.childNodes)));
-      const stripRegex = new RegExp(`<mark[^>]*data-c=["'](c_)?${commentId}["'][^>]*>([\\s\\S]*?)</mark>`, 'gi');
-      setBriefTemp(prev => (prev ? prev.replace(stripRegex, '$2') : prev));
-      setNotasAudiovisual(prev => (prev ? prev.replace(stripRegex, '$2') : prev));
-      setCopyPerCanal(prev => {
-        let changed = false;
-        const next = { ...prev };
-        Object.keys(next).forEach(canal => {
-          if (next[canal]) {
-            const stripped = next[canal].replace(stripRegex, '$2');
-            if (stripped !== next[canal]) {
-              next[canal] = stripped;
-              changed = true;
-            }
-          }
-        });
-        if (changed) {
-          updateMutation.mutate({ contentPerCanal: next });
-        }
-        return changed ? next : prev;
-      });
+      stripMarkAndPersist(commentId);
     },
   });
 
@@ -211,6 +284,7 @@ export function TicketDetallePage() {
     handleMarkHover,
     handleMarkClick,
     closePop,
+    resolvePop,
     sendPop,
     startInlineComment,
     locateMark: locateMarkBase,
@@ -222,6 +296,7 @@ export function TicketDetallePage() {
         await createCommentMutation.mutateAsync(fullContent);
       }
     },
+    onResolveComment: handleResolveInlineComment,
   });
 
   const [delOpen, setDelOpen] = useState(false);
@@ -1612,6 +1687,7 @@ export function TicketDetallePage() {
         thread={pop ? threads[pop.id] : undefined}
         users={allUsers}
         onSend={(text) => sendPop(text)}
+        onResolve={resolvePop}
         onClose={closePop}
       />
 

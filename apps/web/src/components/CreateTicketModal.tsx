@@ -361,6 +361,8 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
     },
   });
 
+  const resolveCommentRef = useRef<((markId: string, quote?: string) => Promise<void>) | null>(null);
+
   const {
     pop,
     setPop,
@@ -381,6 +383,7 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
         await createCommentMutation.mutateAsync(fullContent);
       }
     },
+    onResolveComment: (markId, quote) => resolveCommentRef.current?.(markId, quote),
   });
   useEffect(() => {
     if (isOpen) {
@@ -788,6 +791,86 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
       });
     },
   });
+
+  const handleResolveInlineComment = async (markId: string, quote?: string) => {
+    if (!ticket?.id) return;
+    const rawId = markId.startsWith('c_') ? markId.slice(2) : markId;
+
+    const list = comments || [];
+    const matching = list.filter((cm: any) => {
+      const cmId = String(cm.id);
+      if (cmId === rawId || `c_${cmId}` === markId) return true;
+      if (quote && quote.trim()) {
+        const rawContent = cm.content || cm.text || '';
+        const match = rawContent.match(/^«([^»]+)»:\s*([\s\S]*)$/);
+        const q = cm.quote || (match ? match[1] : null);
+        if (q && (q.trim() === quote.trim() || quote.trim().includes(q.trim()) || q.trim().includes(quote.trim()))) {
+          return true;
+        }
+      }
+      return false;
+    });
+
+    for (const cm of matching) {
+      try {
+        await api.deleteComment(ticket.id, cm.id);
+      } catch (err) {
+        console.error('Error al eliminar comentario resuelto:', err);
+      }
+    }
+    queryClient.invalidateQueries({ queryKey: ['comments', ticket.id] });
+
+    const markSelector = `mark[data-c="${markId}"], mark[data-c="c_${rawId}"], mark[data-c="${rawId}"]`;
+    document.querySelectorAll(markSelector).forEach(m => m.replaceWith(...Array.from(m.childNodes)));
+    const stripRegex = new RegExp(`<mark[^>]*data-c=["'](c_)?(${rawId}|${markId})["'][^>]*>([\\s\\S]*?)</mark>`, 'gi');
+
+    setFormData(prev => {
+      let changed = false;
+      let nextBrief = prev.brief ? prev.brief.replace(stripRegex, '$3') : prev.brief;
+      if (nextBrief !== prev.brief) changed = true;
+      let nextNotas = prev.notasAudiovisual ? prev.notasAudiovisual.replace(stripRegex, '$3') : prev.notasAudiovisual;
+      if (nextNotas !== prev.notasAudiovisual) changed = true;
+      const nextPerCanal: Record<string, string> = { ...prev.contentPerCanal };
+      Object.keys(nextPerCanal).forEach(canal => {
+        if (nextPerCanal[canal]) {
+          const stripped = nextPerCanal[canal].replace(stripRegex, '$3');
+          if (stripped !== nextPerCanal[canal]) {
+            nextPerCanal[canal] = stripped;
+            changed = true;
+          }
+        }
+      });
+
+      if (quote && quote.trim()) {
+        const quoteRegex = new RegExp(`<mark[^>]*>(${quote.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})</mark>`, 'gi');
+        if (nextBrief && quoteRegex.test(nextBrief)) {
+          nextBrief = nextBrief.replace(quoteRegex, '$1');
+          changed = true;
+        }
+        if (nextNotas && quoteRegex.test(nextNotas)) {
+          nextNotas = nextNotas.replace(quoteRegex, '$1');
+          changed = true;
+        }
+        Object.keys(nextPerCanal).forEach(canal => {
+          if (nextPerCanal[canal] && quoteRegex.test(nextPerCanal[canal])) {
+            nextPerCanal[canal] = nextPerCanal[canal].replace(quoteRegex, '$1');
+            changed = true;
+          }
+        });
+      }
+
+      if (changed) {
+        triggerImmediateAutoSave({
+          brief: nextBrief,
+          notasAudiovisual: nextNotas,
+          contentPerCanal: nextPerCanal,
+        });
+        return { ...prev, brief: nextBrief, notasAudiovisual: nextNotas, contentPerCanal: nextPerCanal };
+      }
+      return prev;
+    });
+  };
+  resolveCommentRef.current = handleResolveInlineComment;
 
   const handleClose = () => {
     if (saveTimeoutRef.current) {

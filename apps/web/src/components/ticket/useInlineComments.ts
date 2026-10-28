@@ -30,6 +30,7 @@ export interface UseInlineCommentsOptions {
   comments?: any[];
   currentUser?: { name?: string | null; email?: string | null } | null;
   onSubmitComment?: (payload: { quote?: string; text: string; fullContent: string }) => void | Promise<any>;
+  onResolveComment?: (markId: string, quote?: string) => void | Promise<any>;
 }
 
 export const posFor = (mark: HTMLElement) => {
@@ -44,6 +45,7 @@ export function useInlineComments({
   comments = [],
   currentUser,
   onSubmitComment,
+  onResolveComment,
 }: UseInlineCommentsOptions = {}) {
   const [pop, setPop] = useState<PopoverState | null>(null);
   const [popInput, setPopInput] = useState('');
@@ -131,20 +133,27 @@ export function useInlineComments({
     setPopInput('');
   }, []);
 
-  const resolvePop = useCallback(() => {
+  const resolvePop = useCallback(async () => {
     const currentPop = popRefVal.current;
     if (!currentPop) return;
-    document.querySelectorAll(`mark[data-c="${currentPop.id}"]`).forEach(m => {
+    const markId = currentPop.id;
+    const quote = threadsRefVal.current[markId]?.quote || '';
+
+    document.querySelectorAll(`mark[data-c="${markId}"]`).forEach(m => {
       m.replaceWith(...Array.from(m.childNodes));
     });
     setThreads(prev => {
       const c = { ...prev };
-      delete c[currentPop.id];
+      delete c[markId];
       return c;
     });
     setPop(null);
     setPopInput('');
-  }, []);
+
+    if (onResolveComment) {
+      await onResolveComment(markId, quote);
+    }
+  }, [onResolveComment]);
 
   const sendPop = useCallback(async (incomingText?: string) => {
     const currentPop = popRefVal.current;

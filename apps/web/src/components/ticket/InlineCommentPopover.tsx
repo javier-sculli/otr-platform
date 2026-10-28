@@ -20,6 +20,7 @@ export interface PopPosition {
   id: string;
   x: number;
   y: number;
+  isDraft?: boolean;
 }
 
 export interface InlineCommentPopoverProps {
@@ -314,7 +315,7 @@ export function InlineCommentPopover({
           )}
 
           <div className="flex items-center gap-1.5">
-            {hasItems && onResolve && (
+            {(!pop.isDraft || hasItems) && onResolve && (
               <button
                 type="button"
                 onClick={onResolve}
