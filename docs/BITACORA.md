@@ -4,8 +4,61 @@
 > 
 > 🎯 **BACKLOG OFICIAL Y PRIORIDADES (FUENTE DE VERDAD):** [Notion Backlog Oficial](https://app.notion.com/p/Backlog-3ba617fc369281048bfdfc89c5041d9c?source=copy_link). Todas las prioridades y tareas activas se gestionan directamente allí.
 
-### [2026-10-23] — Reordenamiento y Priorización de Tarjetas dentro de Columnas en Kanban (Drag & Drop con Floating-Point)
+### [2026-10-29] — Restauración y Blindaje de Tipos de Tarea de Prensa (Brief, Documento, Gestión-pitch, etc.)
 - **Desarrollador:** Antigravity (Pair Programming con Javier Sculli)
+- **Reporte del Usuario / Equipo de Prensa:**
+  - *"de prensa me dicen esto: En las opciones del tipo de tarea no nos deja seleccionar las que teníamos previamente, por ejemplo: brief, documento, reporte, pitch, etc. ahora están puestas otras categorías que no nos aplican a nosotros"*
+  - *"igual todos estos tipos iban dentro del tipo tarea de prensa, no se que agregareste como catggoria reporte no te pedi eso"*
+- **REGLA MANDATORIA DE MODELO Y DOMINIO DE PRENSA (NUNCA ALTERAR):**
+  1. **Naturaleza del Ticket de Prensa:** Para el equipo de Prensa y en la lógica operativa de la agencia, los tickets de Prensa **son tareas operativas de prensa** (`tipoTicket: 'PRENSA'`, `area: 'PRENSA'`). No se dividen en Piezas publicables de redes sociales ni en Tareas genéricas de contenidista.
+  2. **Catálogo Oficial Exclusivo de Tareas de Prensa (Nivel 2):** Los únicos 12 tipos válidos de entregables / tareas para Prensa son:
+     - `Brief`
+     - `Documento`
+     - `Gestión-pitch` (también reconocido coloquialmente como "pitch")
+     - `Comunicado`
+     - `Columna de opinión`
+     - `Cuestionario/Vocería`
+     - `Clipping`
+     - `Evento`
+     - `Feedback`
+     - `Estrategia`
+     - `Base de Medios`
+     - `Otro` (siempre al final de la lista)
+  3. **"Reporte" NO es una categoría de Prensa:** "Reporte" pertenece única y exclusivamente a los entregables de Contenido / Tareas internas generales (`kind: 'TAREA'`). **Bajo ninguna circunstancia se debe dar de alta ni inventar "Reporte" como tipo de Prensa.** Cuando el usuario o el equipo mencionen "reporte" en un mensaje informal de Prensa, se refieren a su contexto general de trabajo o a "Documento" / "Otro", no a un nuevo tipo en la base de datos.
+  4. **Nomenclatura en la Interfaz:** Cuando un usuario de Prensa crea o edita un ticket, el campo de formato/entregable se titula explícitamente **"Tipo de tarea"** y ofrece únicamente los 12 tipos de Prensa listados arriba.
+- **Diagnóstico y Causas Raíz:**
+  1. **Frontend (`CreateTicketModal.tsx` y `TicketDetallePage.tsx`):**
+     - Durante la refactorización modular con selector de formato (`TicketFormatPicker`), `formatList` se había codificado como `const formatList = isPieza ? FORMATOS_PIEZA : TIPOS_TAREA;`.
+     - Para tickets de Prensa (`esPrensa === true`), `isPieza` evaluaba `false` y caía automáticamente en `TIPOS_TAREA` (`'Artículo de blog', 'Deck', 'Diseño puntual', 'Estrategia', 'Newsletter', 'Reporte', 'Otro'`).
+     - Esto ocultaba por completo los formatos y tareas de Prensa (`Brief`, `Documento`, `Gestión-pitch`, etc.).
+     - Además, el encabezado del modal mostraba los botones "Pieza" y "Tarea", y al resolver el tipo al guardar ignoraba el kind `PRENSA`.
+  2. **Backend API (`apps/api/src/routes/tickets.ts`):**
+     - `resolveTicketTypeForCreation`: evaluaba `KNOWN_TAREA_FORMATS.includes(firstFormat)` antes de comprobar si el ticket pertenecía a Prensa (`area: 'PRENSA'` o `tipoTicket: 'PRENSA'`). Cuando un ticket de Prensa tenía formato como `Otro` o `Estrategia`, se le asignaba erróneamente un `TicketType` de kind `TAREA` y `isTarea` quedaba en `true`.
+  3. **Base de Datos (Backfill previo & tickets desalineados):**
+     - En la migración de desacople `20261016180000_add_tipo_ticket_to_ticket`, un `UPDATE "tickets" SET "tipo_ticket" = 'TAREA' ... WHERE tt."kind" = 'TAREA'` posterior había pisado 24 tickets con `area = 'PRENSA'` poniéndoles `tipo_ticket = 'TAREA'`.
+- **Solución Implementada:**
+  1. **Base de Datos y Migración (`apps/api/prisma`):**
+     - Migración `20261029150000_fix_prensa_ticket_types`:
+       - Corrige `tipo_ticket = 'PRENSA'` para todos los tickets con `area = 'PRENSA'`.
+       - Re-apunta los `ticket_type_id` de tickets de prensa que apuntaban a versiones `TAREA` (como `Otro`) hacia sus tipos homólogos de `PRENSA`.
+     - Base de datos limpia de cualquier tipo espurio (no existe `Reporte` con `kind = 'PRENSA'`).
+  2. **Backend API (`apps/api/src/routes/tickets.ts`):**
+     - `resolveTicketTypeForCreation`: evalúa prioritariamente `isPrensa`. Si es Prensa, busca exclusivamente en `kind: 'PRENSA'` (mapeando también sinónimos como "pitch" a `Gestión-pitch`) y garantiza que `isTarea` sea `false`.
+     - `POST /tickets`: preserva `tipoTicket: 'PRENSA'` cuando `data.area === 'PRENSA'`.
+     - `PATCH /tickets/:id`: al actualizar `tiposContenido`, re-resuelve correctamente el `ticketTypeId` en concordancia con la categoría elegida.
+  3. **Frontend Web (`CreateTicketModal.tsx` y `TicketDetallePage.tsx`):**
+     - `FORMATOS_PRENSA`: catálogo estándar oficial de tareas de prensa con los 12 tipos canónicos.
+     - `formatList`: dinámico con `useMemo`. Si es Prensa, combina los tipos dinámicos de la DB con `FORMATOS_PRENSA` (con "Otro" siempre al final).
+     - Encabezado: en tickets de Prensa nuevos o existentes, muestra la píldora violeta de "Prensa" (sin switches de Pieza/Tarea).
+     - Label de campo: para Prensa se rotula claramente como "Tipo de tarea".
+     - `initTipo`: salvaguarda estricta donde cualquier ticket con `area === 'PRENSA'` inicializa siempre como `PRENSA`.
+- **Verificación:**
+  - 29 tests unitarios pasando en `ticketModals.test.tsx` (incluyendo test validando las opciones de Prensa al abrir con `area="PRENSA"`).
+  - 252 tests pasando al 100% en Vitest.
+  - `pnpm typecheck` limpio en todos los workspaces.
+  - `pnpm build` compila con éxito en 0 errores.
+
+### [2026-10-23] — Reordenamiento y Priorización de Tarjetas dentro de Columnas en Kanban (Drag & Drop con Floating-Point)
 - **Reporte y Consulta del Usuario:**
   - *"Buenos dias! Dejo este mensaje programado, porque capaz entendí mal, pero creí que ya se podía cambiar el orden de las tarjetas dentro de las columnas. Hice video, pero capaz es una mejor próxima y no algo ya implementado. Sería útil para poder priorizar tareas internamente... hasta que esté resuelto, cuál es el criterio de orden? Para tenerlo en cuenta y editar tarjetas para que se visualicen en el orden que quisiera que el equipo tome."*
   - *"Pensemos primero la logica y como lo vamos a guardar, no quiero complejizar esto, busquemos la solucion mas simple"*

@@ -452,7 +452,8 @@ export async function ticketsRoutes(fastify: FastifyInstance) {
   });
 
 async function resolveTicketTypeForCreation(prismaInstance: typeof prisma, data: any) {
-  const isExplicitTarea = data.tipoTicket === 'TAREA' || data.tipo === 'TAREA';
+  const isPrensa = data.tipoTicket === 'PRENSA' || data.area === 'PRENSA';
+  const isExplicitTarea = !isPrensa && (data.tipoTicket === 'TAREA' || data.tipo === 'TAREA');
   let finalTicketTypeId = data.ticketTypeId || null;
   let resolvedTicketType: { id: string; name: string; kind: string } | null = null;
 
@@ -468,34 +469,49 @@ async function resolveTicketTypeForCreation(prismaInstance: typeof prisma, data:
       ? String(data.tiposContenido[0]).trim()
       : null;
 
-    const KNOWN_TAREA_FORMATS = [
-      'otro', 'deck', 'reporte', 'estrategia', 'diseño puntual',
-      'newsletter', 'artículo de blog', 'artículo blog', 'blog', 'news', 'base de medios'
-    ];
-
-    if (isExplicitTarea || (firstFormat && KNOWN_TAREA_FORMATS.includes(firstFormat.toLowerCase()))) {
-      const tareaTypes = await prismaInstance.ticketType.findMany({
-        where: { kind: 'TAREA' },
+    if (isPrensa) {
+      const prensaTypes = await prismaInstance.ticketType.findMany({
+        where: { kind: 'PRENSA' },
       });
       if (firstFormat) {
-        resolvedTicketType = tareaTypes.find(t =>
+        resolvedTicketType = prensaTypes.find(t =>
           t.name.toLowerCase() === firstFormat.toLowerCase() ||
-          (firstFormat.toLowerCase().includes('blog') && t.name.toLowerCase().includes('blog')) ||
-          (firstFormat.toLowerCase().includes('news') && t.name.toLowerCase().includes('news'))
+          t.name.toLowerCase().replace(/\s+/g, '') === firstFormat.toLowerCase().replace(/\s+/g, '') ||
+          (firstFormat.toLowerCase().includes('pitch') && t.name.toLowerCase().includes('pitch'))
         ) || null;
       }
       if (!resolvedTicketType) {
-        resolvedTicketType = tareaTypes.find(t => t.name.toLowerCase() === 'otro') || null;
+        resolvedTicketType = prensaTypes.find(t => t.name.toLowerCase() === 'otro') || prensaTypes[0] || null;
       }
-    } else if (firstFormat) {
-      const kind = (data.tipoTicket === 'PRENSA' || data.area === 'PRENSA') ? 'PRENSA' : 'CONTENIDO';
-      const contentTypes = await prismaInstance.ticketType.findMany({
-        where: { kind: kind as any },
-      });
-      resolvedTicketType = contentTypes.find(t =>
-        t.name.toLowerCase() === firstFormat.toLowerCase() ||
-        t.name.toLowerCase().replace(/\s+/g, '') === firstFormat.toLowerCase().replace(/\s+/g, '')
-      ) || null;
+    } else {
+      const KNOWN_TAREA_FORMATS = [
+        'otro', 'deck', 'reporte', 'estrategia', 'diseño puntual',
+        'newsletter', 'artículo de blog', 'artículo blog', 'blog', 'news', 'base de medios'
+      ];
+
+      if (isExplicitTarea || (firstFormat && KNOWN_TAREA_FORMATS.includes(firstFormat.toLowerCase()))) {
+        const tareaTypes = await prismaInstance.ticketType.findMany({
+          where: { kind: 'TAREA' },
+        });
+        if (firstFormat) {
+          resolvedTicketType = tareaTypes.find(t =>
+            t.name.toLowerCase() === firstFormat.toLowerCase() ||
+            (firstFormat.toLowerCase().includes('blog') && t.name.toLowerCase().includes('blog')) ||
+            (firstFormat.toLowerCase().includes('news') && t.name.toLowerCase().includes('news'))
+          ) || null;
+        }
+        if (!resolvedTicketType) {
+          resolvedTicketType = tareaTypes.find(t => t.name.toLowerCase() === 'otro') || null;
+        }
+      } else if (firstFormat) {
+        const contentTypes = await prismaInstance.ticketType.findMany({
+          where: { kind: 'CONTENIDO' },
+        });
+        resolvedTicketType = contentTypes.find(t =>
+          t.name.toLowerCase() === firstFormat.toLowerCase() ||
+          t.name.toLowerCase().replace(/\s+/g, '') === firstFormat.toLowerCase().replace(/\s+/g, '')
+        ) || null;
+      }
     }
 
     if (resolvedTicketType) {
@@ -506,7 +522,7 @@ async function resolveTicketTypeForCreation(prismaInstance: typeof prisma, data:
   return {
     ticketTypeId: finalTicketTypeId,
     ticketType: resolvedTicketType,
-    isTarea: isExplicitTarea || resolvedTicketType?.kind === 'TAREA',
+    isTarea: isExplicitTarea || (!isPrensa && resolvedTicketType?.kind === 'TAREA'),
   };
 }
 
@@ -519,7 +535,7 @@ async function resolveTicketTypeForCreation(prismaInstance: typeof prisma, data:
       : (data.ownerId ? [data.ownerId] : []);
     const primaryOwnerId = data.ownerId || initialAssigneeIds[0];
 
-    const tipoTicket = data.tipoTicket || (data.tipo === 'TAREA' ? 'TAREA' : (data.area === 'PRENSA' ? 'PRENSA' : 'CONTENIDO'));
+    const tipoTicket = data.tipoTicket || (data.area === 'PRENSA' ? 'PRENSA' : (data.tipo === 'TAREA' ? 'TAREA' : 'CONTENIDO'));
     const isTarea = tipoTicket === 'TAREA';
 
     const { ticketTypeId: resolvedTicketTypeId } = await resolveTicketTypeForCreation(prisma, { ...data, tipoTicket });
@@ -687,10 +703,11 @@ async function resolveTicketTypeForCreation(prismaInstance: typeof prisma, data:
     }
     if (data.ticketTypeId !== undefined) {
       updateData.ticketTypeId = data.ticketTypeId;
-    } else if (currentTipoTicket === 'TAREA' || (data.tiposContenido !== undefined && !existingTicket.ticketTypeId)) {
+    } else if (data.tiposContenido !== undefined || currentTipoTicket === 'TAREA' || !existingTicket.ticketTypeId) {
       const { ticketTypeId: resolvedId, isTarea } = await resolveTicketTypeForCreation(prisma, {
         ...existingTicket,
         ...data,
+        ticketTypeId: undefined,
         tipoTicket: currentTipoTicket,
       });
       if (resolvedId) {

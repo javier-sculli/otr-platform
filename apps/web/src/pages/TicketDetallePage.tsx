@@ -1,6 +1,6 @@
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import {
   ChevronLeft,
   Archive,
@@ -47,6 +47,12 @@ const FORMATOS_PIEZA = [
 const TIPOS_TAREA = [
   'Artículo de blog', 'Deck', 'Diseño puntual', 'Estrategia',
   'Newsletter', 'Reporte', 'Otro'
+];
+
+const FORMATOS_PRENSA = [
+  'Base de Medios', 'Brief', 'Clipping', 'Columna de opinión',
+  'Comunicado', 'Cuestionario/Vocería', 'Documento', 'Estrategia',
+  'Evento', 'Feedback', 'Gestión-pitch', 'Otro'
 ];
 
 const LIMITS: Record<string, number> = {
@@ -166,6 +172,13 @@ export function TicketDetallePage() {
     queryFn: () => api.getUsers(),
   });
   const allUsers: any[] = usersData?.data ?? [];
+
+  const { data: ticketTypesData } = useQuery({
+    queryKey: ['ticket-types'],
+    queryFn: () => api.getTicketTypes(),
+    staleTime: 10 * 60 * 1000,
+  });
+  const ticketTypes = (ticketTypesData?.data ?? []) as { id: string; name: string; kind?: string }[];
 
   const createCommentMutation = useMutation({
     mutationFn: (content: string) => api.createComment(ticketId!, content),
@@ -426,10 +439,30 @@ export function TicketDetallePage() {
     updateMutation.mutate({ status: targetStatus });
   };
 
-  const tipo = (ticket as any)?.tipoTicket || ((ticket as any)?.ticketType?.kind === 'TAREA' ? 'TAREA' : (((ticket as any)?.area === 'PRENSA' || (ticket as any)?.ticketType?.kind === 'PRENSA') ? 'PRENSA' : 'CONTENIDO'));
+  const tipo = (ticket as any)?.area === 'PRENSA' || (ticket as any)?.tipoTicket === 'PRENSA' || (ticket as any)?.ticketType?.kind === 'PRENSA'
+    ? 'PRENSA'
+    : ((ticket as any)?.tipoTicket || ((ticket as any)?.ticketType?.kind === 'TAREA' ? 'TAREA' : 'CONTENIDO'));
   const esTarea = tipo === 'TAREA';
   const esPrensa = tipo === 'PRENSA';
   const isPieza = tipo === 'CONTENIDO';
+
+  const formatList = useMemo(() => {
+    if (isPieza) return FORMATOS_PIEZA;
+    if (esPrensa) {
+      const dbPrensa = ticketTypes.filter(t => t.kind === 'PRENSA').map(t => t.name);
+      if (dbPrensa.length > 0) {
+        const set = new Set([...dbPrensa, ...FORMATOS_PRENSA]);
+        return Array.from(set).sort((a, b) => {
+          const ao = /^otros?$/i.test(a) ? 1 : 0;
+          const bo = /^otros?$/i.test(b) ? 1 : 0;
+          if (ao !== bo) return ao - bo;
+          return a.localeCompare(b);
+        });
+      }
+      return FORMATOS_PRENSA;
+    }
+    return TIPOS_TAREA;
+  }, [isPieza, esPrensa, ticketTypes]);
 
   const handleNextStatusClick = () => {
     if (!ticket) return;
@@ -640,7 +673,6 @@ export function TicketDetallePage() {
   const isPendiente = ['PENDIENTE', 'Pendiente'].includes(ticket.status);
   const isDisenoOEdicion = ['DISENO', 'EDICION', 'Diseño', 'Edición'].includes(ticket.status);
 
-  const formatList = isPieza ? FORMATOS_PIEZA : TIPOS_TAREA;
   const currentCopy = copyPerCanal[activeCopyTab] || '';
   const copyLimit = LIMITS[activeCopyTab] || 0;
   const visibleCopyLength = (copyRef.current?.innerText ?? currentCopy.replace(/<[^>]*>/g, '')).trim().length;
@@ -1525,7 +1557,7 @@ export function TicketDetallePage() {
                 {/* Formato */}
                 <div className="grid grid-cols-[110px_minmax(0,1fr)] items-center gap-3 min-w-0">
                   <span className="text-[12px] font-bold tracking-[0.06em] uppercase text-[#5b6675]">
-                    {isPieza ? 'Formato' : 'Tipo'}
+                    {isPieza ? 'Formato' : esPrensa ? 'Tipo de tarea' : 'Tipo'}
                   </span>
                   <TicketFormatPicker
                     selectedFormats={(ticket as any).tiposContenido || []}
@@ -1533,7 +1565,7 @@ export function TicketDetallePage() {
                     onChange={(next) => {
                       updateMutation.mutate({ tiposContenido: next });
                     }}
-                    label={isPieza ? 'Formato' : 'Tipo'}
+                    label={isPieza ? 'Formato' : esPrensa ? 'Tipo de tarea' : 'Tipo'}
                   />
                 </div>
 

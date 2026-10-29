@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import {
   X, ChevronDown, Check, Loader2,
-  Copy as CopyIcon, Link2, ExternalLink
+  Copy as CopyIcon, Link2, ExternalLink, Newspaper
 } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
@@ -85,6 +85,12 @@ const FORMATOS_PIEZA = [
 const TIPOS_TAREA = [
   'Artículo de blog', 'Deck', 'Diseño puntual', 'Estrategia',
   'Newsletter', 'Reporte', 'Otro'
+];
+
+const FORMATOS_PRENSA = [
+  'Base de Medios', 'Brief', 'Clipping', 'Columna de opinión',
+  'Comunicado', 'Cuestionario/Vocería', 'Documento', 'Estrategia',
+  'Evento', 'Feedback', 'Gestión-pitch', 'Otro'
 ];
 
 const TPL_TAREA: Record<string, string> = {
@@ -227,8 +233,8 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
   const [formData, setFormData] = useState(() => buildFormData(ticket, defaultClientId));
 
   const initTipo = (t?: TicketData | null): 'CONTENIDO' | 'TAREA' | 'PRENSA' => {
+    if (t?.ticketType?.kind === 'PRENSA' || (!t && area === 'PRENSA') || (t as any)?.area === 'PRENSA' || t?.tipoTicket === 'PRENSA') return 'PRENSA';
     if (t?.tipoTicket) return t.tipoTicket;
-    if (t?.ticketType?.kind === 'PRENSA' || (!t && area === 'PRENSA') || (t as any)?.area === 'PRENSA') return 'PRENSA';
     if (t?.ticketType?.kind === 'TAREA') return 'TAREA';
     if (t && (t as any).tiposContenido?.some((fmt: string) => TIPOS_TAREA.includes(fmt))) return 'TAREA';
     return 'CONTENIDO';
@@ -339,13 +345,17 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
         t.name.toLowerCase() === lower ||
         t.name.toLowerCase().replace(/\s+/g, '') === lower.replace(/\s+/g, '') ||
         (lower.includes('blog') && t.name.toLowerCase().includes('blog')) ||
-        (lower.includes('news') && t.name.toLowerCase().includes('news'))
+        (lower.includes('news') && t.name.toLowerCase().includes('news')) ||
+        (lower.includes('pitch') && t.name.toLowerCase().includes('pitch'))
       )
     ) || null;
   };
 
   const defaultTareaType = ticketTypes.find(t => t.kind === 'TAREA' && t.name.toLowerCase() === 'otro')
     || ticketTypes.find(t => t.kind === 'TAREA') || null;
+
+  const defaultPrensaType = ticketTypes.find(t => t.kind === 'PRENSA' && t.name.toLowerCase() === 'otro')
+    || ticketTypes.find(t => t.kind === 'PRENSA') || null;
 
   const { data: commentsData } = useQuery({
     queryKey: ['comments', ticket?.id],
@@ -572,7 +582,9 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
     const primaryOwner = current.ownerId || current.assigneeIds?.[0] || null;
     if (!current.title || !current.clientId) return;
 
-    const resolvedType = esTarea
+    const resolvedType = esPrensa
+      ? (current.ticketTypeId ? ticketTypes.find(t => t.id === current.ticketTypeId) : null) || findTicketType(current.tiposContenido[0], 'PRENSA') || defaultPrensaType
+      : esTarea
       ? (current.ticketTypeId ? ticketTypes.find(t => t.id === current.ticketTypeId) : null) || findTicketType(current.tiposContenido[0], 'TAREA') || defaultTareaType
       : (isPieza ? (current.ticketTypeId ? ticketTypes.find(t => t.id === current.ticketTypeId) : null) || findTicketType(current.tiposContenido[0], 'CONTENIDO') : null);
 
@@ -920,7 +932,9 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
       briefUpdate.brief = TPL_TAREA[added] || '';
     }
 
-    const matchingType = esTarea
+    const matchingType = esPrensa
+      ? (findTicketType(next[0], 'PRENSA') || defaultPrensaType)
+      : esTarea
       ? (findTicketType(next[0], 'TAREA') || defaultTareaType)
       : (isPieza ? findTicketType(next[0], 'CONTENIDO') : null);
 
@@ -988,7 +1002,7 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
   if (!formData.title.trim()) missing.push('nombre');
   if (!formData.clientId) missing.push('cliente');
   if (!(formData.ownerId || formData.assigneeIds.length)) missing.push('responsable');
-  if (!isEditing && !(formData.tiposContenido || []).length) missing.push(isPieza ? 'formato' : 'tipo de entregable');
+  if (!isEditing && !(formData.tiposContenido || []).length) missing.push(isPieza ? 'formato' : esPrensa ? 'tipo de tarea' : 'tipo de entregable');
 
   // Submit / Next Status Primary Action
   const handlePrimary = async () => {
@@ -1000,7 +1014,9 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
       handleNextStatusClickModal();
     } else {
       const primaryOwner = formData.ownerId || formData.assigneeIds[0];
-      const resolvedType = esTarea
+      const resolvedType = esPrensa
+        ? (formData.ticketTypeId ? ticketTypes.find(t => t.id === formData.ticketTypeId) : null) || findTicketType(formData.tiposContenido[0], 'PRENSA') || defaultPrensaType
+        : esTarea
         ? (formData.ticketTypeId ? ticketTypes.find(t => t.id === formData.ticketTypeId) : null) || findTicketType(formData.tiposContenido[0], 'TAREA') || defaultTareaType
         : (isPieza ? (formData.ticketTypeId ? ticketTypes.find(t => t.id === formData.ticketTypeId) : null) || findTicketType(formData.tiposContenido[0], 'CONTENIDO') : null);
 
@@ -1141,6 +1157,24 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
     }
   };
 
+  const formatList = (() => {
+    if (isPieza) return FORMATOS_PIEZA;
+    if (esPrensa) {
+      const dbPrensa = ticketTypes.filter(t => t.kind === 'PRENSA').map(t => t.name);
+      if (dbPrensa.length > 0) {
+        const set = new Set([...dbPrensa, ...FORMATOS_PRENSA]);
+        return Array.from(set).sort((a, b) => {
+          const ao = /^otros?$/i.test(a) ? 1 : 0;
+          const bo = /^otros?$/i.test(b) ? 1 : 0;
+          if (ao !== bo) return ao - bo;
+          return a.localeCompare(b);
+        });
+      }
+      return FORMATOS_PRENSA;
+    }
+    return TIPOS_TAREA;
+  })();
+
   if (!isOpen) return null;
 
   const currentCopyText = formData.contentPerCanal[activeCopyTab] || '';
@@ -1192,8 +1226,6 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
   const showNotasContent = !isCollapsibleNotas || notasOpen;
 
   const teamList = (users?.data ?? []) as any[];
-
-  const formatList = isPieza ? FORMATOS_PIEZA : TIPOS_TAREA;
 
   return (
     <div
@@ -1248,47 +1280,54 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
           </div>
 
           {!isEditing && (
-            <div className="flex p-[3px] bg-[#eef3f7] rounded-[9px] gap-0.5">
-              <button
-                type="button"
-                onClick={() => {
-                  setTipoTicket('CONTENIDO');
-                  const currentIsPieza = formData.tiposContenido.some((fmt: string) => FORMATOS_PIEZA.includes(fmt));
-                  const newFormats = currentIsPieza ? formData.tiposContenido : [];
-                  const matching = findTicketType(newFormats[0], 'CONTENIDO');
-                  handleMultipleChanges({
-                    ticketTypeId: matching?.id || '',
-                    tiposContenido: newFormats,
-                  });
-                }}
-                className={`border-0 cursor-pointer font-anek text-[13px] font-bold px-4 py-1.5 rounded-[7px] transition-all ${
-                  isPieza ? 'bg-white text-[#024fff] shadow-[0_1px_2px_rgba(0,14,31,.12)]' : 'bg-transparent text-[#5b6675]'
-                }`}
-              >
-                Pieza
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setTipoTicket('TAREA');
-                  const currentIsTarea = formData.tiposContenido.some((fmt: string) => TIPOS_TAREA.includes(fmt));
-                  const newFormats = currentIsTarea ? formData.tiposContenido : [];
-                  const matching = findTicketType(newFormats[0], 'TAREA') || defaultTareaType;
-                  handleMultipleChanges({
-                    ticketTypeId: matching?.id || '',
-                    tiposContenido: newFormats,
-                    canales: [],
-                    pilarId: '',
-                    speakerId: '',
-                  });
-                }}
-                className={`border-0 cursor-pointer font-anek text-[13px] font-bold px-4 py-1.5 rounded-[7px] transition-all ${
-                  esTarea ? 'bg-white text-[#024fff] shadow-[0_1px_2px_rgba(0,14,31,.12)]' : 'bg-transparent text-[#5b6675]'
-                }`}
-              >
-                Tarea
-              </button>
-            </div>
+            esPrensa ? (
+              <span className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg border border-[#7C3AED]/30 text-[#7C3AED] bg-[#7C3AED]/5 font-anek">
+                <Newspaper className="w-3.5 h-3.5" />
+                Prensa
+              </span>
+            ) : (
+              <div className="flex p-[3px] bg-[#eef3f7] rounded-[9px] gap-0.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTipoTicket('CONTENIDO');
+                    const currentIsPieza = formData.tiposContenido.some((fmt: string) => FORMATOS_PIEZA.includes(fmt));
+                    const newFormats = currentIsPieza ? formData.tiposContenido : [];
+                    const matching = findTicketType(newFormats[0], 'CONTENIDO');
+                    handleMultipleChanges({
+                      ticketTypeId: matching?.id || '',
+                      tiposContenido: newFormats,
+                    });
+                  }}
+                  className={`border-0 cursor-pointer font-anek text-[13px] font-bold px-4 py-1.5 rounded-[7px] transition-all ${
+                    isPieza ? 'bg-white text-[#024fff] shadow-[0_1px_2px_rgba(0,14,31,.12)]' : 'bg-transparent text-[#5b6675]'
+                  }`}
+                >
+                  Pieza
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTipoTicket('TAREA');
+                    const currentIsTarea = formData.tiposContenido.some((fmt: string) => TIPOS_TAREA.includes(fmt));
+                    const newFormats = currentIsTarea ? formData.tiposContenido : [];
+                    const matching = findTicketType(newFormats[0], 'TAREA') || defaultTareaType;
+                    handleMultipleChanges({
+                      ticketTypeId: matching?.id || '',
+                      tiposContenido: newFormats,
+                      canales: [],
+                      pilarId: '',
+                      speakerId: '',
+                    });
+                  }}
+                  className={`border-0 cursor-pointer font-anek text-[13px] font-bold px-4 py-1.5 rounded-[7px] transition-all ${
+                    esTarea ? 'bg-white text-[#024fff] shadow-[0_1px_2px_rgba(0,14,31,.12)]' : 'bg-transparent text-[#5b6675]'
+                  }`}
+                >
+                  Tarea
+                </button>
+              </div>
+            )
           )}
 
           {isEditing && ticket?.id && (
@@ -1837,15 +1876,15 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
                 <ChevronDown className="w-3.5 h-3.5 text-[#5b6675] pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2" />
               </div>
 
-              {/* Formato / Tipo de entregable */}
+              {/* Formato / Tipo de entregable / Tipo de tarea */}
               <label className="text-[11px] font-bold tracking-[0.06em] uppercase text-[#5b6675] mt-2">
-                {isPieza ? 'Formato' : 'Tipo de entregable'} <span className="text-[#024fff]">*</span>
+                {isPieza ? 'Formato' : esPrensa ? 'Tipo de tarea' : 'Tipo de entregable'} <span className="text-[#024fff]">*</span>
               </label>
               <TicketFormatPicker
                 selectedFormats={formData.tiposContenido}
                 availableFormats={formatList}
                 onChange={handleFormatChange}
-                label={isPieza ? 'Formato' : 'Tipo de entregable'}
+                label={isPieza ? 'Formato' : esPrensa ? 'Tipo de tarea' : 'Tipo de entregable'}
                 className="mt-2"
               />
 

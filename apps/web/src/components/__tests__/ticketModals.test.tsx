@@ -1515,6 +1515,45 @@ describe('CreateTicketModal', () => {
     const ticketsCache = queryClient.getQueryData<any>(['tickets']);
     expect(ticketsCache.data[0].status).toBe('REDACCION');
   });
+
+  it('CreateTicketModal con area="PRENSA" ofrece opciones de tipo de Prensa (Brief, Documento, Gestión-pitch, Comunicado)', async () => {
+    vi.mocked(api.getTicketTypes).mockResolvedValue({
+      data: [
+        { id: 'p-1', name: 'Brief', kind: 'PRENSA' },
+        { id: 'p-2', name: 'Documento', kind: 'PRENSA' },
+        { id: 'p-3', name: 'Gestión-pitch', kind: 'PRENSA' },
+        { id: 'p-4', name: 'Comunicado', kind: 'PRENSA' },
+        { id: 't-1', name: 'Artículo de blog', kind: 'TAREA' },
+        { id: 't-2', name: 'Deck', kind: 'TAREA' },
+      ],
+    } as any);
+
+    render(
+      <CreateTicketModal
+        isOpen={true}
+        onClose={vi.fn()}
+        area="PRENSA"
+      />,
+      { wrapper: createWrapper() }
+    );
+
+    // Badge de Prensa visible en header
+    expect(await screen.findByText('Prensa')).toBeInTheDocument();
+
+    // Click en selector de formato
+    const formatBtn = screen.getByRole('button', { name: /tipo de tarea/i });
+    fireEvent.click(formatBtn);
+
+    // Opciones de prensa presentes
+    expect(await screen.findByText('Brief')).toBeInTheDocument();
+    expect(screen.getByText('Documento')).toBeInTheDocument();
+    expect(screen.getByText('Gestión-pitch')).toBeInTheDocument();
+    expect(screen.getByText('Comunicado')).toBeInTheDocument();
+
+    // Categorías de tareas no-prensa no deben estar disponibles
+    expect(screen.queryByText('Artículo de blog')).not.toBeInTheDocument();
+    expect(screen.queryByText('Deck')).not.toBeInTheDocument();
+  });
 });
 
 

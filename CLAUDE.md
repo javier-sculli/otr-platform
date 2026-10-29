@@ -63,6 +63,13 @@ Sistema de gestión de producción de contenido para On The Rocks (OTR), una age
 - **Tareas** = otros entregables no-contenido / no publicables (deck, estrategia, reporte, diseño puntual, otro). Antes lo llamábamos "tarea genérica".
 - En el modelo actual, **una Tarea = un `Ticket` con un `TicketType` no-contenido** que cierra en `ENTREGADO`. Reusa la infraestructura existente; NO es un modelo nuevo.
 
+## Tareas y Backlog de Prensa (Regla Mandatoria de Dominio)
+- **Naturaleza de Prensa:** En Prensa, todos los tickets son tareas operativas (`area = 'PRENSA'`, `tipoTicket = 'PRENSA'`). No se dividen en Piezas de redes ni en Tareas de contenido general.
+- **Tipos de Tarea de Prensa (Nivel 2):** Son estrictamente los 12 tipos canónicos oficiales:
+  `Brief`, `Documento`, `Gestión-pitch` (también llamado coloquialmente "pitch"), `Comunicado`, `Columna de opinión`, `Cuestionario/Vocería`, `Clipping`, `Evento`, `Feedback`, `Estrategia`, `Base de Medios`, `Otro`.
+- ⚠️ **"Reporte" NO pertenece a Prensa:** "Reporte" es una categoría exclusiva de Tareas de Contenido (`kind = 'TAREA'`). Nunca agregar "Reporte" al catálogo de Prensa en DB ni en el frontend.
+- **Nomenclatura en UI:** En las vistas y modales de Prensa, el selector de categoría se titula siempre **"Tipo de tarea"**.
+
 **Fase 1 — construir AHORA (aditiva, no rompe el backlog):**
 - Tipo de ticket "Tarea" reusando las **columnas del backlog actual**. NO agregar columnas, carriles (swimlanes), zoom ni filtros avanzados.
 - Diferenciar visualmente Tarea vs Contenido (badge/color de tipo) + filtro básico `Todos / Contenido / Tareas`.
@@ -80,6 +87,28 @@ Sistema de gestión de producción de contenido para On The Rocks (OTR), una age
 - HU Fase 2 (Vistas del tablero): https://app.notion.com/p/376617fc36928116866fd6b2d1b7d8b9
 - Tareas de desarrollo Fase 1: 5 ítems con prefijo `F1 ·` en la base de Tareas de Desarrollo.
 - Doc de procesos de la contenidista: `BAJADAS INFO ROCKY` (flujos por formato, publicable vs no publicable, ticket de "otros pedidos").
+
+## Spec-Driven Development (SDD) con GitHub Spec Kit — ESTÁNDAR OBLIGATORIO
+
+> ⚠️ **METODOLOGÍA OFICIAL DE DESARROLLO (github/spec-kit):**
+> A partir de octubre 2026, **todo desarrollo de features o cambios arquitectónicos en OTR se rige estrictamente por SDD**.
+> 
+> ### Ciclo de Vida por Feature:
+> 1. **Constitución del Proyecto (`.specify/memory/constitution.md`)**: Define los principios no negociables (SDD-first, Test obligatorio, notificaciones async sub-100ms, simplicidad pragmática).
+> 2. **Especificación (`specs/NNN-<feature>/spec.md`)**:
+>    - Creada con `./.specify/scripts/bash/create-new-feature.sh --short-name <nombre> '<descripción>'` o el skill `/speckit-specify`.
+>    - Define el problema de negocio, historias de usuario priorizadas (P1, P2...) independientemente testables, requisitos funcionales y criterios de éxito.
+> 3. **Plan Técnico (`specs/001-<feature>/plan.md`)**:
+>    - Creado con `./.specify/scripts/bash/setup-plan.sh` o el skill `/speckit-plan`.
+>    - Blueprint técnico: modelos Prisma, rutas de API, endpoints MCP, componentes React y estrategia de testing.
+> 4. **Lista de Tareas Granulares (`specs/NNN-<feature>/tasks.md`)**:
+>    - Creado con `./.specify/scripts/bash/setup-tasks.sh` o el skill `/speckit-tasks`.
+>    - Tareas ordenadas por historias de usuario y fases para ejecución autónoma y segura.
+> 5. **Sincronización con Notion**:
+>    - La épica y las tareas técnicas de `tasks.md` se reflejan en la base de **Notion Backlog** (`Backlog OTR`) antes o durante la ejecución. Al completarse, se pasan a `Done` con su `Fecha de terminado` arriba de todo.
+> 6. **Implementación & Validación**:
+>    - Se ejecutan las tareas respetando los tests automáticos y validando contra los criterios de aceptación de la spec.
+>    - Se asienta el avance en `docs/BITACORA.md`.
 
 ## Backlog Oficial (Notion) y Bitácora (`docs/BITACORA.md`) — REGLA OBLIGATORIA
 
