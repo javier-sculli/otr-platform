@@ -460,6 +460,10 @@ export function getCollapsedRichTextSnippet(
       .replace(/[\u00A0\u200B]/g, ' ')
       .trim();
     if (!fullText) {
+      const hasImg = container.querySelector('img') !== null;
+      if (hasImg) {
+        return { html: '<span style="color:#024fff;font-weight:600;">📷 [Imagen adjunta]</span>', isEmpty: false };
+      }
       return { html: escapeHtml(fallback), isEmpty: true };
     }
 

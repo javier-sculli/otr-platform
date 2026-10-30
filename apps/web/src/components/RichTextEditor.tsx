@@ -4,25 +4,38 @@ import { compressImageFile, convertImageUrlToDataUrl } from '../lib/imageCompres
 import { readFileAsDataUrl } from '../lib/attachments';
 import { cleanJunkHtmlBlocks } from '../lib/htmlSanitizer';
 
-export function insertHtmlIntoEditor(editor: HTMLDivElement | null, htmlToInsert: string) {
+export function insertHtmlIntoEditor(
+  editor: HTMLDivElement | null,
+  htmlToInsert: string,
+  targetRange?: Range | null
+) {
   if (!editor) return;
-  if (document.activeElement !== editor && !editor.contains(document.activeElement)) {
-    editor.focus();
-  }
+
   const sel = typeof window !== 'undefined' ? window.getSelection() : null;
-  if (sel && sel.rangeCount > 0 && editor.contains(sel.anchorNode)) {
+  let rangeToUse: Range | null = null;
+
+  if (targetRange && editor.contains(targetRange.commonAncestorContainer)) {
+    rangeToUse = targetRange;
+  } else if (sel && sel.rangeCount > 0 && editor.contains(sel.anchorNode)) {
+    rangeToUse = sel.getRangeAt(0);
+  }
+
+  if (rangeToUse) {
+    if (sel) {
+      sel.removeAllRanges();
+      sel.addRange(rangeToUse);
+    }
     const success = document.execCommand('insertHTML', false, htmlToInsert);
     if (!success) {
-      const range = sel.getRangeAt(0);
-      range.deleteContents();
-      const fragment = range.createContextualFragment(htmlToInsert);
+      rangeToUse.deleteContents();
+      const fragment = rangeToUse.createContextualFragment(htmlToInsert);
       const lastChild = fragment.lastChild;
-      range.insertNode(fragment);
-      if (lastChild) {
-        range.setStartAfter(lastChild);
-        range.setEndAfter(lastChild);
+      rangeToUse.insertNode(fragment);
+      if (lastChild && sel) {
+        rangeToUse.setStartAfter(lastChild);
+        rangeToUse.setEndAfter(lastChild);
         sel.removeAllRanges();
-        sel.addRange(range);
+        sel.addRange(rangeToUse);
       }
     }
   } else {
@@ -181,6 +194,11 @@ export const RichTextEditor = forwardRef<HTMLDivElement, RichTextEditorProps>(
     };
 
     const handlePaste = async (e: React.ClipboardEvent<HTMLDivElement>) => {
+      const sel = typeof window !== 'undefined' ? window.getSelection() : null;
+      const savedRange = sel && sel.rangeCount > 0 && activeRef.current?.contains(sel.anchorNode)
+        ? sel.getRangeAt(0).cloneRange()
+        : null;
+
       // 1. Check for image files in clipboard
       const items = Array.from(e.clipboardData.items || []);
       const imageItem = items.find(it => it.type.startsWith('image/'));
@@ -191,7 +209,7 @@ export const RichTextEditor = forwardRef<HTMLDivElement, RichTextEditorProps>(
           try {
             const compressed = await compressImageFile(file);
             const imgHtml = `<img src="${compressed}" alt="${file.name || 'imagen'}" referrerpolicy="no-referrer" style="max-width: 100%; height: auto; border-radius: 8px; margin: 8px 0; display: block;" />`;
-            insertHtmlIntoEditor(activeRef.current, imgHtml);
+            insertHtmlIntoEditor(activeRef.current, imgHtml, savedRange);
             if (activeRef.current) {
               onChange(activeRef.current.innerHTML);
               onImmediateSave?.();
@@ -212,7 +230,7 @@ export const RichTextEditor = forwardRef<HTMLDivElement, RichTextEditorProps>(
           try {
             const dataUrl = await readFileAsDataUrl(file);
             const docHtml = `<a href="${dataUrl}" download="${file.name}" target="_blank" rel="noopener noreferrer" style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; margin: 6px 0; border: 1px solid #d6dde5; border-radius: 6px; background-color: #f7fafc; color: #024fff; text-decoration: none; font-size: 13px; font-weight: 600;">📄 ${file.name}</a><br>`;
-            insertHtmlIntoEditor(activeRef.current, docHtml);
+            insertHtmlIntoEditor(activeRef.current, docHtml, savedRange);
             if (activeRef.current) {
               onChange(activeRef.current.innerHTML);
               onImmediateSave?.();
@@ -248,11 +266,11 @@ export const RichTextEditor = forwardRef<HTMLDivElement, RichTextEditorProps>(
         }
         if (htmlText.length < 80) {
           for (const imgEl of htmlImages) {
-            insertHtmlIntoEditor(activeRef.current, imgEl.outerHTML);
+            insertHtmlIntoEditor(activeRef.current, imgEl.outerHTML, savedRange);
           }
         } else {
           const cleaned = cleanJunkHtmlBlocks(docHtml?.body?.innerHTML || '');
-          insertHtmlIntoEditor(activeRef.current, cleaned);
+          insertHtmlIntoEditor(activeRef.current, cleaned, savedRange);
         }
         if (activeRef.current) {
           onChange(activeRef.current.innerHTML);
@@ -267,7 +285,7 @@ export const RichTextEditor = forwardRef<HTMLDivElement, RichTextEditorProps>(
       if (text && (/\*\*[^*]+\*\*/.test(text) || /__[^_]+__/.test(text))) {
         e.preventDefault();
         const mdHtml = cleanJunkHtmlBlocks(text);
-        insertHtmlIntoEditor(activeRef.current, mdHtml);
+        insertHtmlIntoEditor(activeRef.current, mdHtml, savedRange);
         if (activeRef.current) {
           onChange(activeRef.current.innerHTML);
           onImmediateSave?.();
@@ -286,7 +304,7 @@ export const RichTextEditor = forwardRef<HTMLDivElement, RichTextEditorProps>(
         if (html) {
           e.preventDefault();
           const cleaned = cleanJunkHtmlBlocks(html);
-          insertHtmlIntoEditor(activeRef.current, cleaned);
+          insertHtmlIntoEditor(activeRef.current, cleaned, savedRange);
           if (activeRef.current) {
             onChange(activeRef.current.innerHTML);
             onImmediateSave?.();
@@ -299,7 +317,6 @@ export const RichTextEditor = forwardRef<HTMLDivElement, RichTextEditorProps>(
 
       const trimmed = text.trim();
       const isSingleUrl = /^(https?:\/\/[^\s<]+|www\.[^\s<]+)$/i.test(trimmed);
-      const sel = window.getSelection();
 
       // Case 1: Text was selected and a single URL was pasted -> turn selection into link
       if (isSingleUrl && sel && sel.rangeCount > 0 && !sel.isCollapsed) {
@@ -337,7 +354,7 @@ export const RichTextEditor = forwardRef<HTMLDivElement, RichTextEditorProps>(
 
       // Case 2: Pasted URL or text containing URLs -> insert linkified HTML
       const linkHtml = linkifyText(text);
-      insertHtmlIntoEditor(activeRef.current, linkHtml);
+      insertHtmlIntoEditor(activeRef.current, linkHtml, savedRange);
 
       if (activeRef.current) {
         onChange(activeRef.current.innerHTML);
@@ -351,13 +368,18 @@ export const RichTextEditor = forwardRef<HTMLDivElement, RichTextEditorProps>(
       const imgFiles = files.filter(f => f.type.startsWith('image/'));
       const docFiles = files.filter(f => !f.type.startsWith('image/'));
 
+      let dropRange: Range | null = null;
+      if (typeof document !== 'undefined' && (document as any).caretRangeFromPoint) {
+        dropRange = (document as any).caretRangeFromPoint(e.clientX, e.clientY);
+      }
+
       if (imgFiles.length > 0 || docFiles.length > 0) {
         e.preventDefault();
         for (const f of imgFiles) {
           try {
             const compressed = await compressImageFile(f);
             const imgHtml = `<img src="${compressed}" alt="${f.name}" referrerpolicy="no-referrer" style="max-width: 100%; height: auto; border-radius: 8px; margin: 8px 0; display: block;" />`;
-            insertHtmlIntoEditor(activeRef.current, imgHtml);
+            insertHtmlIntoEditor(activeRef.current, imgHtml, dropRange);
           } catch (err) {
             console.error(err);
           }
@@ -366,7 +388,7 @@ export const RichTextEditor = forwardRef<HTMLDivElement, RichTextEditorProps>(
           try {
             const dataUrl = await readFileAsDataUrl(f);
             const docHtml = `<a href="${dataUrl}" download="${f.name}" target="_blank" rel="noopener noreferrer" style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; margin: 6px 0; border: 1px solid #d6dde5; border-radius: 6px; background-color: #f7fafc; color: #024fff; text-decoration: none; font-size: 13px; font-weight: 600;">📄 ${f.name}</a><br>`;
-            insertHtmlIntoEditor(activeRef.current, docHtml);
+            insertHtmlIntoEditor(activeRef.current, docHtml, dropRange);
           } catch (err) {
             console.error(err);
           }

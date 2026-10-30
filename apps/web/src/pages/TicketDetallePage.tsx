@@ -706,6 +706,11 @@ export function TicketDetallePage() {
                     setBriefTemp(currentHtml);
                     queueSave({ objetivo: currentHtml || null }, true);
                   }
+                  if (notasRef.current) {
+                    const currentNotas = notasRef.current.innerHTML;
+                    setNotasAudiovisual(currentNotas);
+                    queueSave({ notasAudiovisual: currentNotas || null }, true);
+                  }
                   await flushSave();
                   navigate('/backlog');
                 }}
@@ -1127,6 +1132,11 @@ export function TicketDetallePage() {
                         setBriefTemp(currentHtml);
                         queueSave({ objetivo: currentHtml || null }, true);
                       }
+                      if (notasRef.current) {
+                        const currentNotas = notasRef.current.innerHTML;
+                        setNotasAudiovisual(currentNotas);
+                        queueSave({ notasAudiovisual: currentNotas || null }, true);
+                      }
                       await flushSave();
                       navigate(`/content/${ticket.id}`);
                     }}
@@ -1243,11 +1253,8 @@ export function TicketDetallePage() {
                         if (notasOpen) {
                           const cur = notasRef.current?.innerHTML ?? notasAudiovisual;
                           setNotasAudiovisual(cur);
-                          if ((cur || '') !== (ticket?.notasAudiovisual || '')) {
-                            queueSave({ notasAudiovisual: cur || null }, true);
-                          } else {
-                            flushSave();
-                          }
+                          queueSave({ notasAudiovisual: cur || null }, true);
+                          flushSave();
                         }
                         setNotasOpen(!notasOpen);
                       }}
@@ -1306,11 +1313,10 @@ export function TicketDetallePage() {
                             queueSave({ notasAudiovisual: val || null }, hasImage);
                           }}
                           onBlur={() => {
-                            if ((notasAudiovisual || '') !== ((ticket as any)?.notasAudiovisual || '')) {
-                              queueSave({ notasAudiovisual: notasAudiovisual || null }, true);
-                            } else {
-                              flushSave();
-                            }
+                            const cur = notasRef.current?.innerHTML ?? notasAudiovisual;
+                            setNotasAudiovisual(cur);
+                            queueSave({ notasAudiovisual: cur || null }, true);
+                            flushSave();
                           }}
                           onImmediateSave={() => {
                             const cur = notasRef.current?.innerHTML || notasAudiovisual;
@@ -1360,11 +1366,10 @@ export function TicketDetallePage() {
                           queueSave({ notasAudiovisual: val || null }, hasImage);
                         }}
                         onBlur={() => {
-                          if ((notasAudiovisual || '') !== ((ticket as any)?.notasAudiovisual || '')) {
-                            queueSave({ notasAudiovisual: notasAudiovisual || null }, true);
-                          } else {
-                            flushSave();
-                          }
+                          const cur = notasRef.current?.innerHTML ?? notasAudiovisual;
+                          setNotasAudiovisual(cur);
+                          queueSave({ notasAudiovisual: cur || null }, true);
+                          flushSave();
                         }}
                         onImmediateSave={() => {
                           const cur = notasRef.current?.innerHTML || notasAudiovisual;

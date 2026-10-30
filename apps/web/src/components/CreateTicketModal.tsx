@@ -1686,7 +1686,12 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
                   {isCollapsibleNotas && (
                     <button
                       type="button"
-                      onClick={() => setNotasOpen(!notasOpen)}
+                      onClick={() => {
+                        if (notasOpen && notasRef.current) {
+                          handleChange('notasAudiovisual', notasRef.current.innerHTML, true);
+                        }
+                        setNotasOpen(!notasOpen);
+                      }}
                       className="flex items-center gap-3 w-full p-3 px-3.5 border border-[#d6dde5] rounded-[10px] bg-[#f7fafc] hover:bg-[#eef3f7] cursor-pointer font-anek text-left transition-colors"
                     >
                       <div className="flex-1 min-w-0 flex flex-col gap-0.5">
