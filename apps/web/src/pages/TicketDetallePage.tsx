@@ -700,7 +700,15 @@ export function TicketDetallePage() {
             <div className="flex items-center gap-2 min-w-0">
               <button
                 type="button"
-                onClick={() => navigate('/backlog')}
+                onClick={async () => {
+                  if (briefRef.current) {
+                    const currentHtml = briefRef.current.innerHTML;
+                    setBriefTemp(currentHtml);
+                    queueSave({ objetivo: currentHtml || null }, true);
+                  }
+                  await flushSave();
+                  navigate('/backlog');
+                }}
                 className="flex items-center gap-1 border-0 bg-transparent cursor-pointer font-anek text-[14px] text-[#5b6675] py-1 px-2 -ml-1 rounded-md hover:bg-[#eef3f7] hover:text-[#0d0d0d] transition-colors"
               >
                 <ChevronLeft className="w-4 h-4" />
@@ -889,11 +897,8 @@ export function TicketDetallePage() {
                 if (briefOpen) {
                   const currentHtml = briefRef.current?.innerHTML ?? briefTemp;
                   setBriefTemp(currentHtml);
-                  if ((currentHtml || '') !== (ticket?.objetivo || '')) {
-                    queueSave({ objetivo: currentHtml || null }, true);
-                  } else {
-                    flushSave();
-                  }
+                  queueSave({ objetivo: currentHtml || null }, true);
+                  flushSave();
                 }
                 setBriefOpen(!briefOpen);
               }}
@@ -966,11 +971,8 @@ export function TicketDetallePage() {
                   onBlur={() => {
                     const currentVal = briefRef.current?.innerHTML ?? briefTemp;
                     setBriefTemp(currentVal);
-                    if ((currentVal || '') !== (ticket?.objetivo || '')) {
-                      queueSave({ objetivo: currentVal || null }, true);
-                    } else {
-                      flushSave();
-                    }
+                    queueSave({ objetivo: currentVal || null }, true);
+                    flushSave();
                   }}
                   onImmediateSave={() => {
                     const currentHtml = briefRef.current?.innerHTML || briefTemp;
@@ -1119,7 +1121,15 @@ export function TicketDetallePage() {
                   <span className="flex-1" />
                   <button
                     type="button"
-                    onClick={() => navigate(`/content/${ticket.id}`)}
+                    onClick={async () => {
+                      if (briefRef.current) {
+                        const currentHtml = briefRef.current.innerHTML;
+                        setBriefTemp(currentHtml);
+                        queueSave({ objetivo: currentHtml || null }, true);
+                      }
+                      await flushSave();
+                      navigate(`/content/${ticket.id}`);
+                    }}
                     className="shrink-0 whitespace-nowrap h-[40px] px-3.5 border border-[#024fff] bg-white rounded-lg cursor-pointer font-anek text-[15px] font-bold text-[#024fff] flex items-center gap-2 hover:bg-[#024fff]/8 transition-colors"
                   >
                     <Sparkles className="w-4 h-4" />

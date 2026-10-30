@@ -1206,6 +1206,7 @@ export function ContentPage() {
                 <AutoResizeTextarea
                   value={brief}
                   onChange={e => { setBrief(e.target.value); setHasChanges(true); }}
+                  onBlur={() => { if (hasChanges) saveMutation.mutate(); }}
                   minRows={2}
                   className="w-full px-2.5 py-1.5 border-2 border-[#000033]/10 rounded-md text-xs focus:outline-none focus:ring-2 focus:ring-[#024fff] text-[#000033] hover:border-[#024fff]/40 transition-all max-h-[20vh] overflow-y-auto"
                 />

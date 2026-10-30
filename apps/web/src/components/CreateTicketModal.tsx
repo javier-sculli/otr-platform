@@ -271,6 +271,7 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
   const [isDuplicating, setIsDuplicating] = useState(false);
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const dragStartedInsideRef = useRef(false);
+  const isClosingRef = useRef(false);
   const formDataRef = useRef(formData);
   formDataRef.current = formData;
 
@@ -431,6 +432,7 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
       lastTicketIdRef.current = null;
       loadedDetailTicketIdRef.current = null;
       dirtyFieldsRef.current.clear();
+      isClosingRef.current = false;
     }
   }, [ticket?.id, isOpen, defaultClientId]);
 
@@ -678,7 +680,7 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
       if (pendingSaveDataRef.current) {
         const nextSave = pendingSaveDataRef.current;
         pendingSaveDataRef.current = null;
-        performAutoSave(nextSave);
+        await performAutoSave(nextSave);
       }
     }
   };
@@ -884,22 +886,92 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
   };
   resolveCommentRef.current = handleResolveInlineComment;
 
-  const handleClose = () => {
+  const handleClose = async () => {
+    if (isClosingRef.current) return;
+    isClosingRef.current = true;
+
     if (saveTimeoutRef.current) {
       clearTimeout(saveTimeoutRef.current);
       saveTimeoutRef.current = null;
     }
-    if (isEditing && ticket?.id && dirtyFieldsRef.current.size > 0) {
-      performAutoSave({ ...formDataRef.current, __ticketId: ticket.id } as any);
+
+    if (isEditing && ticket?.id) {
+      // 1. Flush any DOM innerHTML in active contentEditable editors to avoid losing the last keystrokes
+      const flushOverrides: Partial<typeof formData> = {};
+      if (briefRef.current) {
+        const liveBrief = briefRef.current.innerHTML;
+        if (liveBrief !== formDataRef.current.brief) {
+          dirtyFieldsRef.current.add('brief');
+          flushOverrides.brief = liveBrief;
+        }
+      }
+      if (notasRef.current) {
+        const liveNotas = notasRef.current.innerHTML;
+        if (liveNotas !== formDataRef.current.notasAudiovisual) {
+          dirtyFieldsRef.current.add('notasAudiovisual');
+          flushOverrides.notasAudiovisual = liveNotas;
+        }
+      }
+      if (copyRef.current && activeCopyTab) {
+        const liveCopy = copyRef.current.innerHTML;
+        const currentCopyTabVal = formDataRef.current.contentPerCanal?.[activeCopyTab] || '';
+        if (liveCopy !== currentCopyTabVal) {
+          dirtyFieldsRef.current.add('contentPerCanal');
+          flushOverrides.contentPerCanal = {
+            ...formDataRef.current.contentPerCanal,
+            [activeCopyTab]: liveCopy,
+          };
+        }
+      }
+
+      if (Object.keys(flushOverrides).length > 0) {
+        const merged = { ...formDataRef.current, ...flushOverrides };
+        formDataRef.current = merged;
+      }
+
+      // 2. If there are dirty fields or pending save data, save and wait for completion!
+      if (dirtyFieldsRef.current.size > 0 || pendingSaveDataRef.current) {
+        try {
+          await performAutoSave({ ...formDataRef.current, __ticketId: ticket.id } as any);
+          const startWait = Date.now();
+          while ((isSavingRef.current || pendingSaveDataRef.current) && Date.now() - startWait < 3000) {
+            await new Promise(r => setTimeout(r, 50));
+          }
+        } catch (err) {
+          console.error('Error saving ticket on close:', err);
+        }
+      }
     }
+
     setSaveStatus(null);
     if (!isEditing) {
       setFormData(buildFormData(null));
       setAttachedFiles([]);
     }
     setError(null);
+    isClosingRef.current = false;
     onClose();
   };
+
+  // Safe flush on beforeunload
+  useEffect(() => {
+    if (!isOpen || !isEditing || !ticket?.id) return;
+    const handleBeforeUnload = () => {
+      if (dirtyFieldsRef.current.size > 0 || pendingSaveDataRef.current || saveTimeoutRef.current) {
+        if (briefRef.current) {
+          formDataRef.current.brief = briefRef.current.innerHTML;
+        }
+        if (notasRef.current) {
+          formDataRef.current.notasAudiovisual = notasRef.current.innerHTML;
+        }
+        performAutoSave({ ...formDataRef.current, __ticketId: ticket.id } as any);
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [isOpen, isEditing, ticket?.id]);
 
   useEffect(() => {
     if (!isOpen) return;
