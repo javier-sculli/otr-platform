@@ -39,8 +39,14 @@ export function insertHtmlIntoEditor(
       }
     }
   } else {
-    // If no valid selection inside editor, append to end
-    editor.insertAdjacentHTML('beforeend', htmlToInsert);
+    // If no valid selection inside editor, focus editor and attempt execCommand before fallback
+    if (document.activeElement !== editor && !editor.contains(document.activeElement)) {
+      editor.focus();
+    }
+    const success = document.execCommand('insertHTML', false, htmlToInsert);
+    if (!success) {
+      editor.insertAdjacentHTML('beforeend', htmlToInsert);
+    }
   }
 }
 
