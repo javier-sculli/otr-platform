@@ -1,9 +1,13 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { InlineCommentPopover } from '../InlineCommentPopover';
 
 describe('InlineCommentPopover', () => {
+  beforeEach(() => {
+    sessionStorage.clear();
+    vi.clearAllMocks();
+  });
   it('no renderiza nada cuando pop es null', () => {
     const { container } = render(
       <InlineCommentPopover pop={null} onSend={vi.fn()} onClose={vi.fn()} />

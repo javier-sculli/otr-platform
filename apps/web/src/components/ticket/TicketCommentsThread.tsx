@@ -1,9 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Trash2, Loader2, Image as ImageIcon, X, Paperclip, FileText, Download } from 'lucide-react';
 import { MentionTextarea } from '../MentionTextarea';
-import { compressImageFile, parseCommentContent, buildCommentContent } from '../../lib/imageCompression';
+import { compressImageFile, parseCommentContent, buildCommentContent, isImageFile } from '../../lib/imageCompression';
 import { readFileAsDataUrl, formatFileSize, MAX_COMMENT_ATTACHMENT_SIZE_BYTES } from '../../lib/attachments';
 import { CommentImageViewerModal } from './CommentImageViewerModal';
+import { CommentImage } from './CommentImage';
+import { api, resolveAttachmentUrl } from '../../lib/api';
 
 export interface TicketCommentItem {
   id: string;
@@ -141,16 +143,27 @@ export const TicketCommentsThread: React.FC<TicketCommentsThreadProps> = ({
 
   const handleImageFile = async (files: File | File[]) => {
     const list = Array.isArray(files) ? files : [files];
-    const valid = list.filter(f => f.type.startsWith('image/'));
+    const valid = list.filter(f => isImageFile(f));
     if (valid.length === 0) return;
     try {
       setIsCompressing(true);
-      const compressedList = await Promise.all(
-        valid.map(f => compressImageFile(f))
-      );
-      setPastedImages(prev => [...prev, ...compressedList]);
-    } catch (err) {
+      if (ticketId) {
+        const uploaded = await Promise.all(
+          valid.map(async f => {
+            const res = await api.uploadAttachment(ticketId, f);
+            return res.data.url;
+          })
+        );
+        setPastedImages(prev => [...prev, ...uploaded]);
+      } else {
+        const compressedList = await Promise.all(
+          valid.map(f => compressImageFile(f))
+        );
+        setPastedImages(prev => [...prev, ...compressedList]);
+      }
+    } catch (err: any) {
       console.error('Error al procesar imágenes:', err);
+      setSendError(err?.message || 'Error al procesar imagen');
     } finally {
       setIsCompressing(false);
     }
@@ -166,7 +179,7 @@ export const TicketCommentsThread: React.FC<TicketCommentsThreadProps> = ({
         alert(`El archivo "${f.name}" supera el tamaño máximo permitido de 4MB para comentarios.`);
         continue;
       }
-      if (f.type.startsWith('image/')) {
+      if (isImageFile(f)) {
         imageFiles.push(f);
       } else {
         docFiles.push(f);
@@ -180,16 +193,26 @@ export const TicketCommentsThread: React.FC<TicketCommentsThreadProps> = ({
     if (docFiles.length > 0) {
       try {
         setIsCompressing(true);
-        const docs = await Promise.all(
-          docFiles.map(async f => {
-            const dataUrl = await readFileAsDataUrl(f);
-            return { name: f.name, url: dataUrl, size: f.size };
-          })
-        );
-        setAttachedCommentFiles(prev => [...prev, ...docs]);
+        if (ticketId) {
+          const docs = await Promise.all(
+            docFiles.map(async f => {
+              const res = await api.uploadAttachment(ticketId, f);
+              return { name: res.data.fileName, url: res.data.url, size: res.data.size };
+            })
+          );
+          setAttachedCommentFiles(prev => [...prev, ...docs]);
+        } else {
+          const docs = await Promise.all(
+            docFiles.map(async f => {
+              const dataUrl = await readFileAsDataUrl(f);
+              return { name: f.name, url: dataUrl, size: f.size };
+            })
+          );
+          setAttachedCommentFiles(prev => [...prev, ...docs]);
+        }
       } catch (err: any) {
         console.error('Error al procesar archivos adjuntos:', err);
-        alert(err?.message || 'Error al leer el archivo');
+        setSendError(err?.message || 'Error al leer el archivo');
       } finally {
         setIsCompressing(false);
       }
@@ -338,7 +361,7 @@ export const TicketCommentsThread: React.FC<TicketCommentsThreadProps> = ({
                 <div className="flex flex-col gap-2 mt-1.5" data-testid={`comment-images-${cm.id}`}>
                   {commentImages.map((imgSrc, imgIdx) => (
                     <div key={imgIdx} className="inline-block max-w-full">
-                      <img
+                      <CommentImage
                         src={imgSrc}
                         alt="Imagen adjunta en comentario"
                         onClick={() => setViewerImage(imgSrc)}
@@ -357,7 +380,7 @@ export const TicketCommentsThread: React.FC<TicketCommentsThreadProps> = ({
                     return (
                       <a
                         key={fIdx}
-                        href={cf.url}
+                        href={resolveAttachmentUrl(cf.url)}
                         download={cf.name}
                         target="_blank"
                         rel="noopener noreferrer"
@@ -433,7 +456,7 @@ export const TicketCommentsThread: React.FC<TicketCommentsThreadProps> = ({
                   key={idx}
                   className="relative group border border-[#d6dde5] rounded-lg overflow-hidden bg-white shadow-xs max-w-[120px] max-h-[84px] shrink-0"
                 >
-                  <img
+                  <CommentImage
                     src={img}
                     alt="Vista previa de imagen"
                     className="w-full h-full object-cover max-h-[80px]"

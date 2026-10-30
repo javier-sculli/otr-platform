@@ -1,23 +1,122 @@
 /**
+ * Detects if a file or blob is an HEIC/HEIF image (common on iOS and macOS).
+ */
+export function isHeicFile(file: File | Blob): boolean {
+  if (file.type && (file.type.toLowerCase().includes('heic') || file.type.toLowerCase().includes('heif'))) {
+    return true;
+  }
+  if (file instanceof File) {
+    const name = file.name.toLowerCase();
+    if (name.endsWith('.heic') || name.endsWith('.heif')) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Checks whether a file or blob is an image, including cases where
+ * the browser omits file.type for certain extensions like .heic.
+ */
+export function isImageFile(file: File | Blob): boolean {
+  if (file.type && file.type.startsWith('image/')) return true;
+  if (isHeicFile(file)) return true;
+  if (file instanceof File) {
+    const ext = file.name.split('.').pop()?.toLowerCase();
+    if (ext && ['png', 'jpg', 'jpeg', 'webp', 'gif', 'svg', 'heic', 'heif', 'bmp', 'tiff', 'ico'].includes(ext)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Decodes an HEIC/HEIF file or blob (iPhone/Mac) into a standard JPEG Data URL.
+ */
+export async function convertHeicToJpegDataUrl(
+  file: File | Blob,
+  maxDimension = 1000,
+  quality = 0.75
+): Promise<string> {
+  // @ts-ignore
+  const decodeModule = await import('heic-decode');
+  const decode = decodeModule.default || decodeModule;
+  const arrayBuffer = await file.arrayBuffer();
+  const { width, height, data } = await decode({ buffer: new Uint8Array(arrayBuffer) });
+
+  let targetWidth = width;
+  let targetHeight = height;
+
+  if (targetWidth > maxDimension || targetHeight > maxDimension) {
+    if (targetWidth >= targetHeight) {
+      targetHeight = Math.round((targetHeight * maxDimension) / targetWidth);
+      targetWidth = maxDimension;
+    } else {
+      targetWidth = Math.round((targetWidth * maxDimension) / targetHeight);
+      targetHeight = maxDimension;
+    }
+  }
+
+  // Draw decoded RGBA pixels to full-size canvas first
+  const srcCanvas = document.createElement('canvas');
+  srcCanvas.width = width;
+  srcCanvas.height = height;
+  const srcCtx = srcCanvas.getContext('2d');
+  if (!srcCtx) throw new Error('No se pudo inicializar canvas para HEIC.');
+
+  const imageData = srcCtx.createImageData(width, height);
+  imageData.data.set(data);
+  srcCtx.putImageData(imageData, 0, 0);
+
+  if (targetWidth === width && targetHeight === height) {
+    return srcCanvas.toDataURL('image/jpeg', quality);
+  }
+
+  // Scale down if larger than maxDimension
+  const destCanvas = document.createElement('canvas');
+  destCanvas.width = targetWidth;
+  destCanvas.height = targetHeight;
+  const destCtx = destCanvas.getContext('2d');
+  if (!destCtx) throw new Error('No se pudo inicializar canvas de destino para HEIC.');
+
+  destCtx.fillStyle = '#ffffff';
+  destCtx.fillRect(0, 0, targetWidth, targetHeight);
+  destCtx.drawImage(srcCanvas, 0, 0, targetWidth, targetHeight);
+
+  return destCanvas.toDataURL('image/jpeg', quality);
+}
+
+/**
  * Compresses and resizes an image file so it doesn't overburden
  * network transfers, memory, and database storage.
+ * Automatically converts HEIC (iPhone/Mac) to standard JPEG before compressing.
  *
- * @param file The image File or Blob to compress.
- * @param maxDimension The maximum allowed width or height in pixels (default 1400px).
- * @param quality JPEG compression quality between 0 and 1 (default 0.82).
+ * @param rawFile The image File or Blob to compress.
+ * @param maxDimension The maximum allowed width or height in pixels (default 1000px).
+ * @param quality JPEG compression quality between 0 and 1 (default 0.72).
  * @returns Promise resolving to a base64 data URL string.
  */
-export function compressImageFile(
-  file: File | Blob,
+export async function compressImageFile(
+  rawFile: File | Blob,
   maxDimension = 1000,
   quality = 0.72
 ): Promise<string> {
-  return new Promise((resolve, reject) => {
-    if (!file.type.startsWith('image/')) {
-      reject(new Error('El archivo no es una imagen válida.'));
-      return;
-    }
+  if (!isImageFile(rawFile)) {
+    throw new Error('El archivo no es una imagen válida.');
+  }
 
+  // If it's an HEIC file (iPhone/Mac), decode directly to JPEG Data URL
+  if (isHeicFile(rawFile)) {
+    try {
+      return await convertHeicToJpegDataUrl(rawFile, maxDimension, quality);
+    } catch (err) {
+      console.error('Error al decodificar imagen HEIC en cliente:', err);
+    }
+  }
+
+  const file = rawFile;
+
+  return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onerror = () => reject(reader.error);
     reader.onload = (e) => {
@@ -77,7 +176,13 @@ export function compressImageFile(
         }
       };
 
-      img.onerror = () => resolve(dataUrl);
+      img.onerror = () => {
+        if (dataUrl.startsWith('data:image/')) {
+          resolve(dataUrl);
+        } else {
+          reject(new Error('Formato de imagen no soportado por el navegador.'));
+        }
+      };
       img.src = dataUrl;
     };
 
@@ -178,11 +283,11 @@ export function parseCommentContent(content: string = ''): {
   if (!content) return { text: '', images, files };
 
   // Match markdown images: ![alt](url)
-  // Handles data URLs as well as http/https URLs
-  const imgRegex = /!\[([^\]]*)\]\(((?:data:image\/[a-zA-Z0-9.+_-]+;base64,[A-Za-z0-9+/=]+|https?:\/\/[^\s)]+))\)/g;
+  // Handles data URLs, relative paths (/tickets/attachments/...), and http/https URLs
+  const imgRegex = /!\[([^\]]*)\]\(([^)]+)\)/g;
 
   let cleaned = content.replace(imgRegex, (_, _alt, url) => {
-    images.push(url);
+    images.push(url.trim());
     return '';
   });
 

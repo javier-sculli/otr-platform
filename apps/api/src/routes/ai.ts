@@ -110,9 +110,10 @@ function buildSystemPrompt(params: {
   referencias?: { title: string; brief: string; content: string }[];
   pressReferenceContent?: string | null;
   ticketTypeName?: string;
+  knowledgeDocs?: { title: string; type: string; content: string; summary?: string | null; date: Date }[];
   area: 'CONTENIDO' | 'PRENSA';
 }): string {
-  const { clientName, title, brief, tone, keywords, outputLength, currentContent, brandVoice, speaker, textAttachments, contextLinks, canal, otherCanalesContent, lineamientos, referencias, pressReferenceContent, ticketTypeName, area } = params;
+  const { clientName, title, brief, tone, keywords, outputLength, currentContent, brandVoice, speaker, textAttachments, contextLinks, canal, otherCanalesContent, lineamientos, referencias, pressReferenceContent, ticketTypeName, knowledgeDocs, area } = params;
 
   const lengthGuide = LENGTH_GUIDE[outputLength] ?? LENGTH_GUIDE['M'];
 
@@ -192,6 +193,16 @@ function buildSystemPrompt(params: {
     pressReferenceBlock = `\n## Referencia de Prensa (${ticketTypeName})\n⚠️ REGLA CRÍTICA DE CONTEXTO: Usá la siguiente referencia/plantilla/ejemplo documentado por el equipo para estructurar, redactar y alinear la pieza actual de prensa de tipo "${ticketTypeName}":\n${pressReferenceContent}\n`;
   }
 
+  let knowledgeBlock = '';
+  if (knowledgeDocs && knowledgeDocs.length > 0) {
+    knowledgeBlock = `\n## 🧠 Contexto Vivo y Reglas Recientes de Knowledge Base (${clientName})\n⚠️ PRIORIDAD: Las siguientes directivas, acuerdos de reuniones y feedbacks fueron dados recientemente por el cliente. Si alguna directiva aquí contradice el Kit de Marca general, las directivas de este bloque TIENEN PRIORIDAD:\n${
+      knowledgeDocs.map((d) => {
+        const dStr = new Date(d.date).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+        return `### ${d.type} (${dStr}): ${d.title}\n${d.summary ? `Resumen: ${d.summary}\n` : ''}${d.content.slice(0, 1200)}`;
+      }).join('\n\n')
+    }\n`;
+  }
+
   const voiceContext = speakerBlock + brandVoiceBlock;
 
   const persona = area === 'PRENSA'
@@ -209,7 +220,7 @@ Título: ${title || '(sin título)'}
 Brief: ${brief || '(sin brief)'}
 Tono de voz: ${tone || '(no especificado)'}
 Keywords: ${keywords || '(no especificadas)'}
-Longitud objetivo: ${lengthGuide}${canalContext}${voiceContext}${referenciasBlock}${pressReferenceBlock}${lineamientosBlock}${linksBlock}${attachmentsBlock}${otherCanalesBlock}${contentBlock}
+Longitud objetivo: ${lengthGuide}${canalContext}${voiceContext}${knowledgeBlock}${referenciasBlock}${pressReferenceBlock}${lineamientosBlock}${linksBlock}${attachmentsBlock}${otherCanalesBlock}${contentBlock}
 ${instructionContext}
 
 ## Instrucciones de respuesta
@@ -377,6 +388,19 @@ export async function aiRoutes(fastify: FastifyInstance) {
       }
     }
 
+    // Traer los 5 documentos de Knowledge Base más recientes del cliente/vocero
+    const knowledgeDocs = await prisma.knowledgeDocument.findMany({
+      where: {
+        clientId: ticket.clientId,
+        OR: ticket.speakerId
+          ? [{ speakerId: ticket.speakerId }, { speakerId: null }]
+          : undefined,
+      },
+      orderBy: { date: 'desc' },
+      take: 5,
+      select: { title: true, type: true, content: true, summary: true, date: true },
+    });
+
     const systemPrompt = buildSystemPrompt({
       clientName: ticket.client.name,
       title: ticket.title,
@@ -391,6 +415,7 @@ export async function aiRoutes(fastify: FastifyInstance) {
       contextLinks: ticket.links,
       canal,
       otherCanalesContent,
+      knowledgeDocs,
       // Only include social media lineamientos/posts for Contenido tickets
       lineamientos: ticket.area === 'CONTENIDO' ? lineamientos : [],
       referencias: ticket.references.map((r) => ({

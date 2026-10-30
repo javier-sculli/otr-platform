@@ -22,6 +22,7 @@
 | Guardado Defensivo de `contentPerCanal` — Merge defensivo en backend PATCH y sanitizado de auto-guardado en modal/detalle | — | ✅ Implementado y verificado | 2026-08-21 |
 | Fixes Editor de Copys — Preservación de saltos de línea al cambiar de red, negritas por click/markdown y Selector de Emojis | — | ✅ Implementado y verificado | 2026-08-24 |
 | Optimización Apertura Ticket y Caché Catálogos en Memoria | [ticket-performance.md](ticket-performance.md) | ✅ Implementado y desplegado | 2026-09-21 |
+| Knowledge Base V1 (Cerebro) — Repo consolidado, Chat Q&A con citas, Ingesta Google Meet con IA, Ingesta MCP y Contexto vivo en redacción | [knowledge-base.md](knowledge-base.md) | ✅ Implementado y verificado | 2026-10-29 |
 
 ## Decisiones de producto activas
 

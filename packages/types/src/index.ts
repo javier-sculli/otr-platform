@@ -240,3 +240,7 @@ export interface LoginResponse {
 export interface AuthenticatedUser extends User {
   token: string;
 }
+
+// Knowledge Base types
+export * from './knowledge.js';
+

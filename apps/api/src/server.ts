@@ -3,6 +3,7 @@ import Fastify from 'fastify';
 // Production Fastify Server
 import cors from '@fastify/cors';
 import jwt from '@fastify/jwt';
+import multipart from '@fastify/multipart';
 import { config } from './config.js';
 import { authRoutes } from './routes/auth.js';
 import { ticketsRoutes } from './routes/tickets.js';
@@ -12,6 +13,7 @@ import { metricsRoutes } from './routes/metrics.js';
 import { commentsRoutes } from './routes/comments.js';
 import { notificationsRoutes } from './routes/notifications.js';
 import { reportsRoutes } from './routes/reports.js';
+import { knowledgeRoutes } from './routes/knowledge.js';
 import { startCronJobs } from './jobs/cron.js';
 import { Sentry } from './lib/sentry.js';
 import { prisma } from './lib/prisma.js';
@@ -50,6 +52,12 @@ await fastify.register(jwt, {
   secret: config.jwtSecret,
 });
 
+await fastify.register(multipart, {
+  limits: {
+    fileSize: 25 * 1024 * 1024, // 25MB max file upload
+  },
+});
+
 // Health check
 fastify.get('/health', async () => {
   return { status: 'ok', timestamp: new Date().toISOString() };
@@ -64,6 +72,7 @@ await fastify.register(metricsRoutes, { prefix: '/metrics' });
 await fastify.register(commentsRoutes, { prefix: '/tickets' });
 await fastify.register(notificationsRoutes, { prefix: '/notifications' });
 await fastify.register(reportsRoutes, { prefix: '/reports' });
+await fastify.register(knowledgeRoutes, { prefix: '/knowledge' });
 
 // Start server
 try {

@@ -4,6 +4,39 @@
 > 
 > 🎯 **BACKLOG OFICIAL Y PRIORIDADES (FUENTE DE VERDAD):** [Notion Backlog Oficial](https://app.notion.com/p/Backlog-3ba617fc369281048bfdfc89c5041d9c?source=copy_link). Todas las prioridades y tareas activas se gestionan directamente allí.
 
+### [2026-10-29] — Adopción de Spec-Driven Development (SDD) & Knowledge Base V1 (Cerebro de Clientes & Voceros)
+- **Desarrollador:** Antigravity (Pair Programming con Javier Sculli)
+- **Marco Metodológico Adoptado:**
+  - **Spec-Driven Development (SDD) con GitHub Spec Kit (`github/spec-kit`)**: Instalado y configurado en el repositorio (`.specify/`).
+  - **Constitución del Proyecto (`.specify/memory/constitution.md`)**: Ratifación de principios no negociables: SDD-First, testing obligatorio, notificaciones y procesos secundarios async (sub-100ms) y simplicidad pragmática.
+  - **Feature Spec**: `specs/001-knowledge-base-v1/` (`spec.md`, `plan.md`, `tasks.md`).
+- **Problema de Negocio Resuelto:**
+  - El Brand Kit existente era estático (inputs planos) y el contexto vivo (Google Meet, WhatsApp, feedback de tono, decks) se acumulaba en Claude externo. Los redactores escribían en Claude porque Rocky no tenía ese contexto.
+- **Implementación Técnica Entregada:**
+  1. **Base de Datos & Migración (`apps/api/prisma`):**
+     - Modelo `KnowledgeDocument` con `type: String` flexible, `tags: String[]`, `content` completo, `summary` y relaciones en cascada con `Client` y `Speaker`.
+     - Migración `20261029160000_add_knowledge_documents` aplicada con éxito en PostgreSQL (Railway).
+  2. **Backend API (`apps/api/src/routes/knowledge.ts`):**
+     - `GET /knowledge`: Listado con filtros por cliente, vocero, tipo y búsqueda por texto.
+     - `GET /knowledge/:id`: Detalle completo.
+     - `POST /knowledge`: Alta validada de documentos.
+     - `PATCH /knowledge/:id` & `DELETE /knowledge/:id`: Edición y borrado.
+     - `POST /knowledge/analyze`: Extracción asistida con IA de título sugerido, tipo (`REUNION`, `FEEDBACK`, `DOCUMENTO`, `CLAUDE_CHAT`, `NOTA`), resumen en bullets y tags.
+     - `POST /knowledge/chat`: Chat asistente Q&A con la base del cliente que cita las fuentes de los documentos.
+  3. **Inyección en Redacción con IA (`apps/api/src/routes/ai.ts`):**
+     - `POST /ai/:ticketId/chat`: Consulta dinámicamente los 5 documentos de knowledge más recientes del cliente/vocero y los inyecta en el prompt con prioridad sobre lineamientos antiguos.
+  4. **Servidor MCP (`apps/mcp/src/tools/knowledge.ts`):**
+     - Tools `save_knowledge_doc` y `search_knowledge` para ingesta remota y sin fricción directo desde Claude Desktop/Slack a Rocky.
+  5. **Frontend Web (`apps/web`):**
+     - Nueva página y ruta `/knowledge-base` (acceso "Cerebro" en menú lateral `Layout.tsx`).
+     - Componente `AddDocumentModal`: Carga manual y auto-completado inteligente con IA desde transcripciones de Google Meet o textos crudos.
+     - Componente `DocumentDetailDrawer`: Visualización rápida, copiado y edición.
+     - Componente `KnowledgeChatPanel`: Chat interactivo con la base del cliente con streaming, preguntas sugeridas y badges clickeables de fuentes citadas.
+- **Cobertura de Tests Automatizados:**
+  - `apps/web/src/pages/__tests__/KnowledgeBasePage.test.tsx` (5 tests nuevos).
+  - `apps/web/src/components/knowledge/__tests__/KnowledgeChatPanel.test.tsx` (3 tests nuevos).
+  - **Total Suite:** 29 test files, 261/261 tests pasando al 100%.
+
 ### [2026-10-29] — Restauración y Blindaje de Tipos de Tarea de Prensa (Brief, Documento, Gestión-pitch, etc.)
 - **Desarrollador:** Antigravity (Pair Programming con Javier Sculli)
 - **Reporte del Usuario / Equipo de Prensa:**

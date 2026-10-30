@@ -67,6 +67,7 @@ model Client {
   speakers     Speaker[]
   pilares      Pilar[]
   pressReferences PressReference[]
+  knowledgeDocuments KnowledgeDocument[]
 
   @@index([ownerId])
   @@map("clients")
@@ -107,6 +108,7 @@ model Speaker {
   tickets      Ticket[]
   publications Publication[]
   pilares      Pilar[]
+  knowledgeDocuments KnowledgeDocument[]
 
   @@index([clientId])
   @@map("speakers")
@@ -274,6 +276,7 @@ model Ticket {
   linkEntregable  String?        @map("link_entregable")
   linkPublicacion String?        @map("link_publicacion")
   notasAudiovisual String?       @db.Text @map("notas_audiovisual")
+  notasGrafica     String?       @db.Text @map("notas_grafica")
   tiposContenido   String[]      @default([]) @map("tipos_contenido")
   referenciasGraficas Json?      @map("referencias_graficas")
   chatHistory     Json?          @map("chat_history")
@@ -291,6 +294,7 @@ model Ticket {
   speaker       Speaker?        @relation(fields: [speakerId], references: [id])
   publication   Publication?
   comments      TicketComment[]
+  commentAttachments CommentAttachment[]
   notifications Notification[]
 
   // Tickets de referencia (N:N self) — vínculo vivo, no copia
@@ -411,4 +415,47 @@ model PressReference {
 
   @@unique([clientId, type])
   @@map("press_references")
+}
+
+model KnowledgeDocument {
+  id        String   @id @default(uuid())
+  clientId  String   @map("client_id")
+  speakerId String?  @map("speaker_id")
+
+  title     String
+  type      String   @default("NOTA")
+  tags      String[] @default([])
+  content   String   @db.Text
+  summary   String?  @db.Text
+  date      DateTime @default(now())
+  sourceUrl String?  @map("source_url")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  client    Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  speaker   Speaker? @relation(fields: [speakerId], references: [id], onDelete: SetNull)
+
+  @@index([clientId])
+  @@index([speakerId])
+  @@index([type])
+  @@index([clientId, date])
+  @@map("knowledge_documents")
+}
+
+model CommentAttachment {
+  id        String   @id @default(uuid())
+  ticketId  String   @map("ticket_id")
+  commentId String?  @map("comment_id")
+  fileName  String   @map("file_name")
+  mimeType  String   @map("mime_type")
+  size      Int
+  data      Bytes
+  createdAt DateTime @default(now()) @map("created_at")
+
+  ticket Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  @@index([ticketId])
+  @@index([commentId])
+  @@map("comment_attachments")
 }

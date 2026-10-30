@@ -1,9 +1,11 @@
 import { useState, useRef, useEffect } from 'react';
 import { Check, X, Image as ImageIcon, Loader2, FileText, Paperclip } from 'lucide-react';
 import { MentionTextarea, formatCommentWithMentions } from '../MentionTextarea';
-import { compressImageFile, parseCommentContent, buildCommentContent } from '../../lib/imageCompression';
+import { compressImageFile, parseCommentContent, buildCommentContent, isImageFile } from '../../lib/imageCompression';
 import { readFileAsDataUrl, MAX_COMMENT_ATTACHMENT_SIZE_BYTES } from '../../lib/attachments';
 import { CommentImageViewerModal } from './CommentImageViewerModal';
+import { CommentImage } from './CommentImage';
+import { api, resolveAttachmentUrl } from '../../lib/api';
 
 export interface CommentThreadItem {
   author: string;
@@ -27,6 +29,7 @@ export interface InlineCommentPopoverProps {
   pop: PopPosition | null;
   thread?: CommentThread;
   users?: { id: string; name: string }[];
+  ticketId?: string;
   onSend: (text: string) => void | Promise<any>;
   onResolve?: () => void;
   onClose: () => void;
@@ -44,6 +47,7 @@ export function InlineCommentPopover({
   pop,
   thread,
   users = [],
+  ticketId,
   onSend,
   onResolve,
   onClose,
@@ -102,16 +106,27 @@ export function InlineCommentPopover({
 
   const handleImageFile = async (files: File | File[]) => {
     const list = Array.isArray(files) ? files : [files];
-    const valid = list.filter(f => f.type.startsWith('image/'));
+    const valid = list.filter(f => isImageFile(f));
     if (valid.length === 0) return;
     try {
       setIsCompressing(true);
-      const compressedList = await Promise.all(
-        valid.map(f => compressImageFile(f))
-      );
-      setPopImages(prev => [...prev, ...compressedList]);
-    } catch (e) {
+      if (ticketId) {
+        const uploaded = await Promise.all(
+          valid.map(async f => {
+            const res = await api.uploadAttachment(ticketId, f);
+            return res.data.url;
+          })
+        );
+        setPopImages(prev => [...prev, ...uploaded]);
+      } else {
+        const compressedList = await Promise.all(
+          valid.map(f => compressImageFile(f))
+        );
+        setPopImages(prev => [...prev, ...compressedList]);
+      }
+    } catch (e: any) {
       console.error(e);
+      setSendError(e?.message || 'Error al subir imagen');
     } finally {
       setIsCompressing(false);
     }
@@ -127,7 +142,7 @@ export function InlineCommentPopover({
         alert(`El archivo "${f.name}" supera el tamaño máximo permitido de 4MB para comentarios.`);
         continue;
       }
-      if (f.type.startsWith('image/')) {
+      if (isImageFile(f)) {
         imageFiles.push(f);
       } else {
         docFiles.push(f);
@@ -141,16 +156,26 @@ export function InlineCommentPopover({
     if (docFiles.length > 0) {
       try {
         setIsCompressing(true);
-        const docs = await Promise.all(
-          docFiles.map(async f => {
-            const dataUrl = await readFileAsDataUrl(f);
-            return { name: f.name, url: dataUrl, size: f.size };
-          })
-        );
-        setPopFiles(prev => [...prev, ...docs]);
+        if (ticketId) {
+          const docs = await Promise.all(
+            docFiles.map(async f => {
+              const res = await api.uploadAttachment(ticketId, f);
+              return { name: res.data.fileName, url: res.data.url, size: res.data.size };
+            })
+          );
+          setPopFiles(prev => [...prev, ...docs]);
+        } else {
+          const docs = await Promise.all(
+            docFiles.map(async f => {
+              const dataUrl = await readFileAsDataUrl(f);
+              return { name: f.name, url: dataUrl, size: f.size };
+            })
+          );
+          setPopFiles(prev => [...prev, ...docs]);
+        }
       } catch (err: any) {
         console.error(err);
-        alert(err?.message || 'Error al leer el archivo');
+        setSendError(err?.message || 'Error al subir archivo');
       } finally {
         setIsCompressing(false);
       }
@@ -222,7 +247,7 @@ export function InlineCommentPopover({
                     {itemImages.length > 0 && (
                       <div className="flex flex-col gap-1.5 mt-1.5">
                         {itemImages.map((src, i) => (
-                          <img
+                          <CommentImage
                             key={i}
                             src={src}
                             alt="Imagen en comentario"
@@ -239,7 +264,7 @@ export function InlineCommentPopover({
                           return (
                             <a
                               key={i}
-                              href={cf.url}
+                              href={resolveAttachmentUrl(cf.url)}
                               download={cf.name}
                               target="_blank"
                               rel="noopener noreferrer"
@@ -290,7 +315,7 @@ export function InlineCommentPopover({
             <div className="flex flex-wrap gap-1.5 pt-0.5">
               {popImages.map((img, idx) => (
                 <div key={idx} className="relative group border border-[#d6dde5] rounded overflow-hidden max-w-[80px] max-h-[56px] shrink-0">
-                  <img src={img} alt="Preview" className="w-full h-full object-cover max-h-[56px]" />
+                  <CommentImage src={img} alt="Preview" className="w-full h-full object-cover max-h-[56px]" />
                   <button
                     type="button"
                     onClick={() => setPopImages(prev => prev.filter((_, i) => i !== idx))}

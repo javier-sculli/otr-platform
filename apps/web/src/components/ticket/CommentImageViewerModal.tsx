@@ -1,5 +1,7 @@
 import React, { useEffect } from 'react';
 import { X, ExternalLink } from 'lucide-react';
+import { CommentImage } from './CommentImage';
+import { resolveAttachmentUrl } from '../../lib/api';
 
 export interface CommentImageViewerModalProps {
   src: string | null;
@@ -28,10 +30,8 @@ export const CommentImageViewerModal: React.FC<CommentImageViewerModalProps> = (
   if (!src) return null;
 
   const handleOpenNewTab = () => {
-    const w = window.open('');
-    if (w) {
-      w.document.write(`<img src="${src}" style="max-width:100%;height:auto;margin:auto;display:block;" alt="${alt}" />`);
-    }
+    const fullUrl = resolveAttachmentUrl(src);
+    window.open(fullUrl, '_blank', 'noopener,noreferrer');
   };
 
   return (
@@ -70,7 +70,7 @@ export const CommentImageViewerModal: React.FC<CommentImageViewerModalProps> = (
         </div>
 
         {/* Full Image */}
-        <img
+        <CommentImage
           src={src}
           alt={alt}
           className="max-w-[90vw] max-h-[85vh] object-contain rounded-lg shadow-2xl select-none"

@@ -1,3 +1,12 @@
+import type {
+  KnowledgeDocument,
+  CreateKnowledgeDocumentDTO,
+  UpdateKnowledgeDocumentDTO,
+  AnalyzeKnowledgeResponse,
+  KnowledgeChatDTO,
+  KnowledgeChatResponse,
+} from '@otr/types';
+
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
 class ApiClient {
@@ -326,6 +335,38 @@ class ApiClient {
     return this.request(`/tickets/${ticketId}/comments/${commentId}`, { method: 'DELETE' });
   }
 
+  async uploadAttachment(ticketId: string, file: File) {
+    const token = this.getToken();
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const headers: HeadersInit = {};
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    const response = await fetch(`${API_URL}/tickets/${ticketId}/attachments`, {
+      method: 'POST',
+      headers,
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || 'Error al subir archivo adjunto');
+    }
+
+    return response.json() as Promise<{
+      data: {
+        id: string;
+        url: string;
+        fileName: string;
+        mimeType: string;
+        size: number;
+      };
+    }>;
+  }
+
   // Notifications
   async getNotifications() {
     return this.request<{ data: any[]; unreadCount: number }>('/notifications');
@@ -400,7 +441,63 @@ class ApiClient {
     if (month) params.append('month', month.toString());
     return this.request<{ data: any }>(`/reports/tickets-creados-diarios?${params}`);
   }
+
+  // Knowledge Base
+  async getKnowledgeDocuments(params?: { clientId?: string; speakerId?: string; type?: string; search?: string }) {
+    const query = new URLSearchParams();
+    if (params?.clientId) query.append('clientId', params.clientId);
+    if (params?.speakerId) query.append('speakerId', params.speakerId);
+    if (params?.type) query.append('type', params.type);
+    if (params?.search) query.append('search', params.search);
+    const qs = query.toString();
+    return this.request<{ data: KnowledgeDocument[] }>(`/knowledge${qs ? `?${qs}` : ''}`);
+  }
+
+  async getKnowledgeDocument(id: string) {
+    return this.request<{ data: KnowledgeDocument }>(`/knowledge/${id}`);
+  }
+
+  async createKnowledgeDocument(data: CreateKnowledgeDocumentDTO) {
+    return this.request<{ data: KnowledgeDocument }>('/knowledge', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateKnowledgeDocument(id: string, data: UpdateKnowledgeDocumentDTO) {
+    return this.request<{ data: KnowledgeDocument }>(`/knowledge/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteKnowledgeDocument(id: string) {
+    return this.request<{ success: boolean }>(`/knowledge/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async analyzeKnowledgeContent(content: string, clientId?: string) {
+    return this.request<{ data: AnalyzeKnowledgeResponse }>('/knowledge/analyze', {
+      method: 'POST',
+      body: JSON.stringify({ content, clientId }),
+    });
+  }
+
+  async chatWithKnowledge(payload: KnowledgeChatDTO) {
+    return this.request<{ data: KnowledgeChatResponse }>('/knowledge/chat', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
 }
 
-
 export const api = new ApiClient();
+
+export function resolveAttachmentUrl(url: string): string {
+  if (!url) return '';
+  if (url.startsWith('data:') || url.startsWith('http://') || url.startsWith('https://') || url.startsWith('blob:')) {
+    return url;
+  }
+  return `${API_URL.replace(/\/$/, '')}${url.startsWith('/') ? '' : '/'}${url}`;
+}

@@ -596,7 +596,7 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
       assigneeIds: current.assigneeIds || [],
       status: current.status,
       prioridad: current.prioridad,
-      objetivo: current.brief || undefined,
+      objetivo: current.brief !== undefined ? (current.brief || null) : undefined,
       tipoTicket,
       canales: noContenido ? [] : (current.canales.length > 0 ? current.canales : ['LinkedIn']),
       dueDate: current.dueDate || null,
@@ -1464,7 +1464,12 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
                     ref={briefRef}
                     value={formData.brief || ''}
                     onChange={val => handleChange('brief', val)}
-                    onBlur={() => triggerImmediateAutoSave()}
+                    onBlur={() => {
+                      if (briefRef.current) {
+                        handleChange('brief', briefRef.current.innerHTML);
+                      }
+                      triggerImmediateAutoSave();
+                    }}
                     onMarkClick={handleMarkClick}
                     onMarkHover={handleMarkHover}
                     placeholder={isPieza ? 'Qué querés comunicar y por qué' : 'Descripción — detalle del pedido'}
@@ -1667,7 +1672,12 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
                           ref={notasRef}
                           value={formData.notasAudiovisual || ''}
                           onChange={val => handleChange('notasAudiovisual', val)}
-                          onBlur={() => triggerImmediateAutoSave()}
+                          onBlur={() => {
+                            if (notasRef.current) {
+                              handleChange('notasAudiovisual', notasRef.current.innerHTML);
+                            }
+                            triggerImmediateAutoSave();
+                          }}
                           onMarkClick={handleMarkClick}
                           onMarkHover={handleMarkHover}
                           placeholder="Ej.: placa estilo «en medios», usar logos de los medios, foto del vocero…"
@@ -1795,7 +1805,13 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
                                 const nextPerCanal = { ...formData.contentPerCanal, [activeCopyTab]: val };
                                 handleChange('contentPerCanal', nextPerCanal);
                               }}
-                              onBlur={() => triggerImmediateAutoSave()}
+                              onBlur={() => {
+                                if (copyRef.current) {
+                                  const nextPerCanal = { ...formData.contentPerCanal, [activeCopyTab]: copyRef.current.innerHTML };
+                                  handleChange('contentPerCanal', nextPerCanal);
+                                }
+                                triggerImmediateAutoSave();
+                              }}
                               onMarkClick={handleMarkClick}
                               onMarkHover={handleMarkHover}
                               placeholder={`Copy para ${activeCopyTab}…`}
@@ -2195,6 +2211,7 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
           pop={pop}
           thread={pop ? threads[pop.id] : undefined}
           users={teamList}
+          ticketId={ticket?.id}
           onSend={(text) => sendPop(text)}
           onResolve={resolvePop}
           onClose={closePop}

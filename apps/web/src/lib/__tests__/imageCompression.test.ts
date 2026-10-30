@@ -1,7 +1,24 @@
 import { describe, it, expect } from 'vitest';
-import { parseCommentContent, buildCommentContent } from '../imageCompression';
+import { parseCommentContent, buildCommentContent, isHeicFile, isImageFile } from '../imageCompression';
 
 describe('imageCompression', () => {
+  describe('isHeicFile & isImageFile', () => {
+    it('detects HEIC files by mime type or file extension', () => {
+      const heicMime = new File([''], 'foto.img', { type: 'image/heic' });
+      const heifMime = new File([''], 'foto.img', { type: 'image/heif' });
+      const heicExt = new File([''], 'IMG_1234.HEIC', { type: '' });
+      const pngFile = new File([''], 'screenshot.png', { type: 'image/png' });
+
+      expect(isHeicFile(heicMime)).toBe(true);
+      expect(isHeicFile(heifMime)).toBe(true);
+      expect(isHeicFile(heicExt)).toBe(true);
+      expect(isHeicFile(pngFile)).toBe(false);
+
+      expect(isImageFile(heicExt)).toBe(true);
+      expect(isImageFile(pngFile)).toBe(true);
+      expect(isImageFile(new File([''], 'doc.pdf', { type: 'application/pdf' }))).toBe(false);
+    });
+  });
   describe('parseCommentContent', () => {
     it('returns text directly if no images are present', () => {
       const res = parseCommentContent('Un comentario sin imágenes');
@@ -35,6 +52,15 @@ describe('imageCompression', () => {
 
       expect(res.text).toBe('');
       expect(res.images).toEqual([img]);
+    });
+
+    it('extracts server relative attachment image URLs', () => {
+      const serverUrl = '/tickets/attachments/724b0551-0290-418f-b6ed-a46b4f8ab6bf';
+      const content = `Revisar esto:\n\n![imagen](${serverUrl})`;
+      const res = parseCommentContent(content);
+
+      expect(res.text).toBe('Revisar esto:');
+      expect(res.images).toEqual([serverUrl]);
     });
 
     it('extracts attached PDF files and separates them from text', () => {

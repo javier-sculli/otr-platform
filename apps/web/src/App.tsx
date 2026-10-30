@@ -13,6 +13,7 @@ import { PerformancePage } from './pages/PerformancePage';
 import { PublicationDetailPage } from './pages/PublicationDetailPage';
 import { SumarioPage } from './pages/SumarioPage';
 import { ReportesPage } from './pages/ReportesPage';
+import { KnowledgeBasePage } from './pages/KnowledgeBasePage';
 import { Layout } from './components/Layout';
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
@@ -56,6 +57,14 @@ function AppRoutes() {
         element={
           <PrivateRoute>
             <ClientesPage />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/knowledge-base"
+        element={
+          <PrivateRoute>
+            <KnowledgeBasePage />
           </PrivateRoute>
         }
       />

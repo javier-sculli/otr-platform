@@ -887,7 +887,13 @@ export function TicketDetallePage() {
               type="button"
               onClick={() => {
                 if (briefOpen) {
-                  flushSave();
+                  const currentHtml = briefRef.current?.innerHTML ?? briefTemp;
+                  setBriefTemp(currentHtml);
+                  if ((currentHtml || '') !== (ticket?.objetivo || '')) {
+                    queueSave({ objetivo: currentHtml || null }, true);
+                  } else {
+                    flushSave();
+                  }
                 }
                 setBriefOpen(!briefOpen);
               }}
@@ -958,8 +964,10 @@ export function TicketDetallePage() {
                     queueSave({ objetivo: val || null }, hasImage);
                   }}
                   onBlur={() => {
-                    if ((briefTemp || '') !== (ticket?.objetivo || '')) {
-                      queueSave({ objetivo: briefTemp || null }, true);
+                    const currentVal = briefRef.current?.innerHTML ?? briefTemp;
+                    setBriefTemp(currentVal);
+                    if ((currentVal || '') !== (ticket?.objetivo || '')) {
+                      queueSave({ objetivo: currentVal || null }, true);
                     } else {
                       flushSave();
                     }
@@ -1223,7 +1231,13 @@ export function TicketDetallePage() {
                       type="button"
                       onClick={() => {
                         if (notasOpen) {
-                          flushSave();
+                          const cur = notasRef.current?.innerHTML ?? notasAudiovisual;
+                          setNotasAudiovisual(cur);
+                          if ((cur || '') !== (ticket?.notasAudiovisual || '')) {
+                            queueSave({ notasAudiovisual: cur || null }, true);
+                          } else {
+                            flushSave();
+                          }
                         }
                         setNotasOpen(!notasOpen);
                       }}
@@ -1718,6 +1732,7 @@ export function TicketDetallePage() {
         pop={pop}
         thread={pop ? threads[pop.id] : undefined}
         users={allUsers}
+        ticketId={ticket.id}
         onSend={(text) => sendPop(text)}
         onResolve={resolvePop}
         onClose={closePop}
