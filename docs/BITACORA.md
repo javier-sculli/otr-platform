@@ -4,6 +4,54 @@
 > 
 > 🎯 **BACKLOG OFICIAL Y PRIORIDADES (FUENTE DE VERDAD):** [Notion Backlog Oficial](https://app.notion.com/p/Backlog-3ba617fc369281048bfdfc89c5041d9c?source=copy_link). Todas las prioridades y tareas activas se gestionan directamente allí.
 
+### [2026-11-03] — Eliminación del Filtro de Tipo (Contenido / Tarea) en Backlog
+- **Desarrollador:** Antigravity (Pair Programming con Javier Sculli)
+- **Alcance & Objetivos:**
+  - Siguiendo la solicitud del usuario, se removió el selector segmentado de tipo de ticket (`Todos` / `Piezas` / `Tareas`) de la barra de filtros del Backlog (`BacklogPage.tsx`).
+  - Se eliminó el estado `filtroTipo`, su persistencia en `sessionStorage`, su cálculo en `ticketsFiltrados`, su indicador en `hayFiltrosActivos` y su reseteo en `limpiarFiltros`.
+  - Ahora todas las tarjetas (tanto contenidos como tareas) se listan conjuntamente en las columnas y vistas sin discriminar por tipo.
+- **Verificación:**
+  - `pnpm --filter web typecheck`: 0 errores.
+  - `pnpm --filter web test`: 32 suites y 270/270 tests pasando.
+
+### [2026-11-03] — Rediseño del Header de Navegación Principal con el Sistema Rocky
+- **Desarrollador:** Antigravity (Pair Programming con Javier Sculli)
+- **Alcance & Objetivos:**
+  - Modernización completa del header superior (`Layout.tsx` & `index.css`) replicando la barra de navegación oficial del diseño Rocky:
+    - Logotipo **Rocky** en tipografía institucional (`font-extrabold text-[20px] text-[#0d0d0d]`).
+    - Enlaces de navegación con la nueva tipografía e íconos preservados: `Clientes` (Building2), `Backlog` (Lightbulb), `Cerebro` (Brain), `Prensa` (Newspaper), `Plan de contenidos` (Calendar) y `Performance` (TrendingUp).
+    - Pastillas activas (`.rk-nav__link.is-active`) en fondo suave `rgba(2, 79, 255, 0.06)` con texto en azul institucional (`var(--brand)`) e ícono a juego.
+    - Componente de usuario estilo Rocky (`.rk-nav__user`) con avatar circular de iniciales (`.rk-avatar .rk-avatar--2xs`), nombre del usuario y pastilla de clientes activos (`.rk-nav__badge`).
+    - Campana de notificaciones y dropdowns de perfil actualizados con bordes y tokens de superficie del sistema.
+- **Verificación:**
+  - `pnpm --filter web typecheck`: 0 errores.
+  - `pnpm --filter web test`: 32 suites y 270/270 tests pasando.
+  - Servidor Vite HMR actualizado en `http://localhost:5173`.
+
+### [2026-11-03] — Borde Superior de Color en Tarjetas de Backlog (Azul Contenido / Negro Tareas)
+- **Desarrollador:** Antigravity (Pair Programming con Javier Sculli)
+- **Alcance & Objetivos:**
+  - Incorporación del borde superior característico del sistema Rocky (`border-top: 4px solid ...`) en las tarjetas del backlog (`TicketCard`):
+    - **Tickets de Contenido / Piezas:** Borde superior azul institucional (`var(--brand)` / `#024fff`).
+    - **Tickets de Tarea:** Borde superior negro (`#0d0d0d`).
+  - Ajuste de padding superior (`pt-[14px] pb-3 px-3.5`) para balance armónico con la franja superior.
+  - Blindaje en `.bk-card:hover` en `index.css` para no sobreescribir el color del borde superior durante la interacción del usuario.
+- **Verificación:**
+  - `pnpm --filter web typecheck`: 0 errores.
+  - `pnpm --filter web test`: 32 suites y 270/270 tests pasando.
+
+### [2026-11-03] — Rediseño del Backlog de Contenido con el Nuevo Sistema de Diseño Rocky y Corrección de Cursor / Badges
+- **Desarrollador:** Antigravity (Pair Programming con Javier Sculli)
+- **Alcance & Objetivos:**
+  - Modernización visual y funcional del Backlog de Contenido (`BacklogPage.tsx` y `CalendarioBacklog.tsx`) siguiendo las especificaciones del nuevo Sistema de Diseño Rocky (tokens de color, switchers segmentados, chips compactos, vista compacta de 4 macro-estados y vista completa de 11 columnas).
+  - Corrección de usabilidad en tarjetas (`TicketCard`):
+    - Puntero estándar de click (`cursor: pointer !important`) en toda la tarjeta y sus elementos secundarios, eliminando la mano de agarre (`cursor: grab` / `cursor: grabbing`) en reposo sin afectar la capacidad de arrastre (drag-and-drop nativo).
+    - Prevención de desborde y salto de línea en los badges de tipo de contenido compuestos (p. ej. "Álbum de fotos") mediante `whitespace-nowrap`, `overflow-hidden` y `truncate block min-w-0`.
+- **Verificación:**
+  - `pnpm --filter web typecheck`: 0 errores.
+  - `pnpm --filter web test`: 32 suites y 270/270 tests pasando.
+  - Servidores activos: Backend API (`http://localhost:3001`) y Frontend Vite (`http://localhost:5173`).
+
 ### [2026-10-29] — Adopción de Spec-Driven Development (SDD) & Knowledge Base V1 (Cerebro de Clientes & Voceros)
 - **Desarrollador:** Antigravity (Pair Programming con Javier Sculli)
 - **Marco Metodológico Adoptado:**
@@ -1095,3 +1143,18 @@
 
 ---
 
+
+### [2026-11-02] — Rediseño del Backlog de Contenido con el Nuevo Sistema de Diseño Rocky
+- **Desarrollador:** Javier Sculli
+- **Resumen de Avances:**
+  1. **Integración del Sistema de Diseño Rocky:** Se incorporaron tokens oficiales (`--brand: #024fff`, `--mint: #00e39c`, `--text: #1d2a3a`, `--surface-subtle: #f7fafc`, etc.) y utilitarios Rocky (`.bk-card`, `.bk-scroll`, `.bk-clamp`, `.bk-grip`, `.rk-chip`, `.rk-btn`, `.rk-seg`, `.rk-menu`, `.rk-dot`) en `index.css`.
+  2. **Selector de Vistas:** Implementado control segmentado en header con tres vistas fluidas:
+     - **Compacta (por defecto):** 4 macro columnas consolidadas (*Por hacer*, *En producción*, *En revisión*, *Listo*) con subtítulos descriptivos y soporte para drop automático hacia el estado inicial de cada fase.
+     - **Completa:** Las 11 columnas individuales del flujo extendido de trabajo.
+     - **Calendario:** Vista mensual interactiva alineada al layout nuevo.
+  3. **Barra de Filtros:** Rediseñada con chips interactivos (`rk-chip`), buscador directo (`Buscar ticket`), selectores tipo popover para Clientes (con separación de *Mis clientes* y *Otros clientes* con buscador), Voceros (con opción de *Marca sin vocero* y agrupados por cliente), selección múltiple de Meses, y filtros rápidos para *Mis tickets* y *Vencidos* con dot de alerta.
+  4. **Tarjetas de Ticket (`bk-card`):** Rediseñadas según layout oficial: badge de tipo (*Pieza* con ícono o *Tarea*), top label con cliente/vocero, grip de arrastre en hover, título truncado a 3 líneas (`bk-clamp`), píldora de prioridad con dot distintivo y etiqueta de fecha (*Vencido*, *Hoy* o fecha formateada).
+  5. **Rediseño de Vista Calendario (`CalendarioBacklog`):** Navegación mensual simplificada, leyenda de estados (publicado, en curso, vencido), grilla con semanas de lunes a domingo y tarjetas de eventos con indicador visual de publicación o vencimiento.
+- **Verificación:** Typecheck (`pnpm --filter web typecheck`), tests completos pasando al 100% (32 suites, 270 pruebas en `pnpm --filter web test`), y build de producción verificado (`pnpm --filter web build`).
+
+---

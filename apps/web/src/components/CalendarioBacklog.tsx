@@ -1,62 +1,28 @@
 import { useState } from 'react';
-import { ChevronLeft, ChevronRight, AlertCircle, Clock } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Check } from 'lucide-react';
 import { parseLocalDate } from '../lib/utils';
-
-interface Ticket {
-  id: string;
-  title: string;
-  canales: string[];
-  status: string;
-  prioridad: string;
-  dueDate: string | null;
-  links: string[];
-  linkEntregable?: string | null;
-  owner: { id: string; name: string };
-  assigneeIds?: string[];
-  assignees?: { id: string; name: string }[];
-  client: { id: string; name: string };
-}
+import type { Ticket } from '../pages/BacklogPage';
 
 interface CalendarioBacklogProps {
   tickets: Ticket[];
   onTicketClick: (ticket: Ticket) => void;
 }
 
-const DIAS_SEMANA = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+const DIAS_SEMANA = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
 
-function getColorPorFecha(dueDate: string) {
-  const hoy = new Date();
-  hoy.setHours(0, 0, 0, 0);
-  const fecha = parseLocalDate(dueDate);
-  if (!fecha) return { bg: 'bg-[#024fff]/10', border: 'border-[#024fff]/30', text: 'text-[#024fff]', Icon: null, label: null };
-  fecha.setHours(0, 0, 0, 0);
-  const diff = Math.floor((fecha.getTime() - hoy.getTime()) / (1000 * 60 * 60 * 24));
-
-  if (diff < 0) {
-    return {
-      bg: 'bg-red-500/20',
-      border: 'border-red-500/60',
-      text: 'text-red-700',
-      Icon: AlertCircle,
-      label: 'Vencida',
-    };
-  } else if (diff <= 3) {
-    return {
-      bg: 'bg-orange-400/20',
-      border: 'border-orange-400/60',
-      text: 'text-orange-700',
-      Icon: Clock,
-      label: 'Urgente',
-    };
-  }
-  return {
-    bg: 'bg-[#024fff]/10',
-    border: 'border-[#024fff]/30',
-    text: 'text-[#024fff]',
-    Icon: null,
-    label: null,
-  };
-}
+const COLOR_ESTADO: Record<string, string> = {
+  PENDIENTE: '#8c96a3',
+  REDACCION: '#024fff',
+  DISENO: '#024fff',
+  EDICION: '#024fff',
+  REVISION_INTERNA: '#00e39c',
+  CLIENTE: '#00e39c',
+  ESPERANDO_FEEDBACK: '#00e39c',
+  LISTO_PARA_PUBLICAR: '#00a372',
+  PUBLICADO: '#00a372',
+  CANCELADO: '#b9c2cd',
+  LISTO: '#00a372',
+};
 
 export function CalendarioBacklog({ tickets, onTicketClick }: CalendarioBacklogProps) {
   const hoy = new Date();
@@ -65,208 +31,211 @@ export function CalendarioBacklog({ tickets, onTicketClick }: CalendarioBacklogP
   const año = mesActual.getFullYear();
   const mes = mesActual.getMonth();
 
-  const primerDia = new Date(año, mes, 1).getDay();
+  // Calendario con semana arrancando el Lunes
+  // getDay(): 0 = Dom, 1 = Lun, ..., 6 = Sáb
+  const primerDiaSemana = (new Date(año, mes, 1).getDay() + 6) % 7;
   const diasEnMes = new Date(año, mes + 1, 0).getDate();
+  const nSemanas = Math.ceil((primerDiaSemana + diasEnMes) / 7);
 
-  const dias: (Date | null)[] = [
-    ...Array(primerDia).fill(null),
-    ...Array.from({ length: diasEnMes }, (_, i) => new Date(año, mes, i + 1)),
-  ];
-
-  const getTicketsDelDia = (fecha: Date) =>
-    tickets.filter(t => {
-      if (!t.dueDate) return false;
-      const d = parseLocalDate(t.dueDate);
-      if (!d) return false;
-      return (
-        d.getFullYear() === fecha.getFullYear() &&
-        d.getMonth() === fecha.getMonth() &&
-        d.getDate() === fecha.getDate()
-      );
-    });
-
-  const esHoy = (fecha: Date) => {
-    return (
-      fecha.getDate() === hoy.getDate() &&
-      fecha.getMonth() === hoy.getMonth() &&
-      fecha.getFullYear() === hoy.getFullYear()
-    );
-  };
-
-  const ticketsConFecha = tickets.filter(t => t.dueDate);
-  const vencidos = ticketsConFecha.filter(t => {
-    const d = parseLocalDate(t.dueDate!);
-    if (!d) return false;
-    d.setHours(0, 0, 0, 0);
-    const h = new Date(); h.setHours(0, 0, 0, 0);
-    return d < h;
-  }).length;
-  const urgentes = ticketsConFecha.filter(t => {
-    const d = parseLocalDate(t.dueDate!);
-    if (!d) return false;
-    d.setHours(0, 0, 0, 0);
-    const h = new Date(); h.setHours(0, 0, 0, 0);
-    const diff = Math.floor((d.getTime() - h.getTime()) / (1000 * 60 * 60 * 24));
-    return diff >= 0 && diff <= 3;
-  }).length;
+  const calAnterior = () => setMesActual(new Date(año, mes - 1, 1));
+  const calSiguiente = () => setMesActual(new Date(año, mes + 1, 1));
+  const calHoy = () => setMesActual(new Date(hoy.getFullYear(), hoy.getMonth(), 1));
 
   const nombreMes = mesActual.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' });
+  const calLabel = nombreMes.charAt(0).toUpperCase() + nombreMes.slice(1);
 
-  // Tickets en el mes visible
-  const ticketsDelMes = tickets.filter(t => {
-    if (!t.dueDate) return false;
-    const d = parseLocalDate(t.dueDate);
+  const getTicketsDelDia = (fechaStr: string) => {
+    return tickets.filter(t => {
+      const dateToUse = t.dueDate || (t as any).plannedDate;
+      if (!dateToUse) return false;
+      const d = parseLocalDate(dateToUse);
+      if (!d) return false;
+      const fStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      return fStr === fechaStr;
+    });
+  };
+
+  const esVencido = (t: Ticket) => {
+    if (t.status === 'PUBLICADO' || t.status === 'LISTO' || t.status === 'CANCELADO') return false;
+    const dateToUse = t.dueDate || (t as any).plannedDate;
+    if (!dateToUse) return false;
+    const d = parseLocalDate(dateToUse);
     if (!d) return false;
-    return d.getFullYear() === año && d.getMonth() === mes;
-  });
+    d.setHours(0, 0, 0, 0);
+    const h = new Date();
+    h.setHours(0, 0, 0, 0);
+    return d < h;
+  };
+
+  const semanas = [];
+  for (let w = 0; w < nSemanas; w++) {
+    const dias = [];
+    for (let k = 0; k < 7; k++) {
+      const dt = new Date(año, mes, 1 - primerDiaSemana + w * 7 + k);
+      const fStr = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+      const delMes = dt.getMonth() === mes;
+      const isHoy = (
+        dt.getDate() === hoy.getDate() &&
+        dt.getMonth() === hoy.getMonth() &&
+        dt.getFullYear() === hoy.getFullYear()
+      );
+      const items = getTicketsDelDia(fStr);
+      dias.push({
+        date: dt,
+        fStr,
+        num: dt.getDate(),
+        delMes,
+        isHoy,
+        items,
+      });
+    }
+    semanas.push(dias);
+  }
 
   return (
-    <div className="flex-1 flex flex-col bg-[#fafafa] overflow-hidden">
-      {/* Header */}
-      <div className="bg-white border-b-2 border-[#000033]/10 px-6 py-4 flex-shrink-0">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <h2 className="text-xl font-bold text-[#000033] capitalize">{nombreMes}</h2>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setMesActual(new Date(año, mes - 1))}
-                className="p-2 rounded-lg border-2 border-[#000033]/10 hover:border-[#024fff]/30 hover:bg-[#024fff]/5 transition-all"
-              >
-                <ChevronLeft className="w-4 h-4 text-[#000033]" />
-              </button>
-              <button
-                onClick={() => setMesActual(new Date(año, mes + 1))}
-                className="p-2 rounded-lg border-2 border-[#000033]/10 hover:border-[#024fff]/30 hover:bg-[#024fff]/5 transition-all"
-              >
-                <ChevronRight className="w-4 h-4 text-[#000033]" />
-              </button>
-              <button
-                onClick={() => setMesActual(new Date(hoy.getFullYear(), hoy.getMonth()))}
-                className="px-3 py-2 text-xs font-bold text-[#024fff] border-2 border-[#024fff]/20 rounded-lg hover:bg-[#024fff]/10 transition-all"
-              >
-                Hoy
-              </button>
-            </div>
-          </div>
+    <div className="flex flex-col gap-3 p-5 sm:p-6 pb-8 bg-white overflow-hidden">
+      {/* Month nav and legend */}
+      <div className="flex items-center gap-4 flex-wrap">
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={calAnterior}
+            aria-label="Mes anterior"
+            className="rk-btn rk-btn--quiet rk-btn--icon"
+          >
+            <ChevronLeft className="w-4 h-4 text-[#3a4655]" />
+          </button>
+          <button
+            type="button"
+            onClick={calSiguiente}
+            aria-label="Mes siguiente"
+            className="rk-btn rk-btn--quiet rk-btn--icon"
+          >
+            <ChevronRight className="w-4 h-4 text-[#3a4655]" />
+          </button>
+        </div>
 
-          {/* Leyenda */}
-          <div className="flex items-center gap-4 text-xs">
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 bg-red-500/20 border-2 border-red-500/60 rounded" />
-              <span className="text-[#000033]/60 font-medium">Vencida</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 bg-orange-400/20 border-2 border-orange-400/60 rounded" />
-              <span className="text-[#000033]/60 font-medium">Urgente (≤3 días)</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 bg-[#024fff]/10 border-2 border-[#024fff]/30 rounded" />
-              <span className="text-[#000033]/60 font-medium">Normal</span>
-            </div>
-          </div>
+        <span className="text-xl font-extrabold text-[#0d0d0d] tracking-tight">
+          {calLabel}
+        </span>
+
+        <button
+          type="button"
+          onClick={calHoy}
+          className="rk-btn rk-btn--text font-bold"
+        >
+          Hoy
+        </button>
+
+        <span className="flex-1" />
+
+        <div className="inline-flex items-center gap-4 flex-wrap text-[13px] text-[var(--text-muted)]">
+          <span className="inline-flex items-center gap-1.5">
+            <Check className="w-3.5 h-3.5 text-[#00a372]" />
+            Publicado · en su fecha
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            <span className="rk-dot bg-[var(--brand)]" />
+            En curso · en fecha de entrega
+          </span>
+          <span className="inline-flex items-center gap-1.5 text-[var(--danger)] font-bold">
+            <span className="rk-dot bg-[var(--danger)]" />
+            Vencido
+          </span>
         </div>
       </div>
 
-      {/* Grid */}
-      <div className="flex-1 overflow-auto p-6">
-        <div className="max-w-[1600px] mx-auto">
-          {/* Días semana */}
-          <div className="grid grid-cols-7 gap-2 mb-2">
+      {/* Grid container */}
+      <div className="overflow-x-auto">
+        <div className="min-w-[840px] border border-[var(--border)] rounded-xl overflow-hidden">
+          {/* Weekday headers */}
+          <div className="grid grid-cols-7 bg-[var(--surface-subtle)] border-b border-[var(--border)]">
             {DIAS_SEMANA.map(d => (
-              <div key={d} className="text-center py-2 text-xs font-bold text-[#000033]/60">
+              <span
+                key={d}
+                className="py-2.5 px-3 text-xs font-bold tracking-wider uppercase text-[var(--text-muted)]"
+              >
                 {d}
-              </div>
+              </span>
             ))}
           </div>
 
-          {/* Celdas */}
-          <div className="grid grid-cols-7 gap-2">
-            {dias.map((fecha, i) => {
-              const ticketsDia = fecha ? getTicketsDelDia(fecha) : [];
-              const hoyFlag = fecha && esHoy(fecha);
+          {/* Weeks */}
+          {semanas.map((semana, wIdx) => (
+            <div
+              key={wIdx}
+              className={`grid grid-cols-7 ${wIdx > 0 ? 'border-t border-[var(--border)]' : ''}`}
+            >
+              {semana.map((dia, dIdx) => {
+                const visibleItems = dia.items.slice(0, 3);
+                const hasMore = dia.items.length > 3;
 
-              return (
-                <div
-                  key={i}
-                  className={`min-h-[140px] border-2 rounded-lg p-2 transition-all ${
-                    !fecha
-                      ? 'bg-[#000033]/[0.02] border-[#000033]/5'
-                      : hoyFlag
-                      ? 'bg-[#00ff99]/10 border-[#00ff99]/40 shadow-md'
-                      : 'bg-white border-[#000033]/10 hover:border-[#024fff]/30 hover:shadow-sm'
-                  }`}
-                >
-                  {fecha && (
-                    <>
-                      <div className={`text-sm font-bold mb-2 ${
-                        hoyFlag
-                          ? 'text-[#000033] bg-[#00ff99]/30 w-6 h-6 rounded-full flex items-center justify-center'
-                          : 'text-[#000033]/60'
-                      }`}>
-                        {fecha.getDate()}
-                      </div>
+                return (
+                  <div
+                    key={dIdx}
+                    className={`min-h-[116px] p-2 flex flex-col gap-1 transition-colors ${
+                      dIdx > 0 ? 'border-l border-[var(--border)]' : ''
+                    } ${dia.delMes ? 'bg-white' : 'bg-[var(--surface-subtle)]'}`}
+                  >
+                    <span
+                      className={`self-start inline-flex items-center justify-center min-w-[24px] h-6 px-1 rounded-full text-xs transition-all ${
+                        dia.isHoy
+                          ? 'font-bold text-white bg-[var(--brand)] shadow-sm'
+                          : dia.delMes
+                          ? 'font-bold text-[#0d0d0d]'
+                          : 'font-normal text-[var(--text-subtle)]'
+                      }`}
+                    >
+                      {dia.num}
+                    </span>
 
-                      <div className="space-y-1.5">
-                        {ticketsDia.map(ticket => {
-                          const { bg, border, text, Icon, label } = getColorPorFecha(ticket.dueDate!);
-                          return (
-                            <div
-                              key={ticket.id}
-                              onClick={() => onTicketClick(ticket)}
-                              className={`${bg} border-2 ${border} rounded-lg p-2 cursor-pointer hover:shadow-md transition-all`}
-                            >
-                              <div className="flex items-start gap-1.5 mb-1">
-                                {Icon && <Icon className={`w-3 h-3 ${text} flex-shrink-0 mt-0.5`} />}
-                                <p className={`text-xs font-bold ${text} leading-tight line-clamp-2 flex-1`}>
-                                  {ticket.title}
-                                </p>
-                              </div>
-                              <div className="flex items-center justify-between gap-1 text-[11px] text-[#000033]/60">
-                                <span className="font-medium truncate">{ticket.canales?.[0] ?? ticket.client.name}</span>
-                                <div className="flex items-center gap-0.5 flex-shrink-0">
-                                  {(ticket.assignees && ticket.assignees.length > 0
-                                    ? ticket.assignees
-                                    : ticket.owner ? [ticket.owner] : []
-                                  ).map((u: any) => (
-                                    <span key={u.id} className="w-3.5 h-3.5 rounded-full bg-[#024fff]/20 text-[#024fff] font-extrabold text-[8px] flex items-center justify-center" title={u.name}>
-                                      {u.name ? u.name.charAt(0).toUpperCase() : '?'}
-                                    </span>
-                                  ))}
-                                </div>
-                              </div>
-                              {label && (
-                                <div className={`text-xs font-bold ${text} mt-1`}>{label}</div>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </div>
+                    <div className="flex flex-col gap-1 mt-0.5">
+                      {visibleItems.map(ticket => {
+                        const publicado = ticket.status === 'PUBLICADO';
+                        const venc = esVencido(ticket);
+                        const dotColor = venc ? '#d4380d' : (COLOR_ESTADO[ticket.status] || '#024fff');
+                        const corto = ticket.title.replace(/^[^|]*\|\s*/, '');
 
-      {/* Footer */}
-      <div className="bg-white border-t-2 border-[#000033]/10 px-6 py-3 flex-shrink-0">
-        <div className="flex items-center justify-between text-xs text-[#000033]/60">
-          <div className="flex items-center gap-6">
-            <span>
-              <strong className="text-red-600 font-bold">{vencidos}</strong> Vencidas
-            </span>
-            <span>
-              <strong className="text-orange-600 font-bold">{urgentes}</strong> Urgentes
-            </span>
-            <span>
-              <strong className="text-[#024fff] font-bold">{ticketsDelMes.length}</strong> Total este mes
-            </span>
-          </div>
-          <span>
-            Hoy: {hoy.toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' })}
-          </span>
+                        return (
+                          <button
+                            key={ticket.id}
+                            type="button"
+                            onClick={() => onTicketClick(ticket)}
+                            title={`${ticket.title} (${ticket.client.name})`}
+                            className={`bk-ev flex items-center gap-1.5 w-full py-1 px-1.5 border-0 rounded-md text-left cursor-pointer text-xs font-bold transition-colors ${
+                              publicado
+                                ? 'text-[var(--text-muted)] bg-[var(--surface-subtle)] hover:bg-[var(--surface-muted)]'
+                                : venc
+                                ? 'text-[var(--danger)] bg-red-50 hover:bg-red-100'
+                                : 'text-[var(--text)] bg-[var(--surface-subtle)] hover:bg-[var(--surface-muted)]'
+                            }`}
+                          >
+                            {publicado ? (
+                              <Check className="w-3 h-3 text-[#00a372] flex-shrink-0" />
+                            ) : (
+                              <span
+                                className="rk-dot w-1.5 h-1.5 flex-shrink-0"
+                                style={{ background: dotColor }}
+                              />
+                            )}
+                            <span className="flex-1 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">
+                              {corto}
+                            </span>
+                          </button>
+                        );
+                      })}
+
+                      {hasMore && (
+                        <span className="text-[11px] text-[var(--text-muted)] px-1 font-semibold">
+                          +{dia.items.length - 3} más
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ))}
         </div>
       </div>
     </div>

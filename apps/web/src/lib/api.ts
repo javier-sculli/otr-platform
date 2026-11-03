@@ -490,6 +490,44 @@ class ApiClient {
       body: JSON.stringify(payload),
     });
   }
+
+  async syncKnowledgeContent(clientId: string) {
+    return this.request<{ data: { message: string; count: number; totalEvaluated: number } }>('/knowledge/sync-content', {
+      method: 'POST',
+      body: JSON.stringify({ clientId }),
+    });
+  }
+
+  async uploadInferredDocument(payload: {
+    clientId: string;
+    speakerId?: string | null;
+    text?: string;
+    pdfBase64?: string;
+    fileName?: string;
+  }) {
+    return this.request<{ data: KnowledgeDocument }>('/knowledge/upload-inferred', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async getBrandPulse(clientId: string) {
+    return this.request<{ data: import('@otr/types').BrandPulseResponse }>(`/knowledge/brand-pulse?clientId=${clientId}`);
+  }
+
+  async auditBrandKit(clientId: string) {
+    return this.request<{ data: import('@otr/types').AuditBrandKitResponse }>('/knowledge/audit-brand-kit', {
+      method: 'POST',
+      body: JSON.stringify({ clientId }),
+    });
+  }
+
+  async applyBrandKit(clientId: string, proposedContent: Record<string, string>) {
+    return this.request<{ data: { success: boolean; updatedFieldsCount: number } }>('/knowledge/apply-brand-kit', {
+      method: 'POST',
+      body: JSON.stringify({ clientId, proposedContent }),
+    });
+  }
 }
 
 export const api = new ApiClient();

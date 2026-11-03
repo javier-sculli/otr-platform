@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Send, Bot, User, Sparkles, Loader2, BookOpen, RefreshCw } from 'lucide-react';
+import { Send, Bot, User, Sparkles, Loader2, BookOpen, RefreshCw, Cpu, ChevronDown, ChevronUp } from 'lucide-react';
 import { api } from '../../lib/api';
 import type { KnowledgeDocument, KnowledgeChatMessage } from '@otr/types';
 
@@ -18,6 +18,18 @@ interface ChatMessageItem extends KnowledgeChatMessage {
     type: string;
     date: string;
   }>;
+  debug?: {
+    totalDocsInBase: number;
+    retrievedDocsCount: number;
+    retrievedDocs: Array<{
+      id: string;
+      title: string;
+      type: string;
+      date: string;
+    }>;
+    approxTokens: number;
+    durationMs: number;
+  };
 }
 
 const QUICK_QUESTIONS = [
@@ -37,6 +49,7 @@ export function KnowledgeChatPanel({
   const [messages, setMessages] = useState<ChatMessageItem[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [expandedDebug, setExpandedDebug] = useState<Record<number, boolean>>({});
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // Auto-scroll on new message
@@ -67,7 +80,7 @@ export function KnowledgeChatPanel({
     setIsLoading(true);
 
     try {
-      const history = updatedMessages
+      const history = messages
         .slice(-6)
         .map(m => ({ role: m.role, content: m.content }));
 
@@ -85,16 +98,21 @@ export function KnowledgeChatPanel({
             role: 'assistant',
             content: res.data.response,
             citedSources: res.data.citedSources,
+            debug: res.data.debug,
           },
         ]);
       }
     } catch (err: any) {
       console.error('Error in knowledge chat:', err);
+      const errorMsg =
+        err?.response?.data?.error ||
+        err?.message ||
+        'Ocurrió un error al consultar la base de conocimiento. Por favor, intentá nuevamente.';
       setMessages(prev => [
         ...prev,
         {
           role: 'assistant',
-          content: 'Ocurrió un error al consultar la base de conocimiento. Por favor, intentá nuevamente.',
+          content: errorMsg,
         },
       ]);
     } finally {
@@ -189,6 +207,51 @@ export function KnowledgeChatPanel({
                       </button>
                     ))}
                   </div>
+                </div>
+              )}
+
+              {/* Debug Observability Badge & Details */}
+              {m.debug && (
+                <div className="pt-2 border-t border-slate-200/50">
+                  <button
+                    type="button"
+                    onClick={() => setExpandedDebug(prev => ({ ...prev, [idx]: !prev[idx] }))}
+                    className="inline-flex items-center gap-1.5 text-[10px] text-slate-400 hover:text-slate-600 font-medium py-0.5 transition-colors"
+                  >
+                    <Cpu className="w-3 h-3 text-slate-400" />
+                    <span>
+                      Contexto: {m.debug.retrievedDocsCount} de {m.debug.totalDocsInBase} docs (~{m.debug.approxTokens} tokens, {m.debug.durationMs}ms)
+                    </span>
+                    {expandedDebug[idx] ? (
+                      <ChevronUp className="w-2.5 h-2.5" />
+                    ) : (
+                      <ChevronDown className="w-2.5 h-2.5" />
+                    )}
+                  </button>
+
+                  {expandedDebug[idx] && (
+                    <div className="mt-1.5 p-2 rounded-lg bg-slate-100/70 border border-slate-200/70 text-[10px] space-y-1.5">
+                      <div className="font-semibold text-slate-500 uppercase tracking-wider text-[9px]">
+                        Documentos leídos en el prompt ({m.debug.retrievedDocsCount} más recientes):
+                      </div>
+                      <div className="max-h-36 overflow-y-auto space-y-1 pr-1 divide-y divide-slate-200/40">
+                        {m.debug.retrievedDocs.map((doc, dIdx) => (
+                          <div
+                            key={doc.id}
+                            className="pt-1 first:pt-0 flex items-center justify-between gap-2 hover:text-blue-600 cursor-pointer"
+                            onClick={() => onOpenDocumentDetail?.(doc.id)}
+                          >
+                            <span className="truncate flex-1 font-medium text-slate-700 hover:text-blue-600">
+                              #{dIdx + 1} {doc.title}
+                            </span>
+                            <span className="shrink-0 text-[9px] text-slate-400 font-mono">
+                              {doc.type}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

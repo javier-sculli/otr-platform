@@ -1,5 +1,5 @@
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Lightbulb, LogOut, User, Building2, TrendingUp, Bell, Check, Newspaper, Calendar, BarChart3, Brain } from 'lucide-react';
+import { Lightbulb, LogOut, Building2, TrendingUp, Bell, Check, Newspaper, Calendar, BarChart3, Brain } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState, useRef, useEffect } from 'react';
@@ -11,9 +11,19 @@ const baseNavItems = [
   { path: '/backlog', label: 'Backlog', icon: Lightbulb },
   { path: '/knowledge-base', label: 'Cerebro', icon: Brain },
   { path: '/prensa', label: 'Prensa', icon: Newspaper },
-  { path: '/sumario', label: 'Sumario', icon: Calendar },
+  { path: '/sumario', label: 'Plan de contenidos', icon: Calendar },
   { path: '/performance', label: 'Performance', icon: TrendingUp },
 ];
+
+const getInitials = (name?: string) => {
+  if (!name) return 'U';
+  return name
+    .split(' ')
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((p) => p[0].toUpperCase())
+    .join('');
+};
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -170,134 +180,138 @@ export function Layout({ children }: LayoutProps) {
 
   return (
     <div className="min-h-screen bg-[#fafafa]">
-      <nav className="bg-white border-b-2 border-[#000033]/10 sticky top-0 z-40 shadow-sm">
-        <div className="max-w-[1600px] mx-auto px-8">
-          <div className="flex items-center justify-between h-16">
-            <div className="flex items-center gap-8">
-              <span className="font-bold text-[#000033] text-xl">
-                Sistema de Contenido
-              </span>
+      <nav className="rk-nav sticky top-0 z-40">
+        <div className="max-w-[1600px] w-full mx-auto flex items-center justify-between">
+          <div className="flex items-center gap-6 sm:gap-8 min-w-0">
+            <button
+              onClick={() => navigate('/backlog')}
+              className="rk-nav__brand bg-transparent border-0 cursor-pointer p-0 text-left hover:opacity-85 transition-opacity"
+            >
+              Rocky
+            </button>
 
-              <div className="flex items-center gap-1">
-                {navItems.map((item) => {
-                  const Icon = item.icon;
-                  const isActive = location.pathname === item.path;
-                  return (
-                    <button
-                      key={item.path}
-                      onClick={() => navigate(item.path)}
-                      className={`flex items-center gap-2 px-3 py-2 text-xs font-bold rounded-lg transition-all ${
-                        isActive
-                          ? 'bg-[#024fff] text-white shadow-lg shadow-[#024fff]/20'
-                          : 'text-[#000033]/60 hover:text-[#000033] hover:bg-[#000033]/5'
-                      }`}
-                    >
-                      <Icon className="w-3.5 h-3.5" />
-                      {item.label}
-                    </button>
-                  );
-                })}
-              </div>
+            <div className="rk-nav__links">
+              {navItems.map((item) => {
+                const Icon = item.icon;
+                const isActive = location.pathname.startsWith(item.path);
+                return (
+                  <button
+                    key={item.path}
+                    onClick={() => navigate(item.path)}
+                    className={`rk-nav__link ${isActive ? 'is-active' : ''}`}
+                    aria-current={isActive ? 'page' : undefined}
+                  >
+                    <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-[var(--brand)]' : 'text-[var(--text-subtle)]'}`} />
+                    <span>{item.label}</span>
+                  </button>
+                );
+              })}
             </div>
+          </div>
 
-            <div className="flex items-center gap-3">
-              {/* Profile button */}
-              <div className="relative" ref={profileRef}>
-                <button
-                  onClick={() => { setShowProfile(v => !v); setShowNotifications(false); }}
-                  className="flex items-center gap-1.5 text-sm text-[#000033]/60 hover:text-[#000033] transition-colors px-2 py-1 rounded-lg hover:bg-[#000033]/5"
-                >
-                  <User className="w-4 h-4" />
-                  <span className="text-xs font-medium">{user?.name}</span>
-                  {preferredIds.length > 0 && (
-                    <span className="ml-0.5 text-[10px] font-bold text-[#024fff] bg-[#024fff]/10 rounded-full px-1.5 py-0.5">
-                      {preferredIds.length}
-                    </span>
-                  )}
-                </button>
+          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+            {/* Profile button */}
+            <div className="relative" ref={profileRef}>
+              <button
+                onClick={() => { setShowProfile(v => !v); setShowNotifications(false); }}
+                className="rk-nav__user px-2 py-1.5 rounded-lg hover:bg-[var(--surface-muted)] transition-colors cursor-pointer border-0 bg-transparent"
+              >
+                <span className="rk-avatar rk-avatar--2xs">
+                  {getInitials(user?.name)}
+                </span>
+                <span className="text-[14px] font-medium text-[var(--text)] hidden sm:inline">
+                  {user?.name || 'Usuario'}
+                </span>
+                {preferredIds.length > 0 && (
+                  <span className="rk-nav__badge" title={`${preferredIds.length} clientes seleccionados`}>
+                    {preferredIds.length}
+                  </span>
+                )}
+              </button>
 
-                {showProfile && (
-                  <div className="absolute right-0 top-full mt-2 w-72 bg-white border-2 border-[#000033]/10 rounded-xl shadow-xl z-50 overflow-hidden">
-                    {/* Header */}
-                    <div className="px-4 py-3 border-b border-[#000033]/10">
-                      <p className="text-xs font-bold text-[#000033]">{user?.name}</p>
-                      <p className="text-[11px] text-[#000033]/40">{user?.email}</p>
-                    </div>
+              {showProfile && (
+                <div className="absolute right-0 top-full mt-2 w-72 bg-white border border-[var(--border)] rounded-xl shadow-xl z-50 overflow-hidden">
+                  {/* Header */}
+                  <div className="px-4 py-3 border-b border-[var(--border)]">
+                    <p className="text-xs font-bold text-[#0d0d0d]">{user?.name}</p>
+                    <p className="text-[11px] text-[var(--text-muted)]">{user?.email}</p>
+                  </div>
 
-                    {/* Mis clientes */}
-                    <div className="px-4 py-3 border-b border-[#000033]/10">
-                      <div className="flex items-center justify-between mb-2">
-                        <p className="text-[10px] font-bold text-[#000033]/50 uppercase tracking-wide">Mis clientes</p>
-                        {preferredIds.length > 0 && (
-                          <button
-                            onClick={() => updatePreferredClients([])}
-                            className="text-[10px] text-[#000033]/40 hover:text-[#000033] transition-colors"
-                          >
-                            Limpiar
-                          </button>
-                        )}
-                      </div>
-                      {preferredIds.length === 0 && (
-                        <p className="text-[11px] text-[#000033]/40 mb-2">
-                          Sin selección — ves todos los clientes por defecto.
-                        </p>
+                  {/* Mis clientes */}
+                  <div className="px-4 py-3 border-b border-[var(--border)]">
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wide">Mis clientes</p>
+                      {preferredIds.length > 0 && (
+                        <button
+                          onClick={() => updatePreferredClients([])}
+                          className="text-[10px] text-[var(--text-muted)] hover:text-[#0d0d0d] transition-colors bg-transparent border-0 cursor-pointer"
+                        >
+                          Limpiar
+                        </button>
                       )}
-                      <div className="space-y-0.5 max-h-52 overflow-y-auto">
-                        {clients.map(c => {
-                          const selected = preferredIds.includes(c.id);
-                          return (
-                            <button
-                              key={c.id}
-                              onClick={() => toggleClient(c.id)}
-                              className={`w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-left transition-all ${
-                                selected
-                                  ? 'bg-[#024fff]/8 text-[#024fff]'
-                                  : 'text-[#000033]/70 hover:bg-[#000033]/5'
-                              }`}
-                            >
-                              <div className={`w-3.5 h-3.5 rounded border flex items-center justify-center flex-shrink-0 transition-all ${
-                                selected ? 'bg-[#024fff] border-[#024fff]' : 'border-[#000033]/20'
-                              }`}>
-                                {selected && <Check className="w-2.5 h-2.5 text-white" />}
-                              </div>
-                              <span className="text-xs font-medium truncate">{c.name}</span>
-                            </button>
-                          );
-                        })}
-                      </div>
                     </div>
-
-                    {/* Logout */}
-                    <div className="px-4 py-2.5">
-                      <button
-                        onClick={() => { logout(); setShowProfile(false); }}
-                        className="flex items-center gap-1.5 text-xs text-[#000033]/40 hover:text-[#000033] font-medium transition-colors"
-                      >
-                        <LogOut className="w-3.5 h-3.5" />
-                        Salir
-                      </button>
+                    {preferredIds.length === 0 && (
+                      <p className="text-[11px] text-[var(--text-muted)] mb-2">
+                        Sin selección — ves todos los clientes por defecto.
+                      </p>
+                    )}
+                    <div className="space-y-0.5 max-h-52 overflow-y-auto">
+                      {clients.map(c => {
+                        const selected = preferredIds.includes(c.id);
+                        return (
+                          <button
+                            key={c.id}
+                            onClick={() => toggleClient(c.id)}
+                            className={`w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-left transition-all border-0 cursor-pointer ${
+                              selected
+                                ? 'bg-[var(--brand-tint)] text-[var(--brand)] font-bold'
+                                : 'bg-transparent text-[var(--text)] hover:bg-[var(--surface-muted)]'
+                            }`}
+                          >
+                            <div className={`w-3.5 h-3.5 rounded border flex items-center justify-center flex-shrink-0 transition-all ${
+                              selected ? 'bg-[var(--brand)] border-[var(--brand)]' : 'border-[var(--border)]'
+                            }`}>
+                              {selected && <Check className="w-2.5 h-2.5 text-white" />}
+                            </div>
+                            <span className="text-xs font-medium truncate">{c.name}</span>
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
+
+                  {/* Logout */}
+                  <div className="px-4 py-2.5">
+                    <button
+                      onClick={() => { logout(); setShowProfile(false); }}
+                      className="flex items-center gap-1.5 text-xs text-[var(--text-muted)] hover:text-[var(--danger)] font-medium transition-colors bg-transparent border-0 cursor-pointer w-full"
+                    >
+                      <LogOut className="w-3.5 h-3.5" />
+                      Salir
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Notification Bell */}
+            <div className="relative" ref={panelRef}>
+              <button
+                onClick={() => { setShowNotifications(v => !v); setShowProfile(false); }}
+                className="relative p-2 rounded-lg hover:bg-[var(--surface-muted)] transition-all text-[var(--text-muted)] hover:text-[#0d0d0d] cursor-pointer border-0 bg-transparent"
+                title="Notificaciones"
+              >
+                <Bell className="w-4 h-4" />
+                {unreadCount > 0 && (
+                  <span className="absolute top-1 right-1 min-w-[18px] h-[18px] px-1 bg-[var(--brand)] text-white text-[10px] font-extrabold rounded-full flex items-center justify-center">
+                    {unreadCount > 9 ? '9+' : unreadCount}
+                  </span>
                 )}
-              </div>
+              </button>
 
-              {/* Notification Bell */}
-              <div className="relative" ref={panelRef}>
-                <button
-                  onClick={() => { setShowNotifications(v => !v); setShowProfile(false); }}
-                  className="relative p-1.5 rounded-lg hover:bg-[#000033]/5 transition-all text-[#000033]/60 hover:text-[#000033]"
-                >
-                  <Bell className="w-4 h-4" />
-                  {unreadCount > 0 && (
-                    <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-[#024fff] text-white text-[9px] font-bold rounded-full flex items-center justify-center">
-                      {unreadCount > 9 ? '9+' : unreadCount}
-                    </span>
-                  )}
-                </button>
-
-                {showNotifications && (
-                  <div className="absolute right-0 top-full mt-2 w-84 sm:w-96 bg-white border-2 border-[#000033]/10 rounded-xl shadow-xl z-50 overflow-hidden">
-                    <div className="flex items-center justify-between px-4 py-3 border-b border-[#000033]/10 bg-[#fafafa]">
+              {showNotifications && (
+                <div className="absolute right-0 top-full mt-2 w-84 sm:w-96 bg-white border border-[var(--border)] rounded-xl shadow-xl z-50 overflow-hidden">
+                  <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--border)] bg-[var(--surface-subtle)]">
                       <span className="text-xs font-bold text-[#000033] uppercase tracking-wide">Notificaciones</span>
                       {unreadCount > 0 && (
                         <button
@@ -367,7 +381,6 @@ export function Layout({ children }: LayoutProps) {
               </div>
             </div>
           </div>
-        </div>
       </nav>
 
       <RoleOnboardingModal />

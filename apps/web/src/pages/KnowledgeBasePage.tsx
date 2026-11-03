@@ -1,14 +1,18 @@
 import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Brain, Search, Plus, Calendar, User, ChevronRight } from 'lucide-react';
+import { Brain, Search, Plus, Calendar, User, ChevronRight, RefreshCw, Zap } from 'lucide-react';
 import { api } from '../lib/api';
 import { AddDocumentModal } from '../components/knowledge/AddDocumentModal';
 import { DocumentDetailDrawer } from '../components/knowledge/DocumentDetailDrawer';
 import { KnowledgeChatPanel } from '../components/knowledge/KnowledgeChatPanel';
+import { BrandPulseHeader } from '../components/knowledge/BrandPulseHeader';
+import { ZeroFormDropzone } from '../components/knowledge/ZeroFormDropzone';
+import { BrandKitAuditDrawer } from '../components/knowledge/BrandKitAuditDrawer';
 import type { KnowledgeDocument } from '@otr/types';
 
 const FILTER_PILLS = [
   { id: 'TODOS', label: 'Todos' },
+  { id: 'POST', label: 'Publicaciones' },
   { id: 'REUNION', label: 'Reuniones' },
   { id: 'FEEDBACK', label: 'Feedbacks' },
   { id: 'DOCUMENTO', label: 'Documentos' },
@@ -17,6 +21,7 @@ const FILTER_PILLS = [
 ];
 
 const TYPE_BADGES: Record<string, { bg: string; text: string; border: string }> = {
+  POST: { bg: 'bg-indigo-50', text: 'text-indigo-700', border: 'border-indigo-200' },
   REUNION: { bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200' },
   FEEDBACK: { bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200' },
   DOCUMENTO: { bg: 'bg-purple-50', text: 'text-purple-700', border: 'border-purple-200' },
@@ -34,6 +39,7 @@ export function KnowledgeBasePage() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [documentToEdit, setDocumentToEdit] = useState<KnowledgeDocument | null>(null);
   const [selectedDocForDrawer, setSelectedDocForDrawer] = useState<KnowledgeDocument | null>(null);
+  const [showAuditDrawer, setShowAuditDrawer] = useState(false);
   const [mobileTab, setMobileTab] = useState<'docs' | 'chat'>('docs');
 
   // Load Clients
@@ -77,6 +83,14 @@ export function KnowledgeBasePage() {
   // Delete Mutation
   const deleteMutation = useMutation({
     mutationFn: (id: string) => api.deleteKnowledgeDocument(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['knowledge-documents', activeClientId] });
+    },
+  });
+
+  // Sync Historical Content Mutation
+  const syncMutation = useMutation({
+    mutationFn: () => api.syncKnowledgeContent(activeClientId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['knowledge-documents', activeClientId] });
     },
@@ -129,6 +143,26 @@ export function KnowledgeBasePage() {
           </div>
 
           <button
+            onClick={() => setShowAuditDrawer(true)}
+            disabled={!activeClientId}
+            title="Auditar el Brand Kit contra los contenidos y minutas vivas de Cerebro"
+            className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold border border-blue-200 bg-blue-50/80 text-blue-700 rounded-lg hover:bg-blue-100 transition-colors shadow-xs disabled:opacity-50"
+          >
+            <Zap className="w-3.5 h-3.5 text-blue-600" />
+            Auditar Brand Kit
+          </button>
+
+          <button
+            onClick={() => syncMutation.mutate()}
+            disabled={!activeClientId || syncMutation.isPending}
+            title="Importar publicaciones de redes y tickets aprobados a la base"
+            className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium border border-slate-200 bg-white text-slate-700 rounded-lg hover:bg-slate-50 transition-colors shadow-xs disabled:opacity-50"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 text-slate-500 ${syncMutation.isPending ? 'animate-spin' : ''}`} />
+            {syncMutation.isPending ? 'Sincronizando...' : 'Sincronizar publicaciones'}
+          </button>
+
+          <button
             onClick={() => {
               setDocumentToEdit(null);
               setShowAddModal(true);
@@ -141,6 +175,17 @@ export function KnowledgeBasePage() {
           </button>
         </div>
       </div>
+
+      {/* Brand Pulse Live Summary Header */}
+      {activeClientId && (
+        <div className="px-4 sm:px-6 pt-4 shrink-0">
+          <BrandPulseHeader
+            clientId={activeClientId}
+            clientName={activeClient?.name || ''}
+            onOpenAudit={() => setShowAuditDrawer(true)}
+          />
+        </div>
+      )}
 
       {/* Mobile Tab Switcher */}
       <div className="sm:hidden flex border-b border-slate-200 bg-white">
@@ -170,6 +215,20 @@ export function KnowledgeBasePage() {
             mobileTab === 'chat' ? 'hidden sm:flex' : 'flex'
           }`}
         >
+          {/* Zero-Form Upload Dropzone */}
+          {activeClientId && (
+            <div className="p-4 border-b border-slate-100 bg-slate-50/30">
+              <ZeroFormDropzone
+                clientId={activeClientId}
+                speakerId={selectedSpeakerId || null}
+                onSuccess={() => {
+                  queryClient.invalidateQueries({ queryKey: ['knowledge-documents', activeClientId] });
+                  queryClient.invalidateQueries({ queryKey: ['brand-pulse', activeClientId] });
+                }}
+              />
+            </div>
+          )}
+
           {/* Filter Bar */}
           <div className="p-4 border-b border-slate-100 space-y-3 bg-slate-50/50">
             {/* Search and Speaker Filter */}
@@ -239,16 +298,27 @@ export function KnowledgeBasePage() {
                 <p className="text-xs text-slate-500 max-w-sm mt-1 mb-4">
                   Podés cargar transcripciones de Google Meet, notas de WhatsApp, decks o directivas de estilo.
                 </p>
-                <button
-                  onClick={() => {
-                    setDocumentToEdit(null);
-                    setShowAddModal(true);
-                  }}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  Cargar Primer Documento
-                </button>
+                <div className="flex items-center gap-2 flex-wrap justify-center">
+                  <button
+                    onClick={() => syncMutation.mutate()}
+                    disabled={syncMutation.isPending}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border border-slate-200 bg-white text-slate-700 rounded-lg hover:bg-slate-50 transition-colors shadow-xs"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 text-slate-500 ${syncMutation.isPending ? 'animate-spin' : ''}`} />
+                    {syncMutation.isPending ? 'Sincronizando...' : 'Importar publicaciones históricas'}
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setDocumentToEdit(null);
+                      setShowAddModal(true);
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-[#024fff] text-white rounded-lg hover:bg-[#024fff]/90 transition-colors shadow-xs"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    Cargar Documento Manual
+                  </button>
+                </div>
               </div>
             ) : (
               <div className="grid grid-cols-1 gap-3">
@@ -361,6 +431,20 @@ export function KnowledgeBasePage() {
           setShowAddModal(true);
         }}
       />
+
+      {/* Brand Kit Audit Drawer */}
+      {activeClientId && (
+        <BrandKitAuditDrawer
+          isOpen={showAuditDrawer}
+          onClose={() => setShowAuditDrawer(false)}
+          clientId={activeClientId}
+          clientName={activeClient?.name || ''}
+          onAppliedSuccessfully={() => {
+            queryClient.invalidateQueries({ queryKey: ['brand-pulse', activeClientId] });
+            queryClient.invalidateQueries({ queryKey: ['brand-voice', activeClientId] });
+          }}
+        />
+      )}
     </div>
   );
 }

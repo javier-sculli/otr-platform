@@ -12,6 +12,7 @@ import { registerGoogleCallbackRoute } from './oauth/google-callback.js';
 import { registerTools } from './tools/index.js';
 
 const app = express();
+app.set('trust proxy', 1);
 app.use(
   cors({
     origin: true,
@@ -109,6 +110,16 @@ app.get('/mcp', authMiddleware, handleSessionRequest);
 app.delete('/mcp', authMiddleware, handleSessionRequest);
 
 app.get('/health', (_req, res) => res.json({ status: 'ok', timestamp: new Date().toISOString() }));
+
+app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  console.error('Unhandled error in MCP server:', err);
+  if (!res.headersSent) {
+    res.status(err.status || 500).json({
+      error: err.name || 'Error',
+      message: err.message || 'Internal server error',
+    });
+  }
+});
 
 app.listen(config.port, () => {
   console.log(`🔌 MCP server running on http://localhost:${config.port}`);
