@@ -4,7 +4,7 @@ import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import jwt from '@fastify/jwt';
 import multipart from '@fastify/multipart';
-import { config } from './config.js';
+import { config, isAllowedFrontendOrigin } from './config.js';
 import { authRoutes } from './routes/auth.js';
 import { ticketsRoutes } from './routes/tickets.js';
 import { catalogsRoutes } from './routes/catalogs.js';
@@ -44,7 +44,13 @@ fastify.addHook('onResponse', async (request, reply) => {
 
 // Plugins
 await fastify.register(cors, {
-  origin: config.nodeEnv === 'development' ? '*' : config.frontendUrl,
+  origin: (origin, cb) => {
+    if (config.nodeEnv === 'development' || !origin || isAllowedFrontendOrigin(origin)) {
+      cb(null, true);
+    } else {
+      cb(null, config.frontendUrl);
+    }
+  },
   credentials: true,
 });
 

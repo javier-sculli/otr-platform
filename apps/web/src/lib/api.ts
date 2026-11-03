@@ -79,7 +79,10 @@ class ApiClient {
   }
 
   getGoogleAuthUrl() {
-    return `${API_URL}/auth/google`;
+    const origin = typeof window !== 'undefined' ? window.location.origin : '';
+    return origin
+      ? `${API_URL}/auth/google?origin=${encodeURIComponent(origin)}`
+      : `${API_URL}/auth/google`;
   }
 
   async logout() {

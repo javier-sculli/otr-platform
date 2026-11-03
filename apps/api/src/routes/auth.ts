@@ -3,6 +3,7 @@ import { prisma } from '../lib/prisma.js';
 import { comparePassword, hashPassword } from '../lib/auth.js';
 import { authenticate } from '../middleware/auth.js';
 import { buildGoogleAuthUrl, resolveGoogleUser } from '../lib/google-oauth.js';
+import { config, isAllowedFrontendOrigin } from '../config.js';
 
 const userMeCache = new Map<string, { timestamp: number; user: any }>();
 const USER_ME_TTL_MS = 5 * 60 * 1000;
@@ -109,16 +110,29 @@ export async function authRoutes(fastify: FastifyInstance) {
   });
 
   // Iniciar OAuth con Google — redirige al login de Google
-  fastify.get('/google', async (_request, reply) => {
-    const url = buildGoogleAuthUrl();
+  fastify.get('/google', async (request, reply) => {
+    const { origin } = request.query as { origin?: string };
+    let candidateOrigin = origin;
+    if (!candidateOrigin && request.headers.referer) {
+      try {
+        candidateOrigin = new URL(request.headers.referer).origin;
+      } catch {}
+    }
+    const validState = isAllowedFrontendOrigin(candidateOrigin)
+      ? candidateOrigin!.replace(/\/$/, '')
+      : undefined;
+    const url = buildGoogleAuthUrl(undefined, validState);
     return reply.redirect(url);
   });
 
   // Callback de Google — recibe el code, crea/busca el usuario, devuelve JWT
   fastify.get('/google/callback', async (request, reply) => {
-    const { code, error } = request.query as { code?: string; error?: string };
+    const { code, error, state } = request.query as { code?: string; error?: string; state?: string };
 
-    const frontendUrl = process.env.FRONTEND_URL ?? 'http://localhost:5173';
+    const frontendUrl =
+      state && isAllowedFrontendOrigin(state)
+        ? state.replace(/\/$/, '')
+        : config.frontendUrl;
 
     if (error || !code) {
       return reply.redirect(`${frontendUrl}/login?error=google_cancelled`);

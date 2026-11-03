@@ -66,7 +66,10 @@ export async function getGoogleUserInfo(accessToken: string): Promise<GoogleUser
 /**
  * Construye la URL de autorización de Google
  */
-export function buildGoogleAuthUrl(redirectUri: string = process.env.GOOGLE_REDIRECT_URI!): string {
+export function buildGoogleAuthUrl(
+  redirectUri: string = process.env.GOOGLE_REDIRECT_URI!,
+  state?: string
+): string {
   const params = new URLSearchParams({
     client_id: process.env.GOOGLE_CLIENT_ID!,
     redirect_uri: redirectUri,
@@ -75,6 +78,9 @@ export function buildGoogleAuthUrl(redirectUri: string = process.env.GOOGLE_REDI
     access_type: 'offline',
     prompt: 'select_account',
   });
+  if (state) {
+    params.set('state', state);
+  }
 
   return `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
 }
