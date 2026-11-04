@@ -128,6 +128,8 @@ export function BacklogPage() {
   const savedFilters = useRef(loadSavedBacklogFilters()).current;
   const preferredIds = user?.preferredClientIds ?? [];
 
+  const urlClientId = searchParams.get('clientId');
+
   // Vistas: 'compacta' | 'completa' | 'calendario'
   const [vista, setVista] = useState<'compacta' | 'completa' | 'calendario'>(() => {
     const v = savedFilters?.vista;
@@ -136,27 +138,53 @@ export function BacklogPage() {
   });
 
   const [clientesSeleccionados, setClientesSeleccionados] = useState<string[]>(() => {
-    const clientId = searchParams.get('clientId');
-    if (clientId) return [clientId];
+    if (urlClientId) return [urlClientId];
     if (savedFilters && Array.isArray(savedFilters.clientesSeleccionados)) {
       return savedFilters.clientesSeleccionados;
     }
     return [];
   });
-  const [mostrarTodosClientes, setMostrarTodosClientes] = useState<boolean>(() => savedFilters?.mostrarTodosClientes ?? false);
+  const [mostrarTodosClientes, setMostrarTodosClientes] = useState<boolean>(() =>
+    urlClientId ? true : (savedFilters?.mostrarTodosClientes ?? false)
+  );
   const [showDropdownClientes, setShowDropdownClientes] = useState(false);
 
-  const [vocerosSeleccionados, setVocerosSeleccionados] = useState<string[]>(() => savedFilters?.vocerosSeleccionados ?? []);
-  const [marcaSinVocero, setMarcaSinVocero] = useState<boolean>(() => savedFilters?.marcaSinVocero ?? false);
+  const [vocerosSeleccionados, setVocerosSeleccionados] = useState<string[]>(() =>
+    urlClientId ? [] : (savedFilters?.vocerosSeleccionados ?? [])
+  );
+  const [marcaSinVocero, setMarcaSinVocero] = useState<boolean>(() =>
+    urlClientId ? false : (savedFilters?.marcaSinVocero ?? false)
+  );
   const [showDropdownVoceros, setShowDropdownVoceros] = useState(false);
 
-  const [mesesSeleccionados, setMesesSeleccionados] = useState<string[]>(() => filtrarMesesValidos(savedFilters?.mesesSeleccionados ?? []));
+  const [mesesSeleccionados, setMesesSeleccionados] = useState<string[]>(() =>
+    urlClientId ? [] : filtrarMesesValidos(savedFilters?.mesesSeleccionados ?? [])
+  );
   const [showDropdownMeses, setShowDropdownMeses] = useState(false);
 
-  const [soloMios, setSoloMios] = useState<boolean>(() => savedFilters?.soloMios ?? false);
-  const [soloVencidos, setSoloVencidos] = useState<boolean>(() => savedFilters?.soloVencidos ?? false);
-  const [busqueda, setBusqueda] = useState<string>(() => savedFilters?.busqueda ?? '');
+  const [soloMios, setSoloMios] = useState<boolean>(() =>
+    urlClientId ? false : (savedFilters?.soloMios ?? false)
+  );
+  const [soloVencidos, setSoloVencidos] = useState<boolean>(() =>
+    urlClientId ? false : (savedFilters?.soloVencidos ?? false)
+  );
+  const [busqueda, setBusqueda] = useState<string>(() =>
+    urlClientId ? '' : (savedFilters?.busqueda ?? '')
+  );
   const [qCliente, setQCliente] = useState('');
+
+  // Si cambia el clientId por URL (ej. desde Clientes -> Ver Backlog), sincronizar y limpiar filtros secundarios
+  useEffect(() => {
+    if (!urlClientId) return;
+    setClientesSeleccionados([urlClientId]);
+    setMostrarTodosClientes(true);
+    setVocerosSeleccionados([]);
+    setMarcaSinVocero(false);
+    setMesesSeleccionados([]);
+    setSoloMios(false);
+    setSoloVencidos(false);
+    setBusqueda('');
+  }, [urlClientId]);
 
   const [showModalNueva, setShowModalNueva] = useState(false);
   const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
@@ -434,6 +462,17 @@ export function BacklogPage() {
     });
     return Array.from(map.values()).sort((a, b) => a.cliente.localeCompare(b.cliente));
   }, [ticketsParaVoceros]);
+
+  // Limpiar voceros seleccionados que no pertenezcan a los clientes efectivos actuales
+  useEffect(() => {
+    if (isLoading || !ticketsData) return;
+    if (vocerosSeleccionados.length === 0) return;
+    const validIds = new Set(vocerosPorCliente.flatMap(g => g.items.map(v => v.id)));
+    const filtered = vocerosSeleccionados.filter(id => validIds.has(id));
+    if (filtered.length !== vocerosSeleccionados.length) {
+      setVocerosSeleccionados(filtered);
+    }
+  }, [vocerosPorCliente, vocerosSeleccionados, isLoading, ticketsData]);
 
   // Filtrado de tickets
   const ticketsFiltrados = useMemo(() => {
@@ -1284,6 +1323,13 @@ export function BacklogPage() {
         isOpen={showModalNueva || selectedTicket !== null}
         onClose={handleCloseModal}
         ticket={selectedTicket as any}
+        defaultClientId={
+          effectiveClientIds.length === 1
+            ? effectiveClientIds[0]
+            : clientesSeleccionados.length === 1
+            ? clientesSeleccionados[0]
+            : undefined
+        }
       />
     </div>
   );
