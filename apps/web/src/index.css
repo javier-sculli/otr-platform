@@ -306,14 +306,14 @@ mark[data-c]:has(p, div),
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  height: 34px;
-  padding: 0 14px;
+  height: 28px;
+  padding: 0 12px;
   border: 1px solid var(--border);
   border-radius: 999px;
   background: #ffffff;
   color: var(--text);
-  font-size: 14px;
-  font-weight: 700;
+  font-size: 12px;
+  font-weight: 500;
   white-space: nowrap;
   cursor: pointer;
   transition: all 0.15s ease;
@@ -396,6 +396,18 @@ mark[data-c]:has(p, div),
 .rk-btn--primary:hover {
   background: #0c57d3;
 }
+.rk-btn--sm {
+  height: 32px;
+  padding: 0 12px;
+  font-size: 12px;
+  font-weight: 600;
+}
+/* .rk-btn--text se define más abajo y pisaría el tamaño: la combinación necesita su propia regla */
+.rk-btn--text.rk-btn--sm {
+  height: auto;
+  padding: 4px 6px;
+  font-size: 12px;
+}
 .rk-btn--secondary {
   background: #ffffff;
   border-color: var(--border);
@@ -439,19 +451,20 @@ mark[data-c]:has(p, div),
   align-items: center;
   justify-content: center;
   gap: 6px;
-  height: 28px;
-  padding: 0 12px;
+  height: 24px;
+  padding: 0 10px;
   border: 0;
   border-radius: 6px;
   background: transparent;
   color: var(--text-muted);
-  font-size: 13px;
-  font-weight: 700;
+  font-size: 11px;
+  font-weight: 500;
   white-space: nowrap;
   cursor: pointer;
   transition: all 0.12s ease;
 }
 .rk-seg__opt[aria-pressed="true"] {
+  font-weight: 600;
   background: #ffffff;
   color: var(--brand);
   box-shadow: 0 1px 2px rgba(0, 14, 31, 0.12);

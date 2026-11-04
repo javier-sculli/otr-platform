@@ -14,6 +14,11 @@ import {
   calculateDropSortOrder,
   MESES_OFFSETS,
   filtrarMesesValidos,
+  getFechaVencimiento,
+  esMesManual,
+  claveMesManual,
+  fechaEnMes,
+  etiquetaMes,
 } from '../lib/utils';
 
 export interface Ticket {
@@ -40,6 +45,11 @@ export interface Ticket {
   speaker?: { id: string; nombre: string; role?: string } | null;
   sortOrder?: number | null;
 }
+
+const NOMBRES_MESES = [
+  'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+  'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
+];
 
 interface Cliente {
   id: string;
@@ -365,10 +375,24 @@ export function BacklogPage() {
     );
   };
 
+  // Meses elegidos a mano ("Otro mes"), en orden cronológico
+  const mesesManuales = mesesSeleccionados.filter(esMesManual).sort();
+
+  const [otroMes, setOtroMes] = useState(() => ahora.getMonth());
+  const [otroAnio, setOtroAnio] = useState(() => ahora.getFullYear());
+  const aniosDisponibles = [-2, -1, 0, 1].map(d => ahora.getFullYear() + d);
+
+  const agregarOtroMes = () => {
+    // Si coincide con un acceso rápido (anterior/actual/próximo), se marca ese en lugar de duplicarlo
+    const rapido = listaMeses.find(m => m.inicio.getFullYear() === otroAnio && m.inicio.getMonth() === otroMes);
+    const key = rapido ? rapido.key : claveMesManual(otroAnio, otroMes);
+    setMesesSeleccionados(prev => (prev.includes(key) ? prev : [...prev, key]));
+  };
+
   // Helper check ticket overdue
   const checkVencido = (t: Ticket) => {
     if (t.status === 'PUBLICADO' || t.status === 'LISTO' || t.status === 'CANCELADO') return false;
-    const dateToUse = t.dueDate || (t as any).plannedDate;
+    const dateToUse = getFechaVencimiento(t as any);
     if (!dateToUse) return false;
     const d = parseLocalDate(dateToUse);
     if (!d) return false;
@@ -433,16 +457,13 @@ export function BacklogPage() {
       // Filtro vencidos
       if (soloVencidos && !checkVencido(t)) return false;
 
-      // Filtro de meses
+      // Filtro de meses (misma fecha que "Vencidos")
       if (mesesSeleccionados.length > 0) {
-        const dateToUse = t.dueDate || (t as any).plannedDate;
+        const dateToUse = getFechaVencimiento(t as any);
         if (dateToUse) {
           const due = parseLocalDate(dateToUse);
           if (due) {
-            const matchesAnyMonth = mesesSeleccionados.some(key => {
-              const m = listaMeses.find(item => item.key === key);
-              return m && due >= m.inicio && due <= m.fin;
-            });
+            const matchesAnyMonth = mesesSeleccionados.some(key => fechaEnMes(due, key, ahora));
             if (!matchesAnyMonth) return false;
           }
         }
@@ -624,8 +645,7 @@ export function BacklogPage() {
   // Label del dropdown de Meses
   const mesesDropdownLabel = useMemo(() => {
     if (mesesSeleccionados.length === 1) {
-      const m = listaMeses.find(item => item.key === mesesSeleccionados[0]);
-      return m?.label || '1 mes';
+      return etiquetaMes(mesesSeleccionados[0], ahora);
     }
     if (mesesSeleccionados.length > 1) {
       return `${mesesSeleccionados.length} meses`;
@@ -646,7 +666,7 @@ export function BacklogPage() {
   return (
     <div className="flex-1 flex flex-col min-h-0 bg-white text-[#0d0d0d] font-sans">
       {/* ── Barra de vista & Botón Nuevo Ticket ── */}
-      <div className="flex items-center justify-between gap-3 flex-wrap px-6 pt-4 pb-3">
+      <div className="flex items-center justify-between gap-3 flex-wrap px-6 pt-3 pb-2">
         <div className="rk-seg rk-seg--inline rk-seg--brand" role="group" aria-label="Vista">
           <button
             type="button"
@@ -677,17 +697,17 @@ export function BacklogPage() {
         <button
           type="button"
           onClick={() => setShowModalNueva(true)}
-          className="rk-btn rk-btn--primary shadow-sm"
+          className="rk-btn rk-btn--primary rk-btn--sm shadow-sm"
         >
-          <Plus className="w-4 h-4" />
+          <Plus className="w-3.5 h-3.5" />
           Nuevo ticket
         </button>
       </div>
 
       {/* ── Barra de Filtros ── */}
-      <div className="flex items-center gap-2 flex-wrap px-6 pb-4 border-b border-[var(--border)]">
+      <div className="flex items-center gap-2 flex-wrap px-6 pb-3 border-b border-[var(--border)]">
         {/* Buscador */}
-        <label className="flex items-center gap-2 w-60 max-w-full h-9 px-3 border border-[var(--border)] rounded-lg bg-white text-[var(--text-subtle)] focus-within:border-[var(--brand)] focus-within:ring-2 focus-within:ring-[var(--brand-tint-hover)]">
+        <label className="flex items-center gap-2 w-60 max-w-full h-7 px-3 border border-[var(--border)] rounded-lg bg-white text-[var(--text-subtle)] focus-within:border-[var(--brand)] focus-within:ring-2 focus-within:ring-[var(--brand-tint-hover)]">
           <Search className="w-4 h-4 text-[var(--text-subtle)] flex-shrink-0" />
           <input
             type="text"
@@ -695,7 +715,7 @@ export function BacklogPage() {
             onChange={e => setBusqueda(e.target.value)}
             placeholder="Buscar ticket"
             aria-label="Buscar ticket"
-            className="flex-1 min-w-0 border-0 outline-none bg-transparent text-sm text-[#0d0d0d] placeholder:text-[var(--text-subtle)]"
+            className="flex-1 min-w-0 border-0 outline-none bg-transparent text-xs text-[#0d0d0d] placeholder:text-[var(--text-subtle)]"
           />
           {busqueda && (
             <button
@@ -721,7 +741,7 @@ export function BacklogPage() {
           </button>
 
           {showDropdownClientes && (
-            <div className="rk-menu absolute top-[42px] left-0 z-30 w-72 max-h-96 overflow-y-auto">
+            <div className="rk-menu absolute top-[36px] left-0 z-30 w-72 max-h-96 overflow-y-auto">
               <div className="rk-menu__head">
                 <span className="rk-menu-heading">Mis clientes</span>
                 <button
@@ -816,7 +836,7 @@ export function BacklogPage() {
           </button>
 
           {showDropdownVoceros && (
-            <div className="rk-menu absolute top-[42px] left-0 z-30 w-72 max-h-96 overflow-y-auto">
+            <div className="rk-menu absolute top-[36px] left-0 z-30 w-72 max-h-96 overflow-y-auto">
               <div className="rk-menu__head">
                 <span className="rk-menu-heading">Voz del contenido</span>
                 <button
@@ -893,7 +913,7 @@ export function BacklogPage() {
           </button>
 
           {showDropdownMeses && (
-            <div className="rk-menu absolute top-[42px] left-0 z-30 w-64">
+            <div className="rk-menu absolute top-[36px] left-0 z-30 w-80">
               <div className="rk-menu__head">
                 <span className="rk-menu-heading">Elegí 1 o más meses</span>
                 <button
@@ -922,6 +942,58 @@ export function BacklogPage() {
                 );
               })}
 
+              {mesesManuales.map(key => (
+                <div key={key} className="rk-menu__item text-xs">
+                  <input
+                    type="checkbox"
+                    checked
+                    onChange={() => toggleMes(key)}
+                    aria-label={`Quitar ${etiquetaMes(key, ahora)}`}
+                  />
+                  <span className="truncate">{etiquetaMes(key, ahora)}</span>
+                  <button
+                    type="button"
+                    onClick={() => toggleMes(key)}
+                    className="ml-auto p-0.5 rounded text-[var(--text-muted)] hover:text-[var(--danger)] hover:bg-[var(--surface-muted)]"
+                    title="Quitar mes"
+                    aria-label={`Quitar ${etiquetaMes(key, ahora)}`}
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              ))}
+
+              <div className="flex items-center gap-1.5 px-2.5 py-2 border-t border-[var(--surface-muted)] mt-1">
+                <span className="text-xs text-[var(--text-muted)] whitespace-nowrap">Otro mes</span>
+                <select
+                  value={otroMes}
+                  onChange={e => setOtroMes(Number(e.target.value))}
+                  aria-label="Mes"
+                  className="h-7 min-w-0 flex-1 px-1.5 text-xs border border-[var(--border)] rounded-md bg-white outline-none focus:border-[var(--brand)]"
+                >
+                  {NOMBRES_MESES.map((nombre, i) => (
+                    <option key={i} value={i}>{nombre}</option>
+                  ))}
+                </select>
+                <select
+                  value={otroAnio}
+                  onChange={e => setOtroAnio(Number(e.target.value))}
+                  aria-label="Año"
+                  className="h-7 w-[64px] px-1.5 text-xs border border-[var(--border)] rounded-md bg-white outline-none focus:border-[var(--brand)]"
+                >
+                  {aniosDisponibles.map(a => (
+                    <option key={a} value={a}>{a}</option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={agregarOtroMes}
+                  className="rk-btn rk-btn--text rk-btn--sm"
+                >
+                  Agregar
+                </button>
+              </div>
+
               <div className="flex items-center gap-1 p-2 pt-2 border-t border-[var(--surface-muted)] mt-1">
                 <button
                   type="button"
@@ -930,7 +1002,7 @@ export function BacklogPage() {
                     if (actual) setMesesSeleccionados([actual.key]);
                     setShowDropdownMeses(false);
                   }}
-                  className="rk-btn rk-btn--text text-xs"
+                  className="rk-btn rk-btn--text rk-btn--sm"
                 >
                   Solo este mes
                 </button>
@@ -941,7 +1013,7 @@ export function BacklogPage() {
                     setMesesSeleccionados([]);
                     setShowDropdownMeses(false);
                   }}
-                  className="rk-btn rk-btn--text text-xs"
+                  className="rk-btn rk-btn--text rk-btn--sm"
                 >
                   Todos los meses
                 </button>
@@ -1010,7 +1082,7 @@ export function BacklogPage() {
 
         {/* ── VISTA KANBAN COMPACTA (4 columnas agrupadas) ── */}
         {vista === 'compacta' && (
-          <div className="flex-1 overflow-x-auto bk-scroll p-6">
+          <div className="flex-1 overflow-x-auto bk-scroll px-6 py-4">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 items-start min-w-[1000px]">
               {GRUPOS_COMPACTA.map(grupo => {
                 const columnTickets = sortTicketsByOrder(
@@ -1028,7 +1100,7 @@ export function BacklogPage() {
                     {/* Header Columna */}
                     <div className="flex items-center gap-2 px-1">
                       <span className="rk-dot" style={{ background: grupo.color }} />
-                      <h3 className="font-bold text-sm text-[#0d0d0d]">{grupo.name}</h3>
+                      <h3 className="font-semibold text-sm text-[#0d0d0d]">{grupo.name}</h3>
                       <span className="text-xs text-[var(--text-subtle)] font-medium">
                         {columnTickets.length}
                       </span>
@@ -1050,7 +1122,7 @@ export function BacklogPage() {
 
                     {/* Droppable cards container */}
                     <div
-                      className={`bk-scroll flex flex-col gap-2 p-2 min-h-[140px] max-h-[calc(100vh-230px)] overflow-y-auto rounded-[10px] transition-all ${
+                      className={`bk-scroll flex flex-col gap-1.5 p-1.5 min-h-[140px] max-h-[calc(100vh-200px)] overflow-y-auto rounded-[10px] transition-all ${
                         isColActive
                           ? 'bg-[rgba(2,79,255,0.04)] ring-2 ring-[rgba(2,79,255,0.25)]'
                           : 'bg-[#f7fafc]'
@@ -1111,7 +1183,7 @@ export function BacklogPage() {
 
         {/* ── VISTA KANBAN COMPLETA (11 columnas individuales) ── */}
         {vista === 'completa' && (
-          <div className="flex-1 overflow-x-auto bk-scroll p-6">
+          <div className="flex-1 overflow-x-auto bk-scroll px-6 py-4">
             <div className="grid grid-flow-col auto-cols-[280px] gap-3 items-start min-w-[3100px]">
               {COLUMNAS_COMPLETA.map(col => {
                 const columnTickets = sortTicketsByOrder(
@@ -1129,7 +1201,7 @@ export function BacklogPage() {
                     {/* Header Columna */}
                     <div className="flex items-center gap-2 px-1">
                       <span className="rk-dot" style={{ background: col.color }} />
-                      <h3 className="font-bold text-sm text-[#0d0d0d]">{col.nombre}</h3>
+                      <h3 className="font-semibold text-sm text-[#0d0d0d]">{col.nombre}</h3>
                       <span className="text-xs text-[var(--text-subtle)] font-medium">
                         {columnTickets.length}
                       </span>
@@ -1137,7 +1209,7 @@ export function BacklogPage() {
 
                     {/* Droppable cards container */}
                     <div
-                      className={`bk-scroll flex flex-col gap-2 p-2 min-h-[140px] max-h-[calc(100vh-230px)] overflow-y-auto rounded-[10px] transition-all ${
+                      className={`bk-scroll flex flex-col gap-1.5 p-1.5 min-h-[140px] max-h-[calc(100vh-200px)] overflow-y-auto rounded-[10px] transition-all ${
                         isColActive
                           ? 'bg-[rgba(2,79,255,0.04)] ring-2 ring-[rgba(2,79,255,0.25)]'
                           : 'bg-[#f7fafc]'
@@ -1246,8 +1318,8 @@ function TicketCard({
   // Prioridad
   const pri = PRIORIDAD_CONFIG[ticket.prioridad?.toUpperCase()] || PRIORIDAD_CONFIG.MEDIA;
 
-  // Due Date
-  const dateToUse = ticket.dueDate || (ticket as any).plannedDate;
+  // Fecha de la tarjeta: la misma que usa el filtro "Vencidos"
+  const dateToUse = getFechaVencimiento(ticket as any);
   const parsedDue = dateToUse ? parseLocalDate(dateToUse) : null;
   const hoy = new Date();
   hoy.setHours(0, 0, 0, 0);
@@ -1313,14 +1385,14 @@ function TicketCard({
       role="button"
       className={`bk-card ${
         isTarea ? 'bk-card--tarea' : 'bk-card--contenido'
-      } relative flex flex-col gap-2 w-full pt-[14px] pb-3 px-3.5 rounded-[10px] bg-white border border-[var(--border)] shadow-sm transition-all select-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-[var(--brand)] focus:border-transparent ${
+      } relative flex flex-col gap-1.5 w-full pt-2.5 pb-2 px-3 rounded-[10px] bg-white border border-[var(--border)] shadow-sm transition-all select-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-[var(--brand)] focus:border-transparent ${
         isDragged ? 'opacity-40' : 'opacity-100'
       }`}
     >
       {/* Top Header: Tipo Badge + TopLabel + Drag Grip */}
       <div className="flex items-center justify-between gap-1.5 min-w-0 w-full">
         <span
-          className={`inline-flex items-center gap-1.5 h-[22px] px-2 rounded-md text-[11px] font-extrabold tracking-wider uppercase whitespace-nowrap overflow-hidden shrink-0 max-w-[60%] ${
+          className={`inline-flex items-center gap-1 h-[18px] px-1.5 rounded text-[10px] font-semibold tracking-wider uppercase whitespace-nowrap overflow-hidden shrink-0 max-w-[60%] ${
             isTarea
               ? 'bg-[#eef3f7] text-[#0d0d0d]'
               : 'bg-[rgba(2,79,255,0.08)] text-[var(--brand)]'
@@ -1337,7 +1409,7 @@ function TicketCard({
 
         <div className="inline-flex items-center justify-end gap-1.5 min-w-0 flex-1">
           <span
-            className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-xs font-bold text-[var(--text-muted)] text-right"
+            className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-xs font-normal text-[var(--text-muted)] text-right"
             title={topLabel}
           >
             {topLabel}
@@ -1357,7 +1429,7 @@ function TicketCard({
 
       {/* Título */}
       <div className="bk-open text-left">
-        <span className="bk-clamp font-bold text-[14px] leading-[1.35] text-[#0d0d0d] hover:text-[var(--brand)] transition-colors">
+        <span className="bk-clamp font-semibold text-[12px] leading-[1.35] text-[#0d0d0d] hover:text-[var(--brand)] transition-colors">
           {ticket.title}
         </span>
       </div>
@@ -1365,7 +1437,7 @@ function TicketCard({
       {/* Footer: Prioridad + Due Date */}
       <div className="flex items-center justify-between gap-2 pt-1 border-t border-[var(--surface-muted)]">
         <span
-          className="inline-flex items-center gap-1.5 py-0.5 px-2 rounded-full text-xs font-bold text-[#0d0d0d]"
+          className="inline-flex items-center gap-1 py-0 px-1.5 rounded-full text-xs font-medium text-[#0d0d0d]"
           style={{ background: pri.bg }}
         >
           <span className="rk-dot" style={{ background: pri.dot }} />
@@ -1375,9 +1447,9 @@ function TicketCard({
         <span
           className={`inline-flex items-center gap-1 text-xs ${
             isOverdue
-              ? 'text-[var(--danger)] font-bold'
+              ? 'text-[var(--danger)] font-semibold'
               : isToday
-              ? 'text-[var(--brand)] font-bold'
+              ? 'text-[var(--brand)] font-medium'
               : 'text-[var(--text-muted)] font-medium'
           }`}
         >

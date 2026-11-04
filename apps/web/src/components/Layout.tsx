@@ -181,7 +181,7 @@ export function Layout({ children }: LayoutProps) {
   return (
     <div className="min-h-screen bg-[#fafafa]">
       <nav className="rk-nav sticky top-0 z-40">
-        <div className="max-w-[1600px] w-full mx-auto flex items-center justify-between">
+        <div className="max-w-[1600px] w-full mx-auto px-6 flex items-center justify-between">
           <div className="flex items-center gap-6 sm:gap-8 min-w-0">
             <button
               onClick={() => navigate('/backlog')}

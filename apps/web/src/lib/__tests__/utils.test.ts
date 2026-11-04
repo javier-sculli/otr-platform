@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseLocalDate, formatDateSpan, formatDateISO, ensureAbsoluteUrl, mergeContentPerCanal, getRedesObjetivoForClient, stripHtmlToPlainText, recordCopyVersion, filterPilaresBySpeaker, shouldOmitTemperature, parseDeliverableLinks, serializeDeliverableLinks, getCollapsedRichTextSnippet, sortTicketsByOrder, calculateDropSortOrder, MESES_OFFSETS, filtrarMesesValidos } from '../utils';
+import { parseLocalDate, formatDateSpan, formatDateISO, ensureAbsoluteUrl, mergeContentPerCanal, getRedesObjetivoForClient, stripHtmlToPlainText, recordCopyVersion, filterPilaresBySpeaker, shouldOmitTemperature, parseDeliverableLinks, serializeDeliverableLinks, getCollapsedRichTextSnippet, sortTicketsByOrder, calculateDropSortOrder, MESES_OFFSETS, filtrarMesesValidos, getFechaVencimiento, esMesManual, claveMesManual, fechaEnMes, etiquetaMes } from '../utils';
 
 describe('lib/utils', () => {
   describe('parseLocalDate & Date shift prevention', () => {
@@ -395,6 +395,52 @@ describe('lib/utils', () => {
     it('descarta meses guardados que ya no tienen chip (mes_2)', () => {
       expect(filtrarMesesValidos(['mes_2', 'mes_0', 'mes_-1'])).toEqual(['mes_0', 'mes_-1']);
       expect(filtrarMesesValidos(['mes_2'])).toEqual([]);
+    });
+  });
+
+  describe('getFechaVencimiento (filtro "Vencidos" del backlog)', () => {
+    it('en piezas usa la fecha de publicación aunque tenga fecha de entrega', () => {
+      expect(getFechaVencimiento({ dueDate: '2026-10-20', plannedDate: '2026-11-10' })).toBe('2026-11-10');
+    });
+
+    it('en piezas sin fecha de publicación usa la de entrega como respaldo', () => {
+      expect(getFechaVencimiento({ dueDate: '2026-10-20', plannedDate: null })).toBe('2026-10-20');
+    });
+
+    it('en tareas usa siempre la fecha de entrega', () => {
+      expect(getFechaVencimiento({ dueDate: '2026-10-20', plannedDate: '2026-11-10', tipoTicket: 'TAREA' })).toBe('2026-10-20');
+      expect(getFechaVencimiento({ dueDate: null, plannedDate: '2026-11-10', ticketType: { kind: 'TAREA' } })).toBeNull();
+    });
+
+    it('devuelve null si no hay ninguna fecha', () => {
+      expect(getFechaVencimiento({})).toBeNull();
+    });
+  });
+
+  describe('filtro de meses: meses elegidos a mano ("Otro mes")', () => {
+    const ahora = new Date(2026, 10, 4); // 4 de noviembre de 2026
+
+    it('reconoce y arma claves fijas YYYY-MM', () => {
+      expect(claveMesManual(2026, 7)).toBe('2026-08');
+      expect(esMesManual('2026-08')).toBe(true);
+      expect(esMesManual('2026-13')).toBe(false);
+      expect(esMesManual('mes_0')).toBe(false);
+    });
+
+    it('conserva los meses manuales guardados y descarta los relativos inválidos', () => {
+      expect(filtrarMesesValidos(['2026-08', 'mes_2', 'mes_0'])).toEqual(['2026-08', 'mes_0']);
+    });
+
+    it('ubica una fecha en un mes manual o relativo', () => {
+      expect(fechaEnMes(new Date(2026, 7, 15), '2026-08', ahora)).toBe(true);
+      expect(fechaEnMes(new Date(2026, 8, 1), '2026-08', ahora)).toBe(false);
+      expect(fechaEnMes(new Date(2026, 9, 31), 'mes_1', ahora)).toBe(true); // octubre = mes anterior
+      expect(fechaEnMes(new Date(2026, 11, 1), 'mes_-1', ahora)).toBe(true); // diciembre = próximo
+    });
+
+    it('arma la etiqueta del mes', () => {
+      expect(etiquetaMes('2027-02', ahora)).toBe('Febrero de 2027');
+      expect(etiquetaMes('mes_0', ahora)).toBe('Noviembre de 2026');
     });
   });
 });

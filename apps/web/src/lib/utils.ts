@@ -584,12 +584,73 @@ export function getCollapsedRichTextSnippet(
 export const MESES_OFFSETS = [1, 0, -1];
 
 /**
+ * Mes elegido a mano en el filtro ("Otro mes"): clave fija 'YYYY-MM', a diferencia de los
+ * accesos rápidos 'mes_N', que son relativos al mes actual.
+ */
+export function esMesManual(key: string): boolean {
+  return /^\d{4}-(0[1-9]|1[0-2])$/.test(key);
+}
+
+export function claveMesManual(year: number, monthIndex: number): string {
+  return `${year}-${String(monthIndex + 1).padStart(2, '0')}`;
+}
+
+/**
  * Descarta claves de mes guardadas (localStorage) que ya no tienen chip, p. ej. 'mes_2'.
  * Sin esto, un mes guardado e invisible filtraría todo el tablero sin forma de desmarcarlo.
+ * Los meses elegidos a mano ('YYYY-MM') siempre son válidos.
  */
 export function filtrarMesesValidos(keys: string[]): string[] {
   const validas = MESES_OFFSETS.map(offset => `mes_${offset}`);
-  return keys.filter(key => validas.includes(key));
+  return keys.filter(key => validas.includes(key) || esMesManual(key));
+}
+
+/**
+ * Primer día del mes al que apunta una clave del filtro ('mes_N' relativa a `ahora`, o 'YYYY-MM').
+ */
+export function inicioDeMes(key: string, ahora: Date = new Date()): Date | null {
+  if (esMesManual(key)) {
+    const [y, m] = key.split('-').map(Number);
+    return new Date(y, m - 1, 1);
+  }
+  const match = /^mes_(-?\d+)$/.exec(key);
+  if (!match) return null;
+  return new Date(ahora.getFullYear(), ahora.getMonth() - Number(match[1]), 1);
+}
+
+/**
+ * Indica si una fecha cae dentro del mes de la clave del filtro.
+ */
+export function fechaEnMes(fecha: Date, key: string, ahora: Date = new Date()): boolean {
+  const inicio = inicioDeMes(key, ahora);
+  if (!inicio) return false;
+  return fecha.getFullYear() === inicio.getFullYear() && fecha.getMonth() === inicio.getMonth();
+}
+
+/**
+ * Texto del mes para el filtro, p. ej. "Agosto de 2026".
+ */
+export function etiquetaMes(key: string, ahora: Date = new Date()): string {
+  const inicio = inicioDeMes(key, ahora);
+  if (!inicio) return key;
+  const raw = inicio.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' });
+  return raw.charAt(0).toUpperCase() + raw.slice(1);
+}
+
+/**
+ * Fecha que define si un ticket está vencido (filtro "Vencidos" y fecha de la tarjeta del backlog).
+ * Piezas: fecha de publicación (plannedDate), con la de entrega (dueDate) como respaldo si no está cargada.
+ * Tareas: no tienen fecha de publicación, se usa la de entrega.
+ */
+export function getFechaVencimiento(ticket: {
+  dueDate?: string | Date | null;
+  plannedDate?: string | Date | null;
+  tipoTicket?: string | null;
+  ticketType?: { kind?: string | null } | null;
+}): string | Date | null {
+  const isTarea = ticket.tipoTicket === 'TAREA' || ticket.ticketType?.kind === 'TAREA';
+  if (isTarea) return ticket.dueDate ?? null;
+  return ticket.plannedDate || ticket.dueDate || null;
 }
 
 /**

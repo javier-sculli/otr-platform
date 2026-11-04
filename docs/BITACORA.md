@@ -4,6 +4,16 @@
 > 
 > 🎯 **BACKLOG OFICIAL Y PRIORIDADES (FUENTE DE VERDAD):** [Notion Backlog Oficial](https://app.notion.com/p/Backlog-3ba617fc369281048bfdfc89c5041d9c?source=copy_link). Todas las prioridades y tareas activas se gestionan directamente allí.
 
+### [2026-11-04] — Backlog: densidad visual, "Vencidos" por fecha de publicación y "Otro mes" en el filtro de meses
+- **Desarrollador:** Shaiel Terán (con Claude Code)
+- **Alcance & Objetivos:**
+  - **Densidad visual (`BacklogPage.tsx`, `index.css`):** título de tarjeta 14→12 px y seminegrita; cliente/vocero, prioridad y fecha sin negrita; filtros 34→28 px y 12 px sin negrita; pestañas de vista 28→24 px; buscador 36→28 px; "Nuevo ticket" con nueva variante `.rk-btn--sm` (32 px). Menos relleno y separación en tarjetas, columnas y márgenes de página.
+  - **Header (`Layout.tsx`):** se agregó margen lateral (`px-6`) a la barra de navegación; "Rocky" quedaba pegado al borde.
+  - **Menú de meses:** más ancho (`w-80`) y botones del pie realmente chicos (regla `.rk-btn--text.rk-btn--sm`, porque `.rk-btn--text` pisaba el tamaño). Los tres menús desplegables se acercaron al filtro achicado.
+  - **"Vencidos" por fecha de publicación:** nueva `getFechaVencimiento` en `lib/utils.ts`. Piezas usan `plannedDate` con `dueDate` de respaldo; tareas usan `dueDate`. La usan el filtro "Vencidos", la fecha de cada tarjeta, la marca de vencido del calendario (`CalendarioBacklog.tsx`) y el filtro de meses.
+  - **"Otro mes" en el filtro de meses:** además de los accesos rápidos (anterior/actual/próximo, claves relativas `mes_N`), se puede sumar cualquier mes con selector de mes y año (claves fijas `YYYY-MM`, persistidas con el resto de los filtros). Helpers `esMesManual`, `claveMesManual`, `inicioDeMes`, `fechaEnMes` y `etiquetaMes`.
+- **Tests:** `apps/web/src/lib/__tests__/utils.test.ts` suma casos para `getFechaVencimiento` (pieza con y sin fecha de publicación, tarea, sin fechas) y para los meses elegidos a mano (claves, persistencia, ubicación de fechas, etiquetas). Corridos con `--environment node`: la suite completa no corre localmente con Node 18 porque jsdom 30 requiere Node ≥ 22 (mismo motivo por el que falla el CI con Node 20).
+
 ### [2026-11-03] — Eliminación del Filtro de Tipo (Contenido / Tarea) en Backlog
 - **Desarrollador:** Antigravity (Pair Programming con Javier Sculli)
 - **Alcance & Objetivos:**
