@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseLocalDate, formatDateSpan, formatDateISO, ensureAbsoluteUrl, mergeContentPerCanal, getRedesObjetivoForClient, stripHtmlToPlainText, recordCopyVersion, filterPilaresBySpeaker, shouldOmitTemperature, parseDeliverableLinks, serializeDeliverableLinks, getCollapsedRichTextSnippet, sortTicketsByOrder, calculateDropSortOrder, MESES_OFFSETS, filtrarMesesValidos, getFechaVencimiento, esMesManual, claveMesManual, fechaEnMes, etiquetaMes } from '../utils';
+import { parseLocalDate, formatDateSpan, formatDateISO, ensureAbsoluteUrl, mergeContentPerCanal, getRedesObjetivoForClient, stripHtmlToPlainText, recordCopyVersion, filterPilaresBySpeaker, shouldOmitTemperature, parseDeliverableLinks, serializeDeliverableLinks, getCollapsedRichTextSnippet, sortTicketsByOrder, calculateDropSortOrder, MESES_OFFSETS, filtrarMesesValidos, getFechaPublicacion, getFechaEntrega, esMesManual, claveMesManual, fechaEnMes, etiquetaMes } from '../utils';
 
 describe('lib/utils', () => {
   describe('parseLocalDate & Date shift prevention', () => {
@@ -398,22 +398,36 @@ describe('lib/utils', () => {
     });
   });
 
-  describe('getFechaVencimiento (filtro "Vencidos" del backlog)', () => {
-    it('en piezas usa la fecha de publicación aunque tenga fecha de entrega', () => {
-      expect(getFechaVencimiento({ dueDate: '2026-10-20', plannedDate: '2026-11-10' })).toBe('2026-11-10');
+  describe('getFechaEntrega (vistas de columnas del backlog)', () => {
+    it('usa la fecha de entrega aunque la pieza tenga fecha de publicación', () => {
+      expect(getFechaEntrega({ dueDate: '2026-10-20', plannedDate: '2026-11-10' })).toBe('2026-10-20');
     });
 
-    it('en piezas sin fecha de publicación usa la de entrega como respaldo', () => {
-      expect(getFechaVencimiento({ dueDate: '2026-10-20', plannedDate: null })).toBe('2026-10-20');
-    });
-
-    it('en tareas usa siempre la fecha de entrega', () => {
-      expect(getFechaVencimiento({ dueDate: '2026-10-20', plannedDate: '2026-11-10', tipoTicket: 'TAREA' })).toBe('2026-10-20');
-      expect(getFechaVencimiento({ dueDate: null, plannedDate: '2026-11-10', ticketType: { kind: 'TAREA' } })).toBeNull();
+    it('sin fecha de entrega usa la de publicación como respaldo', () => {
+      expect(getFechaEntrega({ dueDate: null, plannedDate: '2026-11-10' })).toBe('2026-11-10');
     });
 
     it('devuelve null si no hay ninguna fecha', () => {
-      expect(getFechaVencimiento({})).toBeNull();
+      expect(getFechaEntrega({})).toBeNull();
+    });
+  });
+
+  describe('getFechaPublicacion (vista calendario del backlog)', () => {
+    it('en piezas usa la fecha de publicación aunque tenga fecha de entrega', () => {
+      expect(getFechaPublicacion({ dueDate: '2026-10-20', plannedDate: '2026-11-10' })).toBe('2026-11-10');
+    });
+
+    it('en piezas sin fecha de publicación usa la de entrega como respaldo', () => {
+      expect(getFechaPublicacion({ dueDate: '2026-10-20', plannedDate: null })).toBe('2026-10-20');
+    });
+
+    it('en tareas usa siempre la fecha de entrega', () => {
+      expect(getFechaPublicacion({ dueDate: '2026-10-20', plannedDate: '2026-11-10', tipoTicket: 'TAREA' })).toBe('2026-10-20');
+      expect(getFechaPublicacion({ dueDate: null, plannedDate: '2026-11-10', ticketType: { kind: 'TAREA' } })).toBeNull();
+    });
+
+    it('devuelve null si no hay ninguna fecha', () => {
+      expect(getFechaPublicacion({})).toBeNull();
     });
   });
 

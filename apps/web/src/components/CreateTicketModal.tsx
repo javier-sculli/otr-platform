@@ -263,6 +263,7 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
   const notasRef = useRef<HTMLDivElement>(null);
 
   const lastTicketIdRef = useRef<string | null>(null);
+  const wasOpenRef = useRef(false);
   const loadedDetailTicketIdRef = useRef<string | null>(null);
   const dirtyFieldsRef = useRef<Set<string>>(new Set());
   const pendingSaveDataRef = useRef<Partial<typeof formData> | null>(null);
@@ -399,7 +400,10 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
   useEffect(() => {
     if (isOpen) {
       const currentId = ticket?.id ?? null;
-      const isNewTicket = currentId !== lastTicketIdRef.current;
+      // Al abrir siempre se reinicia el formulario: un ticket nuevo no tiene id (null), así que
+      // comparar solo ids dejaba cargados los datos del último ticket visto (null === null).
+      const isNewTicket = !wasOpenRef.current || currentId !== lastTicketIdRef.current;
+      wasOpenRef.current = true;
       lastTicketIdRef.current = currentId;
 
       if (isNewTicket) {
@@ -429,6 +433,7 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
         }
       }
     } else {
+      wasOpenRef.current = false;
       lastTicketIdRef.current = null;
       loadedDetailTicketIdRef.current = null;
       dirtyFieldsRef.current.clear();

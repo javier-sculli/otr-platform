@@ -1556,6 +1556,41 @@ describe('CreateTicketModal', () => {
   });
 });
 
+describe('CreateTicketModal — "Nuevo ticket" después de ver otro ticket', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('abre el formulario vacío y no con los datos del último ticket visto', async () => {
+    const ticketVisto = {
+      id: 'ticket-visto',
+      title: 'Ticket que estaba viendo',
+      client: { id: 'c1', name: 'Cliente 1' },
+      owner: { id: 'user-1', name: 'Tester' },
+      status: 'PENDIENTE',
+      prioridad: 'MEDIA',
+      canales: ['LinkedIn'],
+    };
+    (api.getTicket as any).mockResolvedValue({ data: ticketVisto });
+
+    const { rerender } = render(
+      <CreateTicketModal isOpen={true} onClose={vi.fn()} ticket={ticketVisto as any} />,
+      { wrapper: createWrapper() }
+    );
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('Ticket que estaba viendo')).toBeInTheDocument();
+    });
+
+    // El backlog cierra la ventana (selectedTicket = null) y después se aprieta "Nuevo ticket"
+    rerender(<CreateTicketModal isOpen={false} onClose={vi.fn()} ticket={null as any} />);
+    rerender(<CreateTicketModal isOpen={true} onClose={vi.fn()} ticket={null as any} />);
+
+    await waitFor(() => {
+      expect(screen.queryByDisplayValue('Ticket que estaba viendo')).not.toBeInTheDocument();
+    });
+  });
+});
+
 
 
 

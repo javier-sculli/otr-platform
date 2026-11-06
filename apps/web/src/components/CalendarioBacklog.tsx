@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { ChevronLeft, ChevronRight, Check } from 'lucide-react';
-import { parseLocalDate, getFechaVencimiento } from '../lib/utils';
+import { parseLocalDate, getFechaPublicacion } from '../lib/utils';
 import type { Ticket } from '../pages/BacklogPage';
 
 interface CalendarioBacklogProps {
@@ -46,7 +46,7 @@ export function CalendarioBacklog({ tickets, onTicketClick }: CalendarioBacklogP
 
   const getTicketsDelDia = (fechaStr: string) => {
     return tickets.filter(t => {
-      const dateToUse = t.dueDate || (t as any).plannedDate;
+      const dateToUse = getFechaPublicacion(t as any);
       if (!dateToUse) return false;
       const d = parseLocalDate(dateToUse);
       if (!d) return false;
@@ -57,7 +57,7 @@ export function CalendarioBacklog({ tickets, onTicketClick }: CalendarioBacklogP
 
   const esVencido = (t: Ticket) => {
     if (t.status === 'PUBLICADO' || t.status === 'LISTO' || t.status === 'CANCELADO') return false;
-    const dateToUse = getFechaVencimiento(t as any);
+    const dateToUse = getFechaPublicacion(t as any);
     if (!dateToUse) return false;
     const d = parseLocalDate(dateToUse);
     if (!d) return false;

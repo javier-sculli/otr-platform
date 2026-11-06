@@ -637,17 +637,27 @@ export function etiquetaMes(key: string, ahora: Date = new Date()): string {
   return raw.charAt(0).toUpperCase() + raw.slice(1);
 }
 
-/**
- * Fecha que define si un ticket está vencido (filtro "Vencidos" y fecha de la tarjeta del backlog).
- * Piezas: fecha de publicación (plannedDate), con la de entrega (dueDate) como respaldo si no está cargada.
- * Tareas: no tienen fecha de publicación, se usa la de entrega.
- */
-export function getFechaVencimiento(ticket: {
+type TicketConFechas = {
   dueDate?: string | Date | null;
   plannedDate?: string | Date | null;
   tipoTicket?: string | null;
   ticketType?: { kind?: string | null } | null;
-}): string | Date | null {
+};
+
+/**
+ * Fecha de las vistas de columnas del backlog (tarjeta, "Vencidos" y filtro de meses):
+ * la de entrega (dueDate), que es la fecha interna del equipo, con la de publicación como respaldo.
+ */
+export function getFechaEntrega(ticket: TicketConFechas): string | Date | null {
+  return ticket.dueDate || ticket.plannedDate || null;
+}
+
+/**
+ * Fecha de la vista calendario del backlog (día del ticket y marca de vencido).
+ * Piezas: fecha de publicación (plannedDate), con la de entrega (dueDate) como respaldo si no está cargada.
+ * Tareas: no tienen fecha de publicación, se usa la de entrega.
+ */
+export function getFechaPublicacion(ticket: TicketConFechas): string | Date | null {
   const isTarea = ticket.tipoTicket === 'TAREA' || ticket.ticketType?.kind === 'TAREA';
   if (isTarea) return ticket.dueDate ?? null;
   return ticket.plannedDate || ticket.dueDate || null;

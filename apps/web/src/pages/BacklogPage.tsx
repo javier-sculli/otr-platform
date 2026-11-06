@@ -14,7 +14,8 @@ import {
   calculateDropSortOrder,
   MESES_OFFSETS,
   filtrarMesesValidos,
-  getFechaVencimiento,
+  getFechaEntrega,
+  getFechaPublicacion,
   esMesManual,
   claveMesManual,
   fechaEnMes,
@@ -417,10 +418,13 @@ export function BacklogPage() {
     setMesesSeleccionados(prev => (prev.includes(key) ? prev : [...prev, key]));
   };
 
+  // Columnas: fecha de entrega (fecha interna del equipo). Calendario: fecha de publicación.
+  const getFechaDeVista = vista === 'calendario' ? getFechaPublicacion : getFechaEntrega;
+
   // Helper check ticket overdue
   const checkVencido = (t: Ticket) => {
     if (t.status === 'PUBLICADO' || t.status === 'LISTO' || t.status === 'CANCELADO') return false;
-    const dateToUse = getFechaVencimiento(t as any);
+    const dateToUse = getFechaDeVista(t as any);
     if (!dateToUse) return false;
     const d = parseLocalDate(dateToUse);
     if (!d) return false;
@@ -435,7 +439,7 @@ export function BacklogPage() {
       if (effectiveClientIds.length > 0 && !effectiveClientIds.includes(t.client.id)) return false;
       return checkVencido(t);
     }).length;
-  }, [allTickets, effectiveClientIds]);
+  }, [allTickets, effectiveClientIds, vista]);
 
   // Lista de voceros según clientes efectivos
   const ticketsParaVoceros = effectiveClientIds.length > 0
@@ -496,9 +500,9 @@ export function BacklogPage() {
       // Filtro vencidos
       if (soloVencidos && !checkVencido(t)) return false;
 
-      // Filtro de meses (misma fecha que "Vencidos")
+      // Filtro de meses (misma fecha que "Vencidos" y que muestra la vista)
       if (mesesSeleccionados.length > 0) {
-        const dateToUse = getFechaVencimiento(t as any);
+        const dateToUse = getFechaDeVista(t as any);
         if (dateToUse) {
           const due = parseLocalDate(dateToUse);
           if (due) {
@@ -518,7 +522,7 @@ export function BacklogPage() {
 
       return true;
     });
-  }, [allTickets, effectiveClientIds, vocerosSeleccionados, marcaSinVocero, soloMios, soloVencidos, mesesSeleccionados, busqueda, user?.id]);
+  }, [allTickets, effectiveClientIds, vocerosSeleccionados, marcaSinVocero, soloMios, soloVencidos, mesesSeleccionados, busqueda, user?.id, vista]);
 
   const hayFiltrosActivos = (
     busqueda.trim() !== '' ||
@@ -1364,8 +1368,8 @@ function TicketCard({
   // Prioridad
   const pri = PRIORIDAD_CONFIG[ticket.prioridad?.toUpperCase()] || PRIORIDAD_CONFIG.MEDIA;
 
-  // Fecha de la tarjeta: la misma que usa el filtro "Vencidos"
-  const dateToUse = getFechaVencimiento(ticket as any);
+  // Fecha de la tarjeta (vistas de columnas): la de entrega, igual que "Vencidos"
+  const dateToUse = getFechaEntrega(ticket as any);
   const parsedDue = dateToUse ? parseLocalDate(dateToUse) : null;
   const hoy = new Date();
   hoy.setHours(0, 0, 0, 0);

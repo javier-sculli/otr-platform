@@ -4,6 +4,13 @@
 > 
 > 🎯 **BACKLOG OFICIAL Y PRIORIDADES (FUENTE DE VERDAD):** [Notion Backlog Oficial](https://app.notion.com/p/Backlog-3ba617fc369281048bfdfc89c5041d9c?source=copy_link). Todas las prioridades y tareas activas se gestionan directamente allí.
 
+### [2026-11-06] — Fix "Nuevo ticket" con datos del último ticket visto + fechas por vista en Backlog
+- **Desarrollador:** Shaiel Terán (con Claude Code)
+- **Alcance & Objetivos:**
+  - **Bug (`CreateTicketModal.tsx`):** al cerrar un ticket existente y abrir "Nuevo ticket", el formulario mostraba los datos del ticket anterior. El reinicio dependía de comparar `ticket.id` con `lastTicketIdRef`, que al cerrar volvía a `null`; un ticket nuevo también es `null`, así que no se reiniciaba. Se agregó `wasOpenRef` para reiniciar siempre al abrir.
+  - **Fechas por vista (pedido del equipo):** `getFechaVencimiento` se separó en `getFechaEntrega` (vistas Compacta/Completa: fecha de la tarjeta, "Vencidos" y filtro de meses; `dueDate` con `plannedDate` de respaldo) y `getFechaPublicacion` (vista Calendario: día del ticket, marca de vencido, "Vencidos" y filtro de meses; piezas por `plannedDate` con `dueDate` de respaldo, tareas por `dueDate`). Reemplaza la decisión del 2026-11-04 de usar publicación en las columnas.
+- **Tests:** `ticketModals.test.tsx` suma el caso "abre el formulario vacío y no con los datos del último ticket visto" (no corre localmente con Node 18: requiere jsdom/Node ≥ 22). `utils.test.ts` suma casos para `getFechaEntrega` y renombra los de `getFechaPublicacion`; pasan con `--environment node`.
+
 ### [2026-11-04] — Backlog: densidad visual, "Vencidos" por fecha de publicación y "Otro mes" en el filtro de meses
 - **Desarrollador:** Shaiel Terán (con Claude Code)
 - **Alcance & Objetivos:**
