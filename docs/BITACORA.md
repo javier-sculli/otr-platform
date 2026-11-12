@@ -4,6 +4,25 @@
 > 
 > 🎯 **BACKLOG OFICIAL Y PRIORIDADES (FUENTE DE VERDAD):** [Notion Backlog Oficial](https://app.notion.com/p/Backlog-3ba617fc369281048bfdfc89c5041d9c?source=copy_link). Todas las prioridades y tareas activas se gestionan directamente allí.
 
+### [2026-11-12] — Auto-envío de comentarios/imágenes al cerrar o crear ticket + Sistema Global de Toasts de Error en Guardado
+- **Desarrollador:** Antigravity (Pair Programming con Javier Sculli)
+- **Caso diagnosticado:**
+  - Ticket `0bce4a95-9024-4b9d-9a72-a63442b2f993` (*"Carrusel León Papa"*, Cliente: Icona). El equipo reportó que no habían quedado cargados el comentario ni las imágenes al crear el ticket a las `13:07` ARG y tuvo que volver a subir las 6 imágenes al mediodía (`13:09` ARG).
+  - Causa: todo el modal de ticket funciona con auto-guardado al editar o cerrar, pero la caja de comentarios e imágenes adjuntas (`TicketCommentsThread`) requería un click explícito adicional en `"Comentar"` antes de apretar `"Crear ticket"` o cerrar el modal. Además, si cualquier endpoint de guardado fallaba, no había notificación visual global (Toast).
+- **Alcance & Solución Implementada:**
+  1. **Auto-envío de comentarios e imágenes pendientes (`TicketCommentsThread.tsx`, `CreateTicketModal.tsx`, `TicketDetallePage.tsx`):**
+     - `TicketCommentsThread` expone `hasPendingComment()` y `flushPendingComment(overrideTicketId?)` mediante `forwardRef`.
+     - Espera automáticamente cualquier subida de imagen/archivo en curso (`pendingUploadPromisesRef`), sube archivos que hayan sido adjuntados antes de que un ticket nuevo tuviera ID (`pendingRawFilesRef` -> `POST /tickets/:id/attachments`), y publica el comentario (`POST /tickets/:id/comments`).
+     - Se ejecuta automáticamente al tocar `"Crear ticket"`, al cerrar el modal (`✕`, `Escape`, click afuera) y al volver desde `/piezas/:id` (`< Backlog`).
+     - Si el guardado del comentario o adjunto falla, se cancela el cierre del modal para que el usuario no pierda su texto ni sus imágenes.
+  2. **Sistema Global de Toasts para errores de guardado (`toast.ts`, `ToastContainer.tsx`, `api.ts`, `App.tsx`):**
+     - Cualquier request de escritura (`POST`, `PUT`, `PATCH`, `DELETE` en `/tickets`, `/comments`, `/attachments`, etc.) que falle en `api.ts` dispara automáticamente un Toast de alerta visual con deduplicación inteligente, evitando fallos silenciosos en toda la plataforma.
+  3. **Runtime Node 20 (`.node-version`, `.nvmrc`, `package.json`):**
+     - Actualización de versión declarada de Node `18` a `20` (`>=20.9.0`) para compatibilidad nativa de `sharp` en el backend de Railway al comprimir adjuntos en `/tickets/:id/attachments`.
+- **Cobertura de Tests Automatizados:**
+  - Nuevo archivo `apps/web/src/components/__tests__/commentAutoFlushAndToasts.test.tsx` (4 tests de integración).
+  - Total suite: `33 passed (33)`, `286 passed (286)`, `pnpm typecheck` con 0 errores.
+
 ### [2026-11-06] — Fix "Nuevo ticket" con datos del último ticket visto + fechas por vista en Backlog
 - **Desarrollador:** Shaiel Terán (con Claude Code)
 - **Alcance & Objetivos:**

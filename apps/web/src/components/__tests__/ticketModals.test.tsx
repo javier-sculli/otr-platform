@@ -1589,6 +1589,110 @@ describe('CreateTicketModal — "Nuevo ticket" después de ver otro ticket', () 
       expect(screen.queryByDisplayValue('Ticket que estaba viendo')).not.toBeInTheDocument();
     });
   });
+
+  it('pide confirmación antes de cerrar un ticket nuevo con cambios sin guardar y evita perder el borrador si se cancela', async () => {
+    const onClose = vi.fn();
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValueOnce(false).mockReturnValueOnce(true);
+
+    render(
+      <CreateTicketModal isOpen={true} onClose={onClose} ticket={null} />,
+      { wrapper: createWrapper() }
+    );
+
+    const titleInput = screen.getByPlaceholderText(/nombre de la pieza/i);
+    await userEvent.type(titleInput, 'POST Simo | Artículo sobre burocracia');
+
+    // Clic en el backdrop oscuro con datos cargados -> pide confirmación y NO cierra si el usuario cancela
+    const backdrop = document.querySelector('.bg-black\\/40') as HTMLElement;
+    fireEvent.mouseDown(backdrop);
+    fireEvent.click(backdrop);
+
+    expect(confirmSpy).toHaveBeenCalledTimes(1);
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.getByDisplayValue('POST Simo | Artículo sobre burocracia')).toBeInTheDocument();
+
+    // Si el usuario confirma descartar los cambios, sí cierra el modal
+    fireEvent.mouseDown(backdrop);
+    fireEvent.click(backdrop);
+    expect(confirmSpy).toHaveBeenCalledTimes(2);
+    expect(onClose).toHaveBeenCalledTimes(1);
+
+    confirmSpy.mockRestore();
+  });
+
+  it('incluye contentPerCanal y notasAudiovisual en POST /tickets al crear una pieza nueva y sanitiza años de 5 dígitos en fechas', async () => {
+    vi.mocked(api.getTicketTypes).mockResolvedValue({
+      data: [{ id: 'tt-post', name: 'Placa gráfica', kind: 'CONTENIDO' }],
+    });
+    vi.mocked(api.getClients).mockResolvedValue({
+      data: [{ id: 'client-1', name: 'Simetric', canales: ['LinkedIn'] }],
+    });
+    vi.mocked(api.getUsers).mockResolvedValue({
+      data: [{ id: 'user-1', name: 'Sofía Chaieb', email: 'sofia@otr.com' }],
+    });
+    vi.mocked(api.createTicket).mockResolvedValue({
+      data: { id: 'created-simo-1', title: 'POST Simo | Artículo sobre burocracia' },
+    });
+
+    const onClose = vi.fn();
+    render(
+      <CreateTicketModal
+        isOpen={true}
+        onClose={onClose}
+        defaultClientId="client-1"
+      />,
+      { wrapper: createWrapper() }
+    );
+
+    const titleInput = await screen.findByPlaceholderText(/nombre de la pieza/i);
+    await userEvent.type(titleInput, 'POST Simo | Artículo sobre burocracia');
+
+    // Seleccionar formato Placa gráfica
+    const formatoPicker = screen.getByTestId('ticket-format-picker');
+    await userEvent.click(formatoPicker.querySelector('button')!);
+    await userEvent.click(await screen.findByText('Placa gráfica'));
+
+    // Seleccionar responsable
+    await userEvent.click(screen.getByRole('button', { name: '+ Agregar' }));
+    await userEvent.click(await screen.findByTestId('candidate-user-user-1'));
+
+    // Seleccionar red LinkedIn, escribir copy y abrir/escribir notas de diseño
+    const linkedInBtn = await screen.findByRole('button', { name: /^\+ LinkedIn$/i });
+    await userEvent.click(linkedInBtn);
+    const copyEditor = await screen.findByPlaceholderText(/Copy para LinkedIn/i);
+    await userEvent.type(copyEditor, 'Copy inicial para LinkedIn');
+
+    const notasToggle = screen.getByRole('button', { name: /notas de diseño/i });
+    await userEvent.click(notasToggle);
+    const notasEditor = await screen.findByPlaceholderText(/placa estilo «en medios»/i);
+    await userEvent.type(notasEditor, 'Indicaciones de diseño para placa');
+
+    // Verificar que los inputs de fecha tienen max="9999-12-31" y sanitizan un año de 5 dígitos como 20226-11-13
+    const dateInputs = document.querySelectorAll('input[type="date"]') as NodeListOf<HTMLInputElement>;
+    expect(dateInputs.length).toBeGreaterThanOrEqual(2);
+    dateInputs.forEach((inp) => {
+      expect(inp.getAttribute('max')).toBe('9999-12-31');
+    });
+    fireEvent.change(dateInputs[0], { target: { value: '20226-11-13' } });
+
+    // Crear ticket
+    const createBtn = screen.getByRole('button', { name: /crear ticket/i });
+    await userEvent.click(createBtn);
+
+    await waitFor(() => {
+      expect(api.createTicket).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: 'POST Simo | Artículo sobre burocracia',
+          dueDate: '2026-11-13',
+          notasAudiovisual: expect.stringContaining('Indicaciones de diseño para placa'),
+          contentPerCanal: expect.objectContaining({
+            LinkedIn: expect.stringContaining('Copy inicial para LinkedIn'),
+          }),
+        })
+      );
+    });
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
 });
 
 

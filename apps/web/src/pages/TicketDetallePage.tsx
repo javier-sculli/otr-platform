@@ -31,11 +31,13 @@ import {
   TicketStatusPicker,
   useInlineComments,
   TicketCommentsThread,
+  type TicketCommentsThreadHandle,
   TicketResources,
   TicketFormatPicker,
 } from '../components/ticket';
 import { SUB_DEF, STATUS_OPTIONS, PRENSA_STATUS_OPTIONS, getNextStatusInfo, type SubEstado } from '../lib/estados';
 import { createAttachmentFromFile, type AttachedFileItem } from '../lib/attachments';
+import { notifyApiSaveError } from '../lib/toast';
 
 type AttachedFile = AttachedFileItem;
 
@@ -123,6 +125,9 @@ export function TicketDetallePage() {
         });
       }
       return res;
+    },
+    onError: (err: any) => {
+      notifyApiSaveError(`/tickets/${ticketId || ''}`, 'PATCH', err?.message);
     },
     debounceMs: 750,
   });
@@ -339,6 +344,7 @@ export function TicketDetallePage() {
   const copyRef = useRef<HTMLDivElement>(null);
   const notasRef = useRef<HTMLDivElement>(null);
   const headerRef = useRef<HTMLDivElement>(null);
+  const commentsThreadRef = useRef<TicketCommentsThreadHandle>(null);
   const [stickyOffset, setStickyOffset] = useState(180);
 
   useEffect(() => {
@@ -712,6 +718,10 @@ export function TicketDetallePage() {
                     queueSave({ notasAudiovisual: currentNotas || null }, true);
                   }
                   await flushSave();
+                  if (ticketId && commentsThreadRef.current?.hasPendingComment()) {
+                    const commentOk = await commentsThreadRef.current.flushPendingComment(ticketId);
+                    if (!commentOk) return;
+                  }
                   navigate('/backlog');
                 }}
                 className="flex items-center gap-1 border-0 bg-transparent cursor-pointer font-anek text-[14px] text-[#5b6675] py-1 px-2 -ml-1 rounded-md hover:bg-[#eef3f7] hover:text-[#0d0d0d] transition-colors"
@@ -1411,6 +1421,7 @@ export function TicketDetallePage() {
 
             {/* 0 Comentarios */}
             <TicketCommentsThread
+              ref={commentsThreadRef}
               ticketId={ticketId}
               comments={comments}
               currentUserId={currentUser?.id}
@@ -1455,6 +1466,7 @@ export function TicketDetallePage() {
                   <span className="text-[12px] font-bold tracking-[0.06em] uppercase text-[#5b6675]">Fecha de entrega</span>
                   <input
                     type="date"
+                    max="9999-12-31"
                     defaultValue={formatDateISO(ticket.dueDate)}
                     onChange={e => updateMutation.mutate({ dueDate: e.target.value || null })}
                     className="h-[42px] box-border font-anek text-[15px] px-3 border border-[#d6dde5] rounded-lg bg-white outline-none text-[#0d0d0d] min-w-0 w-full focus:border-[#024fff]"
@@ -1465,6 +1477,7 @@ export function TicketDetallePage() {
                     <span className="text-[12px] font-bold tracking-[0.06em] uppercase text-[#5b6675]">Fecha de publicación</span>
                     <input
                       type="date"
+                      max="9999-12-31"
                       defaultValue={formatDateISO((ticket as any).plannedDate)}
                       onChange={e => updateMutation.mutate({ plannedDate: e.target.value || null })}
                       className="h-[42px] box-border font-anek text-[15px] px-3 border border-[#d6dde5] rounded-lg bg-white outline-none text-[#0d0d0d] min-w-0 w-full focus:border-[#024fff]"

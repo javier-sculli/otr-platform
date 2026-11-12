@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, forwardRef, useImperativeHandle } from 'react';
 import { Trash2, Loader2, Image as ImageIcon, X, Paperclip, FileText, Download } from 'lucide-react';
 import { MentionTextarea } from '../MentionTextarea';
 import { compressImageFile, parseCommentContent, buildCommentContent, isImageFile } from '../../lib/imageCompression';
@@ -6,6 +6,12 @@ import { readFileAsDataUrl, formatFileSize, MAX_COMMENT_ATTACHMENT_SIZE_BYTES } 
 import { CommentImageViewerModal } from './CommentImageViewerModal';
 import { CommentImage } from './CommentImage';
 import { api, resolveAttachmentUrl } from '../../lib/api';
+import { notifyApiSaveError } from '../../lib/toast';
+
+export interface TicketCommentsThreadHandle {
+  flushPendingComment: (overrideTicketId?: string) => Promise<boolean>;
+  hasPendingComment: () => boolean;
+}
 
 export interface TicketCommentItem {
   id: string;
@@ -29,7 +35,7 @@ export interface TicketCommentsThreadProps {
   currentUserId?: string;
   currentUserName?: string;
   teamList: { id: string; name: string }[];
-  onAddComment: (content: string) => void | Promise<any>;
+  onAddComment: (content: string, overrideTicketId?: string) => void | Promise<any>;
   onDeleteComment?: (commentId: string) => void | Promise<any>;
   onLocateQuote?: (quote: string) => void;
   isPendingAdd?: boolean;
@@ -88,7 +94,7 @@ function formatCommentDate(cm: TicketCommentItem): string {
   return cm.when || '';
 }
 
-export const TicketCommentsThread: React.FC<TicketCommentsThreadProps> = ({
+export const TicketCommentsThread = forwardRef<TicketCommentsThreadHandle, TicketCommentsThreadProps>(({
   ticketId,
   comments,
   currentUserId,
@@ -102,7 +108,7 @@ export const TicketCommentsThread: React.FC<TicketCommentsThreadProps> = ({
   createdDate,
   updatedDate,
   className = '',
-}) => {
+}, ref) => {
   const [commentInput, setCommentInput] = useState('');
   const [pastedImages, setPastedImages] = useState<string[]>([]);
   const [attachedCommentFiles, setAttachedCommentFiles] = useState<Array<{ name: string; url: string; size?: number }>>([]);
@@ -114,13 +120,21 @@ export const TicketCommentsThread: React.FC<TicketCommentsThreadProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
 
+  const commentInputRef = useRef('');
+  const pastedImagesRef = useRef<string[]>([]);
+  const attachedFilesRef = useRef<Array<{ name: string; url: string; size?: number }>>([]);
+  const pendingRawFilesRef = useRef<Map<string, File>>(new Map());
+  const pendingUploadPromisesRef = useRef<Set<Promise<any>>>(new Set());
+  const isSendingRef = useRef(false);
+
   const draftStorageKey = ticketId ? `otr_draft_comment_${ticketId}` : null;
 
   useEffect(() => {
     if (draftStorageKey) {
       try {
         const saved = sessionStorage.getItem(draftStorageKey);
-        if (saved && !commentInput) {
+        if (saved && !commentInputRef.current) {
+          commentInputRef.current = saved;
           setCommentInput(saved);
         }
       } catch {}
@@ -128,6 +142,7 @@ export const TicketCommentsThread: React.FC<TicketCommentsThreadProps> = ({
   }, [draftStorageKey]);
 
   const handleCommentInputChange = (val: string) => {
+    commentInputRef.current = val;
     setCommentInput(val);
     if (sendError) setSendError(null);
     if (draftStorageKey) {
@@ -145,27 +160,45 @@ export const TicketCommentsThread: React.FC<TicketCommentsThreadProps> = ({
     const list = Array.isArray(files) ? files : [files];
     const valid = list.filter(f => isImageFile(f));
     if (valid.length === 0) return;
-    try {
-      setIsCompressing(true);
-      if (ticketId) {
-        const uploaded = await Promise.all(
-          valid.map(async f => {
-            const res = await api.uploadAttachment(ticketId, f);
-            return res.data.url;
-          })
-        );
-        setPastedImages(prev => [...prev, ...uploaded]);
-      } else {
-        const compressedList = await Promise.all(
-          valid.map(f => compressImageFile(f))
-        );
-        setPastedImages(prev => [...prev, ...compressedList]);
+
+    const task = (async () => {
+      try {
+        setIsCompressing(true);
+        if (ticketId && typeof api.uploadAttachment === 'function') {
+          const uploaded = await Promise.all(
+            valid.map(async f => {
+              const res = await api.uploadAttachment(ticketId, f);
+              return res.data.url;
+            })
+          );
+          pastedImagesRef.current = [...pastedImagesRef.current, ...uploaded];
+          setPastedImages(pastedImagesRef.current);
+        } else {
+          const compressedList = await Promise.all(
+            valid.map(async f => {
+              const dataUrl = await compressImageFile(f);
+              pendingRawFilesRef.current.set(dataUrl, f);
+              return dataUrl;
+            })
+          );
+          pastedImagesRef.current = [...pastedImagesRef.current, ...compressedList];
+          setPastedImages(pastedImagesRef.current);
+        }
+      } catch (err: any) {
+        console.error('Error al procesar imágenes:', err);
+        const msg = err?.message || 'Error al procesar imagen';
+        setSendError(msg);
+        notifyApiSaveError(`/tickets/${ticketId || 'new'}/attachments`, 'POST', msg);
+      } finally {
+        setIsCompressing(false);
       }
-    } catch (err: any) {
-      console.error('Error al procesar imágenes:', err);
-      setSendError(err?.message || 'Error al procesar imagen');
+    })();
+
+    pendingUploadPromisesRef.current.add(task);
+    try {
+      await task;
     } finally {
-      setIsCompressing(false);
+      pendingUploadPromisesRef.current.delete(task);
     }
   };
 
@@ -191,67 +224,159 @@ export const TicketCommentsThread: React.FC<TicketCommentsThreadProps> = ({
     }
 
     if (docFiles.length > 0) {
-      try {
-        setIsCompressing(true);
-        if (ticketId) {
-          const docs = await Promise.all(
-            docFiles.map(async f => {
-              const res = await api.uploadAttachment(ticketId, f);
-              return { name: res.data.fileName, url: res.data.url, size: res.data.size };
-            })
-          );
-          setAttachedCommentFiles(prev => [...prev, ...docs]);
-        } else {
-          const docs = await Promise.all(
-            docFiles.map(async f => {
-              const dataUrl = await readFileAsDataUrl(f);
-              return { name: f.name, url: dataUrl, size: f.size };
-            })
-          );
-          setAttachedCommentFiles(prev => [...prev, ...docs]);
+      const task = (async () => {
+        try {
+          setIsCompressing(true);
+          if (ticketId && typeof api.uploadAttachment === 'function') {
+            const docs = await Promise.all(
+              docFiles.map(async f => {
+                const res = await api.uploadAttachment(ticketId, f);
+                return { name: res.data.fileName, url: res.data.url, size: res.data.size };
+              })
+            );
+            attachedFilesRef.current = [...attachedFilesRef.current, ...docs];
+            setAttachedCommentFiles(attachedFilesRef.current);
+          } else {
+            const docs = await Promise.all(
+              docFiles.map(async f => {
+                const dataUrl = await readFileAsDataUrl(f);
+                pendingRawFilesRef.current.set(dataUrl, f);
+                return { name: f.name, url: dataUrl, size: f.size };
+              })
+            );
+            attachedFilesRef.current = [...attachedFilesRef.current, ...docs];
+            setAttachedCommentFiles(attachedFilesRef.current);
+          }
+        } catch (err: any) {
+          console.error('Error al procesar archivos adjuntos:', err);
+          const msg = err?.message || 'Error al leer el archivo';
+          setSendError(msg);
+          notifyApiSaveError(`/tickets/${ticketId || 'new'}/attachments`, 'POST', msg);
+        } finally {
+          setIsCompressing(false);
         }
-      } catch (err: any) {
-        console.error('Error al procesar archivos adjuntos:', err);
-        setSendError(err?.message || 'Error al leer el archivo');
+      })();
+
+      pendingUploadPromisesRef.current.add(task);
+      try {
+        await task;
       } finally {
-        setIsCompressing(false);
+        pendingUploadPromisesRef.current.delete(task);
       }
     }
   };
 
   const handleRemovePastedImage = (index: number) => {
-    setPastedImages(prev => prev.filter((_, i) => i !== index));
+    pastedImagesRef.current = pastedImagesRef.current.filter((_, i) => i !== index);
+    setPastedImages(pastedImagesRef.current);
   };
 
   const handleRemoveCommentFile = (index: number) => {
-    setAttachedCommentFiles(prev => prev.filter((_, i) => i !== index));
+    attachedFilesRef.current = attachedFilesRef.current.filter((_, i) => i !== index);
+    setAttachedCommentFiles(attachedFilesRef.current);
   };
 
   const isBusy = isPendingAdd || isSubmitting;
 
-  const handleSend = async () => {
-    const trimmed = commentInput.trim();
-    if ((!trimmed && pastedImages.length === 0 && attachedCommentFiles.length === 0) || isBusy || isCompressing) return;
-    const fullContent = buildCommentContent(trimmed, pastedImages, attachedCommentFiles);
+  const executeSend = async (overrideTicketId?: string): Promise<boolean> => {
+    if (pendingUploadPromisesRef.current.size > 0) {
+      await Promise.allSettled(Array.from(pendingUploadPromisesRef.current));
+    }
+
+    const trimmed = commentInputRef.current.trim();
+    const currentImages = [...pastedImagesRef.current];
+    const currentFiles = [...attachedFilesRef.current];
+
+    if ((!trimmed && currentImages.length === 0 && currentFiles.length === 0) || isSendingRef.current) {
+      return true;
+    }
+
+    const effectiveTicketId = overrideTicketId || ticketId;
+    isSendingRef.current = true;
+    setIsSubmitting(true);
+    setSendError(null);
+
     try {
-      setIsSubmitting(true);
-      setSendError(null);
-      await onAddComment(fullContent);
+      // If images/files were added before the ticket had an ID, try uploading them now to /attachments
+      let finalImages = currentImages;
+      let finalFiles = currentFiles;
+
+      if (effectiveTicketId && typeof api?.uploadAttachment === 'function') {
+        finalImages = await Promise.all(
+          currentImages.map(async (imgUrl) => {
+            const rawFile = pendingRawFilesRef.current.get(imgUrl);
+            if (rawFile && imgUrl.startsWith('data:')) {
+              const res = await api.uploadAttachment(effectiveTicketId, rawFile);
+              if (res?.data?.url) return res.data.url;
+            }
+            return imgUrl;
+          })
+        );
+        finalFiles = await Promise.all(
+          currentFiles.map(async (f) => {
+            const rawFile = pendingRawFilesRef.current.get(f.url);
+            if (rawFile && f.url.startsWith('data:')) {
+              const res = await api.uploadAttachment(effectiveTicketId, rawFile);
+              if (res?.data?.url) {
+                return { name: res.data.fileName || f.name, url: res.data.url, size: res.data.size ?? f.size };
+              }
+            }
+            return f;
+          })
+        );
+      }
+
+      const fullContent = buildCommentContent(trimmed, finalImages, finalFiles);
+      if (overrideTicketId !== undefined) {
+        await onAddComment(fullContent, overrideTicketId);
+      } else {
+        await onAddComment(fullContent);
+      }
+
+      commentInputRef.current = '';
+      pastedImagesRef.current = [];
+      attachedFilesRef.current = [];
+      pendingRawFilesRef.current.clear();
       setCommentInput('');
       setPastedImages([]);
       setAttachedCommentFiles([]);
+
       if (draftStorageKey) {
         try {
           sessionStorage.removeItem(draftStorageKey);
         } catch {}
       }
+      return true;
     } catch (err: any) {
       console.error('Error al enviar comentario:', err);
-      setSendError(err?.message || 'No se pudo guardar el comentario. Intentá de nuevo.');
+      const msg = err?.message || 'No se pudo guardar el comentario. Intentá de nuevo.';
+      setSendError(msg);
+      notifyApiSaveError(`/tickets/${effectiveTicketId || 'new'}/comments`, 'POST', msg);
+      return false;
     } finally {
+      isSendingRef.current = false;
       setIsSubmitting(false);
     }
   };
+
+  const handleSend = async () => {
+    if (isBusy || isCompressing) return;
+    await executeSend();
+  };
+
+  useImperativeHandle(ref, () => ({
+    hasPendingComment: () => {
+      return (
+        commentInputRef.current.trim().length > 0 ||
+        pastedImagesRef.current.length > 0 ||
+        attachedFilesRef.current.length > 0 ||
+        pendingUploadPromisesRef.current.size > 0
+      );
+    },
+    flushPendingComment: async (overrideTicketId?: string) => {
+      return executeSend(overrideTicketId);
+    },
+  }));
 
   const isPage = variant === 'page';
 
@@ -647,4 +772,4 @@ export const TicketCommentsThread: React.FC<TicketCommentsThreadProps> = ({
       )}
     </div>
   );
-};
+});

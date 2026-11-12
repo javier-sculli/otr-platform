@@ -6,6 +6,7 @@ import type {
   KnowledgeChatDTO,
   KnowledgeChatResponse,
 } from '@otr/types';
+import { notifyApiSaveError } from './toast';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
@@ -42,14 +43,23 @@ class ApiClient {
       (headers as any)['Authorization'] = `Bearer ${token}`;
     }
 
-    const response = await fetch(`${API_URL}${endpoint}`, {
-      ...options,
-      headers,
-    });
+    const method = (options.method || 'GET').toUpperCase();
+    let response: Response;
+    try {
+      response = await fetch(`${API_URL}${endpoint}`, {
+        ...options,
+        headers,
+      });
+    } catch (err: any) {
+      notifyApiSaveError(endpoint, method, err?.message);
+      throw err;
+    }
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({ error: 'Request failed' }));
-      throw new Error(error.error || `Request failed: ${response.statusText}`);
+      const msg = error.error || `Request failed: ${response.statusText}`;
+      notifyApiSaveError(endpoint, method, msg);
+      throw new Error(msg);
     }
 
     if (response.status === 204) {
@@ -348,15 +358,24 @@ class ApiClient {
       headers['Authorization'] = `Bearer ${token}`;
     }
 
-    const response = await fetch(`${API_URL}/tickets/${ticketId}/attachments`, {
-      method: 'POST',
-      headers,
-      body: formData,
-    });
+    const endpoint = `/tickets/${ticketId}/attachments`;
+    let response: Response;
+    try {
+      response = await fetch(`${API_URL}${endpoint}`, {
+        method: 'POST',
+        headers,
+        body: formData,
+      });
+    } catch (err: any) {
+      notifyApiSaveError(endpoint, 'POST', err?.message);
+      throw err;
+    }
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.error || 'Error al subir archivo adjunto');
+      const msg = errorData.error || 'Error al subir archivo adjunto';
+      notifyApiSaveError(endpoint, 'POST', msg);
+      throw new Error(msg);
     }
 
     return response.json() as Promise<{

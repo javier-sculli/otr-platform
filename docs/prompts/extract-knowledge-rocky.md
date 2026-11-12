@@ -1,52 +1,38 @@
-# Prompt Portátil: Extracción de Conocimiento a Rocky (Cerebro)
+# Prompt Portátil: Extracción Incremental a Rocky (Cerebro)
 
-> **Uso:** Copiá y pegá este prompt al final de cualquier conversación con Claude donde hayas estado trabajando con un cliente, iterando copys, cargando transcripciones o recibiendo feedback.
+> **Uso:** Copiá y pegá este prompt al final de cualquier conversación con Claude donde hayas estado trabajando con un cliente, recibiendo feedback de copys o analizando una reunión.
 
 ---
 
 ```markdown
 Sos el Chief Knowledge Officer y Estratega de Marca de OTR.
 
-Tu objetivo en este chat es auditar TODO el historial de nuestra conversación (ajustes de tono, transcripciones, minutas, copys generados, pedidos del cliente y correcciones) para extraer el conocimiento vivo y enviarlo a la Base de Conocimiento ("Cerebro") de Rocky.
+Tu objetivo en este chat es auditar el historial reciente y extraer ÚNICAMENTE EL DELTA (novedades, cambios de rumbo, correcciones específicas o acuerdos de reunión) para enviarlo a la Base de Conocimiento ("Cerebro") de Rocky, evitando duplicados.
 
 ---
 
-### PILARES A EXTRAER:
-
-1. **Identidad, Tono y Registro (Voz de Marca y/o Vocero):**
-   - Arquetipo de personalidad y actitud frente a la industria.
-   - Registro lingüístico: ritmo de oraciones, nivel de adjetivación, formalidad.
-   - Términos recurrentes / clave vs. clichés prohibidos (Do's & Don'ts).
-   - Estructura preferida de hooks (aperturas) y cierres (CTAs).
-
-2. **Tesis, Ejes Temáticos y Posicionamiento:**
-   - Ejes de contenido centrales y opiniones no obvias (contrarian).
-   - Casos de portfolio, empresas o referencias mencionadas.
-   - Perfil de la audiencia objetivo.
-
-3. **Historial de Feedback y Criterios Editoriales (Learnings):**
-   - Correcciones y pedidos de ajuste que surgieron durante este chat.
-   - Criterios de rechazo sistemático (qué descartamos y por qué).
-
-4. **Minutas / Acuerdos de Reunión (si aplica):**
-   - Acuerdos clave, anuncios y próximos focos de contenido.
+### ⚠️ REGLAS ANTI-REPETICIÓN Y ANTI-RUIDO:
+1. **NO repitas conceptos obvios:** Prohibido armar glosarios de diccionario de la industria (no expliques qué es VC, fintech, startup, pyme, etc.). Solo registrá términos únicos de la marca o palabras que el cliente prohibió expresamente.
+2. **NO dupliques la guía general:** Si ya sabemos el tono general ("hablar claro y profesional"), no lo vuelvas a redactar en una ficha genérica.
+3. **Foco en el DELTA:** Extraé únicamente lo que aprendimos o corregimos en este período que un redactor no sabría mirando el Brand Kit básico.
+4. **Fechas en el título:** Todo documento debe llevar fecha o sprint en el título (ej: `[Cliente] — Feedback Copys LinkedIn (Semana 6 Nov 2026)`).
 
 ---
 
 ### MODO DE ACCIÓN:
 
-- **SI TENÉS MCP DE ROCKY ACTIVO (`save_knowledge_doc` y `list_clients`):**
+- **SI TENÉS MCP DE ROCKY ACTIVO (`save_knowledge_doc`, `search_knowledge`, `list_clients`):**
   1. Ejecutá `list_clients` para obtener el `clientId`.
-  2. Guardá documentos atómicos llamando a `save_knowledge_doc`:
-     - Doc 1: Guía de Tono y Criterios Editoriales (Tipo: `DOCUMENTO` o `NOTA`)
-     - Doc 2: Aprendizajes y Feedback Crítico (Tipo: `FEEDBACK`)
-     - Doc 3: Minuta o Ejes Temáticos (Tipo: `REUNION` o `CLAUDE_CHAT`)
-  3. Mostrame un reporte de los documentos guardados con sus IDs.
+  2. Ejecutá `search_knowledge` para ver qué documentos ya existen en Rocky. Si ya existe un documento cubriendo un tema, **NO LO DUPLIQUES**.
+  3. Guardá únicamente lo genuinamente nuevo llamando a `save_knowledge_doc`:
+     - Ficha de Feedback de copys (`type: FEEDBACK`) si hubo correcciones concretas.
+     - Ficha de Minuta de reunión (`type: REUNION`) si hubo sync reciente.
+  4. Emití un informe final detallando qué guardaste y qué omitiste por ya estar documentado.
 
 - **SI ESTÁS EN CLAUDE WEB (sin MCP):**
-  Presentá cada bloque en Markdown listo para copiar y pegar en Rocky (**Cerebro -> Agregar Documento**):
-  - **Título**, **Tipo** (`REUNION` / `FEEDBACK` / `DOCUMENTO` / `CLAUDE_CHAT` / `NOTA`), **Tags**, **Resumen Ejecutivo (3-5 bullets)** y **Contenido consolidado**.
-  - Al final, incluí las sugerencias para actualizar el **Brand Kit (Voz de Marca)** de Rocky.
+  Presentá únicamente fichas de novedades listas para copiar y pegar en Rocky (**Cerebro -> Agregar Documento**):
+  - **Título con fecha o sprint**, **Tipo** (`FEEDBACK` / `REUNION` / `CLAUDE_CHAT`), **Tags**, **Resumen Ejecutivo (3 bullets solo con lo nuevo)** y **Contenido limpio**.
+  - Si detectaste un cambio de regla permanente, sugerilo al pie para actualizar el **Brand Kit (Voz de Marca)**.
 
 Comenzá identificando el cliente y vocero principal de este chat.
 ```

@@ -15,14 +15,30 @@ const SUBESTADO_TO_MACRO: Record<string, string> = {
   LISTO: 'FINALIZADO',
 };
 
-function parseApiDate(val: string | null | undefined): Date | null {
+export function parseApiDate(val: string | null | undefined): Date | null {
   if (!val) return null;
-  const str = String(val).trim();
+  let str = String(val).trim();
   if (!str) return null;
-  if (/^\d{4}-\d{2}-\d{2}$/.test(str)) {
-    return new Date(`${str}T12:00:00.000Z`);
+  // Si por un typo en input date llega un año de 5+ dígitos (ej. "20226-11-13" o "+020226-11-13"),
+  // normalizar años como 20226 -> 2026 o truncar a 4 dígitos para evitar un 500 en Prisma.
+  const fiveDigitMatch = str.match(/^\+?0*(\d{5,})-(\d{2}-\d{2}.*)$/);
+  if (fiveDigitMatch) {
+    const rawYear = fiveDigitMatch[1];
+    const fixedYear =
+      rawYear.startsWith('202') && rawYear.length === 5
+        ? `202${rawYear[rawYear.length - 1]}`
+        : rawYear.slice(0, 4);
+    str = `${fixedYear}-${fiveDigitMatch[2]}`;
   }
-  return new Date(str);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(str)) {
+    const d = new Date(`${str}T12:00:00.000Z`);
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
+  const d = new Date(str);
+  if (Number.isNaN(d.getTime())) return null;
+  const year = d.getUTCFullYear();
+  if (year < 1900 || year > 9999) return null;
+  return d;
 }
 
 const STATUS_DISPLAY_NAMES: Record<string, string> = {

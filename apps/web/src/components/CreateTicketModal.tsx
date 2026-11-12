@@ -20,10 +20,12 @@ import {
   TicketStatusPicker,
   useInlineComments,
   TicketCommentsThread,
+  type TicketCommentsThreadHandle,
   TicketResources,
   TicketFormatPicker,
 } from './ticket';
 import { createAttachmentFromFile, type AttachedFileItem } from '../lib/attachments';
+import { notifyApiSaveError } from '../lib/toast';
 
 export type AttachedFile = AttachedFileItem;
 
@@ -103,6 +105,25 @@ const TPL_TAREA: Record<string, string> = {
 };
 
 const DESIGN_STATES = ['DISENO', 'EDICION', 'Diseño', 'Edición'];
+
+function sanitizeDateInput(val?: string | null): string {
+  if (!val) return '';
+  const trimmed = String(val).trim();
+  const fiveDigitMatch = trimmed.match(/^\+?0*(\d{5,})-(\d{2}-\d{2})$/);
+  if (fiveDigitMatch) {
+    const rawYear = fiveDigitMatch[1];
+    const fixedYear =
+      rawYear.startsWith('202') && rawYear.length === 5
+        ? `202${rawYear[rawYear.length - 1]}`
+        : rawYear.slice(0, 4);
+    return `${fixedYear}-${fiveDigitMatch[2]}`;
+  }
+  return trimmed;
+}
+
+function stripEmptyHtml(html?: string | null): string {
+  return (html || '').replace(/<[^>]*>/g, '').replace(/&nbsp;/gi, ' ').trim();
+}
 
 const LIMITS: Record<string, number> = {
   'LinkedIn': 3000,
@@ -261,6 +282,9 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
   const briefRef = useRef<HTMLDivElement>(null);
   const copyRef = useRef<HTMLDivElement>(null);
   const notasRef = useRef<HTMLDivElement>(null);
+  const commentsThreadRef = useRef<TicketCommentsThreadHandle>(null);
+  const createdTicketIdRef = useRef<string | null>(null);
+  const [createdTicketId, setCreatedTicketId] = useState<string | null>(null);
 
   const lastTicketIdRef = useRef<string | null>(null);
   const wasOpenRef = useRef(false);
@@ -408,6 +432,8 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
 
       if (isNewTicket) {
         loadedDetailTicketIdRef.current = null;
+        createdTicketIdRef.current = null;
+        setCreatedTicketId(null);
         dirtyFieldsRef.current.clear();
         const newFormData = buildFormData(ticket, defaultClientId);
         formDataRef.current = newFormData;
@@ -436,6 +462,8 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
       wasOpenRef.current = false;
       lastTicketIdRef.current = null;
       loadedDetailTicketIdRef.current = null;
+      createdTicketIdRef.current = null;
+      setCreatedTicketId(null);
       dirtyFieldsRef.current.clear();
       isClosingRef.current = false;
     }
@@ -606,8 +634,8 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
       objetivo: current.brief !== undefined ? (current.brief || null) : undefined,
       tipoTicket,
       canales: noContenido ? [] : (current.canales.length > 0 ? current.canales : ['LinkedIn']),
-      dueDate: current.dueDate || null,
-      plannedDate: current.fechaPub || null,
+      dueDate: sanitizeDateInput(current.dueDate) || null,
+      plannedDate: sanitizeDateInput(current.fechaPub) || null,
       ticketTypeId: finalTicketTypeId,
       tiposContenido: current.tiposContenido,
       pilarId: noContenido ? null : (current.pilarId || null),
@@ -678,8 +706,9 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
       if (!pendingSaveDataRef.current) {
         dirtyFieldsRef.current.clear();
       }
-    } catch {
+    } catch (err: any) {
       setSaveStatus('error');
+      notifyApiSaveError(`/tickets/${targetTicketId}`, 'PATCH', err?.message);
     } finally {
       isSavingRef.current = false;
       if (pendingSaveDataRef.current) {
@@ -714,8 +743,15 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
   };
 
   const handleMultipleChanges = (changes: Partial<typeof formData>, immediate = false) => {
-    Object.keys(changes).forEach(k => dirtyFieldsRef.current.add(k));
-    const updated = { ...formDataRef.current, ...changes };
+    const normalizedChanges = { ...changes };
+    if (normalizedChanges.dueDate !== undefined) {
+      normalizedChanges.dueDate = sanitizeDateInput(normalizedChanges.dueDate);
+    }
+    if (normalizedChanges.fechaPub !== undefined) {
+      normalizedChanges.fechaPub = sanitizeDateInput(normalizedChanges.fechaPub);
+    }
+    Object.keys(normalizedChanges).forEach(k => dirtyFieldsRef.current.add(k));
+    const updated = { ...formDataRef.current, ...normalizedChanges };
     formDataRef.current = updated;
     setFormData(updated);
     if (immediate) triggerImmediateAutoSave(updated);
@@ -738,7 +774,9 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
       queryClient.invalidateQueries({ queryKey: ['tickets'] });
     },
     onError: (err: any) => {
-      setError(err.message || 'Error al crear');
+      const msg = err?.message || 'Error al crear';
+      setError(msg);
+      notifyApiSaveError('/tickets', 'POST', msg);
     },
   });
 
@@ -771,7 +809,9 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
       }
     },
     onError: (err: any) => {
-      setError(err.message || 'Error al guardar los cambios');
+      const msg = err?.message || 'Error al guardar los cambios';
+      setError(msg);
+      notifyApiSaveError(`/tickets/${ticket?.id || ''}`, 'PATCH', msg);
     },
   });
 
@@ -891,8 +931,49 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
   };
   resolveCommentRef.current = handleResolveInlineComment;
 
-  const handleClose = async () => {
+  const hasUnsavedNewTicketChanges = () => {
+    if (isEditing || createdTicketIdRef.current) return false;
+    const current = formDataRef.current;
+    const liveBrief = briefRef.current ? briefRef.current.innerHTML : current.brief;
+    const liveNotas = notasRef.current ? notasRef.current.innerHTML : current.notasAudiovisual;
+    const liveCopy =
+      copyRef.current && activeCopyTab
+        ? copyRef.current.innerHTML
+        : current.contentPerCanal?.[activeCopyTab] || '';
+    const hasAnyCanalCopy =
+      Object.entries(current.contentPerCanal || {}).some(([canal, val]) => {
+        const text = canal === activeCopyTab && copyRef.current ? liveCopy : val;
+        return stripEmptyHtml(text).length > 0;
+      }) || stripEmptyHtml(liveCopy).length > 0;
+
+    return Boolean(
+      current.title.trim() ||
+        stripEmptyHtml(liveBrief) ||
+        stripEmptyHtml(liveNotas) ||
+        hasAnyCanalCopy ||
+        (current.links && current.links.length > 0) ||
+        attachedFiles.length > 0 ||
+        current.linkEntregable.trim() ||
+        current.medio.trim() ||
+        current.periodista.trim() ||
+        commentsThreadRef.current?.hasPendingComment()
+    );
+  };
+
+  const handleClose = async (force?: boolean | any) => {
     if (isClosingRef.current) return;
+    const isForced = force === true;
+
+    if (!isForced && !isEditing && !createdTicketIdRef.current && hasUnsavedNewTicketChanges()) {
+      const confirmed =
+        typeof window !== 'undefined' && typeof window.confirm === 'function'
+          ? window.confirm('Tenés cambios sin guardar en este ticket nuevo. ¿Seguro que querés cerrar y descartarlos?')
+          : true;
+      if (!confirmed) {
+        return;
+      }
+    }
+
     isClosingRef.current = true;
 
     if (saveTimeoutRef.current) {
@@ -948,6 +1029,16 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
       }
     }
 
+    // 3. Auto-send any pending comment or attached images before closing
+    const activeTicketIdForComment = ticket?.id || createdTicketIdRef.current;
+    if (activeTicketIdForComment && commentsThreadRef.current?.hasPendingComment()) {
+      const commentOk = await commentsThreadRef.current.flushPendingComment(activeTicketIdForComment);
+      if (!commentOk) {
+        isClosingRef.current = false;
+        return;
+      }
+    }
+
     setSaveStatus(null);
     if (!isEditing) {
       setFormData(buildFormData(null));
@@ -958,25 +1049,30 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
     onClose();
   };
 
-  // Safe flush on beforeunload
+  // Safe flush / warn on beforeunload
   useEffect(() => {
-    if (!isOpen || !isEditing || !ticket?.id) return;
-    const handleBeforeUnload = () => {
-      if (dirtyFieldsRef.current.size > 0 || pendingSaveDataRef.current || saveTimeoutRef.current) {
-        if (briefRef.current) {
-          formDataRef.current.brief = briefRef.current.innerHTML;
+    if (!isOpen) return;
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (isEditing && ticket?.id) {
+        if (dirtyFieldsRef.current.size > 0 || pendingSaveDataRef.current || saveTimeoutRef.current) {
+          if (briefRef.current) {
+            formDataRef.current.brief = briefRef.current.innerHTML;
+          }
+          if (notasRef.current) {
+            formDataRef.current.notasAudiovisual = notasRef.current.innerHTML;
+          }
+          performAutoSave({ ...formDataRef.current, __ticketId: ticket.id } as any);
         }
-        if (notasRef.current) {
-          formDataRef.current.notasAudiovisual = notasRef.current.innerHTML;
-        }
-        performAutoSave({ ...formDataRef.current, __ticketId: ticket.id } as any);
+      } else if (!createdTicketIdRef.current && hasUnsavedNewTicketChanges()) {
+        e.preventDefault();
+        e.returnValue = '';
       }
     };
     window.addEventListener('beforeunload', handleBeforeUnload);
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload);
     };
-  }, [isOpen, isEditing, ticket?.id]);
+  }, [isOpen, isEditing, ticket?.id, activeCopyTab, attachedFiles]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -1081,56 +1177,89 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
   if (!(formData.ownerId || formData.assigneeIds.length)) missing.push('responsable');
   if (!isEditing && !(formData.tiposContenido || []).length) missing.push(isPieza ? 'formato' : esPrensa ? 'tipo de tarea' : 'tipo de entregable');
 
+  const ensureNewTicketCreated = async (): Promise<string | null> => {
+    if (createdTicketIdRef.current) {
+      return createdTicketIdRef.current;
+    }
+    const primaryOwner = formData.ownerId || formData.assigneeIds[0];
+    const resolvedType = esPrensa
+      ? (formData.ticketTypeId ? ticketTypes.find(t => t.id === formData.ticketTypeId) : null) || findTicketType(formData.tiposContenido[0], 'PRENSA') || defaultPrensaType
+      : esTarea
+      ? (formData.ticketTypeId ? ticketTypes.find(t => t.id === formData.ticketTypeId) : null) || findTicketType(formData.tiposContenido[0], 'TAREA') || defaultTareaType
+      : (isPieza ? (formData.ticketTypeId ? ticketTypes.find(t => t.id === formData.ticketTypeId) : null) || findTicketType(formData.tiposContenido[0], 'CONTENIDO') : null);
+
+    const finalTicketTypeId = resolvedType?.id || formData.ticketTypeId || null;
+
+    const liveBrief = briefRef.current ? briefRef.current.innerHTML : formData.brief;
+    const liveNotas = notasRef.current ? notasRef.current.innerHTML : formData.notasAudiovisual;
+    const liveContentPerCanal = noContenido
+      ? undefined
+      : {
+          ...formData.contentPerCanal,
+          ...(copyRef.current && activeCopyTab
+            ? { [activeCopyTab]: copyRef.current.innerHTML }
+            : {}),
+        };
+
+    const payload: any = {
+      title: formData.title,
+      clientId: formData.clientId,
+      ownerId: primaryOwner,
+      assigneeIds: formData.assigneeIds,
+      status: formData.status,
+      prioridad: formData.prioridad,
+      objetivo: liveBrief || null,
+      tipoTicket,
+      canales: noContenido ? [] : (formData.canales.length > 0 ? formData.canales : ['LinkedIn']),
+      dueDate: sanitizeDateInput(formData.dueDate) || null,
+      plannedDate: sanitizeDateInput(formData.fechaPub) || null,
+      ticketTypeId: finalTicketTypeId,
+      tiposContenido: formData.tiposContenido,
+      pilarId: noContenido ? null : (formData.pilarId || null),
+      speakerId: noContenido ? null : (formData.speakerId || null),
+      links: formData.links.map(ensureAbsoluteUrl),
+      linkEntregable: cleanDeliverableLinks(formData.linkEntregable),
+      linkPublicacion: cleanDeliverableLinks(formData.linkPublicacion),
+      notasAudiovisual: liveNotas || null,
+      contentPerCanal: liveContentPerCanal,
+      referenciasGraficas: attachedFiles,
+    };
+    if (esPrensa) {
+      payload.area = 'PRENSA';
+      payload.medio = formData.medio || null;
+      payload.periodista = formData.periodista || null;
+      payload.estadoRespuesta = formData.estadoRespuesta || null;
+    }
+
+    const res = await createMutation.mutateAsync(payload);
+    const newId = res?.data?.id || null;
+    if (newId) {
+      createdTicketIdRef.current = newId;
+      setCreatedTicketId(newId);
+    }
+    return newId;
+  };
+
   // Submit / Next Status Primary Action
   const handlePrimary = async () => {
-    if (!isEditing && missing.length > 0) {
+    if (!isEditing && !createdTicketIdRef.current && missing.length > 0) {
       setError(`Completá los campos requeridos: ${missing.join(' y ')}`);
       return;
     }
     if (isEditing) {
       handleNextStatusClickModal();
     } else {
-      const primaryOwner = formData.ownerId || formData.assigneeIds[0];
-      const resolvedType = esPrensa
-        ? (formData.ticketTypeId ? ticketTypes.find(t => t.id === formData.ticketTypeId) : null) || findTicketType(formData.tiposContenido[0], 'PRENSA') || defaultPrensaType
-        : esTarea
-        ? (formData.ticketTypeId ? ticketTypes.find(t => t.id === formData.ticketTypeId) : null) || findTicketType(formData.tiposContenido[0], 'TAREA') || defaultTareaType
-        : (isPieza ? (formData.ticketTypeId ? ticketTypes.find(t => t.id === formData.ticketTypeId) : null) || findTicketType(formData.tiposContenido[0], 'CONTENIDO') : null);
-
-      const finalTicketTypeId = resolvedType?.id || formData.ticketTypeId || null;
-
-      const payload: any = {
-        title: formData.title,
-        clientId: formData.clientId,
-        ownerId: primaryOwner,
-        assigneeIds: formData.assigneeIds,
-        status: formData.status,
-        prioridad: formData.prioridad,
-        objetivo: formData.brief || null,
-        tipoTicket,
-        canales: noContenido ? [] : (formData.canales.length > 0 ? formData.canales : ['LinkedIn']),
-        dueDate: formData.dueDate || null,
-        plannedDate: formData.fechaPub || null,
-        ticketTypeId: finalTicketTypeId,
-        tiposContenido: formData.tiposContenido,
-        pilarId: noContenido ? null : (formData.pilarId || null),
-        speakerId: noContenido ? null : (formData.speakerId || null),
-        links: formData.links.map(ensureAbsoluteUrl),
-        linkEntregable: cleanDeliverableLinks(formData.linkEntregable),
-        linkPublicacion: cleanDeliverableLinks(formData.linkPublicacion),
-        referenciasGraficas: attachedFiles,
-      };
-      if (esPrensa) {
-        payload.area = 'PRENSA';
-        payload.medio = formData.medio || null;
-        payload.periodista = formData.periodista || null;
-        payload.estadoRespuesta = formData.estadoRespuesta || null;
-      }
       try {
-        await createMutation.mutateAsync(payload);
-        handleClose();
+        const createdId = await ensureNewTicketCreated();
+        if (createdId && commentsThreadRef.current?.hasPendingComment()) {
+          const commentOk = await commentsThreadRef.current.flushPendingComment(createdId);
+          if (!commentOk) {
+            return;
+          }
+        }
+        await handleClose(true);
       } catch {
-        // error already set
+        // error already set & toast emitted
       }
     }
   };
@@ -1933,16 +2062,25 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
 
             {/* Comments list & input */}
             <TicketCommentsThread
-              ticketId={ticket?.id}
+              ref={commentsThreadRef}
+              ticketId={ticket?.id || createdTicketId || undefined}
               comments={comments}
               currentUserId={user?.id}
               currentUserName={user?.name || user?.email || 'YO'}
               teamList={teamList}
-              onAddComment={async (content) => {
-                if (!ticket?.id) {
-                  throw new Error('Primero debés guardar el ticket para poder agregar comentarios.');
+              onAddComment={async (content, overrideTicketId) => {
+                let targetId: string | null | undefined = overrideTicketId || ticket?.id || createdTicketIdRef.current;
+                if (!targetId) {
+                  if (missing.length > 0) {
+                    throw new Error(`Completá primero los campos requeridos (${missing.join(', ')}) para guardar el ticket y el comentario.`);
+                  }
+                  targetId = await ensureNewTicketCreated();
+                  if (!targetId) {
+                    throw new Error('Primero debés guardar el ticket para poder agregar comentarios.');
+                  }
                 }
-                await createCommentMutation.mutateAsync(content);
+                await api.createComment(targetId, content);
+                queryClient.invalidateQueries({ queryKey: ['comments', targetId] });
               }}
               onDeleteComment={(commentId) => {
                 deleteCommentMutation.mutate(commentId);
@@ -1992,6 +2130,7 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
               </label>
               <input
                 type="date"
+                max="9999-12-31"
                 value={formData.dueDate}
                 onChange={e => handleChange('dueDate', e.target.value, true)}
                 className="h-[36px] font-anek text-[14px] px-2.5 border border-[#d6dde5] rounded-lg bg-white outline-none text-[#0d0d0d] min-w-0 mt-2 focus:border-[#024fff] py-0 leading-[34px] flex items-center"
@@ -2005,6 +2144,7 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
                   </label>
                   <input
                     type="date"
+                    max="9999-12-31"
                     value={formData.fechaPub}
                     onChange={e => handleChange('fechaPub', e.target.value, true)}
                     className="h-[36px] font-anek text-[14px] px-2.5 border border-[#d6dde5] rounded-lg bg-white outline-none text-[#0d0d0d] min-w-0 mt-2 focus:border-[#024fff] py-0 leading-[34px] flex items-center"

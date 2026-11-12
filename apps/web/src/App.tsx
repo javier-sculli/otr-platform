@@ -15,6 +15,7 @@ import { SumarioPage } from './pages/SumarioPage';
 import { ReportesPage } from './pages/ReportesPage';
 import { KnowledgeBasePage } from './pages/KnowledgeBasePage';
 import { Layout } from './components/Layout';
+import { ToastContainer } from './components/ToastContainer';
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -140,6 +141,7 @@ function App() {
   return (
     <AuthProvider>
       <AppRoutes />
+      <ToastContainer />
     </AuthProvider>
   );
 }
