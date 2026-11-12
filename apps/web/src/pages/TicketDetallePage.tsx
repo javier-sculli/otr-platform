@@ -381,24 +381,61 @@ export function TicketDetallePage() {
   const getSpeakerName = (s: any) => (s ? s.nombre || s.name || '' : '');
   const getSpeakerCargo = (s: any) => (s ? s.cargo || s.role || 'Vocero' : 'Vocero');
 
-  // Synchronize state when ticket loads
+  // Synchronize state when ticket loads (and when full detail arrives after a partial list cache)
+  const loadedDetailTicketIdRef = useRef<string | null>(null);
+  const hasLoadedFullDetailRef = useRef<boolean>(false);
+
   useEffect(() => {
-    if (ticket) {
-      setTituloTemp(ticket.title || '');
-      setBriefTemp(ticket.objetivo || '');
-      setNotasAudiovisual(ticket.notasAudiovisual || '');
+    if (!ticket) return;
+
+    const isNewTicketId = loadedDetailTicketIdRef.current !== ticket.id;
+    const hasFullDetailNow =
+      ticket.contentPerCanal !== undefined || ticket.notasAudiovisual !== undefined;
+    const shouldSyncFullDetail = isNewTicketId || (!hasLoadedFullDetailRef.current && hasFullDetailNow);
+
+    if (!shouldSyncFullDetail) return;
+
+    loadedDetailTicketIdRef.current = ticket.id;
+    hasLoadedFullDetailRef.current = hasFullDetailNow;
+
+    setTituloTemp(ticket.title || '');
+    setBriefTemp(ticket.objetivo || '');
+    setNotasAudiovisual(ticket.notasAudiovisual || '');
+    if (isNewTicketId) {
       setEntregableInput('');
-      if (Array.isArray((ticket as any).referenciasGraficas)) {
-        setAttachedFiles((ticket as any).referenciasGraficas);
-      }
-      const perCanal = (ticket.contentPerCanal && typeof ticket.contentPerCanal === 'object')
+    }
+    if (Array.isArray((ticket as any).referenciasGraficas)) {
+      setAttachedFiles((ticket as any).referenciasGraficas);
+    }
+
+    const perCanal: Record<string, string> =
+      ticket.contentPerCanal && typeof ticket.contentPerCanal === 'object'
         ? { ...ticket.contentPerCanal }
         : {};
-      setCopyPerCanal(perCanal);
-      const canales = ticket.canales?.length > 0 ? ticket.canales : ['LinkedIn'];
+    const versions: Record<string, string[]> =
+      (ticket as any).versionsPerCanal && typeof (ticket as any).versionsPerCanal === 'object'
+        ? (ticket as any).versionsPerCanal
+        : {};
+    const canales: string[] = ticket.canales?.length > 0 ? ticket.canales : ['LinkedIn'];
+    canales.forEach((canal: string) => {
+      if (!perCanal[canal] || !perCanal[canal].trim()) {
+        const canalVersions =
+          versions[canal] ||
+          Object.entries(versions).find(([k]) => k.toLowerCase() === canal.toLowerCase())?.[1];
+        if (Array.isArray(canalVersions) && canalVersions.length > 0) {
+          const lastNonEmpty = [...canalVersions].reverse().find((v) => v && v.trim().length > 0);
+          if (lastNonEmpty) {
+            perCanal[canal] = lastNonEmpty;
+          }
+        }
+      }
+    });
+
+    setCopyPerCanal(perCanal);
+    if (isNewTicketId) {
       setActiveCopyTab(canales[0] || 'LinkedIn');
     }
-  }, [ticket?.id]);
+  }, [ticket?.id, ticket?.contentPerCanal, ticket?.notasAudiovisual, ticket?.objetivo]);
 
   // Synchronize comment marks into editors when comments or ticket load
   useEffect(() => {
@@ -533,19 +570,34 @@ export function TicketDetallePage() {
   const duplicar = async () => {
     if (!ticket) return;
     try {
-      const newTicketData = {
+      const primaryOwner = ticket.ownerId || ticket.assigneeIds?.[0] || ticket.owner?.id;
+      const newTicketData: any = {
         title: `${ticket.title} (copia)`,
         clientId: ticket.clientId || ticket.client?.id,
-        ticketType: ticket.ticketType || (isPieza ? 'CONTENIDO' : 'TAREA'),
+        ownerId: primaryOwner,
+        assigneeIds: ticket.assigneeIds || (primaryOwner ? [primaryOwner] : []),
+        ticketTypeId: ticket.ticketTypeId || ticket.ticketType?.id || null,
+        tipoTicket: tipo,
         status: 'PENDIENTE',
         prioridad: ticket.prioridad || 'MEDIA',
-        objetivo: ticket.objetivo,
-        contentPerCanal: ticket.contentPerCanal,
-        canales: ticket.canales,
-        notasAudiovisual: ticket.notasAudiovisual,
-        tiposContenido: (ticket as any).tiposContenido,
-        speakerId: ticket.speakerId,
-        links: ticket.links,
+        objetivo: ticket.objetivo || null,
+        contentPerCanal: ticket.contentPerCanal || {},
+        canales: ticket.canales || [],
+        notasAudiovisual: ticket.notasAudiovisual || null,
+        tiposContenido: (ticket as any).tiposContenido || [],
+        pilarId: ticket.pilarId || ticket.pilar?.id || null,
+        speakerId: ticket.speakerId || ticket.speaker?.id || null,
+        links: ticket.links || [],
+        referenciasGraficas: (ticket as any).referenciasGraficas || null,
+        ...(esPrensa
+          ? {
+              area: 'PRENSA',
+              subEstado: 'PENDIENTE',
+              medio: (ticket as any).medio || null,
+              periodista: (ticket as any).periodista || null,
+              estadoRespuesta: (ticket as any).estadoRespuesta || null,
+            }
+          : {}),
       };
       const res = await api.createTicket(newTicketData);
       queryClient.invalidateQueries({ queryKey: ['tickets'] });

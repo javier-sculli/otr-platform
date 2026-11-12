@@ -542,6 +542,42 @@ async function resolveTicketTypeForCreation(prismaInstance: typeof prisma, data:
   };
 }
 
+function mergeVersionsPerCanal(
+  existingVersions: unknown,
+  contentPerCanal: unknown,
+  explicitVersions?: unknown
+): Record<string, string[]> {
+  const base: Record<string, string[]> = {};
+  const source =
+    explicitVersions && typeof explicitVersions === 'object'
+      ? (explicitVersions as Record<string, unknown>)
+      : existingVersions && typeof existingVersions === 'object'
+      ? (existingVersions as Record<string, unknown>)
+      : {};
+
+  for (const [canal, list] of Object.entries(source)) {
+    if (Array.isArray(list)) {
+      base[canal] = list.filter((v): v is string => typeof v === 'string' && v.trim().length > 0).slice(-20);
+    }
+  }
+
+  if (contentPerCanal && typeof contentPerCanal === 'object') {
+    for (const [canal, rawText] of Object.entries(contentPerCanal as Record<string, unknown>)) {
+      if (typeof rawText === 'string') {
+        const plain = rawText.replace(/<[^>]*>/g, '').replace(/&nbsp;/gi, ' ').trim();
+        if (plain.length > 0) {
+          const currentList = base[canal] || [];
+          if (currentList[currentList.length - 1] !== rawText) {
+            base[canal] = [...currentList, rawText].slice(-20);
+          }
+        }
+      }
+    }
+  }
+
+  return base;
+}
+
   // Create ticket
   fastify.post('/', async (request) => {
     const data = request.body as any;
@@ -610,6 +646,19 @@ async function resolveTicketTypeForCreation(prismaInstance: typeof prisma, data:
         notasAudiovisual: data.notasAudiovisual !== undefined ? data.notasAudiovisual : null,
         referenciasGraficas: data.referenciasGraficas || null,
         contentPerCanal: (data.contentPerCanal && typeof data.contentPerCanal === 'object') ? data.contentPerCanal : {},
+        versionsPerCanal: mergeVersionsPerCanal({}, data.contentPerCanal, data.versionsPerCanal),
+        publishedAt: parseApiDate(data.publishedAt),
+        keywords: Array.isArray(data.keywords) ? data.keywords : [],
+        ...(Array.isArray(data.referenceIds) && data.referenceIds.length > 0
+          ? {
+              references: {
+                connect: [...new Set(data.referenceIds as string[])]
+                  .filter(Boolean)
+                  .slice(0, 3)
+                  .map((rid) => ({ id: rid })),
+              },
+            }
+          : {}),
         sortOrder: initialSortOrder,
       },
       include: {
@@ -703,7 +752,13 @@ async function resolveTicketTypeForCreation(prismaInstance: typeof prisma, data:
         }
       }
       updateData.contentPerCanal = mergedMap;
+      updateData.versionsPerCanal = mergeVersionsPerCanal(
+        existingTicket.versionsPerCanal,
+        mergedMap,
+        data.versionsPerCanal
+      );
     }
+    if (data.clientId !== undefined) updateData.clientId = data.clientId;
     if (data.prioridad !== undefined) updateData.prioridad = data.prioridad;
     if (data.ownerId !== undefined) updateData.ownerId = data.ownerId;
     if (data.assigneeIds !== undefined) {

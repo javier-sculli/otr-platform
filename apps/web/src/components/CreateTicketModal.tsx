@@ -275,6 +275,8 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
   const [copyOpen, setCopyOpen] = useState(false);
   const [notasOpen, setNotasOpen] = useState(false);
   const [entregableInput, setEntregableInput] = useState('');
+  const entregableInputRef = useRef('');
+  entregableInputRef.current = entregableInput;
 
 
   const [isChangingSpeaker, setIsChangingSpeaker] = useState(false);
@@ -383,21 +385,27 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
   const defaultPrensaType = ticketTypes.find(t => t.kind === 'PRENSA' && t.name.toLowerCase() === 'otro')
     || ticketTypes.find(t => t.kind === 'PRENSA') || null;
 
+  const activeTicketId = ticket?.id || createdTicketId || null;
+
   const { data: commentsData } = useQuery({
-    queryKey: ['comments', ticket?.id],
-    queryFn: () => api.getComments(ticket!.id),
-    enabled: isOpen && !!ticket?.id,
+    queryKey: ['comments', activeTicketId],
+    queryFn: () => api.getComments(activeTicketId!),
+    enabled: isOpen && !!activeTicketId,
   });
   const comments = commentsData?.data ?? [];
 
   const createCommentMutation = useMutation({
-    mutationFn: (text: string) => api.createComment(ticket!.id, text),
+    mutationFn: (text: string) => api.createComment((ticket?.id || createdTicketIdRef.current)!, text),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['comments', ticket?.id] });
+      const targetId = ticket?.id || createdTicketIdRef.current;
+      if (targetId) {
+        queryClient.invalidateQueries({ queryKey: ['comments', targetId] });
+      }
     },
   });
 
   const resolveCommentRef = useRef<((markId: string, quote?: string) => Promise<void>) | null>(null);
+  const ensureNewTicketCreatedRef = useRef<(() => Promise<string | null>) | null>(null);
 
   const {
     pop,
@@ -415,8 +423,13 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
     comments,
     currentUser: user,
     onSubmitComment: async ({ fullContent }) => {
-      if (ticket?.id) {
-        await createCommentMutation.mutateAsync(fullContent);
+      let targetId = ticket?.id || createdTicketIdRef.current;
+      if (!targetId && ensureNewTicketCreatedRef.current) {
+        targetId = await ensureNewTicketCreatedRef.current();
+      }
+      if (targetId) {
+        await api.createComment(targetId, fullContent);
+        queryClient.invalidateQueries({ queryKey: ['comments', targetId] });
       }
     },
     onResolveComment: (markId, quote) => resolveCommentRef.current?.(markId, quote),
@@ -598,11 +611,124 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
     return () => document.removeEventListener('mousedown', handleOutside);
   }, [pop]);
 
+  const flushLiveEditorsIntoFormData = () => {
+    const flushOverrides: Partial<typeof formData> = {};
+    if (briefRef.current) {
+      const liveBrief = briefRef.current.innerHTML;
+      if (liveBrief !== formDataRef.current.brief) {
+        dirtyFieldsRef.current.add('brief');
+        flushOverrides.brief = liveBrief;
+      }
+    }
+    if (notasRef.current) {
+      const liveNotas = notasRef.current.innerHTML;
+      if (liveNotas !== formDataRef.current.notasAudiovisual) {
+        dirtyFieldsRef.current.add('notasAudiovisual');
+        flushOverrides.notasAudiovisual = liveNotas;
+      }
+    }
+    if (copyRef.current && activeCopyTab) {
+      const liveCopy = copyRef.current.innerHTML;
+      const currentCopyTabVal = formDataRef.current.contentPerCanal?.[activeCopyTab] || '';
+      if (liveCopy !== currentCopyTabVal) {
+        dirtyFieldsRef.current.add('contentPerCanal');
+        flushOverrides.contentPerCanal = {
+          ...formDataRef.current.contentPerCanal,
+          [activeCopyTab]: liveCopy,
+        };
+      }
+    }
+    const pendingEntregable = entregableInputRef.current.trim();
+    if (pendingEntregable) {
+      const existingEntregables = parseDeliverableLinks(formDataRef.current.linkEntregable);
+      const nextEntregables = Array.from(new Set([...existingEntregables, ensureAbsoluteUrl(pendingEntregable)]));
+      const serialized = serializeDeliverableLinks(nextEntregables) || '';
+      entregableInputRef.current = '';
+      setEntregableInput('');
+      if (serialized !== formDataRef.current.linkEntregable) {
+        dirtyFieldsRef.current.add('linkEntregable');
+        flushOverrides.linkEntregable = serialized;
+      }
+    }
+    if (Object.keys(flushOverrides).length > 0) {
+      const merged = { ...formDataRef.current, ...flushOverrides };
+      formDataRef.current = merged;
+      setFormData(merged);
+    }
+    return formDataRef.current;
+  };
+
+  const buildTicketPayload = (current: typeof formData, options: { isCreate: boolean }) => {
+    const { isCreate } = options;
+    const includeAllFields = isCreate || !isEditing;
+    const primaryOwner = current.ownerId || current.assigneeIds?.[0] || null;
+    const resolvedType = esPrensa
+      ? (current.ticketTypeId ? ticketTypes.find(t => t.id === current.ticketTypeId) : null) || findTicketType(current.tiposContenido[0], 'PRENSA') || defaultPrensaType
+      : esTarea
+      ? (current.ticketTypeId ? ticketTypes.find(t => t.id === current.ticketTypeId) : null) || findTicketType(current.tiposContenido[0], 'TAREA') || defaultTareaType
+      : (isPieza ? (current.ticketTypeId ? ticketTypes.find(t => t.id === current.ticketTypeId) : null) || findTicketType(current.tiposContenido[0], 'CONTENIDO') : null);
+
+    const finalTicketTypeId = resolvedType?.id || current.ticketTypeId || null;
+
+    const payload: any = {
+      title: current.title,
+      clientId: current.clientId,
+      ownerId: primaryOwner,
+      assigneeIds: current.assigneeIds || [],
+      status: current.status,
+      prioridad: current.prioridad,
+      objetivo: current.brief !== undefined ? (current.brief || null) : null,
+      tipoTicket,
+      canales: noContenido ? [] : (current.canales.length > 0 ? current.canales : ['LinkedIn']),
+      dueDate: sanitizeDateInput(current.dueDate) || null,
+      plannedDate: sanitizeDateInput(current.fechaPub) || null,
+      ticketTypeId: finalTicketTypeId,
+      tiposContenido: current.tiposContenido || [],
+      pilarId: noContenido ? null : (current.pilarId || null),
+      speakerId: noContenido ? null : (current.speakerId || null),
+      links: (current.links || []).map(ensureAbsoluteUrl),
+      ...(includeAllFields || dirtyFieldsRef.current.has('linkEntregable')
+        ? { linkEntregable: cleanDeliverableLinks(current.linkEntregable) }
+        : {}),
+      ...(includeAllFields || dirtyFieldsRef.current.has('linkPublicacion')
+        ? { linkPublicacion: cleanDeliverableLinks(current.linkPublicacion) }
+        : {}),
+      ...(includeAllFields || dirtyFieldsRef.current.has('notasAudiovisual') || current.notasAudiovisual
+        ? { notasAudiovisual: current.notasAudiovisual || null }
+        : {}),
+      content: noContenido ? undefined : (current.content || null),
+      contentPerCanal: noContenido ? undefined : current.contentPerCanal,
+      referenciasGraficas: (current as any).referenciasGraficas !== undefined
+        ? (current as any).referenciasGraficas
+        : attachedFiles,
+      ...(isCreate
+        ? (current.aprobado ? { estadoAprobacionCliente: 'APROBADO' } : {})
+        : (dirtyFieldsRef.current.has('aprobado')
+          ? { estadoAprobacionCliente: current.aprobado ? 'APROBADO' : 'BORRADOR' }
+          : {})),
+      ...(isCreate
+        ? (current.vinculado ? { referenceIds: [current.vinculado] } : {})
+        : (dirtyFieldsRef.current.has('vinculado')
+          ? { referenceIds: current.vinculado ? [current.vinculado] : [] }
+          : {})),
+    };
+
+    if (esPrensa) {
+      payload.area = 'PRENSA';
+      payload.subEstado = current.subEstado || (ticket as any)?.subEstado || 'PENDIENTE';
+      payload.medio = current.medio || null;
+      payload.periodista = current.periodista || null;
+      payload.estadoRespuesta = current.estadoRespuesta || null;
+    }
+
+    return payload;
+  };
+
   // Auto-save logic
   const performAutoSave = async (overrideData?: Partial<typeof formData>) => {
-    const targetTicketId = (overrideData as any)?.__ticketId || ticket?.id;
+    const targetTicketId = (overrideData as any)?.__ticketId || ticket?.id || createdTicketIdRef.current;
     if (!targetTicketId) return;
-    if (!isEditing && !(overrideData as any)?.__ticketId) return;
+    if (!isEditing && !createdTicketIdRef.current && !(overrideData as any)?.__ticketId) return;
     if (isTicketLoading || isSavingRef.current) {
       pendingSaveDataRef.current = {
         ...formDataRef.current,
@@ -614,54 +740,9 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
     }
 
     const current = { ...formDataRef.current, ...overrideData };
-    const primaryOwner = current.ownerId || current.assigneeIds?.[0] || null;
     if (!current.title || !current.clientId) return;
 
-    const resolvedType = esPrensa
-      ? (current.ticketTypeId ? ticketTypes.find(t => t.id === current.ticketTypeId) : null) || findTicketType(current.tiposContenido[0], 'PRENSA') || defaultPrensaType
-      : esTarea
-      ? (current.ticketTypeId ? ticketTypes.find(t => t.id === current.ticketTypeId) : null) || findTicketType(current.tiposContenido[0], 'TAREA') || defaultTareaType
-      : (isPieza ? (current.ticketTypeId ? ticketTypes.find(t => t.id === current.ticketTypeId) : null) || findTicketType(current.tiposContenido[0], 'CONTENIDO') : null);
-
-    const finalTicketTypeId = resolvedType?.id || current.ticketTypeId || null;
-
-    const payload: any = {
-      title: current.title,
-      ownerId: primaryOwner,
-      assigneeIds: current.assigneeIds || [],
-      status: current.status,
-      prioridad: current.prioridad,
-      objetivo: current.brief !== undefined ? (current.brief || null) : undefined,
-      tipoTicket,
-      canales: noContenido ? [] : (current.canales.length > 0 ? current.canales : ['LinkedIn']),
-      dueDate: sanitizeDateInput(current.dueDate) || null,
-      plannedDate: sanitizeDateInput(current.fechaPub) || null,
-      ticketTypeId: finalTicketTypeId,
-      tiposContenido: current.tiposContenido,
-      pilarId: noContenido ? null : (current.pilarId || null),
-      speakerId: noContenido ? null : (current.speakerId || null),
-      ...(current.links.length > 0 ? { links: current.links.map(ensureAbsoluteUrl) } : { links: [] }),
-      ...(dirtyFieldsRef.current.has('linkEntregable')
-        ? { linkEntregable: cleanDeliverableLinks(current.linkEntregable) }
-        : {}),
-      ...(dirtyFieldsRef.current.has('linkPublicacion')
-        ? { linkPublicacion: cleanDeliverableLinks(current.linkPublicacion) }
-        : {}),
-      ...(current.notasAudiovisual ? { notasAudiovisual: current.notasAudiovisual } : {}),
-      content: noContenido ? undefined : (current.content || null),
-      contentPerCanal: noContenido ? undefined : current.contentPerCanal,
-      referenciasGraficas: (current as any).referenciasGraficas !== undefined
-        ? (current as any).referenciasGraficas
-        : attachedFiles,
-    };
-
-    if (esPrensa) {
-      payload.area = 'PRENSA';
-      payload.subEstado = current.subEstado || (ticket as any)?.subEstado || 'PENDIENTE';
-      payload.medio = current.medio || null;
-      payload.periodista = current.periodista || null;
-      payload.estadoRespuesta = current.estadoRespuesta || null;
-    }
+    const payload = buildTicketPayload(current, { isCreate: false });
 
     isSavingRef.current = true;
     setSaveStatus('saving');
@@ -720,7 +801,8 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
   };
 
   const triggerDebouncedAutoSave = (overrideData?: Partial<typeof formData>) => {
-    if (!isEditing || !ticket?.id) return;
+    const targetId = ticket?.id || createdTicketIdRef.current;
+    if (!targetId) return;
     if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
     setSaveStatus('saving');
     saveTimeoutRef.current = setTimeout(() => {
@@ -730,7 +812,8 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
   };
 
   const triggerImmediateAutoSave = (overrideData?: Partial<typeof formData>) => {
-    if (!isEditing || !ticket?.id) return;
+    const targetId = ticket?.id || createdTicketIdRef.current;
+    if (!targetId) return;
     const hadPendingTimer = Boolean(saveTimeoutRef.current);
     if (saveTimeoutRef.current) {
       clearTimeout(saveTimeoutRef.current);
@@ -981,44 +1064,15 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
       saveTimeoutRef.current = null;
     }
 
-    if (isEditing && ticket?.id) {
-      // 1. Flush any DOM innerHTML in active contentEditable editors to avoid losing the last keystrokes
-      const flushOverrides: Partial<typeof formData> = {};
-      if (briefRef.current) {
-        const liveBrief = briefRef.current.innerHTML;
-        if (liveBrief !== formDataRef.current.brief) {
-          dirtyFieldsRef.current.add('brief');
-          flushOverrides.brief = liveBrief;
-        }
-      }
-      if (notasRef.current) {
-        const liveNotas = notasRef.current.innerHTML;
-        if (liveNotas !== formDataRef.current.notasAudiovisual) {
-          dirtyFieldsRef.current.add('notasAudiovisual');
-          flushOverrides.notasAudiovisual = liveNotas;
-        }
-      }
-      if (copyRef.current && activeCopyTab) {
-        const liveCopy = copyRef.current.innerHTML;
-        const currentCopyTabVal = formDataRef.current.contentPerCanal?.[activeCopyTab] || '';
-        if (liveCopy !== currentCopyTabVal) {
-          dirtyFieldsRef.current.add('contentPerCanal');
-          flushOverrides.contentPerCanal = {
-            ...formDataRef.current.contentPerCanal,
-            [activeCopyTab]: liveCopy,
-          };
-        }
-      }
-
-      if (Object.keys(flushOverrides).length > 0) {
-        const merged = { ...formDataRef.current, ...flushOverrides };
-        formDataRef.current = merged;
-      }
+    const activeIdOnClose = ticket?.id || createdTicketIdRef.current;
+    if (activeIdOnClose) {
+      // 1. Flush any DOM innerHTML in active contentEditable editors & unsubmitted inputs to avoid losing the last keystrokes
+      flushLiveEditorsIntoFormData();
 
       // 2. If there are dirty fields or pending save data, save and wait for completion!
       if (dirtyFieldsRef.current.size > 0 || pendingSaveDataRef.current) {
         try {
-          await performAutoSave({ ...formDataRef.current, __ticketId: ticket.id } as any);
+          await performAutoSave({ ...formDataRef.current, __ticketId: activeIdOnClose } as any);
           const startWait = Date.now();
           while ((isSavingRef.current || pendingSaveDataRef.current) && Date.now() - startWait < 3000) {
             await new Promise(r => setTimeout(r, 50));
@@ -1053,17 +1107,13 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
   useEffect(() => {
     if (!isOpen) return;
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-      if (isEditing && ticket?.id) {
+      const activeId = ticket?.id || createdTicketIdRef.current;
+      if (activeId) {
         if (dirtyFieldsRef.current.size > 0 || pendingSaveDataRef.current || saveTimeoutRef.current) {
-          if (briefRef.current) {
-            formDataRef.current.brief = briefRef.current.innerHTML;
-          }
-          if (notasRef.current) {
-            formDataRef.current.notasAudiovisual = notasRef.current.innerHTML;
-          }
-          performAutoSave({ ...formDataRef.current, __ticketId: ticket.id } as any);
+          flushLiveEditorsIntoFormData();
+          performAutoSave({ ...formDataRef.current, __ticketId: activeId } as any);
         }
-      } else if (!createdTicketIdRef.current && hasUnsavedNewTicketChanges()) {
+      } else if (hasUnsavedNewTicketChanges()) {
         e.preventDefault();
         e.returnValue = '';
       }
@@ -1181,64 +1231,20 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
     if (createdTicketIdRef.current) {
       return createdTicketIdRef.current;
     }
-    const primaryOwner = formData.ownerId || formData.assigneeIds[0];
-    const resolvedType = esPrensa
-      ? (formData.ticketTypeId ? ticketTypes.find(t => t.id === formData.ticketTypeId) : null) || findTicketType(formData.tiposContenido[0], 'PRENSA') || defaultPrensaType
-      : esTarea
-      ? (formData.ticketTypeId ? ticketTypes.find(t => t.id === formData.ticketTypeId) : null) || findTicketType(formData.tiposContenido[0], 'TAREA') || defaultTareaType
-      : (isPieza ? (formData.ticketTypeId ? ticketTypes.find(t => t.id === formData.ticketTypeId) : null) || findTicketType(formData.tiposContenido[0], 'CONTENIDO') : null);
-
-    const finalTicketTypeId = resolvedType?.id || formData.ticketTypeId || null;
-
-    const liveBrief = briefRef.current ? briefRef.current.innerHTML : formData.brief;
-    const liveNotas = notasRef.current ? notasRef.current.innerHTML : formData.notasAudiovisual;
-    const liveContentPerCanal = noContenido
-      ? undefined
-      : {
-          ...formData.contentPerCanal,
-          ...(copyRef.current && activeCopyTab
-            ? { [activeCopyTab]: copyRef.current.innerHTML }
-            : {}),
-        };
-
-    const payload: any = {
-      title: formData.title,
-      clientId: formData.clientId,
-      ownerId: primaryOwner,
-      assigneeIds: formData.assigneeIds,
-      status: formData.status,
-      prioridad: formData.prioridad,
-      objetivo: liveBrief || null,
-      tipoTicket,
-      canales: noContenido ? [] : (formData.canales.length > 0 ? formData.canales : ['LinkedIn']),
-      dueDate: sanitizeDateInput(formData.dueDate) || null,
-      plannedDate: sanitizeDateInput(formData.fechaPub) || null,
-      ticketTypeId: finalTicketTypeId,
-      tiposContenido: formData.tiposContenido,
-      pilarId: noContenido ? null : (formData.pilarId || null),
-      speakerId: noContenido ? null : (formData.speakerId || null),
-      links: formData.links.map(ensureAbsoluteUrl),
-      linkEntregable: cleanDeliverableLinks(formData.linkEntregable),
-      linkPublicacion: cleanDeliverableLinks(formData.linkPublicacion),
-      notasAudiovisual: liveNotas || null,
-      contentPerCanal: liveContentPerCanal,
-      referenciasGraficas: attachedFiles,
-    };
-    if (esPrensa) {
-      payload.area = 'PRENSA';
-      payload.medio = formData.medio || null;
-      payload.periodista = formData.periodista || null;
-      payload.estadoRespuesta = formData.estadoRespuesta || null;
-    }
+    const current = flushLiveEditorsIntoFormData();
+    const payload = buildTicketPayload(current, { isCreate: true });
 
     const res = await createMutation.mutateAsync(payload);
     const newId = res?.data?.id || null;
     if (newId) {
+      dirtyFieldsRef.current.clear();
       createdTicketIdRef.current = newId;
       setCreatedTicketId(newId);
+      queryClient.setQueryData(['ticket', newId], { data: res.data });
     }
     return newId;
   };
+  ensureNewTicketCreatedRef.current = ensureNewTicketCreated;
 
   // Submit / Next Status Primary Action
   const handlePrimary = async () => {
@@ -1250,7 +1256,14 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
       handleNextStatusClickModal();
     } else {
       try {
+        const alreadyCreated = Boolean(createdTicketIdRef.current);
         const createdId = await ensureNewTicketCreated();
+        if (alreadyCreated && createdId) {
+          flushLiveEditorsIntoFormData();
+          if (dirtyFieldsRef.current.size > 0 || pendingSaveDataRef.current) {
+            await performAutoSave({ ...formDataRef.current, __ticketId: createdId } as any);
+          }
+        }
         if (createdId && commentsThreadRef.current?.hasPendingComment()) {
           const commentOk = await commentsThreadRef.current.flushPendingComment(createdId);
           if (!commentOk) {
@@ -1309,42 +1322,31 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
     if (!ticket?.id || isDuplicating) return;
     try {
       setIsDuplicating(true);
+      flushLiveEditorsIntoFormData();
       if (dirtyFieldsRef.current.size > 0) {
         await performAutoSave();
       }
 
-      const primaryOwner = formData.ownerId || formData.assigneeIds[0] || (ticket as any).ownerId || ticket.owner?.id;
-      const baseTitle = (ticket.title || formData.title || '').trim();
+      const current = formDataRef.current;
+      const baseTitle = (ticket.title || current.title || '').trim();
       const newTitle = baseTitle.startsWith('Copia de ') ? baseTitle : `Copia de ${baseTitle}`;
 
-      const payload: any = {
-        title: newTitle,
-        clientId: formData.clientId || (ticket as any).clientId || ticket.client?.id,
-        ownerId: primaryOwner,
-        assigneeIds: formData.assigneeIds?.length > 0 ? formData.assigneeIds : (ticket.assigneeIds || []),
-        status: 'PENDIENTE',
-        prioridad: formData.prioridad || ticket.prioridad || 'MEDIA',
-        objetivo: formData.brief || ticket.objetivo || null,
-        canales: noContenido ? [] : (formData.canales?.length > 0 ? formData.canales : (ticket.canales || ['LinkedIn'])),
-        dueDate: null,
-        plannedDate: null,
-        ticketTypeId: formData.ticketTypeId || (ticket as any).ticketTypeId || ticket.ticketType?.id || null,
-        tiposContenido: formData.tiposContenido || (ticket as any).tiposContenido || [],
-        pilarId: noContenido ? null : (formData.pilarId || (ticket as any).pilarId || ticket.pilar?.id || null),
-        speakerId: noContenido ? null : (formData.speakerId || (ticket as any).speakerId || ticket.speaker?.id || null),
-        links: formData.links || ticket.links || [],
-        linkEntregable: null,
-        contentPerCanal: formData.contentPerCanal || (ticket as any).contentPerCanal || {},
-        notasAudiovisual: formData.notasAudiovisual || (ticket as any).notasAudiovisual || null,
-        referenciasGraficas: (ticket as any).referenciasGraficas || null,
-      };
-
-      if (esPrensa) {
-        payload.area = 'PRENSA';
-        payload.medio = formData.medio || (ticket as any).medio || null;
-        payload.periodista = formData.periodista || (ticket as any).periodista || null;
-        payload.estadoRespuesta = formData.estadoRespuesta || (ticket as any).estadoRespuesta || null;
-      }
+      const payload = buildTicketPayload(
+        {
+          ...current,
+          title: newTitle,
+          clientId: current.clientId || (ticket as any).clientId || ticket.client?.id || '',
+          ownerId: current.ownerId || current.assigneeIds[0] || (ticket as any).ownerId || ticket.owner?.id || '',
+          assigneeIds: current.assigneeIds?.length > 0 ? current.assigneeIds : (ticket.assigneeIds || []),
+          status: 'PENDIENTE',
+          subEstado: 'PENDIENTE',
+          dueDate: '',
+          fechaPub: '',
+          linkEntregable: '',
+          linkPublicacion: '',
+        },
+        { isCreate: true }
+      );
 
       const res = await api.createTicket(payload);
       if (res?.data) {
@@ -1778,13 +1780,24 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
                 <input
                   value={entregableInput}
                   onChange={e => setEntregableInput(e.target.value)}
+                  onBlur={() => {
+                    const v = entregableInput.trim();
+                    if (v) {
+                      const current = parseDeliverableLinks(formData.linkEntregable);
+                      const next = Array.from(new Set([...current, ensureAbsoluteUrl(v)]));
+                      entregableInputRef.current = '';
+                      setEntregableInput('');
+                      handleChange('linkEntregable', serializeDeliverableLinks(next) || '', true);
+                    }
+                  }}
                   onKeyDown={e => {
                     if (e.key === 'Enter') {
                       e.preventDefault();
                       const v = entregableInput.trim();
                       if (v) {
                         const current = parseDeliverableLinks(formData.linkEntregable);
-                        const next = [...current, ensureAbsoluteUrl(v)];
+                        const next = Array.from(new Set([...current, ensureAbsoluteUrl(v)]));
+                        entregableInputRef.current = '';
                         setEntregableInput('');
                         handleChange('linkEntregable', serializeDeliverableLinks(next) || '', true);
                       }
@@ -2433,7 +2446,7 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
           pop={pop}
           thread={pop ? threads[pop.id] : undefined}
           users={teamList}
-          ticketId={ticket?.id}
+          ticketId={ticket?.id || createdTicketId || undefined}
           onSend={(text) => sendPop(text)}
           onResolve={resolvePop}
           onClose={closePop}

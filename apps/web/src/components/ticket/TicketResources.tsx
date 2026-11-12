@@ -200,6 +200,7 @@ export const TicketResources: React.FC<TicketResourcesProps> = ({
         <input
           value={recursoInput}
           onChange={e => setRecursoInput(e.target.value)}
+          onBlur={handleAddLink}
           onKeyDown={e => {
             if (e.key === 'Enter') {
               e.preventDefault();

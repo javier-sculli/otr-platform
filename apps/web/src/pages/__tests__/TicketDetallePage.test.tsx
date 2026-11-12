@@ -394,6 +394,57 @@ describe('TicketDetallePage (Smoke / Montaje)', () => {
     expect(within(copyToolbar).getByTitle('Seleccioná texto y dejá un comentario')).toBeInTheDocument();
     expect(within(notasToolbar).getByTitle('Seleccioná texto y dejá un comentario')).toBeInTheDocument();
   });
+
+  it('sincroniza el copy y las notas de diseño cuando el detalle completo llega después de un item parcial en cache', async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: {
+        queries: {
+          retry: false,
+        },
+      },
+    });
+
+    // Simular que la cache ['ticket', 'ticket-999'] tenía inicialmente la versión liviana del listado (sin contentPerCanal ni notasAudiovisual)
+    queryClient.setQueryData(['ticket', 'ticket-999'], {
+      data: {
+        id: 'ticket-999',
+        title: 'TRF Carrusel',
+        status: 'REDACCION',
+        prioridad: 'MEDIA',
+        canales: ['LinkedIn'],
+        client: { id: 'client-1', name: 'Icona' },
+      },
+    });
+
+    // El backend luego responde con el detalle completo incluyendo contentPerCanal y notasAudiovisual
+    (api.getTicket as any).mockResolvedValue({
+      data: {
+        ...mockFullTicket,
+        id: 'ticket-999',
+        title: 'TRF Carrusel',
+        status: 'REDACCION',
+        contentPerCanal: {
+          LinkedIn: '<p>Copy real que llegó del servidor</p>',
+        },
+        notasAudiovisual: '<p>Notas reales del servidor</p>',
+      },
+    });
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={['/piezas/ticket-999']}>
+          <Routes>
+            <Route path="/piezas/:ticketId" element={<TicketDetallePage />} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('Copy real que llegó del servidor')).toBeInTheDocument();
+      expect(screen.getByText('Notas reales del servidor')).toBeInTheDocument();
+    });
+  });
 });
 
 

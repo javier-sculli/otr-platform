@@ -1693,6 +1693,91 @@ describe('CreateTicketModal — "Nuevo ticket" después de ver otro ticket', () 
     });
     expect(onClose).toHaveBeenCalledTimes(1);
   });
+
+  it('guarda links pegados sin presionar Enter y persiste ediciones posteriores si el ticket se creó anticipadamente por un comentario', async () => {
+    vi.mocked(api.getTicketTypes).mockResolvedValue({
+      data: [{ id: 'tt-carrusel', name: 'Carrusel', kind: 'CONTENIDO' }],
+    });
+    vi.mocked(api.getClients).mockResolvedValue({
+      data: [{ id: 'client-icona', name: 'Icona', canales: ['LinkedIn', 'Instagram'] }],
+    });
+    vi.mocked(api.getUsers).mockResolvedValue({
+      data: [{ id: 'user-agus', name: 'Agustina Ackerman', email: 'agus@otr.com' }],
+    });
+    vi.mocked(api.createTicket).mockResolvedValue({
+      data: { id: 'created-trf-1', title: 'TRF Carrusel' },
+    });
+    vi.mocked(api.updateTicket).mockResolvedValue({
+      data: { id: 'created-trf-1', title: 'TRF Carrusel' },
+    });
+    (api as any).createComment = vi.fn().mockResolvedValue({ data: { id: 'c-1' } });
+    (api as any).getComments = vi.fn().mockResolvedValue({ data: [] });
+
+    const onClose = vi.fn();
+    render(
+      <CreateTicketModal
+        isOpen={true}
+        onClose={onClose}
+        defaultClientId="client-icona"
+      />,
+      { wrapper: createWrapper() }
+    );
+
+    const titleInput = await screen.findByPlaceholderText(/nombre de la pieza/i);
+    await userEvent.type(titleInput, 'TRF Carrusel');
+
+    // Seleccionar formato Carrusel
+    const formatoPicker = screen.getByTestId('ticket-format-picker');
+    await userEvent.click(formatoPicker.querySelector('button')!);
+    await userEvent.click(await screen.findByText('Carrusel'));
+
+    // Seleccionar responsable
+    await userEvent.click(screen.getByRole('button', { name: '+ Agregar' }));
+    await userEvent.click(await screen.findByTestId('candidate-user-user-agus'));
+
+    // Pegar un link en recursos y en entregable sin apretar Enter
+    const recursoInput = screen.getByPlaceholderText(/pegá un link a fotos, logos o documentos/i);
+    await userEvent.type(recursoInput, 'drive.google.com/recurso-sin-enter');
+    fireEvent.blur(recursoInput);
+
+    const entregableInput = screen.getByPlaceholderText(/pegá un link al diseño terminado/i);
+    await userEvent.type(entregableInput, 'figma.com/entregable-sin-enter');
+
+    // Enviar un comentario ANTES de tocar "Crear ticket" (esto auto-crea el ticket en backend)
+    const commentInput = screen.getByPlaceholderText(/escribí un comentario/i);
+    await userEvent.type(commentInput, 'Primer comentario antes de cerrar');
+    const comentarButtons = screen.getAllByRole('button', { name: /^comentar$/i });
+    await userEvent.click(comentarButtons[comentarButtons.length - 1]);
+
+    await waitFor(() => {
+      expect(api.createTicket).toHaveBeenCalledTimes(1);
+      expect((api as any).createComment).toHaveBeenCalledWith('created-trf-1', 'Primer comentario antes de cerrar');
+    });
+
+    // Ahora la usuaria sigue editando en el mismo modal abierto: agrega el Copy de LinkedIn
+    const linkedInBtn = await screen.findByRole('button', { name: /^\+ LinkedIn$/i });
+    await userEvent.click(linkedInBtn);
+    const copyEditor = await screen.findByPlaceholderText(/Copy para LinkedIn/i);
+    await userEvent.type(copyEditor, 'Copy redactado después del comentario');
+
+    // Toca "Crear ticket" para finalizar
+    const createBtn = screen.getByRole('button', { name: /crear ticket/i });
+    await userEvent.click(createBtn);
+
+    await waitFor(() => {
+      expect(api.updateTicket).toHaveBeenCalledWith(
+        'created-trf-1',
+        expect.objectContaining({
+          links: ['https://drive.google.com/recurso-sin-enter'],
+          linkEntregable: 'https://figma.com/entregable-sin-enter',
+          contentPerCanal: expect.objectContaining({
+            LinkedIn: expect.stringContaining('Copy redactado después del comentario'),
+          }),
+        })
+      );
+    });
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
 });
 
 
