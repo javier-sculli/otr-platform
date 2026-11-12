@@ -1778,6 +1778,64 @@ describe('CreateTicketModal — "Nuevo ticket" después de ver otro ticket', () 
     });
     expect(onClose).toHaveBeenCalledTimes(1);
   });
+
+  it('siempre consulta GET /tickets/:id al reabrir el popup para traer la última versión del servidor', async () => {
+    const ticketSummary = {
+      id: 'ticket-refresh-1',
+      title: 'Título v1',
+      client: { id: 'c1', name: 'Cliente 1' },
+      owner: { id: 'user-1', name: 'Tester' },
+      status: 'PENDIENTE',
+      prioridad: 'MEDIA',
+      canales: ['LinkedIn'],
+    };
+
+    (api.getTicket as any)
+      .mockResolvedValueOnce({
+        data: {
+          ...ticketSummary,
+          title: 'Título v1 desde server',
+          contentPerCanal: { LinkedIn: '<p>Copy v1</p>' },
+        },
+      })
+      .mockResolvedValueOnce({
+        data: {
+          ...ticketSummary,
+          title: 'Título v2 actualizado por otro usuario',
+          contentPerCanal: { LinkedIn: '<p>Copy v2 actualizado</p>' },
+        },
+      });
+
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    const Wrapper = ({ children }: { children: React.ReactNode }) => (
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter>{children}</MemoryRouter>
+      </QueryClientProvider>
+    );
+
+    const { rerender } = render(
+      <CreateTicketModal isOpen={true} onClose={vi.fn()} ticket={ticketSummary as any} />,
+      { wrapper: Wrapper }
+    );
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('Título v1 desde server')).toBeInTheDocument();
+      expect(screen.getByText('Copy v1')).toBeInTheDocument();
+    });
+    expect(api.getTicket).toHaveBeenCalledTimes(1);
+
+    // Cerrar y volver a abrir inmediatamente el mismo ticket
+    rerender(<CreateTicketModal isOpen={false} onClose={vi.fn()} ticket={ticketSummary as any} />);
+    rerender(<CreateTicketModal isOpen={true} onClose={vi.fn()} ticket={ticketSummary as any} />);
+
+    await waitFor(() => {
+      expect(api.getTicket).toHaveBeenCalledTimes(2);
+      expect(screen.getByDisplayValue('Título v2 actualizado por otro usuario')).toBeInTheDocument();
+      expect(screen.getByText('Copy v2 actualizado')).toBeInTheDocument();
+    });
+  });
 });
 
 

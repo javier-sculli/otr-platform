@@ -307,7 +307,7 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
     queryKey: ['ticket', ticket?.id],
     queryFn: () => api.getTicket(ticket!.id),
     enabled: isOpen && !!ticket?.id,
-    staleTime: 30 * 1000,
+    staleTime: 0,
   });
 
   const isTicketLoading = isEditing && isFetchingTicket;
