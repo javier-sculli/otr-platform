@@ -611,7 +611,8 @@ async function resolveTicketTypeForCreation(prismaInstance: typeof prisma, data:
         referenciasGraficas: data.referenciasGraficas || null,
         contentPerCanal: (data.contentPerCanal && typeof data.contentPerCanal === 'object') ? data.contentPerCanal : {},
         publishedAt: parseApiDate(data.publishedAt),
-        keywords: Array.isArray(data.keywords) ? data.keywords : [],
+        // keywords es una columna de texto (String?): una lista hace que Prisma rechace la creación (500)
+        keywords: typeof data.keywords === 'string' ? data.keywords : null,
         ...(Array.isArray(data.referenceIds) && data.referenceIds.length > 0
           ? {
               references: {

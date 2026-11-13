@@ -4,6 +4,13 @@
 > 
 > 🎯 **BACKLOG OFICIAL Y PRIORIDADES (FUENTE DE VERDAD):** [Notion Backlog Oficial](https://app.notion.com/p/Backlog-3ba617fc369281048bfdfc89c5041d9c?source=copy_link). Todas las prioridades y tareas activas se gestionan directamente allí.
 
+### [2026-11-13] — Fix: creación de tickets devolvía 500 por `keywords` como lista
+- **Desarrollador:** Shaiel Terán (con Claude Code)
+- **Caso diagnosticado:** desde `b0c8d51` (2026-11-12), `POST /tickets` guardaba `keywords: Array.isArray(data.keywords) ? data.keywords : []`. La columna `tickets.keywords` es `String?` (TEXT), así que Prisma rechazaba toda creación con `Argument keywords: Invalid value provided. Expected String or Null, provided ()` → "Internal Server Error" en el toast de guardado. Afectaba a cualquier ticket nuevo (backlog, prensa, plan de contenidos).
+- **Solución (`apps/api/src/routes/tickets.ts`):** `keywords: typeof data.keywords === 'string' ? data.keywords : null`.
+- **Verificación:** `prisma.ticket.create` dentro de una transacción con rollback contra la base de Railway: con `[]` falla por `keywords`; con `null` pasa la validación (sin datos persistidos). `apps/api` no tiene suite de tests; typecheck OK.
+- **Deploy:** requiere `railway up --service api` (el frontend no cambió).
+
 ### [2026-11-12] — Auto-envío de comentarios/imágenes al cerrar o crear ticket + Sistema Global de Toasts de Error en Guardado
 - **Desarrollador:** Antigravity (Pair Programming con Javier Sculli)
 - **Caso diagnosticado:**
