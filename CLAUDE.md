@@ -167,6 +167,11 @@ Sistema de gestión de producción de contenido para On The Rocks (OTR), una age
 > **Al iniciar una conversacion, leer `/memory/INDEX.md`** para tener contexto de lo implementado y las decisiones tomadas.
 > **Al terminar algo nuevo, actualizar la memoria**: crear o editar el archivo correspondiente en `/memory/` y actualizar `INDEX.md`.
 
+## Git y Trabajo en Equipo — REGLA OBLIGATORIA
+
+> ⚠️ **SIEMPRE EJECUTAR `git fetch origin` PRIMERO:**
+> Ya no trabajamos solos en el repo (hay más personas pusheando a `origin/main` y otras ramas). Antes de revisar historial (`git log`), estado de ramas (`git branch`, `git status`), comparar cambios o empezar a trabajar, **siempre correr `git fetch origin`** para traer las referencias actualizadas del remoto y no leer una copia local desactualizada.
+
 ## Deployment y Publicación a Producción
 
 > ⚠️ **REGLA MANDATORIA AL SUBIR CAMBIOS ("subí esto", "comitear y subir", "deploy"):**

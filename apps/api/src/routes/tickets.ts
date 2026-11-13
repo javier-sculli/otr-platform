@@ -1,4 +1,5 @@
 import { FastifyInstance } from 'fastify';
+import { Prisma, TicketTypeKind } from '@prisma/client';
 import { prisma } from '../lib/prisma.js';
 import { authenticate } from '../middleware/auth.js';
 import { sendNotificationEmail } from '../lib/email.js';
@@ -551,7 +552,9 @@ async function resolveTicketTypeForCreation(prismaInstance: typeof prisma, data:
       : (data.ownerId ? [data.ownerId] : []);
     const primaryOwnerId = data.ownerId || initialAssigneeIds[0];
 
-    const tipoTicket = data.tipoTicket || (data.area === 'PRENSA' ? 'PRENSA' : (data.tipo === 'TAREA' ? 'TAREA' : 'CONTENIDO'));
+    const tipoTicket: TicketTypeKind = (data.tipoTicket === 'PRENSA' || data.area === 'PRENSA')
+      ? 'PRENSA'
+      : ((data.tipoTicket === 'TAREA' || data.tipo === 'TAREA') ? 'TAREA' : 'CONTENIDO');
     const isTarea = tipoTicket === 'TAREA';
 
     const { ticketTypeId: resolvedTicketTypeId } = await resolveTicketTypeForCreation(prisma, { ...data, tipoTicket });
@@ -577,54 +580,56 @@ async function resolveTicketTypeForCreation(prismaInstance: typeof prisma, data:
       initialSortOrder = (minTicket._min.sortOrder ?? 0) - 1024;
     }
 
+    const createData: Prisma.TicketUncheckedCreateInput = {
+      title: data.title,
+      description: data.referencias !== undefined ? data.referencias : data.description,
+      objetivo: data.objetivo,
+      canales,
+      tipoTicket,
+      prioridad: data.prioridad || 'MEDIA',
+      clientId: data.clientId,
+      ownerId: primaryOwnerId,
+      assigneeIds: initialAssigneeIds,
+      ticketTypeId: resolvedTicketTypeId,
+      pilarId: data.pilarId || null,
+      speakerId: data.speakerId || null,
+      status: data.status || 'PENDIENTE',
+      area: data.area || 'CONTENIDO',
+      subEstado: data.subEstado || null,
+      macroEstado: (data.subEstado ? SUBESTADO_TO_MACRO[data.subEstado] : null) as any,
+      reviewerId: data.reviewerId || null,
+      medio: data.medio || null,
+      periodista: data.periodista || null,
+      estadoRespuesta: data.estadoRespuesta || null,
+      dueDate: parseApiDate(data.dueDate) ?? undefined,
+      plannedDate: parseApiDate(data.plannedDate),
+      isDraftPlan: data.isDraftPlan !== undefined ? data.isDraftPlan : false,
+      estadoAprobacionCliente: data.estadoAprobacionCliente || 'BORRADOR',
+      linkEntregable: data.linkPublicacionReal !== undefined ? data.linkPublicacionReal : data.linkEntregable,
+      linkPublicacion: data.linkPublicacion !== undefined ? data.linkPublicacion : null,
+      links: data.links || [],
+      tiposContenido: data.tiposContenido || [],
+      notasAudiovisual: data.notasAudiovisual !== undefined ? data.notasAudiovisual : null,
+      referenciasGraficas: data.referenciasGraficas || Prisma.JsonNull,
+      contentPerCanal: (data.contentPerCanal && typeof data.contentPerCanal === 'object') ? data.contentPerCanal : {},
+      publishedAt: parseApiDate(data.publishedAt),
+      // keywords es una columna de texto (String?): una lista hace que Prisma rechace la creación (500)
+      keywords: typeof data.keywords === 'string' ? data.keywords : null,
+      ...(Array.isArray(data.referenceIds) && data.referenceIds.length > 0
+        ? {
+            references: {
+              connect: [...new Set(data.referenceIds as string[])]
+                .filter(Boolean)
+                .slice(0, 3)
+                .map((rid) => ({ id: rid })),
+            },
+          }
+        : {}),
+      sortOrder: initialSortOrder,
+    };
+
     const ticket = await prisma.ticket.create({
-      data: {
-        title: data.title,
-        description: data.referencias !== undefined ? data.referencias : data.description,
-        objetivo: data.objetivo,
-        canales,
-        tipoTicket,
-        prioridad: data.prioridad || 'MEDIA',
-        clientId: data.clientId,
-        ownerId: primaryOwnerId,
-        assigneeIds: initialAssigneeIds,
-        ticketTypeId: resolvedTicketTypeId,
-        pilarId: data.pilarId || null,
-        speakerId: data.speakerId || null,
-        status: data.status || 'PENDIENTE',
-        area: data.area || 'CONTENIDO',
-        subEstado: data.subEstado || null,
-        macroEstado: (data.subEstado ? SUBESTADO_TO_MACRO[data.subEstado] : null) as any,
-        reviewerId: data.reviewerId || null,
-        medio: data.medio || null,
-        periodista: data.periodista || null,
-        estadoRespuesta: data.estadoRespuesta || null,
-        dueDate: parseApiDate(data.dueDate) ?? undefined,
-        plannedDate: parseApiDate(data.plannedDate),
-        isDraftPlan: data.isDraftPlan !== undefined ? data.isDraftPlan : false,
-        estadoAprobacionCliente: data.estadoAprobacionCliente || 'BORRADOR',
-        linkEntregable: data.linkPublicacionReal !== undefined ? data.linkPublicacionReal : data.linkEntregable,
-        linkPublicacion: data.linkPublicacion !== undefined ? data.linkPublicacion : null,
-        links: data.links || [],
-        tiposContenido: data.tiposContenido || [],
-        notasAudiovisual: data.notasAudiovisual !== undefined ? data.notasAudiovisual : null,
-        referenciasGraficas: data.referenciasGraficas || null,
-        contentPerCanal: (data.contentPerCanal && typeof data.contentPerCanal === 'object') ? data.contentPerCanal : {},
-        publishedAt: parseApiDate(data.publishedAt),
-        // keywords es una columna de texto (String?): una lista hace que Prisma rechace la creación (500)
-        keywords: typeof data.keywords === 'string' ? data.keywords : null,
-        ...(Array.isArray(data.referenceIds) && data.referenceIds.length > 0
-          ? {
-              references: {
-                connect: [...new Set(data.referenceIds as string[])]
-                  .filter(Boolean)
-                  .slice(0, 3)
-                  .map((rid) => ({ id: rid })),
-              },
-            }
-          : {}),
-        sortOrder: initialSortOrder,
-      },
+      data: createData,
       include: {
         client: true,
         owner: { select: { id: true, name: true, email: true } },
