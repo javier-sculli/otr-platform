@@ -150,6 +150,11 @@ Sistema de gestión de producción de contenido para On The Rocks (OTR), una age
 - El Brand Kit tendra seccion de canales: tono y lineamientos minimos por red social
 - Kit del Vocero = capa sobre el Brand Kit, con tono personal y scraping de perfil social
 
+### Fechas del ticket por vista del Backlog (definición del equipo, 2026-11-06) — REGLA FIJA
+- **Vista de columnas (kanban):** se ordena, filtra por mes y marca "Vencidos" por **fecha de entrega** (`dueDate`; si falta, `plannedDate`). La tarjeta muestra la fecha de entrega. Helper: `getFechaEntrega` en `apps/web/src/lib/utils.ts`.
+- **Vista calendario:** ubica las piezas, filtra por mes y marca "Vencidos" por **fecha de publicación** (pieza: `plannedDate`, si falta `dueDate`; tarea: `dueDate`). Helper: `getFechaPublicacion`.
+- `BacklogPage.tsx` elige la fecha según la vista (`getFechaDeVista`). No mezclar: cualquier cambio de filtros, vencidos u orden tiene que respetar esta regla.
+
 ## Reglas Arquitectónicas de Backend y Rendimiento
 
 > ⚠️ **NOTIFICACIONES SIEMPRE EN SEGUNDO PLANO:**
