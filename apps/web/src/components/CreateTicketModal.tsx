@@ -8,6 +8,7 @@ import {
 import { api } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 import { STATUS_OPTIONS, PRENSA_STATUS_OPTIONS, getNextStatusInfo } from '../lib/estados';
+import { requiresDesign } from '../lib/workflow';
 import { ensureAbsoluteUrl, formatDateISO, getRedesObjetivoForClient, parseDeliverableLinks, serializeDeliverableLinks, highlightQuotesInHtml, getCollapsedRichTextSnippet, filterPilaresBySpeaker } from '../lib/utils';
 import { TextFormatToolbar } from './TextFormatToolbar';
 import { RichTextEditor } from './RichTextEditor';
@@ -1421,7 +1422,8 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
   // Notas de diseño se muestran en Pendiente, Redacción, Diseño y estados posteriores.
   // En Pendiente son colapsables (el copy aparece antes). En Redacción aparecen abiertas (el copy aparece antes).
   // En Diseño y Edición aparecen abiertas (antes del copy). De Revisión interna en adelante, aparecen colapsadas.
-  const showNotas = isPieza && (
+  // Regla fija: sólo formatos que llevan diseño (Placa gráfica, Carrusel, Video, Story, Reel) muestran la bajada.
+  const showNotas = isPieza && requiresDesign(formData.tiposContenido || []) && (
     isPendienteORedaccion ||
     DESIGN_STATES.includes(formData.status) ||
     ['REVISION_INTERNA', 'CLIENTE', 'ESPERANDO_FEEDBACK', 'LISTO_PARA_PUBLICAR', 'PUBLICADO', 'LISTO'].includes(formData.status) ||
@@ -2018,6 +2020,8 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
                                 }}
                                 onComment={() => triggerCommentForEditor(copyRef)}
                                 className="border-b-0"
+                                allowImage={false}
+                                showEmoji
                               />
                             </div>
 

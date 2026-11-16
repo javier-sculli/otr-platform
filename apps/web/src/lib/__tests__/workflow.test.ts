@@ -97,3 +97,16 @@ describe('lib/workflow', () => {
     });
   });
 });
+
+// Regla del equipo (2026-11-16): la bajada / notas de diseño sólo aparece en formatos que llevan diseño.
+describe('requiresDesign — catálogo exacto de formatos de pieza', () => {
+  it.each(['Placa gráfica', 'Carrusel', 'Video', 'Story', 'Reel'])('%s lleva diseño', (f) => {
+    expect(requiresDesign([f])).toBe(true);
+  });
+  it.each(['Álbum de fotos', 'Repost', 'Hilo', 'Imagen', 'Texto'])('%s NO lleva diseño', (f) => {
+    expect(requiresDesign([f])).toBe(false);
+  });
+  it('si combina un formato con diseño y otro sin, lleva diseño', () => {
+    expect(requiresDesign(['Imagen', 'Carrusel'])).toBe(true);
+  });
+});

@@ -36,6 +36,7 @@ import {
   TicketFormatPicker,
 } from '../components/ticket';
 import { SUB_DEF, STATUS_OPTIONS, PRENSA_STATUS_OPTIONS, getNextStatusInfo, type SubEstado } from '../lib/estados';
+import { requiresDesign } from '../lib/workflow';
 import { createAttachmentFromFile, type AttachedFileItem } from '../lib/attachments';
 import { notifyApiSaveError } from '../lib/toast';
 
@@ -1263,6 +1264,8 @@ export function TicketDetallePage() {
                       }}
                       onComment={() => startInline(copyRef)}
                       className="border-b-0"
+                      allowImage={false}
+                      showEmoji
                     />
                   </div>
 
@@ -1305,7 +1308,13 @@ export function TicketDetallePage() {
               </div>
             );
 
-            const notasNode = isPieza && (
+            // Bajada (notas de diseño) sólo para formatos que llevan diseño:
+            // Placa gráfica, Carrusel, Video, Story, Reel. Álbum, Repost, Hilo, Imagen y Texto no.
+            const llevaDiseno = requiresDesign({
+              tiposContenido: (ticket as any).tiposContenido,
+              ticketType: (ticket as any).ticketType,
+            });
+            const notasNode = isPieza && llevaDiseno && (
               <div className="flex flex-col gap-3.5">
                 {isPendiente ? (
                   <>

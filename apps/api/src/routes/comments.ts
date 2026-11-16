@@ -2,26 +2,7 @@ import { FastifyInstance } from 'fastify';
 import { prisma } from '../lib/prisma.js';
 import { authenticate } from '../middleware/auth.js';
 import { sendNotificationEmail } from '../lib/email.js';
-
-const NICKNAMES: Record<string, string> = {
-  joaco: 'joaquín',
-  manu: 'manuela',
-  javi: 'javier',
-  sofi: 'sofía',
-  santi: 'santiago',
-  lore: 'lorena',
-  nati: 'natalia',
-  nahue: 'nahuel',
-  palo: 'paloma',
-  geo: 'georgina',
-  agu: 'agustina',
-  guada: 'guadalupe',
-  shai: 'shaiel',
-};
-
-function normalizeStr(str: string) {
-  return (str || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
-}
+import { resolveMentions } from '../lib/mentions.js';
 
 async function normalizeCommentMedia(rawContent: string): Promise<string> {
   if (!rawContent.includes('data:image/heic') && !rawContent.includes('data:image/heif')) {
@@ -211,43 +192,8 @@ export async function commentsRoutes(fastify: FastifyInstance) {
       const allUsers = await prisma.user.findMany({
         select: { id: true, name: true, email: true }
       });
-
-      const matchedUserIds = new Set<string>();
-      const normContent = normalizeStr(textOnly);
-
-      for (const u of allUsers) {
-        if (u.id === user.id) continue; // Ignorar auto-mención
-
-        const nameNorm = normalizeStr(u.name);
-        const firstNameNorm = nameNorm.split(' ')[0];
-        const emailPrefixNorm = normalizeStr(u.email ? u.email.split('@')[0] : '');
-
-        // Construir candidatos de búsqueda para el usuario (nombre, primer nombre, email, apodos)
-        const candidates = new Set<string>();
-        if (nameNorm) candidates.add(nameNorm);
-        if (firstNameNorm) candidates.add(firstNameNorm);
-        if (emailPrefixNorm) candidates.add(emailPrefixNorm);
-
-        for (const [nick, targetName] of Object.entries(NICKNAMES)) {
-          const normTarget = normalizeStr(targetName);
-          if (nameNorm === normTarget || firstNameNorm === normTarget || nameNorm.includes(normTarget)) {
-            candidates.add(nick);
-          }
-        }
-
-        // Probar los candidatos ordenados por longitud descendente para preferir nombres completos
-        const sortedCandidates = Array.from(candidates).sort((a, b) => b.length - a.length);
-        for (const cand of sortedCandidates) {
-          if (!cand || cand.length < 2) continue;
-          const escaped = cand.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-          const regex = new RegExp(`@${escaped}(?=[^a-z0-9áéíóúñ]|\\s|$)`, 'i');
-          if (regex.test(normContent)) {
-            matchedUserIds.add(u.id);
-            break;
-          }
-        }
-      }
-      mentionedIds = Array.from(matchedUserIds);
+      // Longest-match por posición: "@Camila Montes" no notifica a otra "Camila"
+      mentionedIds = resolveMentions(textOnly, allUsers, user.id);
     }
 
     const comment = await prisma.ticketComment.create({

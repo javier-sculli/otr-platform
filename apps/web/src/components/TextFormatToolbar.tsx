@@ -3,6 +3,44 @@ import { MessageSquare, Image as ImageIcon } from 'lucide-react';
 import { ensureAbsoluteUrl } from '../lib/utils';
 import { compressImageFile } from '../lib/imageCompression';
 import { insertHtmlIntoEditor } from './RichTextEditor';
+import { EmojiPickerButton } from './EmojiPickerButton';
+
+/**
+ * Inserta un emoji en el editor rich-text en la posición del cursor (o la última guardada).
+ * Si no hay selección dentro del editor, lo agrega al final.
+ */
+export function insertEmojiIntoEditor(
+  editor: HTMLDivElement | null,
+  emoji: string,
+  savedRange: Range | null,
+  onChange?: (val: string) => void
+): Range | null {
+  if (!editor) return null;
+  editor.focus();
+  const sel = window.getSelection();
+  let range: Range | null = null;
+  if (savedRange && editor.contains(savedRange.commonAncestorContainer)) {
+    range = savedRange;
+  } else if (sel && sel.rangeCount && editor.contains(sel.getRangeAt(0).commonAncestorContainer)) {
+    range = sel.getRangeAt(0);
+  }
+  if (!range) {
+    range = document.createRange();
+    range.selectNodeContents(editor);
+    range.collapse(false);
+  }
+  range.deleteContents();
+  const node = document.createTextNode(emoji);
+  range.insertNode(node);
+  range.setStartAfter(node);
+  range.collapse(true);
+  if (sel) {
+    sel.removeAllRanges();
+    sel.addRange(range);
+  }
+  onChange?.(editor.innerHTML);
+  return range.cloneRange();
+}
 
 export async function insertImageIntoEditor(
   editor: HTMLDivElement | null,
@@ -163,6 +201,10 @@ export interface TextFormatToolbarProps {
   className?: string;
   sticky?: boolean;
   stickyOffset?: number | string;
+  /** Muestra el botón de insertar imagen (default: true). En el copy se desactiva. */
+  allowImage?: boolean;
+  /** Muestra el menú de emojis (default: false). */
+  showEmoji?: boolean;
 }
 
 export function TextFormatToolbar({
@@ -174,9 +216,36 @@ export function TextFormatToolbar({
   className = '',
   sticky = false,
   stickyOffset,
+  allowImage = true,
+  showEmoji = false,
 }: TextFormatToolbarProps) {
   const toolbarRef = useRef<HTMLDivElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
+  const emojiRangeRef = useRef<Range | null>(null);
+
+  const saveEmojiRange = () => {
+    const sel = window.getSelection();
+    const editor = editorRef?.current;
+    emojiRangeRef.current =
+      editor && sel && sel.rangeCount && editor.contains(sel.getRangeAt(0).commonAncestorContainer)
+        ? sel.getRangeAt(0).cloneRange()
+        : null;
+  };
+
+  const handleEmoji = (emoji: string) => {
+    if (editorRef?.current) {
+      emojiRangeRef.current = insertEmojiIntoEditor(editorRef.current, emoji, emojiRangeRef.current, onChange);
+    } else if (textareaRef?.current && onChange) {
+      const ta = textareaRef.current;
+      const s = ta.selectionStart ?? value.length;
+      const e = ta.selectionEnd ?? value.length;
+      onChange(value.slice(0, s) + emoji + value.slice(e));
+      setTimeout(() => {
+        ta.focus();
+        ta.setSelectionRange(s + emoji.length, s + emoji.length);
+      }, 0);
+    }
+  };
   const [bubbleState, setBubbleState] = useState<{
     top: number;
     left: number;
@@ -374,6 +443,10 @@ export function TextFormatToolbar({
         Link
       </button>
 
+      {showEmoji && <EmojiPickerButton onOpen={saveEmojiRange} onPick={handleEmoji} />}
+
+      {allowImage && (
+      <>
       <button
         type="button"
         onMouseDown={e => {
@@ -402,6 +475,8 @@ export function TextFormatToolbar({
           }
         }}
       />
+      </>
+      )}
 
       {onComment && (
         <>
@@ -517,6 +592,7 @@ export function TextFormatToolbar({
           >
             Link
           </button>
+          {allowImage && (
           <button
             type="button"
             onMouseDown={e => {
@@ -528,6 +604,7 @@ export function TextFormatToolbar({
           >
             <ImageIcon className="w-3.5 h-3.5" />
           </button>
+          )}
 
           {onComment && (
             <>
