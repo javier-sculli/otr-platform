@@ -348,6 +348,11 @@ class ApiClient {
     return this.request(`/tickets/${ticketId}/comments/${commentId}`, { method: 'DELETE' });
   }
 
+  /** Resolver un comentario en línea: lo puede hacer cualquier persona del equipo (no sólo el autor). */
+  async resolveComment(ticketId: string, commentId: string) {
+    return this.request(`/tickets/${ticketId}/comments/${commentId}/resolve`, { method: 'POST' });
+  }
+
   async uploadAttachment(ticketId: string, file: File) {
     const token = this.getToken();
     const formData = new FormData();

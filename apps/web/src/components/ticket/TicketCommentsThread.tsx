@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, forwardRef, useImperativeHandle } from 'react';
 import { Trash2, Loader2, Image as ImageIcon, X, Paperclip, FileText, Download } from 'lucide-react';
-import { MentionTextarea } from '../MentionTextarea';
+import { MentionTextarea, formatCommentWithMentions } from '../MentionTextarea';
 import { compressImageFile, parseCommentContent, buildCommentContent, isImageFile } from '../../lib/imageCompression';
 import { readFileAsDataUrl, formatFileSize, MAX_COMMENT_ATTACHMENT_SIZE_BYTES } from '../../lib/attachments';
 import { CommentImageViewerModal } from './CommentImageViewerModal';
@@ -54,28 +54,6 @@ function getInitials(name?: string | null): string {
     .join('')
     .slice(0, 2)
     .toUpperCase();
-}
-
-function formatCommentWithMentions(text: string) {
-  const parts = text.split(/(@\[[^\]]+\]\([^\)]+\)|@[a-zA-Z0-9_.-]+)/g);
-  return parts.map((part, i) => {
-    const matchBracket = part.match(/^@\[([^\]]+)\]\(([^\)]+)\)$/);
-    if (matchBracket) {
-      return (
-        <span key={i} className="font-semibold text-[#024fff] bg-[#024fff]/10 px-1 py-0.5 rounded">
-          @{matchBracket[1]}
-        </span>
-      );
-    }
-    if (part.startsWith('@') && part.length > 1) {
-      return (
-        <span key={i} className="font-semibold text-[#024fff] bg-[#024fff]/10 px-1 py-0.5 rounded">
-          {part}
-        </span>
-      );
-    }
-    return part;
-  });
 }
 
 function formatCommentDate(cm: TicketCommentItem): string {
@@ -478,7 +456,7 @@ export const TicketCommentsThread = forwardRef<TicketCommentsThreadHandle, Ticke
                     isPage ? 'text-[15px] leading-[1.5]' : 'text-[14px] leading-relaxed'
                   } text-[#1d2a3a] whitespace-pre-wrap`}
                 >
-                  {formatCommentWithMentions(cleanText)}
+                  {formatCommentWithMentions(cleanText, teamList)}
                 </span>
               )}
 

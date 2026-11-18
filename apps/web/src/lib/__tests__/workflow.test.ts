@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { requiresDesign, requiresVideo, getNextStatusForTicket } from '../workflow';
+import { requiresDesign, requiresVideo, getNextStatusForTicket, showsDesignNotes } from '../workflow';
 
 describe('lib/workflow', () => {
   describe('requiresDesign', () => {
@@ -98,15 +98,30 @@ describe('lib/workflow', () => {
   });
 });
 
-// Regla del equipo (2026-11-16): la bajada / notas de diseño sólo aparece en formatos que llevan diseño.
+// Regla del equipo (2026-11-16, ajustada 2026-11-18): Álbum de fotos e Imagen también pasan por Diseño.
 describe('requiresDesign — catálogo exacto de formatos de pieza', () => {
-  it.each(['Placa gráfica', 'Carrusel', 'Video', 'Story', 'Reel'])('%s lleva diseño', (f) => {
+  it.each(['Placa gráfica', 'Carrusel', 'Video', 'Story', 'Reel', 'Álbum de fotos', 'Imagen'])('%s lleva diseño', (f) => {
     expect(requiresDesign([f])).toBe(true);
   });
-  it.each(['Álbum de fotos', 'Repost', 'Hilo', 'Imagen', 'Texto'])('%s NO lleva diseño', (f) => {
+  it.each(['Repost', 'Hilo', 'Texto'])('%s NO lleva diseño', (f) => {
     expect(requiresDesign([f])).toBe(false);
   });
   it('si combina un formato con diseño y otro sin, lleva diseño', () => {
-    expect(requiresDesign(['Imagen', 'Carrusel'])).toBe(true);
+    expect(requiresDesign(['Texto', 'Carrusel'])).toBe(true);
+  });
+});
+
+// Ajuste del equipo (2026-11-18): Álbum de fotos e Imagen muestran notas y pasan por Diseño (edición de fotos).
+describe('showsDesignNotes — qué formatos muestran "Notas de diseño"', () => {
+  it.each(['Placa gráfica', 'Carrusel', 'Video', 'Story', 'Reel', 'Álbum de fotos', 'Imagen'])('%s muestra notas', (f) => {
+    expect(showsDesignNotes([f])).toBe(true);
+  });
+  it.each(['Repost', 'Hilo', 'Texto'])('%s NO muestra notas', (f) => {
+    expect(showsDesignNotes([f])).toBe(false);
+  });
+  it('Álbum de fotos e Imagen pasan por Diseño, igual que Placa gráfica', () => {
+    expect(getNextStatusForTicket({ status: 'DISENO', tiposContenido: ['Imagen'] })).toBe('REVISION_INTERNA');
+    expect(getNextStatusForTicket({ status: 'REDACCION', tiposContenido: ['Álbum de fotos'] })).toBe('DISENO');
+    expect(getNextStatusForTicket({ status: 'REDACCION', tiposContenido: ['Imagen'] })).toBe('DISENO');
   });
 });

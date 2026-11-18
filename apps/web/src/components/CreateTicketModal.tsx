@@ -8,7 +8,8 @@ import {
 import { api } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 import { STATUS_OPTIONS, PRENSA_STATUS_OPTIONS, getNextStatusInfo } from '../lib/estados';
-import { requiresDesign } from '../lib/workflow';
+import { showsDesignNotes } from '../lib/workflow';
+import { safeSessionGet, safeSessionSet } from '../lib/safeStorage';
 import { ensureAbsoluteUrl, formatDateISO, getRedesObjetivoForClient, parseDeliverableLinks, serializeDeliverableLinks, highlightQuotesInHtml, getCollapsedRichTextSnippet, filterPilaresBySpeaker } from '../lib/utils';
 import { TextFormatToolbar } from './TextFormatToolbar';
 import { RichTextEditor } from './RichTextEditor';
@@ -298,7 +299,8 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'error' | null>(null);
   const [isDuplicating, setIsDuplicating] = useState(false);
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const dragStartedInsideRef = useRef(false);
+  // true sólo si el último mousedown fue directamente sobre el fondo del popup
+  const backdropMouseDownRef = useRef(false);
   const isClosingRef = useRef(false);
   const formDataRef = useRef(formData);
   formDataRef.current = formData;
@@ -465,7 +467,7 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
           const backendFiles = Array.isArray((ticket as any).referenciasGraficas)
             ? (ticket as any).referenciasGraficas
             : [];
-          const saved = sessionStorage.getItem(`ticket-files-${ticket.id}`);
+          const saved = safeSessionGet(`ticket-files-${ticket.id}`);
           const sessionFiles = saved ? JSON.parse(saved) : [];
           setAttachedFiles(backendFiles.length > 0 ? backendFiles : sessionFiles);
         } else {
@@ -956,7 +958,7 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
 
     for (const cm of matching) {
       try {
-        await api.deleteComment(ticket.id, cm.id);
+        await api.resolveComment(ticket.id, cm.id);
       } catch (err) {
         console.error('Error al eliminar comentario resuelto:', err);
       }
@@ -1136,14 +1138,9 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
         else handleClose();
       }
     };
-    const handleMouseUp = () => {
-      dragStartedInsideRef.current = false;
-    };
     window.addEventListener('keydown', handleKeyDown);
-    window.addEventListener('mouseup', handleMouseUp);
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
-      window.removeEventListener('mouseup', handleMouseUp);
     };
   }, [isOpen, pop, formData]);
 
@@ -1422,8 +1419,8 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
   // Notas de diseño se muestran en Pendiente, Redacción, Diseño y estados posteriores.
   // En Pendiente son colapsables (el copy aparece antes). En Redacción aparecen abiertas (el copy aparece antes).
   // En Diseño y Edición aparecen abiertas (antes del copy). De Revisión interna en adelante, aparecen colapsadas.
-  // Regla fija: sólo formatos que llevan diseño (Placa gráfica, Carrusel, Video, Story, Reel) muestran la bajada.
-  const showNotas = isPieza && requiresDesign(formData.tiposContenido || []) && (
+  // Notas de diseño: formatos con diseño + Álbum de fotos e Imagen. Repost, Hilo y Texto no.
+  const showNotas = isPieza && showsDesignNotes(formData.tiposContenido || []) && (
     isPendienteORedaccion ||
     DESIGN_STATES.includes(formData.status) ||
     ['REVISION_INTERNA', 'CLIENTE', 'ESPERANDO_FEEDBACK', 'LISTO_PARA_PUBLICAR', 'PUBLICADO', 'LISTO'].includes(formData.status) ||
@@ -1439,25 +1436,24 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
 
   return (
     <div
-      onMouseDown={(e) => {
-        if (e.target === e.currentTarget) {
-          dragStartedInsideRef.current = false;
-        }
+      data-testid="ticket-modal-backdrop"
+      // Capture: se registra aunque algún hijo corte la propagación del mousedown.
+      // Sólo cerramos si el gesto EMPEZÓ en el fondo. Si se arrastra para seleccionar texto
+      // y se suelta afuera, el navegador dispara un click sobre el fondo: no hay que cerrar.
+      onMouseDownCapture={(e) => {
+        backdropMouseDownRef.current = e.target === e.currentTarget;
       }}
       onClick={(e) => {
-        if (e.target === e.currentTarget && !dragStartedInsideRef.current) {
+        if (e.target === e.currentTarget && backdropMouseDownRef.current) {
           handleClose();
         }
-        dragStartedInsideRef.current = false;
+        backdropMouseDownRef.current = false;
       }}
       onDragOver={(e) => e.preventDefault()}
       onDrop={(e) => e.preventDefault()}
       className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-3 md:p-4 bg-[rgba(0,14,31,.55)] bg-black/40 backdrop-blur-[2px]"
     >
       <div
-        onMouseDown={() => {
-          dragStartedInsideRef.current = true;
-        }}
         onClick={e => e.stopPropagation()}
         className="w-full max-w-[1100px] h-[calc(100vh-20px)] sm:h-[calc(100vh-32px)] bg-white rounded-[14px] flex flex-col overflow-hidden shadow-[0_24px_64px_rgba(0,14,31,.35)] font-anek animate-in fade-in zoom-in-95 duration-150"
       >
@@ -1704,7 +1700,7 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
                         setAttachedFiles(nextFiles);
                         if (ticket?.id) {
                           try {
-                            sessionStorage.setItem(`ticket-files-${ticket.id}`, JSON.stringify(nextFiles));
+                            safeSessionSet(`ticket-files-${ticket.id}`, JSON.stringify(nextFiles));
                           } catch {}
                         }
                         handleChange('referenciasGraficas', nextFiles, true);
@@ -1717,7 +1713,7 @@ export function CreateTicketModal({ isOpen, onClose, ticket, area = 'CONTENIDO',
                       setAttachedFiles(nextFiles);
                       if (ticket?.id) {
                         try {
-                          sessionStorage.setItem(`ticket-files-${ticket.id}`, JSON.stringify(nextFiles));
+                          safeSessionSet(`ticket-files-${ticket.id}`, JSON.stringify(nextFiles));
                         } catch {}
                       }
                       handleChange('referenciasGraficas', nextFiles, true);

@@ -194,7 +194,6 @@ export function CalendarioBacklog({ tickets, onTicketClick }: CalendarioBacklogP
                         const publicado = ticket.status === 'PUBLICADO';
                         const venc = esVencido(ticket);
                         const dotColor = venc ? '#d4380d' : (COLOR_ESTADO[ticket.status] || '#024fff');
-                        const corto = ticket.title.replace(/^[^|]*\|\s*/, '');
 
                         return (
                           <button
@@ -219,7 +218,8 @@ export function CalendarioBacklog({ tickets, onTicketClick }: CalendarioBacklogP
                               />
                             )}
                             <span className="flex-1 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">
-                              {corto}
+                              {/* Título completo: el equipo usa prefijos tipo "GB | …" para distinguir vocería/marca */}
+                              {ticket.title}
                             </span>
                           </button>
                         );

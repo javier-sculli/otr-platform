@@ -36,7 +36,8 @@ import {
   TicketFormatPicker,
 } from '../components/ticket';
 import { SUB_DEF, STATUS_OPTIONS, PRENSA_STATUS_OPTIONS, getNextStatusInfo, type SubEstado } from '../lib/estados';
-import { requiresDesign } from '../lib/workflow';
+import { showsDesignNotes } from '../lib/workflow';
+import { safeSessionGet, safeSessionSet } from '../lib/safeStorage';
 import { createAttachmentFromFile, type AttachedFileItem } from '../lib/attachments';
 import { notifyApiSaveError } from '../lib/toast';
 
@@ -277,7 +278,7 @@ export function TicketDetallePage() {
 
     for (const cm of matching) {
       try {
-        await api.deleteComment(ticketId, cm.id);
+        await api.resolveComment(ticketId, cm.id);
       } catch (err) {
         console.error('Error al eliminar comentario resuelto:', err);
       }
@@ -336,7 +337,7 @@ export function TicketDetallePage() {
       return (ticket as any).referenciasGraficas;
     }
     if (!ticketId) return [];
-    const saved = sessionStorage.getItem(`ticket-files-${ticketId}`);
+    const saved = safeSessionGet(`ticket-files-${ticketId}`);
     return saved ? JSON.parse(saved) : [];
   });
 
@@ -467,7 +468,7 @@ export function TicketDetallePage() {
 
   useEffect(() => {
     if (ticketId) {
-      sessionStorage.setItem(`ticket-files-${ticketId}`, JSON.stringify(attachedFiles));
+      safeSessionSet(`ticket-files-${ticketId}`, JSON.stringify(attachedFiles));
     }
   }, [attachedFiles, ticketId]);
 
@@ -1077,7 +1078,7 @@ export function TicketDetallePage() {
                       setAttachedFiles(nextFiles);
                       if (ticketId) {
                         try {
-                          sessionStorage.setItem(`ticket-files-${ticketId}`, JSON.stringify(nextFiles));
+                          safeSessionSet(`ticket-files-${ticketId}`, JSON.stringify(nextFiles));
                         } catch {}
                       }
                       updateMutation.mutate({ referenciasGraficas: nextFiles });
@@ -1090,7 +1091,7 @@ export function TicketDetallePage() {
                     setAttachedFiles(nextFiles);
                     if (ticketId) {
                       try {
-                        sessionStorage.setItem(`ticket-files-${ticketId}`, JSON.stringify(nextFiles));
+                        safeSessionSet(`ticket-files-${ticketId}`, JSON.stringify(nextFiles));
                       } catch {}
                     }
                     updateMutation.mutate({ referenciasGraficas: nextFiles });
@@ -1308,13 +1309,13 @@ export function TicketDetallePage() {
               </div>
             );
 
-            // Bajada (notas de diseño) sólo para formatos que llevan diseño:
-            // Placa gráfica, Carrusel, Video, Story, Reel. Álbum, Repost, Hilo, Imagen y Texto no.
-            const llevaDiseno = requiresDesign({
+            // Notas de diseño: formatos con diseño + Álbum de fotos e Imagen (edición de fotos).
+            // Repost, Hilo y Texto no muestran notas.
+            const muestraNotas = showsDesignNotes({
               tiposContenido: (ticket as any).tiposContenido,
               ticketType: (ticket as any).ticketType,
             });
-            const notasNode = isPieza && llevaDiseno && (
+            const notasNode = isPieza && muestraNotas && (
               <div className="flex flex-col gap-3.5">
                 {isPendiente ? (
                   <>

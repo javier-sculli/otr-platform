@@ -241,7 +241,7 @@ export function InlineCommentPopover({
                     </div>
                     {cleanText && (
                       <span className="text-[13px] leading-snug text-[#1d2a3a] whitespace-pre-wrap">
-                        {formatCommentWithMentions(cleanText)}
+                        {formatCommentWithMentions(cleanText, users)}
                       </span>
                     )}
                     {itemImages.length > 0 && (

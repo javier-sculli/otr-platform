@@ -85,6 +85,58 @@ async function processUploadedAttachment(
   return { buffer: fileBuffer, mimeType: originalMime, fileName: originalFilename };
 }
 
+/**
+ * Borra un comentario y limpia su <mark data-c> en brief, notas de diseño y copy del ticket.
+ */
+async function removeCommentAndMark(ticketId: string, commentId: string, log: (e: unknown, msg: string) => void) {
+  await prisma.ticketComment.delete({ where: { id: commentId } });
+
+  // Clean up mark in ticket html fields
+  try {
+    const ticket = await prisma.ticket.findUnique({
+      where: { id: ticketId },
+      select: { id: true, objetivo: true, notasAudiovisual: true, contentPerCanal: true }
+    });
+    if (ticket) {
+      const markRegex = new RegExp(`<mark[^>]*data-c=["'](c_)?${commentId}["'][^>]*>([\\s\\S]*?)</mark>`, 'gi');
+      let updateNeeded = false;
+      const updateData: any = {};
+
+      if (ticket.objetivo && markRegex.test(ticket.objetivo)) {
+        updateData.objetivo = ticket.objetivo.replace(markRegex, '$2');
+        updateNeeded = true;
+      }
+      if (ticket.notasAudiovisual && markRegex.test(ticket.notasAudiovisual)) {
+        updateData.notasAudiovisual = ticket.notasAudiovisual.replace(markRegex, '$2');
+        updateNeeded = true;
+      }
+      if (ticket.contentPerCanal && typeof ticket.contentPerCanal === 'object') {
+        const perCanal = { ...(ticket.contentPerCanal as Record<string, string>) };
+        let canalChanged = false;
+        for (const [ch, val] of Object.entries(perCanal)) {
+          if (typeof val === 'string' && markRegex.test(val)) {
+            perCanal[ch] = val.replace(markRegex, '$2');
+            canalChanged = true;
+          }
+        }
+        if (canalChanged) {
+          updateData.contentPerCanal = perCanal;
+          updateNeeded = true;
+        }
+      }
+
+      if (updateNeeded) {
+        await prisma.ticket.update({
+          where: { id: ticketId },
+          data: updateData,
+        });
+      }
+    }
+  } catch (e) {
+    log(e, 'Error cleaning up ticket mark on comment delete');
+  }
+}
+
 export async function commentsRoutes(fastify: FastifyInstance) {
   // Public GET for image / file attachments so native <img> and <a> tags load freely
   fastify.get('/attachments/:id', async (request, reply) => {
@@ -275,64 +327,31 @@ export async function commentsRoutes(fastify: FastifyInstance) {
     return reply.status(201).send({ data: comment });
   });
 
-  // DELETE /tickets/:ticketId/comments/:commentId
+  // DELETE /tickets/:ticketId/comments/:commentId — sólo el autor del comentario
   fastify.delete('/:ticketId/comments/:commentId', async (request, reply) => {
     const { ticketId, commentId } = request.params as { ticketId: string; commentId: string };
     const user = (request as any).user;
 
     const comment = await prisma.ticketComment.findUnique({ where: { id: commentId } });
-    if (!comment) return reply.status(404).send({ error: 'Comentario no encontrado' });
-    if (comment.userId !== user.id && user.role !== 'ADMIN') {
+    if (!comment || comment.ticketId !== ticketId) return reply.status(404).send({ error: 'Comentario no encontrado' });
+    if (comment.userId !== user.id) {
       return reply.status(403).send({ error: 'Sin permiso' });
     }
 
-    await prisma.ticketComment.delete({ where: { id: commentId } });
+    await removeCommentAndMark(ticketId, commentId, (e, msg) => fastify.log.error(e, msg));
+    return reply.status(204).send();
+  });
 
-    // Clean up mark in ticket html fields
-    try {
-      const ticket = await prisma.ticket.findUnique({
-        where: { id: ticketId },
-        select: { id: true, objetivo: true, notasAudiovisual: true, contentPerCanal: true }
-      });
-      if (ticket) {
-        const markRegex = new RegExp(`<mark[^>]*data-c=["'](c_)?${commentId}["'][^>]*>([\\s\\S]*?)</mark>`, 'gi');
-        let updateNeeded = false;
-        const updateData: any = {};
+  // POST /tickets/:ticketId/comments/:commentId/resolve — cualquier persona del equipo.
+  // Resolver un comentario en línea es parte del flujo de revisión: la contenidista resuelve
+  // comentarios que dejaron otras personas, así que no se restringe al autor.
+  fastify.post('/:ticketId/comments/:commentId/resolve', async (request, reply) => {
+    const { ticketId, commentId } = request.params as { ticketId: string; commentId: string };
 
-        if (ticket.objetivo && markRegex.test(ticket.objetivo)) {
-          updateData.objetivo = ticket.objetivo.replace(markRegex, '$2');
-          updateNeeded = true;
-        }
-        if (ticket.notasAudiovisual && markRegex.test(ticket.notasAudiovisual)) {
-          updateData.notasAudiovisual = ticket.notasAudiovisual.replace(markRegex, '$2');
-          updateNeeded = true;
-        }
-        if (ticket.contentPerCanal && typeof ticket.contentPerCanal === 'object') {
-          const perCanal = { ...(ticket.contentPerCanal as Record<string, string>) };
-          let canalChanged = false;
-          for (const [ch, val] of Object.entries(perCanal)) {
-            if (typeof val === 'string' && markRegex.test(val)) {
-              perCanal[ch] = val.replace(markRegex, '$2');
-              canalChanged = true;
-            }
-          }
-          if (canalChanged) {
-            updateData.contentPerCanal = perCanal;
-            updateNeeded = true;
-          }
-        }
+    const comment = await prisma.ticketComment.findUnique({ where: { id: commentId } });
+    if (!comment || comment.ticketId !== ticketId) return reply.status(404).send({ error: 'Comentario no encontrado' });
 
-        if (updateNeeded) {
-          await prisma.ticket.update({
-            where: { id: ticketId },
-            data: updateData,
-          });
-        }
-      }
-    } catch (e) {
-      fastify.log.error(e, 'Error cleaning up ticket mark on comment delete');
-    }
-
+    await removeCommentAndMark(ticketId, commentId, (e, msg) => fastify.log.error(e, msg));
     return reply.status(204).send();
   });
 }

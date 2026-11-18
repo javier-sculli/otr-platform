@@ -304,28 +304,104 @@ export const MentionTextarea: React.FC<MentionTextareaProps> = ({
   );
 };
 
+const MENTION_WORD = /[A-Za-z0-9áéíóúñüÁÉÍÓÚÑÜ._-]/;
+const MENTION_BRACKET = /^@\[([^\]]+)\]\([^)]+\)/;
+
+function foldChar(c: string): string {
+  // Un carácter precompuesto (á) se descompone en base + tilde: nos quedamos con la base
+  return (c.normalize('NFD')[0] || c).toLowerCase();
+}
+
+/**
+ * Parte un comentario en texto y menciones.
+ * Con `users`, la mención abarca el nombre completo de la persona (el más largo que coincida),
+ * así "@Natalia Heit" se pinta entero y "@Natalia hola" sólo pinta "@Natalia".
+ * Sin `users`, toma una palabra (+ la siguiente si empieza con mayúscula, como un apellido).
+ */
+export function splitMentions(
+  content: string,
+  users: { name?: string | null }[] = []
+): { text: string; mention: boolean }[] {
+  const names = Array.from(
+    new Set(
+      users.flatMap(u => {
+        const full = (u.name || '').trim().split(/[ \t\n]+/).join(' ');
+        return full ? [full, full.split(' ')[0]] : [];
+      })
+    )
+  )
+    .map(n => Array.from(n).map(foldChar).join(''))
+    .sort((a, b) => b.length - a.length);
+
+  const out: { text: string; mention: boolean }[] = [];
+  let buf = '';
+  let i = 0;
+  while (i < content.length) {
+    const ch = content[i];
+    const prev = i > 0 ? content[i - 1] : '';
+    if (ch === '@' && !(prev && MENTION_WORD.test(prev))) {
+      let len = 0;
+      const bracket = content.slice(i).match(MENTION_BRACKET);
+      if (bracket) {
+        if (buf) out.push({ text: buf, mention: false });
+        buf = '';
+        out.push({ text: '@' + bracket[1], mention: true });
+        i += bracket[0].length;
+        continue;
+      }
+      const rest = content.slice(i + 1);
+      for (const n of names) {
+        if (n.length > rest.length) continue;
+        const slice = Array.from(rest.slice(0, n.length)).map(foldChar).join('');
+        const next = rest[n.length];
+        if (slice === n && (next === undefined || !MENTION_WORD.test(next))) {
+          len = n.length;
+          break;
+        }
+      }
+      if (!len) {
+        const word = rest.match(/^[A-Za-z0-9áéíóúñüÁÉÍÓÚÑÜ._-]+/);
+        if (word) {
+          len = word[0].length;
+          if (!names.length) {
+            const surname = rest.slice(len).match(/^ [A-ZÁÉÍÓÚÑÜ][A-Za-záéíóúñü]+/);
+            if (surname) len += surname[0].length;
+          }
+        }
+      }
+      if (len) {
+        if (buf) out.push({ text: buf, mention: false });
+        buf = '';
+        out.push({ text: content.slice(i, i + 1 + len), mention: true });
+        i += 1 + len;
+        continue;
+      }
+    }
+    buf += ch;
+    i++;
+  }
+  if (buf) out.push({ text: buf, mention: false });
+  return out;
+}
+
 /**
  * Helper to render comment text with styled @mentions
  */
-export function formatCommentWithMentions(content?: string): React.ReactNode {
+export function formatCommentWithMentions(
+  content?: string,
+  users?: { name?: string | null }[]
+): React.ReactNode {
   if (!content) return null;
-
-  // Split text by mention tokens (e.g. @Nombre or @Nombre Apellido)
-  // Match @ followed by letters, accents, numbers, underscores
-  const regex = /(@[A-Za-z0-9áéíóúñÁÉÍÓÚÑ._-]+(?:\s+[A-Za-z0-9áéíóúñÁÉÍÓÚÑ._-]+)?)/g;
-  const parts = content.split(regex);
-
-  return parts.map((part, i) => {
-    if (part.startsWith('@') && part.length > 1) {
-      return (
-        <span
-          key={i}
-          className="inline-flex items-center text-[#024fff] font-bold bg-[#024fff]/8 px-1 py-0.2 rounded font-anek mx-0.5"
-        >
-          {part}
-        </span>
-      );
-    }
-    return part;
-  });
+  return splitMentions(content, users).map((part, i) =>
+    part.mention ? (
+      <span
+        key={i}
+        className="inline-flex items-center text-[#024fff] font-bold bg-[#024fff]/8 px-1 py-0.2 rounded font-anek mx-0.5"
+      >
+        {part.text}
+      </span>
+    ) : (
+      part.text
+    )
+  );
 }

@@ -1842,3 +1842,34 @@ describe('CreateTicketModal — "Nuevo ticket" después de ver otro ticket', () 
 
 
 
+
+// Bug reportado (2026-11-18): seleccionar texto arrastrando y soltar el mouse fuera del popup lo cerraba.
+describe('CreateTicketModal — cierre por click en el fondo', () => {
+  it('NO se cierra si el arrastre empezó adentro y se soltó en el fondo (selección de texto)', async () => {
+    const onClose = vi.fn();
+    render(<CreateTicketModal isOpen={true} onClose={onClose} />, { wrapper: createWrapper() });
+    const backdrop = screen.getByTestId('ticket-modal-backdrop');
+    const inside = backdrop.firstElementChild as HTMLElement;
+
+    // mousedown adentro → mouseup afuera → el navegador dispara click sobre el ancestro común (el fondo)
+    fireEvent.mouseDown(inside);
+    fireEvent.mouseUp(backdrop);
+    fireEvent(window, new MouseEvent('mouseup'));
+    fireEvent.click(backdrop);
+
+    await new Promise(r => setTimeout(r, 0));
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it('SÍ se cierra con un click que empieza y termina en el fondo', async () => {
+    const onClose = vi.fn();
+    render(<CreateTicketModal isOpen={true} onClose={onClose} />, { wrapper: createWrapper() });
+    const backdrop = screen.getByTestId('ticket-modal-backdrop');
+
+    fireEvent.mouseDown(backdrop);
+    fireEvent.mouseUp(backdrop);
+    fireEvent.click(backdrop);
+
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+  });
+});

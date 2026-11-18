@@ -2,14 +2,17 @@
 
 /**
  * Regla de formatos por estado de flujo:
- * 1. Pasan por diseño: carrusel, placa con diseño, story, video, reel.
+ * 1. Pasan por diseño: carrusel, placa con diseño, story, video, reel, álbum de fotos, imagen.
+ *    (Álbum e Imagen desde 2026-11-18: las chicas de diseño editan/retocan las fotos.)
  * 2. Pasan por audiovisual (edición): video, reel.
- * 3. No pasan por diseño ni audiovisual: álbum de fotos, imagen, hilo, texto solo, repost.
+ * 3. No pasan por diseño ni audiovisual: hilo, texto solo, repost.
  */
 
 // Formatos explícitos que pasan por Diseño Gráfico (Regla 1)
 const FORMATOS_DISENO = [
   'carrusel', 'carusel',
+  'álbum de fotos', 'album de fotos', 'álbum', 'album', 'fotogalería', 'fotogaleria', 'galería', 'galeria',
+  'imagen', 'imagen estática', 'imagen estatica', 'foto estática', 'foto estatica', 'foto', 'fotos',
   'placa con diseño', 'placa con diseno', 'placa gráfica', 'placa grafica', 'placa',
   'story', 'stories',
   'video', 'video largo',
@@ -28,8 +31,6 @@ const FORMATOS_EDICION = [
 
 // Formatos explícitos que NO pasan por diseño ni audiovisual (Regla 3: saltean Diseño y Edición)
 const NO_DISENO_FORMATS = [
-  'álbum de fotos', 'album de fotos', 'álbum', 'album', 'fotogalería', 'fotogaleria', 'galería', 'galeria',
-  'imagen', 'imagen estática', 'imagen estatica', 'foto estática', 'foto estatica', 'foto', 'fotos',
   'hilo', 'thread',
   'texto solo', 'texto',
   'repost',
@@ -105,6 +106,15 @@ export function requiresDesign(ticketOrFormats?: TicketFormatInput | null): bool
 
     return false;
   });
+}
+
+/**
+ * Determina si el ticket muestra el campo "Notas de diseño" (bajada).
+ * Misma regla que la etapa de Diseño: si el formato pasa por Diseño, muestra notas.
+ * Repost, Hilo y Texto no muestran notas.
+ */
+export function showsDesignNotes(ticketOrFormats?: TicketFormatInput | null): boolean {
+  return requiresDesign(ticketOrFormats);
 }
 
 /**
